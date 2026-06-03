@@ -1070,7 +1070,6 @@ class _DartboardPainter extends CustomPainter {
     // Radii (as fraction of r)
     final rBullInner  = r * 0.06;
     final rBull       = r * 0.13;
-    final rInner      = r * 0.35;
     final rTriple1    = r * 0.53;
     final rTriple2    = r * 0.60;
     final rDouble1    = r * 0.84;
@@ -1110,8 +1109,8 @@ class _DartboardPainter extends CustomPainter {
       final a0    = startAngle + i * angleStep;
       final sweep = angleStep;
 
-      // Inner single (multiplier 1)
-      drawArc(canvas, center, rInner, rTriple1, a0, sweep, _color(field, 1));
+      // Inner single (multiplier 1) — extends from bull to triple ring
+      drawArc(canvas, center, rBull, rTriple1, a0, sweep, _color(field, 1));
       // Triple ring (multiplier 3)
       drawArc(canvas, center, rTriple1, rTriple2, a0, sweep, _color(field, 3));
       // Outer single (multiplier 1)
@@ -1120,13 +1119,9 @@ class _DartboardPainter extends CustomPainter {
       drawArc(canvas, center, rDouble1, rDouble2, a0, sweep, _color(field, 2));
     }
 
-    // Bull (single bull = multiplier 1, key 25)
-    final bullColor   = _color(25, 1);
     // Bullseye (double bull = multiplier 2, key 25)
     final bullseyeColor = _color(25, 2);
 
-    canvas.drawCircle(center, rBull, Paint()..color = bullColor);
-    canvas.drawCircle(center, rBull, outlinePaint);
     canvas.drawCircle(center, rBullInner, Paint()..color = bullseyeColor);
     canvas.drawCircle(center, rBullInner, outlinePaint);
 
