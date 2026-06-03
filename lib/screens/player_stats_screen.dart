@@ -10,6 +10,7 @@ import '../models/game.dart';
 import '../providers/game_provider.dart' show minimumDartsForScore;
 import '../services/sync_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/layout.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -302,7 +303,10 @@ class PlayerStatsScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text('${player.name} · ${context.l10n.statistics}'),
       ),
-      body: FutureBuilder<_PlayerStats>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: FutureBuilder<_PlayerStats>(
         future: _loadStats(player),
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -335,6 +339,8 @@ class PlayerStatsScreen extends StatelessWidget {
           }
           return _StatsBody(player: player, stats: stats);
         },
+      ),
+        ),
       ),
     );
   }

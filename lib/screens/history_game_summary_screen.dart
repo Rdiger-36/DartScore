@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
+import '../utils/layout.dart';
 
 class HistoryGameSummaryScreen extends StatelessWidget {
   final Game game;
@@ -22,7 +23,10 @@ class HistoryGameSummaryScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
       ),
-      body: FutureBuilder<_GameData>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: FutureBuilder<_GameData>(
         future: _load(),
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -34,6 +38,8 @@ class HistoryGameSummaryScreen extends StatelessWidget {
           }
           return _SummaryBody(game: game, data: data, players: players);
         },
+      ),
+        ),
       ),
     );
   }
