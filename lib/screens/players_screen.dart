@@ -5,6 +5,7 @@ import '../providers/players_provider.dart';
 import '../models/player.dart';
 import 'player_stats_screen.dart';
 import 'sync_screen.dart';
+import '../utils/layout.dart';
 
 class PlayersScreen extends StatelessWidget {
   const PlayersScreen({super.key});
@@ -26,7 +27,10 @@ class PlayersScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<PlayersProvider>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: Consumer<PlayersProvider>(
         builder: (context, provider, _) {
           if (provider.players.isEmpty) {
             return Center(child: Text(l.noPlayers));
@@ -77,6 +81,8 @@ class PlayersScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addPlayer(context),
@@ -366,7 +372,9 @@ class _PlayerDialogState extends State<_PlayerDialog> {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
-    return AlertDialog(
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+      child: AlertDialog(
       title: Text(
           widget.initial == null ? l.addPlayerTitle : l.editPlayerTitle),
       content: SingleChildScrollView(
@@ -412,6 +420,7 @@ class _PlayerDialogState extends State<_PlayerDialog> {
           child: Text(l.save),
         ),
       ],
+    ),
     );
   }
 

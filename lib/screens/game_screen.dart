@@ -6,6 +6,7 @@ import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
 import 'game_summary_screen.dart';
+import '../utils/layout.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -110,7 +111,10 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ],
           ),
-          body: Column(
+          body: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction)),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ── Scoreboard ──────────────────────────────────────────────
@@ -162,6 +166,8 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ],
+          ),
+            ),
           ),
         );
       },

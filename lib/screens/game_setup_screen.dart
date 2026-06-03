@@ -7,6 +7,7 @@ import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
 import 'game_screen.dart';
+import '../utils/layout.dart';
 
 class GameSetupScreen extends StatefulWidget {
   const GameSetupScreen({super.key});
@@ -47,7 +48,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l.gameSetup)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
         children: [
           _Section(
             title: l.startScore,
