@@ -8,6 +8,7 @@ import '../models/player.dart';
 import '../providers/game_provider.dart';
 import 'game_screen.dart';
 import 'history_game_summary_screen.dart';
+import '../utils/layout.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -114,7 +115,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<_GameEntry>>(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: FutureBuilder<List<_GameEntry>>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -175,6 +179,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ],
           );
         },
+      ),
+        ),
       ),
     );
   }

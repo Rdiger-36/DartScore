@@ -9,6 +9,7 @@ import 'dart:io';
 import '../providers/game_provider.dart';
 import '../models/dart_throw.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/layout.dart';
 
 class GameSummaryScreen extends StatefulWidget {
   const GameSummaryScreen({super.key});
@@ -111,7 +112,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
         children: [
           // The card that gets captured as image
           RepaintBoundary(

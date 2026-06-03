@@ -199,10 +199,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_plugin_android_lifecycle
-      sha256: "38d1c268de9097ff59cf0e844ac38759fc78f76836d37edad06fa21e182055a0"
+      sha256: "3854fe5e3bff0b113c658f260b90c95dea17c92db0f2addeac2e343dd9969785"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.34"
+    version: "2.0.35"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -265,10 +265,10 @@ packages:
     dependency: transitive
     description:
       name: image_picker_android
-      sha256: "695b6a97b6a1de3525d2c4747302ee727a19910294d8161527d67aaea85e36af"
+      sha256: "6f3a1995eafb000333174fae92202622033b0ee7fd917a6cd3730295264df84a"
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.13+18"
+    version: "0.8.13+19"
   image_picker_for_web:
     dependency: transitive
     description:
@@ -609,10 +609,10 @@ packages:
     dependency: transitive
     description:
       name: shared_preferences_android
-      sha256: e8d4762b1e2e8578fc4d0fd548cebf24afd24f49719c08974df92834565e2c53
+      sha256: a2c49fc1fed7140cadd892d765bd47edbe4ac0b9c7e7e3c493dcb58126f99cf0
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.23"
+    version: "2.4.25"
   shared_preferences_foundation:
     dependency: transitive
     description:
