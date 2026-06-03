@@ -887,12 +887,19 @@ class _DartboardHeatmap extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Total hits per field (all multipliers combined)
+    // Total hits per field (all multipliers combined) for legend
     final perField = <int, int>{};
     for (final entry in segmentHits.entries) {
       perField[entry.key] = entry.value.values.fold(0, (a, b) => a + b);
     }
-    final maxHits = perField.values.fold(0, max).clamp(1, 999999);
+
+    // Global max across all individual segment×multiplier combinations
+    int globalMax = 1;
+    for (final muls in segmentHits.values) {
+      for (final count in muls.values) {
+        if (count > globalMax) globalMax = count;
+      }
+    }
 
     // Top hit fields for the legend
     final sorted = perField.entries.toList()
@@ -908,16 +915,46 @@ class _DartboardHeatmap extends StatelessWidget {
               aspectRatio: 1,
               child: CustomPaint(
                 painter: _DartboardPainter(
-                  perField: perField,
-                  maxHits: maxHits,
-                  primaryColor: cs.primary,
-                  surfaceColor: cs.surfaceContainerHighest,
+                  segmentHits: segmentHits,
+                  globalMax: globalMax,
                   outlineColor: cs.outline.withValues(alpha: 0.4),
                   onSurfaceColor: cs.onSurface,
                 ),
               ),
             ),
             const SizedBox(height: 10),
+            // Color scale legend
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    '0',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onSurface.withValues(alpha: 0.6),
+                        ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: SizedBox(
+                        height: 10,
+                        child: CustomPaint(painter: _HeatScalePainter()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'max',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: cs.onSurface.withValues(alpha: 0.6),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
             // Legend: top 3 fields
             Wrap(
               spacing: 8,
@@ -948,11 +985,54 @@ class _DartboardHeatmap extends StatelessWidget {
   }
 }
 
+// Horizontal gradient bar: gray → green → yellow → red
+class _HeatScalePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final gradient = LinearGradient(
+      colors: [
+        _heatColor(0.05),
+        _heatColor(0.25),
+        _heatColor(0.50),
+        _heatColor(0.75),
+        _heatColor(1.0),
+      ],
+    );
+    canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
+  }
+
+  @override
+  bool shouldRepaint(_HeatScalePainter old) => false;
+}
+
+// Maps intensity [0..1] to the 3-color heat scheme: green → yellow → red
+// intensity == 0 → fully transparent (no hits)
+Color _heatColor(double intensity) {
+  if (intensity <= 0) {
+    return const Color(0x00000000); // transparent – no hits
+  } else if (intensity < 0.5) {
+    // green → yellow
+    final t = intensity / 0.5;
+    return Color.lerp(
+      const Color(0xFF2E7D32), // dark green
+      const Color(0xFFF9A825), // amber/yellow
+      t,
+    )!.withValues(alpha: 0.20 + t * 0.50);
+  } else {
+    // yellow → red
+    final t = (intensity - 0.5) / 0.5;
+    return Color.lerp(
+      const Color(0xFFF9A825), // amber/yellow
+      const Color(0xFFB71C1C), // dark red
+      t,
+    )!.withValues(alpha: 0.65 + t * 0.35);
+  }
+}
+
 class _DartboardPainter extends CustomPainter {
-  final Map<int, int> perField;
-  final int maxHits;
-  final Color primaryColor;
-  final Color surfaceColor;
+  final Map<int, Map<int, int>> segmentHits;
+  final int globalMax;
   final Color outlineColor;
   final Color onSurfaceColor;
 
@@ -963,13 +1043,17 @@ class _DartboardPainter extends CustomPainter {
   ];
 
   _DartboardPainter({
-    required this.perField,
-    required this.maxHits,
-    required this.primaryColor,
-    required this.surfaceColor,
+    required this.segmentHits,
+    required this.globalMax,
     required this.outlineColor,
     required this.onSurfaceColor,
   });
+
+  Color _color(int field, int multiplier) {
+    final hits = segmentHits[field]?[multiplier] ?? 0;
+    final intensity = hits == 0 ? 0.0 : (hits / globalMax).clamp(0.05, 1.0);
+    return _heatColor(intensity);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -980,7 +1064,7 @@ class _DartboardPainter extends CustomPainter {
     // Radii (as fraction of r)
     final rBullInner  = r * 0.06;
     final rBull       = r * 0.13;
-    final rInner      = r * 0.35; // inner single ring starts
+    final rInner      = r * 0.35;
     final rTriple1    = r * 0.53;
     final rTriple2    = r * 0.60;
     final rDouble1    = r * 0.84;
@@ -995,7 +1079,6 @@ class _DartboardPainter extends CustomPainter {
     final segCount = _order.length;
     final angleStep = (2 * pi) / segCount;
     final halfStep  = angleStep / 2;
-    // Start angle: top = -pi/2, offset by half a segment so segment 20 is centered at top
     final startAngle = -pi / 2 - halfStep;
 
     void drawArc(Canvas c, Offset center, double r1, double r2,
@@ -1016,42 +1099,29 @@ class _DartboardPainter extends CustomPainter {
 
     final center = Offset(cx, cy);
 
-    // Draw 20 segments × 3 rings (inner single, triple, outer single, double)
     for (var i = 0; i < segCount; i++) {
       final field = _order[i];
-      final hits  = perField[field] ?? 0;
-      final intensity = hits == 0 ? 0.0 : (hits / maxHits).clamp(0.08, 1.0);
-      final heatColor = Color.lerp(
-          primaryColor.withValues(alpha: 0.12), primaryColor, intensity)!;
-
-      final a0 = startAngle + i * angleStep;
+      final a0    = startAngle + i * angleStep;
       final sweep = angleStep;
 
-      // Outer single (between triple and double rings)
-      drawArc(canvas, center, rTriple2, rDouble1, a0, sweep, heatColor);
-      // Triple ring
-      drawArc(canvas, center, rTriple1, rTriple2, a0, sweep,
-          hits > 0 ? heatColor.withValues(alpha: (heatColor.a * 1.4).clamp(0, 1)) : surfaceColor);
-      // Inner single
-      drawArc(canvas, center, rInner, rTriple1, a0, sweep, heatColor);
-      // Double ring
-      drawArc(canvas, center, rDouble1, rDouble2, a0, sweep,
-          hits > 0 ? heatColor.withValues(alpha: (heatColor.a * 1.4).clamp(0, 1)) : surfaceColor);
+      // Inner single (multiplier 1)
+      drawArc(canvas, center, rInner, rTriple1, a0, sweep, _color(field, 1));
+      // Triple ring (multiplier 3)
+      drawArc(canvas, center, rTriple1, rTriple2, a0, sweep, _color(field, 3));
+      // Outer single (multiplier 1)
+      drawArc(canvas, center, rTriple2, rDouble1, a0, sweep, _color(field, 1));
+      // Double ring (multiplier 2)
+      drawArc(canvas, center, rDouble1, rDouble2, a0, sweep, _color(field, 2));
     }
 
-    // Bull 25
-    final bullHits25 = perField[25] ?? 0;
-    final bullInt25  = bullHits25 == 0 ? 0.0 : (bullHits25 / maxHits).clamp(0.08, 1.0);
-    canvas.drawCircle(
-        center, rBull,
-        Paint()..color = Color.lerp(primaryColor.withValues(alpha: 0.12), primaryColor, bullInt25)!);
-    canvas.drawCircle(center, rBull, outlinePaint);
+    // Bull (single bull = multiplier 1, key 25)
+    final bullColor   = _color(25, 1);
+    // Bullseye (double bull = multiplier 2, key 25)
+    final bullseyeColor = _color(25, 2);
 
-    // Bullseye 50
-    canvas.drawCircle(
-        center, rBullInner,
-        Paint()..color = Color.lerp(primaryColor.withValues(alpha: 0.12), primaryColor, bullInt25)!
-            .withValues(alpha: (bullInt25 + 0.2).clamp(0, 1)));
+    canvas.drawCircle(center, rBull, Paint()..color = bullColor);
+    canvas.drawCircle(center, rBull, outlinePaint);
+    canvas.drawCircle(center, rBullInner, Paint()..color = bullseyeColor);
     canvas.drawCircle(center, rBullInner, outlinePaint);
 
     // Wire outer board boundary
@@ -1082,7 +1152,7 @@ class _DartboardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DartboardPainter old) =>
-      old.perField != perField || old.maxHits != maxHits;
+      old.segmentHits != segmentHits || old.globalMax != globalMax;
 }
 
 // ── Stability Card ────────────────────────────────────────────────────────────
