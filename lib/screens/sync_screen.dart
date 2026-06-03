@@ -9,6 +9,7 @@ import '../providers/players_provider.dart';
 import '../database/db_helper.dart';
 import '../models/player.dart';
 import '../services/sync_service.dart';
+import '../utils/layout.dart';
 
 enum _NameResolution { useExisting }
 
@@ -43,21 +44,34 @@ class _SyncScreenState extends State<SyncScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.syncTitle),
-        bottom: TabBar(
-          controller: _tab,
-          tabs: [
-            Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
-            Tab(icon: const Icon(Icons.download_rounded), text: context.l10n.syncReceive),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(kTextTabBarHeight),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+              child: TabBar(
+                controller: _tab,
+                tabs: [
+                  Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
+                  Tab(icon: const Icon(Icons.download_rounded), text: context.l10n.syncReceive),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
-      body: TabBarView(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: TabBarView(
         controller: _tab,
         physics: const NeverScrollableScrollPhysics(),
         children: const [
           _SenderTab(),
           _ReceiverTab(),
         ],
+      ),
+        ),
       ),
     );
   }

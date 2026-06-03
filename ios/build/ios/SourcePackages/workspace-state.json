@@ -1,0 +1,83 @@
+{
+  "object" : {
+    "artifacts" : [
+
+    ],
+    "dependencies" : [
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "flutterframework",
+          "kind" : "fileSystem",
+          "location" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/FlutterFramework",
+          "name" : "FlutterFramework"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/FlutterFramework"
+        },
+        "subpath" : "flutterframework"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "mobile_scanner-7.2.0",
+          "kind" : "fileSystem",
+          "location" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/mobile_scanner-7.2.0",
+          "name" : "mobile_scanner"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/mobile_scanner-7.2.0"
+        },
+        "subpath" : "mobile_scanner-7.2.0"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "share_plus-10.1.4",
+          "kind" : "fileSystem",
+          "location" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/share_plus-10.1.4",
+          "name" : "share_plus"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/share_plus-10.1.4"
+        },
+        "subpath" : "share_plus-10.1.4"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "shared_preferences_foundation-2.5.6",
+          "kind" : "fileSystem",
+          "location" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/shared_preferences_foundation-2.5.6",
+          "name" : "shared_preferences_foundation"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/shared_preferences_foundation-2.5.6"
+        },
+        "subpath" : "shared_preferences_foundation-2.5.6"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "sqflite_darwin-2.4.3",
+          "kind" : "fileSystem",
+          "location" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/sqflite_darwin-2.4.3",
+          "name" : "sqflite_darwin"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/niklas/AndroidStudioProjects/dartscore_app/ios/Flutter/ephemeral/Packages/.packages/sqflite_darwin-2.4.3"
+        },
+        "subpath" : "sqflite_darwin-2.4.3"
+      }
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}
