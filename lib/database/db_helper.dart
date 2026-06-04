@@ -248,13 +248,16 @@ class DbHelper {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
+    final isFinished = gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0;
+
     for (final entry in byPlayer.entries) {
       final playerId     = entry.key;
       final playerThrows = entry.value;
 
       final stats = <String, dynamic>{
         ..._computeStatsFromThrows(playerThrows),
-        'perfect_legs': _perfectLegsFor(playerThrows, minDarts),
+        'perfect_legs':    _perfectLegsFor(playerThrows, minDarts),
+        'games_finished':  isFinished,
       };
 
       final rows = await d.query('players', where: 'id = ?', whereArgs: [playerId]);
@@ -293,9 +296,16 @@ class DbHelper {
         totalPerfect  += _perfectLegsFor(gThrows, minDarts);
       }
 
+      // Count finished games for this player
+      final playerGameIds   = throws.map((t) => t.gameId).toSet();
+      final finishedCount   = allGames
+          .where((g) => playerGameIds.contains(g['id']) && g['finished_at'] != null)
+          .length;
+
       final stats = <String, dynamic>{
         ..._computeStatsFromThrows(throws),
-        'perfect_legs': totalPerfect,
+        'perfect_legs':   totalPerfect,
+        'games_finished': finishedCount,
       };
       final existing = player.localStatsJson;
       final merged   = (existing != null && existing.isNotEmpty)
@@ -485,6 +495,7 @@ class DbHelper {
       'checkout_attempts':  add('checkout_attempts'),
       'checkout_successes': add('checkout_successes'),
       'games_played':       add('games_played'),
+      'games_finished':     add('games_finished'),
       'score_sum_squares':  add('score_sum_squares'),
       'perfect_legs':       add('perfect_legs'),
       'co_at_sub40':  add('co_at_sub40'),  'co_ok_sub40':  add('co_ok_sub40'),
