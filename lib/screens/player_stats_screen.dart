@@ -96,7 +96,6 @@ Future<_PlayerStats> _loadStats(Player player) async {
 
   // Always reload from DB so local_stats_json reflects deletions done since screen opened
   player = await db.getPlayer(playerId) ?? player;
-  debugPrint('[STATS] localStatsJson=${player.localStatsJson == null ? 'null' : 'length=${player.localStatsJson!.length}'}');
 
   final throws = await db.getThrowsForPlayer(playerId);
   final gameIds = await db.getGameIdsForPlayer(playerId);
@@ -196,7 +195,6 @@ Future<_PlayerStats> _loadStats(Player player) async {
   // Snapshot recent throws — compact maps from deleted games
   var snapRecentThrows = <Map<String, dynamic>>[];
 
-  debugPrint('[STATS] liveTotalVisits=$liveTotalVisits localStatsJson=${player.localStatsJson == null ? 'null' : 'set'}');
   if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
     try {
       final p   = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
@@ -218,6 +216,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
       checkoutAttempts += pi('checkout_attempts');
       checkoutSuccess  += pi('checkout_successes');
       scoreSumSquares  += pi('score_sum_squares');
+      perfectLegs      += pi('perfect_legs');
       coAtSub40  += pi('co_at_sub40');  coOkSub40  += pi('co_ok_sub40');
       coAtSub60  += pi('co_at_sub60');  coOkSub60  += pi('co_ok_sub60');
       coAtSub100 += pi('co_at_sub100'); coOkSub100 += pi('co_ok_sub100');
@@ -269,10 +268,8 @@ Future<_PlayerStats> _loadStats(Player player) async {
             .toList();
       }
 
-      debugPrint('[STATS] merge ok — persistentVisits=$persistentTotalVisits persistentDarts=$persistentTotalDarts');
-    } catch (e, st) {
-      debugPrint('[STATS] merge ERROR: $e\n$st');
-    }
+    } catch (_) {}
+
   }
 
   // ── Week comparison from merged dailyStats ────────────────────────────────
@@ -380,16 +377,6 @@ Future<_PlayerStats> _loadStats(Player player) async {
   );
 }
 
-// ignore: unused_element
-void _debugStats(_PlayerStats s) {
-  debugPrint('[STATS RESULT] totalVisits=${s.totalVisits} totalDarts=${s.totalDarts} '
-      'avg=${s.average3Dart.toStringAsFixed(1)} '
-      'segmentHits=${s.segmentHits.length} scoreDist=${s.scoreDistribution.length} '
-      'stdDev=${s.scoreStdDev.toStringAsFixed(1)} '
-      'thisWeekVisits=${s.thisWeekVisits} lastWeekVisits=${s.lastWeekVisits} '
-      'coAt=${s.coAttemptSub40+s.coAttemptSub60+s.coAttemptSub100+s.coAttemptSub170} '
-      'recentThrows=${s.recentThrows.length}');
-}
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -417,7 +404,6 @@ class PlayerStatsScreen extends StatelessWidget {
             return Center(child: Text('Fehler: ${snap.error}'));
           }
           final stats = snap.data!;
-          _debugStats(stats);
           // No throws at all — show synced snapshot or empty state
           if (stats.totalVisits == 0 && player.syncedStats != null) {
             return _SyncedStatsView(player: player);
