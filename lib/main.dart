@@ -41,6 +41,34 @@ class _AppGate extends StatelessWidget {
   }
 }
 
+/// Locks orientation to portrait on phones; allows all orientations on tablets.
+class _OrientationLock extends StatefulWidget {
+  final Widget child;
+  const _OrientationLock({required this.child});
+
+  @override
+  State<_OrientationLock> createState() => _OrientationLockState();
+}
+
+class _OrientationLockState extends State<_OrientationLock> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isTablet = MediaQuery.sizeOf(context).shortestSide >= 600;
+    if (isTablet) {
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class DartScoreApp extends StatelessWidget {
   const DartScoreApp({super.key});
 
@@ -169,9 +197,14 @@ class DartScoreApp extends StatelessWidget {
           // On Android: wrap every route in SafeArea(top:false) so the
           // 3-button navigation bar never overlaps interactive content.
           // On iOS: the system handles safe-area insets natively.
-          builder: (context, child) => Platform.isAndroid
-              ? SafeArea(top: false, child: child!)
-              : child!,
+          builder: (context, child) {
+            final wrapped = _OrientationLock(
+              child: Platform.isAndroid
+                  ? SafeArea(top: false, child: child!)
+                  : child!,
+            );
+            return wrapped;
+          },
           localizationsDelegates: const [
             AppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,

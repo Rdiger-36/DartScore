@@ -13,93 +13,112 @@ class PlayersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final wideScreen = screenWidth >= 500;
+
+    final syncFab = FloatingActionButton.extended(
+      heroTag: 'sync',
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SyncScreen()),
+      ),
+      backgroundColor: Colors.green,
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.sync_rounded),
+      label: Text(l.syncProfile),
+    );
+    final addFab = FloatingActionButton.extended(
+      heroTag: 'addPlayer',
+      onPressed: () => _addPlayer(context),
+      icon: const Icon(Icons.person_add),
+      label: Text(l.addPlayer),
+    );
+
+    final listContent = Consumer<PlayersProvider>(
+      builder: (context, provider, _) {
+        if (provider.players.isEmpty) {
+          return Center(child: Text(l.noPlayers));
+        }
+
+        final primary = provider.primaryPlayer;
+        final others =
+            provider.players.where((p) => !p.isPrimary).toList();
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [
+            // ── Primary user card ──────────────────────────────────────
+            if (primary != null) ...[
+              _PrimaryPlayerCard(
+                player: primary,
+                onEdit: () => _editPlayer(context, primary),
+                onStats: () => _openStats(context, primary),
+              ),
+              if (others.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    l.players,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelMedium
+                        ?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+            ],
+
+            // ── Other players ──────────────────────────────────────────
+            ...others.map((p) => _OtherPlayerTile(
+                  player: p,
+                  onEdit: () => _editPlayer(context, p),
+                  onStats: () => _openStats(context, p),
+                  onDelete: () => _confirmDelete(
+                      context, context.read<PlayersProvider>(), p),
+                )),
+          ],
+        );
+      },
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l.playersTitle),
       ),
-      body: Stack(
-        children: [
-          Center(
-            child: ConstrainedBox(
+      // On wide screens the sync FAB stays bottom-left via Positioned.
+      body: wideScreen
+          ? Stack(children: [
+              Center(child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+                child: listContent,
+              )),
+              Positioned(
+                left: 16,
+                bottom: 16 + MediaQuery.of(context).padding.bottom,
+                child: syncFab,
+              ),
+            ])
+          : Center(child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-              child: Consumer<PlayersProvider>(
-        builder: (context, provider, _) {
-          if (provider.players.isEmpty) {
-            return Center(child: Text(l.noPlayers));
-          }
-
-          final primary = provider.primaryPlayer;
-          final others =
-              provider.players.where((p) => !p.isPrimary).toList();
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-            children: [
-              // ── Primary user card ──────────────────────────────────────
-              if (primary != null) ...[
-                _PrimaryPlayerCard(
-                  player: primary,
-                  onEdit: () => _editPlayer(context, primary),
-                  onStats: () => _openStats(context, primary),
-                ),
-                if (others.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      l.players,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelMedium
-                          ?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
-              ],
-
-              // ── Other players ──────────────────────────────────────────
-              ...others.map((p) => _OtherPlayerTile(
-                    player: p,
-                    onEdit: () => _editPlayer(context, p),
-                    onStats: () => _openStats(context, p),
-                    onDelete: () => _confirmDelete(context,
-                        context.read<PlayersProvider>(), p),
-                  )),
-            ],
-          );
-        },
-              ),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            bottom: 16 + MediaQuery.of(context).padding.bottom,
-            child: FloatingActionButton.extended(
-              heroTag: 'sync',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SyncScreen()),
-              ),
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.sync_rounded),
-              label: Text(l.syncProfile),
-            ),
-          ),
-        ],
-      ),
+              child: listContent,
+            )),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'addPlayer',
-        onPressed: () => _addPlayer(context),
-        icon: const Icon(Icons.person_add),
-        label: Text(context.l10n.addPlayer),
-      ),
+      // Narrow screens: stack both FABs (add player on top, sync below).
+      // Wide screens: only add-player here; sync is Positioned on the left.
+      floatingActionButton: wideScreen
+          ? addFab
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [addFab, const SizedBox(height: 12), syncFab],
+            ),
     );
   }
 
