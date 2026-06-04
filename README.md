@@ -111,6 +111,7 @@ This writes the correctly-sized icons into `android/app/src/main/res/` and `ios/
 
 ```
 lib/
+├── main.dart
 ├── database/
 │   └── db_helper.dart          # SQLite setup, migrations, all queries
 ├── l10n/
@@ -139,7 +140,8 @@ lib/
 ├── services/
 │   └── sync_service.dart       # QR / WiFi sync logic
 ├── utils/
-│   └── finish_calculator.dart  # Checkout route calculation
+│   ├── finish_calculator.dart  # Checkout route calculation
+│   └── layout.dart             # Responsive max-width helper
 └── widgets/
     ├── dartboard_input.dart    # Segment-level dart entry widget
     ├── dartboard_icon.dart
