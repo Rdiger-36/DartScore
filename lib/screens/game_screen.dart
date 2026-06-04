@@ -113,7 +113,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
           body: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction)),
+              constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction, maxWidth: kMaxGameWidth)),
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
