@@ -182,7 +182,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
     }
   }
 
-  final gamesFinished    = games.values.where((g) => g.finishedAt != null).length;
+  int gamesFinished      = games.values.where((g) => g.finishedAt != null).length;
   int liveTotalDarts     = throws.fold(0, (s, t) => s + t.dartsUsed);
   int liveTotalVisits    = throws.length;
   int liveNonBustVisits  = liveTotalVisits - busts;
@@ -217,6 +217,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
       checkoutSuccess  += pi('checkout_successes');
       scoreSumSquares  += pi('score_sum_squares');
       perfectLegs      += pi('perfect_legs');
+      gamesFinished    += pi('games_finished');
       coAtSub40  += pi('co_at_sub40');  coOkSub40  += pi('co_ok_sub40');
       coAtSub60  += pi('co_at_sub60');  coOkSub60  += pi('co_ok_sub60');
       coAtSub100 += pi('co_at_sub100'); coOkSub100 += pi('co_ok_sub100');
