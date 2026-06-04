@@ -143,7 +143,7 @@ class GameProvider extends ChangeNotifier {
     int maxSet,
   ) async {
     final teams       = game.teams!;
-    final legsToWin   = (game.legs / 2).ceil();
+    final legsToWin   = game.legs;
 
     // Compute legs/sets won per team
     final teamLegsWon = List<int>.filled(teams.length, 0);
@@ -249,7 +249,7 @@ class GameProvider extends ChangeNotifier {
   ) async {
     final legsWon     = <int, int>{for (final p in players) p.id!: 0};
     final setsWon     = <int, int>{for (final p in players) p.id!: 0};
-    final legsToWinSet = (game.legs / 2).ceil();
+    final legsToWinSet = game.legs;
 
     for (var s = 1; s <= maxSet; s++) {
       for (var l = 1; l <= maxLeg; l++) {
@@ -437,13 +437,23 @@ class GameProvider extends ChangeNotifier {
     final isPerfect  = minDarts != null && legDarts <= minDarts;
     final perfectLegs = state.perfectLegs + (isPerfect ? 1 : 0);
 
-    final legsToWinSet = (_game!.legs / 2).ceil();
+    // Solo game: no legs/sets — finish immediately on checkout
+    if (_playerStates.length == 1) {
+      _playerStates[_currentPlayerIndex] = state.copyWith(
+          legsWon: 0, setsWon: 0, perfectLegs: perfectLegs);
+      _gameOver = true;
+      _winnerId = state.player.id;
+      await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
+      return;
+    }
+
+    final legsToWinSet = _game!.legs;
     if (legsWon >= legsToWinSet) {
       // Set won
       setsWon += 1;
       legsWon  = 0;
 
-      final setsToWin = (_game!.sets / 2).ceil();
+      final setsToWin = _game!.sets;
       if (setsWon >= setsToWin) {
         // Game over
         _playerStates[_currentPlayerIndex] = state.copyWith(
@@ -453,9 +463,12 @@ class GameProvider extends ChangeNotifier {
         await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
         return;
       }
-      // New set — leg counter resets to 1
+      // New set — reset legs for all players
       _currentSet += 1;
       _currentLeg  = 1;
+      _playerStates = _playerStates
+          .map((s) => s.copyWith(legsWon: 0))
+          .toList();
     } else {
       // Same set, next leg
       _currentLeg += 1;
