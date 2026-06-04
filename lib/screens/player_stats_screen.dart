@@ -96,6 +96,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
 
   // Always reload from DB so local_stats_json reflects deletions done since screen opened
   player = await db.getPlayer(playerId) ?? player;
+  debugPrint('[STATS] localStatsJson=${player.localStatsJson == null ? 'null' : 'length=${player.localStatsJson!.length}'}');
 
   final throws = await db.getThrowsForPlayer(playerId);
   final gameIds = await db.getGameIdsForPlayer(playerId);
@@ -195,6 +196,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
   // Snapshot recent throws — compact maps from deleted games
   var snapRecentThrows = <Map<String, dynamic>>[];
 
+  debugPrint('[STATS] liveTotalVisits=$liveTotalVisits localStatsJson=${player.localStatsJson == null ? 'null' : 'set'}');
   if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
     try {
       final p   = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;

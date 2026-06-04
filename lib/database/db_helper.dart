@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/player.dart';
@@ -215,6 +216,7 @@ class DbHelper {
   Future<void> snapshotGameStats(int gameId) async {
     final d      = await db;
     final throws = await getThrowsForGame(gameId);
+    debugPrint('[SNAPSHOT] gameId=$gameId throws=${throws.length}');
     if (throws.isEmpty) return;
 
     final byPlayer = <int, List<DartThrow>>{};
@@ -227,18 +229,23 @@ class DbHelper {
       final playerThrows = entry.value;
 
       final stats = _computeStatsFromThrows(playerThrows);
+      debugPrint('[SNAPSHOT] playerId=$playerId visits=${stats['total_visits']} scored=${stats['total_scored']}');
 
       final rows = await d.query('players',
           where: 'id = ?', whereArgs: [playerId]);
-      if (rows.isEmpty) continue;
+      if (rows.isEmpty) { debugPrint('[SNAPSHOT] player not found!'); continue; }
       final existing = rows.first['local_stats_json'] as String?;
+      debugPrint('[SNAPSHOT] existing json: ${existing == null ? 'null' : 'length=${existing.length}'}');
 
       final merged = (existing != null && existing.isNotEmpty)
           ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
           : stats;
 
-      await d.update('players', {'local_stats_json': jsonEncode(merged)},
+      final encoded = jsonEncode(merged);
+      debugPrint('[SNAPSHOT] saving json length=${encoded.length}');
+      await d.update('players', {'local_stats_json': encoded},
           where: 'id = ?', whereArgs: [playerId]);
+      debugPrint('[SNAPSHOT] saved ok');
     }
   }
 
