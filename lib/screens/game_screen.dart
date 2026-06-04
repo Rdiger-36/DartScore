@@ -117,30 +117,49 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Scoreboard ──────────────────────────────────────────────
-              _Scoreboard(
-                states: states,
-                currentIdx: currentIdx,
-                game: game,
-                isSolo: isSolo,
-                liveRemaining: displayRemaining,
-                liveBust: _liveBust,
-                currentLeg: provider.currentLeg,
-                currentSet: provider.currentSet,
-                liveDartsInVisit: _liveDartsInVisit,
-                playerCheckIns: playerCheckIns,
-                playerCheckOuts: playerCheckOuts,
-                playerCheckedIn: playerCheckedIn,
+              // ── Scoreboard + reservierter Checkout-Bereich ───────────
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Scoreboard(
+                    states: states,
+                    currentIdx: currentIdx,
+                    game: game,
+                    isSolo: isSolo,
+                    liveRemaining: displayRemaining,
+                    liveBust: _liveBust,
+                    currentLeg: provider.currentLeg,
+                    currentSet: provider.currentSet,
+                    liveDartsInVisit: _liveDartsInVisit,
+                    playerCheckIns: playerCheckIns,
+                    playerCheckOuts: playerCheckOuts,
+                    playerCheckedIn: playerCheckedIn,
+                  ),
+                  const SizedBox(height: 6),
+                  // Fester Bereich für Checkout-Hinweis — Buttons verschieben sich nie
+                  SizedBox(
+                    height: 62,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: FinishSuggestionWidget(
+                        key: ValueKey(
+                          '${_liveBust ? current.remaining : displayRemaining}_$_liveDartsInVisit',
+                        ),
+                        remaining: _liveBust ? current.remaining : displayRemaining,
+                        favoriteDouble: current.player.favoriteDouble,
+                        dartsThrown: _liveDartsInVisit,
+                        checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
+                      ),
+                    ),
+                  ),
+                ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-              // ── Finish suggestion — updates live after each dart ─────────
-              FinishSuggestionWidget(
-                remaining: _liveBust ? current.remaining : displayRemaining,
-                favoriteDouble: current.player.favoriteDouble,
-                dartsThrown: _liveDartsInVisit,
-                checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
-              ),
-              const SizedBox(height: 6),
               // ── Dartboard input ─────────────────────────────────────────
               Expanded(
                 child: DartboardInput(
