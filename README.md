@@ -8,7 +8,7 @@ A feature-rich Flutter dart scoring app for Android and iOS. Track games, analys
 
 ### Game Modes
 - **501 / 301 / 201 / 701 / 1001** and other start scores
-- **Solo game** (open play, no opponent)
+- **Solo game** — single-player countdown with no legs/sets; finishes immediately on checkout
 - **Multiplayer** (2+ players, turn-based)
 - **Team game** — split players into teams sharing one score
 - **Legs & Sets** — configurable number of legs per set and sets per match
@@ -33,13 +33,13 @@ A feature-rich Flutter dart scoring app for Android and iOS. Track games, analys
 | **Overview** | Games played/won, legs won, total visits & darts |
 | **Accuracy** | 3-dart avg, bust count, bust rate, checkout rate |
 | **Score Distribution** | Horizontal bar chart bucketed in 20-point ranges |
-| **Dartboard Heatmap** | Real dartboard rendered with `CustomPainter`; segments coloured by hit frequency (requires games played with the current version) |
+| **Dartboard Heatmap** | Real dartboard rendered with `CustomPainter`; segments coloured by hit frequency per ring (single / double / triple) with a green → yellow → red scale |
 | **Consistency** | Standard deviation of visits displayed as a progress bar with label (Very Consistent → Very Variable) |
 | **Checkout by Range** | Checkout success rate split into brackets: ≤40 / 41–60 / 61–100 / 101–170 |
 | **Week Comparison** | This week vs last week: average, visits, 180s with delta arrows |
 | **Recent Throws** | Last 20 visits with score pill, remaining, leg, darts used, timestamp |
 
-Stats survive game history deletion: cleared games are folded into a persistent JSON snapshot stored on the player record.
+**All stats survive game history deletion.** Every section — heatmap, score distribution, Konstanz, checkout breakdown, week comparison, recent throws, perfect legs, games won — is folded into a persistent JSON snapshot on the player record before a game is removed. Deleting games (individually or via "Clear all") has no effect on displayed statistics.
 
 ### Sync (device-to-device, no server needed)
 - **Quick QR** — encodes profile + recent throws directly into a QR code; works anywhere, no network required
