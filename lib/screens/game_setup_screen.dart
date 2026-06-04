@@ -90,33 +90,6 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
           ),
           const SizedBox(height: 16),
           _Section(
-            title: l.legsSets,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Stepper(
-                    label: 'Legs',
-                    value: _legs,
-                    min: 1,
-                    max: 9,
-                    onChanged: (v) => setState(() => _legs = v),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _Stepper(
-                    label: 'Sets',
-                    value: _sets,
-                    min: 1,
-                    max: 9,
-                    onChanged: (v) => setState(() => _sets = v),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Section(
             title: l.players,
             child: allPlayers.isEmpty
                 ? Column(
@@ -149,6 +122,56 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                     }).toList(),
                   ),
           ),
+          // ── Legs & Sets (nur bei ≥2 Spielern) ─────────────────────────
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
+            _Section(
+              title: l.legsSets,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _Stepper(
+                      label: 'Legs',
+                      value: _legs,
+                      min: 1,
+                      max: 9,
+                      onChanged: (v) => setState(() => _legs = v),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _Stepper(
+                      label: 'Sets',
+                      value: _sets,
+                      min: 1,
+                      max: 9,
+                      onChanged: (v) => setState(() => _sets = v),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_selectedPlayers.length == 1) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 14,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    l.soloLegsHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           // ── Handicap ──────────────────────────────────────────────────
           if (_selectedPlayers.length >= 2)
@@ -239,12 +262,13 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   }
 
   Future<void> _startGame() async {
+    final isSolo = _selectedPlayers.length == 1;
     final game = Game(
       startScore: _startScore,
       gameMode: _gameMode,
       checkoutMode: _checkoutMode,
-      legs: _legs,
-      sets: _sets,
+      legs: isSolo ? 1 : _legs,
+      sets: isSolo ? 1 : _sets,
       createdAt: DateTime.now(),
     );
     final players = List.of(_selectedPlayers)..shuffle(Random());
