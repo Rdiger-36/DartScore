@@ -94,6 +94,9 @@ Future<_PlayerStats> _loadStats(Player player) async {
   final playerId = player.id!;
   final db = DbHelper.instance;
 
+  // Always reload from DB so local_stats_json reflects deletions done since screen opened
+  player = await db.getPlayer(playerId) ?? player;
+
   final throws = await db.getThrowsForPlayer(playerId);
   final gameIds = await db.getGameIdsForPlayer(playerId);
   final games = <int, Game>{};
@@ -104,34 +107,23 @@ Future<_PlayerStats> _loadStats(Player player) async {
     }
   }
 
+  // ── Accumulators for live throws ──────────────────────────────────────────
   int totalScored = 0, busts = 0, legsWon = 0;
   int highestVisit = 0, highestCheckout = 0;
   int count180 = 0, count140plus = 0, count100plus = 0;
   int checkoutAttempts = 0, checkoutSuccess = 0, perfectLegs = 0;
-  final scoreDistribution = <int, int>{};
-
-  // Extended stats accumulators
-  final segmentHits = <int, Map<int, int>>{}; // field → multiplier → count
-  final throwsPerDay = <String, int>{};
-  final scoreValues = <int>[]; // non-bust scores for std-dev
-  // Week windows (local time)
-  final now = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day);
-  final thisWeekStart = todayStart.subtract(Duration(days: todayStart.weekday - 1));
-  final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
-  final lastWeekEnd   = thisWeekStart;
-  double thisWeekScored = 0; int thisWeekDarts = 0;
-  double lastWeekScored = 0; int lastWeekDarts = 0;
-  int thisWeekVisits = 0, lastWeekVisits = 0;
-  int thisWeek180s = 0, lastWeek180s = 0;
-  // Checkout bracket counters
+  int scoreSumSquares = 0;
   int coAtSub40 = 0, coOkSub40 = 0;
   int coAtSub60 = 0, coOkSub60 = 0;
   int coAtSub100 = 0, coOkSub100 = 0;
   int coAtSub170 = 0, coOkSub170 = 0;
+  final scoreDistribution = <int, int>{};
+  final segmentHits       = <int, Map<int, int>>{};
+  // daily_stats: date → {scored, darts, visits, s180}
+  final dailyStats        = <String, Map<String, int>>{};
 
   for (final t in throws) {
-    // Parse individual dart hits for dartboard heatmap
+    // Heatmap
     if (t.hitsJson != null) {
       try {
         final hits = jsonDecode(t.hitsJson!) as List<dynamic>;
@@ -144,141 +136,237 @@ Future<_PlayerStats> _loadStats(Player player) async {
       } catch (_) {}
     }
 
-    // Activity heatmap — count every throw (bust or not) per local day
-    final dayKey = '${t.thrownAt.year}-'
+    // Daily stats (all throws, for activity and week windows)
+    final day = '${t.thrownAt.year}-'
         '${t.thrownAt.month.toString().padLeft(2, '0')}-'
         '${t.thrownAt.day.toString().padLeft(2, '0')}';
-    throwsPerDay[dayKey] = (throwsPerDay[dayKey] ?? 0) + 1;
-
-    // Week comparison windows
-    final inThisWeek = !t.thrownAt.isBefore(thisWeekStart);
-    final inLastWeek = !t.thrownAt.isBefore(lastWeekStart) && t.thrownAt.isBefore(lastWeekEnd);
+    final ds = dailyStats.putIfAbsent(day, () => {'scored': 0, 'darts': 0, 'visits': 0, 's180': 0});
+    ds['darts'] = (ds['darts'] ?? 0) + t.dartsUsed;
 
     if (t.bust) {
       busts++;
     } else {
-      totalScored += t.score;
-      scoreValues.add(t.score);
+      totalScored     += t.score;
+      scoreSumSquares += t.score * t.score;
       if (t.score > highestVisit) highestVisit = t.score;
       if (t.score == 180) count180++;
       if (t.score >= 140) count140plus++;
       if (t.score >= 100) count100plus++;
 
-      // Week comparison accumulation
-      if (inThisWeek) {
-        thisWeekScored += t.score;
-        thisWeekDarts  += t.dartsUsed;
-        thisWeekVisits++;
-        if (t.score == 180) thisWeek180s++;
-      } else if (inLastWeek) {
-        lastWeekScored += t.score;
-        lastWeekDarts  += t.dartsUsed;
-        lastWeekVisits++;
-        if (t.score == 180) lastWeek180s++;
-      }
+      final bucket = (t.score ~/ 20) * 20;
+      scoreDistribution[bucket] = (scoreDistribution[bucket] ?? 0) + 1;
 
-      // Any visit where remaining ≤ 170 is a checkout attempt
+      ds['scored'] = (ds['scored'] ?? 0) + t.score;
+      ds['visits'] = (ds['visits'] ?? 0) + 1;
+      if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
+
       if (t.remainingBefore <= 170) {
         checkoutAttempts++;
         final success = t.remainingBefore - t.score == 0;
-
-        // Bracket counters
         if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
         else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
         else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
         else                               { coAtSub170++; if (success) coOkSub170++; }
-
         if (success) {
           legsWon++;
           checkoutSuccess++;
           if (t.score > highestCheckout) highestCheckout = t.score;
-
           final legDarts = throws
               .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
               .fold(0, (s, x) => s + x.dartsUsed);
           final startForGame = games[t.gameId]?.startScore;
-          final minD = startForGame != null
-              ? minimumDartsForScore[startForGame]
-              : null;
+          final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
           if (minD != null && legDarts <= minD) perfectLegs++;
         }
       }
     }
-
-    // Score distribution — bucket by 20
-    if (!t.bust) {
-      final bucket = (t.score ~/ 20) * 20;
-      scoreDistribution[bucket] = (scoreDistribution[bucket] ?? 0) + 1;
-    }
   }
 
-  final gamesFinished = games.values.where((g) => g.finishedAt != null).length;
+  int gamesFinished      = games.values.where((g) => g.finishedAt != null).length;
+  int liveTotalDarts     = throws.fold(0, (s, t) => s + t.dartsUsed);
+  int liveTotalVisits    = throws.length;
+  int liveNonBustVisits  = liveTotalVisits - busts;
 
-  // ── Merge in persistent stats from cleared games ──────────────────────────
-  int persistentTotalDarts = 0;
+  // ── Merge persistent snapshot (deleted games) ─────────────────────────────
+  int persistentTotalDarts  = 0;
   int persistentTotalVisits = 0;
   int persistentGamesPlayed = 0;
+  int persistentNonBusts    = 0;
+  // Snapshot recent throws — compact maps from deleted games
+  var snapRecentThrows = <Map<String, dynamic>>[];
+
   if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
     try {
-      final p = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
+      final p   = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
       int pi(String k) => p[k] as int? ?? 0;
+
       persistentTotalDarts  = pi('total_darts');
       persistentTotalVisits = pi('total_visits');
       persistentGamesPlayed = pi('games_played');
+      persistentNonBusts    = persistentTotalVisits - pi('busts');
+
       totalScored      += pi('total_scored');
       busts            += pi('busts');
       legsWon          += pi('legs_won');
-      highestVisit      = max(highestVisit, pi('highest_visit'));
+      highestVisit      = max(highestVisit,    pi('highest_visit'));
       highestCheckout   = max(highestCheckout, pi('highest_checkout'));
       count180         += pi('count_180');
       count140plus     += pi('count_140_plus');
       count100plus     += pi('count_100_plus');
       checkoutAttempts += pi('checkout_attempts');
       checkoutSuccess  += pi('checkout_successes');
+      scoreSumSquares  += pi('score_sum_squares');
+      perfectLegs      += pi('perfect_legs');
+      gamesFinished    += pi('games_finished');
+      coAtSub40  += pi('co_at_sub40');  coOkSub40  += pi('co_ok_sub40');
+      coAtSub60  += pi('co_at_sub60');  coOkSub60  += pi('co_ok_sub60');
+      coAtSub100 += pi('co_at_sub100'); coOkSub100 += pi('co_ok_sub100');
+      coAtSub170 += pi('co_at_sub170'); coOkSub170 += pi('co_ok_sub170');
+
+      // Heatmap
+      final pHits = (p['segment_hits'] as Map?)?.cast<String, dynamic>();
+      if (pHits != null) {
+        for (final e in pHits.entries) {
+          final field = int.tryParse(e.key); if (field == null) continue;
+          final muls  = (e.value as Map?)?.cast<String, dynamic>() ?? {};
+          segmentHits.putIfAbsent(field, () => {});
+          for (final m in muls.entries) {
+            final mul = int.tryParse(m.key); if (mul == null) continue;
+            segmentHits[field]![mul] = (segmentHits[field]![mul] ?? 0) + (m.value as int? ?? 0);
+          }
+        }
+      }
+
+      // Score distribution
+      final pDist = (p['score_distribution'] as Map?)?.cast<String, dynamic>();
+      if (pDist != null) {
+        for (final e in pDist.entries) {
+          final bucket = int.tryParse(e.key); if (bucket == null) continue;
+          scoreDistribution[bucket] = (scoreDistribution[bucket] ?? 0) + (e.value as int? ?? 0);
+        }
+      }
+
+      // Daily stats (for week comparison and activity heatmap)
+      final pDs = (p['daily_stats'] as Map?)?.cast<String, dynamic>();
+      if (pDs != null) {
+        for (final e in pDs.entries) {
+          final day = e.key;
+          final src = (e.value as Map?)?.cast<String, dynamic>() ?? {};
+          final dst = dailyStats.putIfAbsent(day, () => {'scored': 0, 'darts': 0, 'visits': 0, 's180': 0});
+          dst['scored'] = (dst['scored'] ?? 0) + (src['scored'] as int? ?? 0);
+          dst['darts']  = (dst['darts']  ?? 0) + (src['darts']  as int? ?? 0);
+          dst['visits'] = (dst['visits'] ?? 0) + (src['visits'] as int? ?? 0);
+          dst['s180']   = (dst['s180']   ?? 0) + (src['s180']   as int? ?? 0);
+        }
+      }
+
+      // Snapshot recent throws
+      final pRt = (p['recent_throws'] as List?)?.cast<dynamic>();
+      if (pRt != null) {
+        snapRecentThrows = pRt
+            .whereType<Map>()
+            .map((m) => m.cast<String, dynamic>())
+            .toList();
+      }
+
     } catch (_) {}
+
   }
 
-  // recent visits, newest first (live throws only — for the recent-throws panel)
-  final recentThrows = throws.reversed.take(20).toList();
+  // ── Week comparison from merged dailyStats ────────────────────────────────
+  final now          = DateTime.now();
+  final todayStart   = DateTime(now.year, now.month, now.day);
+  final thisWeekStart = todayStart.subtract(Duration(days: todayStart.weekday - 1));
+  final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
+  double thisWeekScored = 0; int thisWeekDarts = 0;
+  double lastWeekScored = 0; int lastWeekDarts = 0;
+  int thisWeekVisits = 0, lastWeekVisits = 0;
+  int thisWeek180s = 0, lastWeek180s = 0;
+  final throwsPerDay = <String, int>{};
+
+  for (final entry in dailyStats.entries) {
+    final parts = entry.key.split('-');
+    if (parts.length != 3) continue;
+    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+    final ds   = entry.value;
+    throwsPerDay[entry.key] = (ds['visits'] ?? 0) + (busts > 0 ? 1 : 0); // approximate for heatmap
+
+    final inThisWeek = !date.isBefore(thisWeekStart);
+    final inLastWeek = !date.isBefore(lastWeekStart) && date.isBefore(thisWeekStart);
+    if (inThisWeek) {
+      thisWeekScored += ds['scored'] ?? 0;
+      thisWeekDarts  += ds['darts']  ?? 0;
+      thisWeekVisits += ds['visits'] ?? 0;
+      thisWeek180s   += ds['s180']   ?? 0;
+    } else if (inLastWeek) {
+      lastWeekScored += ds['scored'] ?? 0;
+      lastWeekDarts  += ds['darts']  ?? 0;
+      lastWeekVisits += ds['visits'] ?? 0;
+      lastWeek180s   += ds['s180']   ?? 0;
+    }
+  }
+
+  // ── Recent throws: live (newest first) + snapshot, deduplicated, top 20 ──
+  final liveRecent = throws.reversed.map((t) => {
+    'score':            t.score,
+    'darts_used':       t.dartsUsed,
+    'bust':             t.bust ? 1 : 0,
+    'remaining_before': t.remainingBefore,
+    'thrown_at':        t.thrownAt.millisecondsSinceEpoch,
+  }).toList();
+  final liveTimestamps = liveRecent.map((m) => m['thrown_at'] as int).toSet();
+  final combined = [
+    ...liveRecent,
+    ...snapRecentThrows.where((m) => !liveTimestamps.contains(m['thrown_at'] as int? ?? -1)),
+  ]..sort((a, b) => ((b['thrown_at'] as int? ?? 0).compareTo(a['thrown_at'] as int? ?? 0)));
+  final recentThrows = combined.take(20).map((m) => DartThrow(
+    gameId:          -1,
+    playerId:        playerId,
+    score:           m['score'] as int? ?? 0,
+    dartsUsed:       m['darts_used'] as int? ?? 3,
+    leg:             1,
+    set:             1,
+    remainingBefore: m['remaining_before'] as int? ?? 0,
+    thrownAt:        DateTime.fromMillisecondsSinceEpoch(m['thrown_at'] as int? ?? 0),
+    bust:            (m['bust'] as int? ?? 0) == 1,
+  )).toList();
+
+  // ── Standard deviation via Var = E[x²] − E[x]² ───────────────────────────
+  final totalNonBusts = liveNonBustVisits + persistentNonBusts;
+  double stdDev = 0;
+  if (totalNonBusts > 1 && scoreSumSquares > 0) {
+    final mean     = totalScored / totalNonBusts;
+    final variance = (scoreSumSquares / totalNonBusts) - mean * mean;
+    if (variance > 0) stdDev = sqrt(variance);
+  }
 
   final checkoutPercent =
       checkoutAttempts == 0 ? 0.0 : (checkoutSuccess / checkoutAttempts) * 100;
-
-  // Standard deviation
-  double stdDev = 0;
-  if (scoreValues.length > 1) {
-    final mean = scoreValues.reduce((a, b) => a + b) / scoreValues.length;
-    final variance = scoreValues
-        .map((s) => (s - mean) * (s - mean))
-        .reduce((a, b) => a + b) / scoreValues.length;
-    stdDev = sqrt(variance);
-  }
-
   final thisWeekAvg3 = thisWeekDarts == 0 ? 0.0 : (thisWeekScored / thisWeekDarts) * 3;
   final lastWeekAvg3 = lastWeekDarts == 0 ? 0.0 : (lastWeekScored / lastWeekDarts) * 3;
 
   return _PlayerStats(
-    gamesPlayed: gameIds.length + persistentGamesPlayed,
-    gamesFinished: gamesFinished,
-    totalVisits: throws.length + persistentTotalVisits,
-    totalDarts: throws.fold(0, (s, t) => s + t.dartsUsed) + persistentTotalDarts,
-    totalScored: totalScored,
-    busts: busts,
-    legsWon: legsWon,
-    highestVisit: highestVisit,
+    gamesPlayed:    gameIds.length + persistentGamesPlayed,
+    gamesFinished:  gamesFinished,
+    totalVisits:    liveTotalVisits + persistentTotalVisits,
+    totalDarts:     liveTotalDarts  + persistentTotalDarts,
+    totalScored:    totalScored,
+    busts:          busts,
+    legsWon:        legsWon,
+    highestVisit:   highestVisit,
     highestCheckout: highestCheckout,
-    count180: count180,
-    count140plus: count140plus,
-    count100plus: count100plus,
+    count180:       count180,
+    count140plus:   count140plus,
+    count100plus:   count100plus,
     checkoutPercent: checkoutPercent,
-    recentThrows: recentThrows,
+    recentThrows:   recentThrows,
     scoreDistribution: scoreDistribution,
-    perfectLegs: perfectLegs,
-    segmentHits: segmentHits,
-    scoreStdDev: stdDev,
-    throwsPerDay: throwsPerDay,
-    thisWeekAvg: thisWeekAvg3,
-    lastWeekAvg: lastWeekAvg3,
+    perfectLegs:    perfectLegs,
+    segmentHits:    segmentHits,
+    scoreStdDev:    stdDev,
+    throwsPerDay:   throwsPerDay,
+    thisWeekAvg:    thisWeekAvg3,
+    lastWeekAvg:    lastWeekAvg3,
     thisWeekVisits: thisWeekVisits,
     lastWeekVisits: lastWeekVisits,
     thisWeek180s: thisWeek180s,
@@ -289,6 +377,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
     coAttemptSub170: coAtSub170, coSuccessSub170: coOkSub170,
   );
 }
+
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
