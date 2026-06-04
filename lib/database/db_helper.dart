@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/player.dart';
@@ -212,12 +211,37 @@ class DbHelper {
   }
 
   /// Snapshots stats for ONE game's throws into each involved player's
+  // Mirrors game_provider.dart — kept local to avoid circular import.
+  static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
+
+  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
+    if (minDarts == null) return 0;
+    int count = 0;
+    // Group darts used per leg (gameId-set-leg key)
+    final legDarts = <String, int>{};
+    for (final t in throws) {
+      final k = '${t.gameId}-${t.set}-${t.leg}';
+      legDarts[k] = (legDarts[k] ?? 0) + t.dartsUsed;
+    }
+    for (final t in throws) {
+      if (!t.bust && t.remainingBefore - t.score == 0) {
+        final k = '${t.gameId}-${t.set}-${t.leg}';
+        if ((legDarts[k] ?? 999) <= minDarts) count++;
+      }
+    }
+    return count;
+  }
+
   /// [local_stats_json]. Call this BEFORE [deleteGame].
   Future<void> snapshotGameStats(int gameId) async {
     final d      = await db;
     final throws = await getThrowsForGame(gameId);
-    debugPrint('[SNAPSHOT] gameId=$gameId throws=${throws.length}');
     if (throws.isEmpty) return;
+
+    // Fetch startScore to compute perfect legs
+    final gameRows  = await d.query('games', where: 'id = ?', whereArgs: [gameId]);
+    final startScore = gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
+    final minDarts   = startScore != null ? _kMinDarts[startScore] : null;
 
     final byPlayer = <int, List<DartThrow>>{};
     for (final t in throws) {
@@ -228,24 +252,21 @@ class DbHelper {
       final playerId     = entry.key;
       final playerThrows = entry.value;
 
-      final stats = _computeStatsFromThrows(playerThrows);
-      debugPrint('[SNAPSHOT] playerId=$playerId visits=${stats['total_visits']} scored=${stats['total_scored']}');
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(playerThrows),
+        'perfect_legs': _perfectLegsFor(playerThrows, minDarts),
+      };
 
-      final rows = await d.query('players',
-          where: 'id = ?', whereArgs: [playerId]);
-      if (rows.isEmpty) { debugPrint('[SNAPSHOT] player not found!'); continue; }
+      final rows = await d.query('players', where: 'id = ?', whereArgs: [playerId]);
+      if (rows.isEmpty) continue;
       final existing = rows.first['local_stats_json'] as String?;
-      debugPrint('[SNAPSHOT] existing json: ${existing == null ? 'null' : 'length=${existing.length}'}');
 
       final merged = (existing != null && existing.isNotEmpty)
           ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
           : stats;
 
-      final encoded = jsonEncode(merged);
-      debugPrint('[SNAPSHOT] saving json length=${encoded.length}');
-      await d.update('players', {'local_stats_json': encoded},
+      await d.update('players', {'local_stats_json': jsonEncode(merged)},
           where: 'id = ?', whereArgs: [playerId]);
-      debugPrint('[SNAPSHOT] saved ok');
     }
   }
 
@@ -255,11 +276,27 @@ class DbHelper {
     final d       = await db;
     final players = await getPlayers();
 
+    // Build gameId → startScore map for perfect-leg computation
+    final allGames    = await d.query('games');
+    final startScores = {for (final g in allGames) g['id'] as int: g['start_score'] as int};
+
     for (final player in players) {
       final throws = await getThrowsForPlayer(player.id!);
       if (throws.isEmpty) continue;
 
-      final stats    = _computeStatsFromThrows(throws);
+      // Perfect legs: compute per game since each game has its own minDarts
+      int totalPerfect = 0;
+      final gameIds = throws.map((t) => t.gameId).toSet();
+      for (final gid in gameIds) {
+        final gThrows  = throws.where((t) => t.gameId == gid).toList();
+        final minDarts = _kMinDarts[startScores[gid]];
+        totalPerfect  += _perfectLegsFor(gThrows, minDarts);
+      }
+
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(throws),
+        'perfect_legs': totalPerfect,
+      };
       final existing = player.localStatsJson;
       final merged   = (existing != null && existing.isNotEmpty)
           ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
@@ -449,6 +486,7 @@ class DbHelper {
       'checkout_successes': add('checkout_successes'),
       'games_played':       add('games_played'),
       'score_sum_squares':  add('score_sum_squares'),
+      'perfect_legs':       add('perfect_legs'),
       'co_at_sub40':  add('co_at_sub40'),  'co_ok_sub40':  add('co_ok_sub40'),
       'co_at_sub60':  add('co_at_sub60'),  'co_ok_sub60':  add('co_ok_sub60'),
       'co_at_sub100': add('co_at_sub100'), 'co_ok_sub100': add('co_ok_sub100'),
