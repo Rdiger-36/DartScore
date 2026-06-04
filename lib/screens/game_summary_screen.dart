@@ -119,7 +119,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             key: _cardKey,
             child: Container(
               color: cs.surface,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
                 children: [
                   // Winner banner
