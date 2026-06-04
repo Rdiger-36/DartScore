@@ -380,6 +380,17 @@ Future<_PlayerStats> _loadStats(Player player) async {
   );
 }
 
+// ignore: unused_element
+void _debugStats(_PlayerStats s) {
+  debugPrint('[STATS RESULT] totalVisits=${s.totalVisits} totalDarts=${s.totalDarts} '
+      'avg=${s.average3Dart.toStringAsFixed(1)} '
+      'segmentHits=${s.segmentHits.length} scoreDist=${s.scoreDistribution.length} '
+      'stdDev=${s.scoreStdDev.toStringAsFixed(1)} '
+      'thisWeekVisits=${s.thisWeekVisits} lastWeekVisits=${s.lastWeekVisits} '
+      'coAt=${s.coAttemptSub40+s.coAttemptSub60+s.coAttemptSub100+s.coAttemptSub170} '
+      'recentThrows=${s.recentThrows.length}');
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 class PlayerStatsScreen extends StatelessWidget {
@@ -406,6 +417,7 @@ class PlayerStatsScreen extends StatelessWidget {
             return Center(child: Text('Fehler: ${snap.error}'));
           }
           final stats = snap.data!;
+          _debugStats(stats);
           // No throws at all — show synced snapshot or empty state
           if (stats.totalVisits == 0 && player.syncedStats != null) {
             return _SyncedStatsView(player: player);
