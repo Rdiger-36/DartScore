@@ -268,7 +268,11 @@ Future<_PlayerStats> _loadStats(Player player) async {
             .map((m) => m.cast<String, dynamic>())
             .toList();
       }
-    } catch (_) {}
+
+      debugPrint('[STATS] merge ok — persistentVisits=$persistentTotalVisits persistentDarts=$persistentTotalDarts');
+    } catch (e, st) {
+      debugPrint('[STATS] merge ERROR: $e\n$st');
+    }
   }
 
   // ── Week comparison from merged dailyStats ────────────────────────────────
