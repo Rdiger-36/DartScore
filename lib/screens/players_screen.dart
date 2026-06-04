@@ -16,21 +16,13 @@ class PlayersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l.playersTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync_rounded),
-            tooltip: l.syncProfile,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SyncScreen()),
-            ),
-          ),
-        ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-          child: Consumer<PlayersProvider>(
+      body: Stack(
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+              child: Consumer<PlayersProvider>(
         builder: (context, provider, _) {
           if (provider.players.isEmpty) {
             return Center(child: Text(l.noPlayers));
@@ -81,10 +73,29 @@ class PlayersScreen extends StatelessWidget {
             ],
           );
         },
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            bottom: 16 + MediaQuery.of(context).padding.bottom,
+            child: FloatingActionButton.extended(
+              heroTag: 'sync',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SyncScreen()),
+              ),
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.sync_rounded),
+              label: Text(l.syncProfile),
+            ),
+          ),
+        ],
       ),
-        ),
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'addPlayer',
         onPressed: () => _addPlayer(context),
         icon: const Icon(Icons.person_add),
         label: Text(context.l10n.addPlayer),
