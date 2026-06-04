@@ -211,25 +211,56 @@ class DbHelper {
   }
 
   /// Snapshots stats for ONE game's throws into each involved player's
+  // Mirrors game_provider.dart — kept local to avoid circular import.
+  static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
+
+  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
+    if (minDarts == null) return 0;
+    int count = 0;
+    // Group darts used per leg (gameId-set-leg key)
+    final legDarts = <String, int>{};
+    for (final t in throws) {
+      final k = '${t.gameId}-${t.set}-${t.leg}';
+      legDarts[k] = (legDarts[k] ?? 0) + t.dartsUsed;
+    }
+    for (final t in throws) {
+      if (!t.bust && t.remainingBefore - t.score == 0) {
+        final k = '${t.gameId}-${t.set}-${t.leg}';
+        if ((legDarts[k] ?? 999) <= minDarts) count++;
+      }
+    }
+    return count;
+  }
+
   /// [local_stats_json]. Call this BEFORE [deleteGame].
   Future<void> snapshotGameStats(int gameId) async {
     final d      = await db;
     final throws = await getThrowsForGame(gameId);
     if (throws.isEmpty) return;
 
+    // Fetch startScore to compute perfect legs
+    final gameRows  = await d.query('games', where: 'id = ?', whereArgs: [gameId]);
+    final startScore = gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
+    final minDarts   = startScore != null ? _kMinDarts[startScore] : null;
+
     final byPlayer = <int, List<DartThrow>>{};
     for (final t in throws) {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
+    final isFinished = gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0;
+
     for (final entry in byPlayer.entries) {
       final playerId     = entry.key;
       final playerThrows = entry.value;
 
-      final stats = _computeStatsFromThrows(playerThrows);
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(playerThrows),
+        'perfect_legs':    _perfectLegsFor(playerThrows, minDarts),
+        'games_finished':  isFinished,
+      };
 
-      final rows = await d.query('players',
-          where: 'id = ?', whereArgs: [playerId]);
+      final rows = await d.query('players', where: 'id = ?', whereArgs: [playerId]);
       if (rows.isEmpty) continue;
       final existing = rows.first['local_stats_json'] as String?;
 
@@ -248,11 +279,34 @@ class DbHelper {
     final d       = await db;
     final players = await getPlayers();
 
+    // Build gameId → startScore map for perfect-leg computation
+    final allGames    = await d.query('games');
+    final startScores = {for (final g in allGames) g['id'] as int: g['start_score'] as int};
+
     for (final player in players) {
       final throws = await getThrowsForPlayer(player.id!);
       if (throws.isEmpty) continue;
 
-      final stats    = _computeStatsFromThrows(throws);
+      // Perfect legs: compute per game since each game has its own minDarts
+      int totalPerfect = 0;
+      final gameIds = throws.map((t) => t.gameId).toSet();
+      for (final gid in gameIds) {
+        final gThrows  = throws.where((t) => t.gameId == gid).toList();
+        final minDarts = _kMinDarts[startScores[gid]];
+        totalPerfect  += _perfectLegsFor(gThrows, minDarts);
+      }
+
+      // Count finished games for this player
+      final playerGameIds   = throws.map((t) => t.gameId).toSet();
+      final finishedCount   = allGames
+          .where((g) => playerGameIds.contains(g['id']) && g['finished_at'] != null)
+          .length;
+
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(throws),
+        'perfect_legs':   totalPerfect,
+        'games_finished': finishedCount,
+      };
       final existing = player.localStatsJson;
       final merged   = (existing != null && existing.isNotEmpty)
           ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
@@ -263,27 +317,71 @@ class DbHelper {
     }
   }
 
-  static Map<String, int> _computeStatsFromThrows(List<DartThrow> throws) {
+  static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
     int totalDarts = 0, totalScored = 0;
     int busts = 0, legsWon = 0;
     int highestVisit = 0, highestCheckout = 0;
     int count180 = 0, count140plus = 0, count100plus = 0;
     int checkoutAttempts = 0, checkoutSuccesses = 0;
+    int scoreSumSquares = 0;
+    int coAtSub40 = 0, coOkSub40 = 0;
+    int coAtSub60 = 0, coOkSub60 = 0;
+    int coAtSub100 = 0, coOkSub100 = 0;
+    int coAtSub170 = 0, coOkSub170 = 0;
+    final segmentHits    = <String, Map<String, int>>{};
+    final scoreDistrib   = <String, int>{};
+    // date → {scored, darts, visits, s180} for week-comparison reconstruction
+    final dailyStats     = <String, Map<String, int>>{};
+    final gameIds = throws.map((t) => t.gameId).toSet();
 
     for (final t in throws) {
       totalDarts += t.dartsUsed;
+
+      // Heatmap
+      if (t.hitsJson != null) {
+        try {
+          final hits = jsonDecode(t.hitsJson!) as List<dynamic>;
+          for (final h in hits) {
+            final field = (h['f'] as int).toString();
+            final mul   = (h['m'] as int).toString();
+            segmentHits.putIfAbsent(field, () => {});
+            segmentHits[field]![mul] = (segmentHits[field]![mul] ?? 0) + 1;
+          }
+        } catch (_) {}
+      }
+
+      // Daily stats (all throws, bust or not — for activity heat and week windows)
+      final day = '${t.thrownAt.year}-'
+          '${t.thrownAt.month.toString().padLeft(2, '0')}-'
+          '${t.thrownAt.day.toString().padLeft(2, '0')}';
+      final ds = dailyStats.putIfAbsent(day, () => {'scored': 0, 'darts': 0, 'visits': 0, 's180': 0});
+      ds['darts'] = (ds['darts'] ?? 0) + t.dartsUsed;
+
       if (t.bust) {
         busts++;
       } else {
-        totalScored += t.score;
+        totalScored     += t.score;
+        scoreSumSquares += t.score * t.score;
         if (t.score > highestVisit) highestVisit = t.score;
         if (t.score == 180) count180++;
         if (t.score >= 140) count140plus++;
         if (t.score >= 100) count100plus++;
 
+        final bucket = ((t.score ~/ 20) * 20).toString();
+        scoreDistrib[bucket] = (scoreDistrib[bucket] ?? 0) + 1;
+
+        ds['scored']  = (ds['scored']  ?? 0) + t.score;
+        ds['visits']  = (ds['visits']  ?? 0) + 1;
+        if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
+
         if (t.remainingBefore <= 170) {
           checkoutAttempts++;
-          if (t.remainingBefore - t.score == 0) {
+          final success = t.remainingBefore - t.score == 0;
+          if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
+          else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
+          else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
+          else                               { coAtSub170++; if (success) coOkSub170++; }
+          if (success) {
             legsWon++;
             checkoutSuccesses++;
             if (t.score > highestCheckout) highestCheckout = t.score;
@@ -291,6 +389,17 @@ class DbHelper {
         }
       }
     }
+
+    // Recent throws — last 20, newest first, as compact maps
+    final sortedThrows = [...throws]
+      ..sort((a, b) => b.thrownAt.compareTo(a.thrownAt));
+    final recentThrows = sortedThrows.take(20).map((t) => {
+      'score':            t.score,
+      'darts_used':       t.dartsUsed,
+      'bust':             t.bust ? 1 : 0,
+      'remaining_before': t.remainingBefore,
+      'thrown_at':        t.thrownAt.millisecondsSinceEpoch,
+    }).toList();
 
     return {
       'total_darts':        totalDarts,
@@ -305,15 +414,73 @@ class DbHelper {
       'count_100_plus':     count100plus,
       'checkout_attempts':  checkoutAttempts,
       'checkout_successes': checkoutSuccesses,
+      'games_played':       gameIds.length,
+      'score_sum_squares':  scoreSumSquares,
+      'co_at_sub40':  coAtSub40,  'co_ok_sub40':  coOkSub40,
+      'co_at_sub60':  coAtSub60,  'co_ok_sub60':  coOkSub60,
+      'co_at_sub100': coAtSub100, 'co_ok_sub100': coOkSub100,
+      'co_at_sub170': coAtSub170, 'co_ok_sub170': coOkSub170,
+      'segment_hits':       segmentHits,
+      'score_distribution': scoreDistrib,
+      'daily_stats':        dailyStats,
+      'recent_throws':      recentThrows,
     };
   }
 
   static Map<String, dynamic> _mergeStats(
     Map<String, dynamic> a,
-    Map<String, int> b,
+    Map<String, dynamic> b,
   ) {
-    int add(String k) => (a[k] as int? ?? 0) + (b[k] ?? 0);
-    int mx(String k)  => max(a[k] as int? ?? 0, b[k] ?? 0);
+    int add(String k) => (a[k] as int? ?? 0) + (b[k] as int? ?? 0);
+    int mx(String k)  => max(a[k] as int? ?? 0, b[k] as int? ?? 0);
+
+    // segment_hits: field → multiplier → count
+    final aHits = (a['segment_hits'] as Map?)?.cast<String, dynamic>() ?? {};
+    final bHits = (b['segment_hits'] as Map?)?.cast<String, dynamic>() ?? {};
+    final mergedHits = <String, Map<String, int>>{};
+    for (final f in {...aHits.keys, ...bHits.keys}) {
+      final aM = (aHits[f] as Map?)?.cast<String, dynamic>() ?? {};
+      final bM = (bHits[f] as Map?)?.cast<String, dynamic>() ?? {};
+      final m  = <String, int>{};
+      for (final mul in {...aM.keys, ...bM.keys}) {
+        m[mul] = (aM[mul] as int? ?? 0) + (bM[mul] as int? ?? 0);
+      }
+      mergedHits[f] = m;
+    }
+
+    // score_distribution: bucket → count
+    final aDist = (a['score_distribution'] as Map?)?.cast<String, dynamic>() ?? {};
+    final bDist = (b['score_distribution'] as Map?)?.cast<String, dynamic>() ?? {};
+    final mergedDist = <String, int>{};
+    for (final k in {...aDist.keys, ...bDist.keys}) {
+      mergedDist[k] = (aDist[k] as int? ?? 0) + (bDist[k] as int? ?? 0);
+    }
+
+    // daily_stats: date → {scored, darts, visits, s180}
+    final aDs = (a['daily_stats'] as Map?)?.cast<String, dynamic>() ?? {};
+    final bDs = (b['daily_stats'] as Map?)?.cast<String, dynamic>() ?? {};
+    final mergedDs = <String, Map<String, int>>{};
+    for (final day in {...aDs.keys, ...bDs.keys}) {
+      final aD = (aDs[day] as Map?)?.cast<String, dynamic>() ?? {};
+      final bD = (bDs[day] as Map?)?.cast<String, dynamic>() ?? {};
+      mergedDs[day] = {
+        'scored':  (aD['scored']  as int? ?? 0) + (bD['scored']  as int? ?? 0),
+        'darts':   (aD['darts']   as int? ?? 0) + (bD['darts']   as int? ?? 0),
+        'visits':  (aD['visits']  as int? ?? 0) + (bD['visits']  as int? ?? 0),
+        's180':    (aD['s180']    as int? ?? 0) + (bD['s180']    as int? ?? 0),
+      };
+    }
+
+    // recent_throws: combine, sort newest-first, keep 20
+    final aRt = (a['recent_throws'] as List?)?.cast<dynamic>() ?? [];
+    final bRt = (b['recent_throws'] as List?)?.cast<dynamic>() ?? [];
+    final combined = [...aRt, ...bRt]
+        .cast<Map<String, dynamic>>()
+        .toList()
+      ..sort((x, y) => ((y['thrown_at'] as int? ?? 0)
+          .compareTo(x['thrown_at'] as int? ?? 0)));
+    final mergedRt = combined.take(20).toList();
+
     return {
       'total_darts':        add('total_darts'),
       'total_scored':       add('total_scored'),
@@ -327,6 +494,18 @@ class DbHelper {
       'count_100_plus':     add('count_100_plus'),
       'checkout_attempts':  add('checkout_attempts'),
       'checkout_successes': add('checkout_successes'),
+      'games_played':       add('games_played'),
+      'games_finished':     add('games_finished'),
+      'score_sum_squares':  add('score_sum_squares'),
+      'perfect_legs':       add('perfect_legs'),
+      'co_at_sub40':  add('co_at_sub40'),  'co_ok_sub40':  add('co_ok_sub40'),
+      'co_at_sub60':  add('co_at_sub60'),  'co_ok_sub60':  add('co_ok_sub60'),
+      'co_at_sub100': add('co_at_sub100'), 'co_ok_sub100': add('co_ok_sub100'),
+      'co_at_sub170': add('co_at_sub170'), 'co_ok_sub170': add('co_ok_sub170'),
+      'segment_hits':       mergedHits,
+      'score_distribution': mergedDist,
+      'daily_stats':        mergedDs,
+      'recent_throws':      mergedRt,
     };
   }
 
