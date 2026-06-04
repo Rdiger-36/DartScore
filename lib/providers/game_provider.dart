@@ -437,6 +437,16 @@ class GameProvider extends ChangeNotifier {
     final isPerfect  = minDarts != null && legDarts <= minDarts;
     final perfectLegs = state.perfectLegs + (isPerfect ? 1 : 0);
 
+    // Solo game: no legs/sets — finish immediately on checkout
+    if (_playerStates.length == 1) {
+      _playerStates[_currentPlayerIndex] = state.copyWith(
+          legsWon: 0, setsWon: 0, perfectLegs: perfectLegs);
+      _gameOver = true;
+      _winnerId = state.player.id;
+      await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
+      return;
+    }
+
     final legsToWinSet = (_game!.legs / 2).ceil();
     if (legsWon >= legsToWinSet) {
       // Set won
