@@ -30,12 +30,37 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
 
   // ── Team game ─────────────────────────────────────────────────────────────
   bool _teamGameEnabled = false;
-  final Map<Player, int> _teamAssignment = {}; // player → team index (0 or 1)
+  final Map<Player, int> _teamAssignment = {}; // player → team index
   final List<String> _teamNames = ['Team 1', 'Team 2'];
   final List<TextEditingController> _teamNameCtrl = [
     TextEditingController(text: 'Team 1'),
     TextEditingController(text: 'Team 2'),
   ];
+
+  void _addTeam() {
+    setState(() {
+      final idx = _teamNames.length + 1;
+      _teamNames.add('Team $idx');
+      _teamNameCtrl.add(TextEditingController(text: 'Team $idx'));
+    });
+  }
+
+  void _removeTeam(int ti) {
+    if (_teamNames.length <= 2) return;
+    setState(() {
+      _teamNames.removeAt(ti);
+      _teamNameCtrl.removeAt(ti);
+      // Reassign players that were in removed team or have out-of-range index
+      for (final p in _selectedPlayers) {
+        final current = _teamAssignment[p] ?? 0;
+        if (current == ti) {
+          _teamAssignment[p] = 0;
+        } else if (current > ti) {
+          _teamAssignment[p] = current - 1;
+        }
+      }
+    });
+  }
 
   static const _scoreOptions = [101, 170, 201, 301, 501, 701, 1001];
 
@@ -208,19 +233,18 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               onToggle: (v) => setState(() {
                 _teamGameEnabled = v;
                 if (v) {
-                  _handicapEnabled = false; // teams + handicap not combined
-                  // Default: split players evenly
+                  _handicapEnabled = false;
                   for (var i = 0; i < _selectedPlayers.length; i++) {
-                    _teamAssignment[_selectedPlayers[i]] = i % 2;
+                    _teamAssignment[_selectedPlayers[i]] = i % _teamNames.length;
                   }
-                  _teamNames[0] = _teamNameCtrl[0].text;
-                  _teamNames[1] = _teamNameCtrl[1].text;
                 }
               }),
               onAssignmentChanged: (p, t) =>
                   setState(() => _teamAssignment[p] = t),
               onNameChanged: (i, name) =>
                   setState(() => _teamNames[i] = name),
+              onAddTeam: _addTeam,
+              onRemoveTeam: _removeTeam,
             ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -276,9 +300,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     // Build team config if team game is enabled
     List<TeamConfig>? teamConfigs;
     if (_teamGameEnabled && _selectedPlayers.length >= 2) {
-      teamConfigs = List.generate(2, (ti) {
+      teamConfigs = List.generate(_teamNames.length, (ti) {
         final teamPlayers = players
-            .where((p) => (_teamAssignment[p] ?? ti % 2) == ti)
+            .where((p) => (_teamAssignment[p] ?? 0) == ti)
             .toList();
         return TeamConfig(
           name:      _teamNames[ti],
@@ -575,6 +599,8 @@ class _TeamSection extends StatelessWidget {
   final ValueChanged<bool> onToggle;
   final void Function(Player, int) onAssignmentChanged;
   final void Function(int, String) onNameChanged;
+  final VoidCallback onAddTeam;
+  final void Function(int) onRemoveTeam;
 
   const _TeamSection({
     required this.enabled,
@@ -585,7 +611,20 @@ class _TeamSection extends StatelessWidget {
     required this.onToggle,
     required this.onAssignmentChanged,
     required this.onNameChanged,
+    required this.onAddTeam,
+    required this.onRemoveTeam,
   });
+
+  static const List<Color> _teamColors = [
+    Color(0xFF1565C0), // blue
+    Color(0xFF2E7D32), // green
+    Color(0xFFC62828), // red
+    Color(0xFF6A1B9A), // purple
+    Color(0xFFE65100), // orange
+    Color(0xFF00695C), // teal
+  ];
+
+  Color _teamColor(int ti) => _teamColors[ti % _teamColors.length];
 
   @override
   Widget build(BuildContext context) {
@@ -617,74 +656,108 @@ class _TeamSection extends StatelessWidget {
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
-              // Team name inputs
-              Row(
-                children: [0, 1].map((ti) => Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                        right: ti == 0 ? 6 : 0, left: ti == 1 ? 6 : 0),
-                    child: TextField(
-                      controller: teamNameCtrl[ti],
-                      decoration: InputDecoration(
-                        labelText: 'Name Team ${ti + 1}',
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
+              // Team name inputs + remove buttons
+              ...List.generate(teamNames.length, (ti) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _teamColor(ti),
+                        shape: BoxShape.circle,
                       ),
-                      onChanged: (v) => onNameChanged(ti, v),
                     ),
-                  ),
-                )).toList(),
-              ),
-              const SizedBox(height: 12),
-              // Player assignment
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: teamNameCtrl[ti],
+                        decoration: InputDecoration(
+                          labelText: 'Team ${ti + 1}',
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                        ),
+                        onChanged: (v) => onNameChanged(ti, v),
+                      ),
+                    ),
+                    if (teamNames.length > 2) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, size: 20),
+                        color: cs.error,
+                        onPressed: () => onRemoveTeam(ti),
+                        tooltip: 'Team entfernen',
+                      ),
+                    ],
+                  ],
+                ),
+              )),
+              // Add team button
+              if (teamNames.length < players.length)
+                TextButton.icon(
+                  onPressed: onAddTeam,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Team hinzufügen'),
+                ),
+              const SizedBox(height: 4),
+              const Divider(),
+              const SizedBox(height: 4),
+              // Player assignment via dropdown
               ...players.map((p) {
                 final assigned = teamAssignment[p] ?? 0;
+                final clampedAssigned = assigned.clamp(0, teamNames.length - 1);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 14,
-                        backgroundColor: assigned == 0
-                            ? cs.primaryContainer
-                            : cs.secondaryContainer,
+                        backgroundColor: _teamColor(clampedAssigned).withValues(alpha: 0.2),
                         child: Text(
                           p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: assigned == 0
-                                ? cs.onPrimaryContainer
-                                : cs.onSecondaryContainer,
+                            color: _teamColor(clampedAssigned),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(p.name,
-                            style: theme.textTheme.bodyMedium),
+                        child: Text(p.name, style: theme.textTheme.bodyMedium),
                       ),
-                      SegmentedButton<int>(
-                        segments: [
-                          ButtonSegment(
-                            value: 0,
-                            label: Text(teamNames[0].split(' ').first,
-                                style: const TextStyle(fontSize: 11)),
+                      DropdownButton<int>(
+                        value: clampedAssigned,
+                        underline: const SizedBox(),
+                        isDense: true,
+                        items: List.generate(teamNames.length, (ti) =>
+                          DropdownMenuItem(
+                            value: ti,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: _teamColor(ti),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  teamNames[ti],
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
                           ),
-                          ButtonSegment(
-                            value: 1,
-                            label: Text(teamNames[1].split(' ').first,
-                                style: const TextStyle(fontSize: 11)),
-                          ),
-                        ],
-                        selected: {assigned},
-                        onSelectionChanged: (s) =>
-                            onAssignmentChanged(p, s.first),
-                        style: ButtonStyle(
-                          padding: WidgetStateProperty.all(
-                              const EdgeInsets.symmetric(horizontal: 8)),
                         ),
+                        onChanged: (v) {
+                          if (v != null) onAssignmentChanged(p, v);
+                        },
                       ),
                     ],
                   ),
