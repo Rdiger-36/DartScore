@@ -88,46 +88,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     controller: _nameCtrl,
                     autofocus: true,
                     textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: l.yourName,
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.person_outline),
                     ),
-                    onSubmitted: (_) => _save(),
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   ),
                   const SizedBox(height: 24),
 
                   // ── Favorite double (required) ────────────────────────────
-                  Text(
-                    l.favDoublesTitle,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _showDoubleError ? cs.error : cs.onSurfaceVariant,
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedDouble,
+                    decoration: InputDecoration(
+                      labelText: l.favDoublesTitle,
+                      border: const OutlineInputBorder(),
+                      errorText: _showDoubleError ? l.favDoublesRequired : null,
                     ),
+                    hint: Text(l.favDoublesTitle),
+                    items: _allDoubles
+                        .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                        .toList(),
+                    onChanged: (val) => setState(() {
+                      _selectedDouble = val;
+                      _showDoubleError = false;
+                    }),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: _allDoubles.map((d) {
-                      return FilterChip(
-                        label: Text(d),
-                        selected: _selectedDouble == d,
-                        onSelected: (_) => setState(() {
-                          _selectedDouble = d;
-                          _showDoubleError = false;
-                        }),
-                      );
-                    }).toList(),
-                  ),
-                  if (_showDoubleError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      l.favDoublesRequired,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.error,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 36),
 
                   // ── CTA ──────────────────────────────────────────────────

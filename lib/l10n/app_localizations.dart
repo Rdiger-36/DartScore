@@ -120,10 +120,14 @@ class AppLocalizations {
   String get nameLabel         => _t('Name', 'Name');
   String get favDoublesTitle      => _t('Favorite Double', 'Lieblings-Double');
   String get favDoublesRequired   => _t('Please select a favorite double', 'Bitte ein Lieblings-Double auswählen');
+  String get nameAlreadyExists => _t('This name is already taken', 'Dieser Name ist bereits vergeben');
   String get deletePlayerTitle => _t('Delete Player', 'Spieler löschen');
   String deletePlayerConfirm(String name) =>
       _t('Really delete $name?', '$name wirklich löschen?');
   String get syncProfile       => _t('Sync Profile', 'Profil synchronisieren');
+  String get sharePlayerTooltip => _t('Sync Profile', 'Profil synchronisieren');
+  String get setAsMainProfile  => _t('Set as Main Profile', 'Als Hauptprofil festlegen');
+  String get alreadyMainProfile => _t('Main Profile', 'Hauptprofil');
 
   // ── Player Stats ─────────────────────────────────────────────────────────
   String get statistics        => _t('Statistics', 'Statistik');
