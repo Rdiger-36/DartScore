@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/dartboard_icon.dart';
 import 'players_screen.dart';
-import 'game_setup_screen.dart';
+import 'game_mode_selection_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 import '../utils/layout.dart';
@@ -44,7 +44,7 @@ class HomeScreen extends StatelessWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const GameSetupScreen()),
+                          builder: (_) => const GameModeSelectionScreen()),
                     ),
                     primary: true,
                   ),

@@ -153,7 +153,7 @@ class AppLocalizations {
   String get recentThrows      => _t('Recent Throws', 'Letzte Würfe');
   String get syncedStatsFrom   => _t('Synced statistics from', 'Synchronisierte Statistiken vom');
   String get syncedStats       => _t('Synced statistics', 'Synchronisierte Statistiken');
-  String get visits            => _t('Visits', 'Aufnahme');
+  String get visits            => _t('Visits', 'Aufnahmen');
   String get darts_            => _t('Darts', 'Pfeile');
   String get busts             => _t('Busts', 'Busts');
 
@@ -296,6 +296,107 @@ class AppLocalizations {
       _t('Profile data: Name · Favorite double · Statistics',
          'Profil-Daten: Name · Lieblings-Double · Statistiken');
   String get throws            => _t('Throws', 'Würfe');
+
+  // ── Game Mode Selection ──────────────────────────────────────────────────
+  String get selectGameMode       => _t('Select Game Mode', 'Spielmodus wählen');
+  String get comingSoon           => _t('Coming Soon', 'Demnächst');
+  String get modeInfoTitle        => _t('Game Mode Info', 'Spielmodus Info');
+
+  // X01
+  String get modeX01Name          => 'X01';
+  String get modeX01Tagline       => _t('Classic countdown', 'Klassischer Countdown');
+  String get modeX01Description   => _t(
+    'Count down from a starting score (301, 501, 701 ...) to exactly zero.\n\n'
+    'Each player throws 3 darts per visit. The total score of those darts is subtracted from the remaining score.\n\n'
+    'You win a leg by reaching exactly 0. Depending on the Check-In/Check-Out rules, the first and/or last dart must land on a double (or master).\n\n'
+    'A bust occurs when you score more than your remaining points, leave exactly 1, or fail the required Check-Out. In that case your score resets to where it was before the visit.',
+    'Zähle von einem Startpunktestand (301, 501, 701 ...) genau auf null herunter.\n\n'
+    'Jeder Spieler wirft pro Aufnahme 3 Pfeile. Die Gesamtpunkte dieser Pfeile werden vom verbleibenden Restpunkt abgezogen.\n\n'
+    'Ein Leg gewinnst du, indem du genau 0 erreichst. Je nach Check-In/Check-Out-Regel muss der erste und/oder letzte Pfeil auf einem Double (oder Master) landen.\n\n'
+    'Ein Bust passiert, wenn du mehr Punkte wirfst als du noch hast, genau 1 Punkt übrig lässt oder das geforderte Check-Out verfehlst. Dein Stand wird dann auf den Wert vor der Aufnahme zurückgesetzt.',
+  );
+
+  // Cricket
+  String get modeCricketName        => 'Cricket';
+  String get modeCricketTagline     => _t('Close numbers, score points', 'Felder schließen, Punkte sammeln');
+  String get modeCricketDescription => _t(
+    'Cricket is played on the numbers 15, 16, 17, 18, 19, 20 and the Bull. All other fields do not count.\n\n'
+    'GOAL\n'
+    'Close all 7 fields and have at least as many points as your opponent.\n\n'
+    'CLOSING A FIELD\n'
+    'Each field must be hit 3 times to "open" it for you:\n'
+    '  Single = 1 hit\n'
+    '  Double = 2 hits\n'
+    '  Triple = 3 hits (closed instantly)\n\n'
+    'Example: a Triple 20 closes the 20 with a single dart.\n\n'
+    'SCORING POINTS\n'
+    'Once you have opened a field (3 hits), every additional hit on it scores points equal to the field value — as long as your opponent has not closed it yet.\n\n'
+    'Example:\n'
+    '  You hit 20, 20, 20 -> field 20 is open\n'
+    '  You hit 20 again -> +20 points for you\n'
+    '  Opponent hits 20, 20, 20 -> field 20 is now closed for both, no more scoring on 20\n\n'
+    'WINNING\n'
+    'You win when all 7 fields are closed by you AND you have equal or more points than your opponent. If you close all fields but are behind on points, you must keep scoring until you catch up.\n\n'
+    'CUT THROAT VARIANT\n'
+    'Rules are reversed: points do not go to your own account. Instead, every hit on an open field adds points to each opponent who has not yet closed that field. The player with the fewest points wins. Strategy shifts: open fields quickly to avoid giving opponents points, and target fields your opponents have not closed yet.\n\n'
+    'Example:\n'
+    '  You open the 20 (3 hits) and hit it again -> opponent gets +20 points\n'
+    '  Opponent closes the 20 -> further hits on 20 no longer score\n'
+    '  You have 0 points, opponent has 20 points -> you are winning',
+    'Cricket wird auf den Feldern 15, 16, 17, 18, 19, 20 und dem Bull gespielt. Alle anderen Felder zählen nicht.\n\n'
+    'ZIEL\n'
+    'Schließe alle 7 Felder und habe mindestens genauso viele Punkte wie dein Gegner.\n\n'
+    'EIN FELD SCHLIESSEN\n'
+    'Jedes Feld muss 3x getroffen werden, um es zu "öffnen":\n'
+    '  Einfach = 1 Treffer\n'
+    '  Doppel = 2 Treffer\n'
+    '  Triple = 3 Treffer (direkt geschlossen)\n\n'
+    'Beispiel: Ein Triple auf die 20 schließt das Feld sofort mit einem Pfeil.\n\n'
+    'PUNKTE MACHEN\n'
+    'Sobald du ein Feld geöffnet hast (3 Treffer), bringt jeder weitere Treffer darauf Punkte in Höhe des Feldwerts - solange dein Gegner das Feld noch nicht ebenfalls geschlossen hat.\n\n'
+    'Beispiel:\n'
+    '  Du triffst 20, 20, 20 -> Feld 20 ist offen\n'
+    '  Du triffst nochmal 20 -> +20 Punkte für dich\n'
+    '  Gegner trifft 20, 20, 20 -> Feld 20 ist nun für beide geschlossen, niemand kann mehr auf 20 punkten\n\n'
+    'GEWINNBEDINGUNG\n'
+    'Du gewinnst, wenn alle 7 Felder von dir geschlossen sind UND du gleich viele oder mehr Punkte hast als dein Gegner. Hast du alle Felder geschlossen aber weniger Punkte, musst du weiter punkten bis du gleichauf bist.\n\n'
+    'CUT THROAT VARIANTE\n'
+    'Die Regeln sind umgekehrt: Punkte gehen nicht auf dein eigenes Konto. Stattdessen bekommt jeder Gegner, der das Feld noch nicht geschlossen hat, die Punkte gutgeschrieben. Gewinner ist der Spieler mit den wenigsten Punkten. Die Strategie dreht sich um: öffne Felder schnell, um Gegner nicht zu belasten, und triff gezielt Felder, die deine Gegner noch nicht geschlossen haben.\n\n'
+    'Beispiel:\n'
+    '  Du öffnest die 20 (3 Treffer) und triffst sie nochmals -> Gegner bekommt +20 Punkte\n'
+    '  Gegner schließt die 20 -> weitere Treffer auf die 20 bringen keine Punkte mehr\n'
+    '  Du hast 0 Punkte, Gegner hat 20 Punkte -> du liegst vorne',
+  );
+
+  // Shanghai
+  String get modeShanghaiName        => 'Shanghai';
+  String get modeShanghaiTagline     => _t('Hit the right number each round', 'Jede Runde die richtige Zahl treffen');
+  String get modeShanghaiDescription => _t(
+    'Shanghai is played over 20 rounds (or fewer, depending on the variant).\n\n'
+    'In round 1 only the number 1 counts, in round 2 only the number 2, and so on up to 20.\n\n'
+    'Each single scores its face value, a double scores double, a triple scores triple.\n\n'
+    'Instant win: hit a Shanghai — single, double AND triple of the current number in one visit — and you immediately win the game regardless of the score.\n\n'
+    'After all rounds the player with the most points wins.',
+    'Shanghai wird über 20 Runden gespielt (oder weniger, je nach Variante).\n\n'
+    'In Runde 1 zählt nur die 1, in Runde 2 nur die 2, usw. bis zur 20.\n\n'
+    'Einfach trifft den Nennwert, Doppel das Doppelte, Triple das Dreifache.\n\n'
+    'Sofortiger Sieg: Triff ein Shanghai — Single, Double UND Triple der aktuellen Zahl in einer Aufnahme — und du gewinnst das Spiel sofort, unabhängig vom Punktestand.\n\n'
+    'Nach allen Runden gewinnt der Spieler mit den meisten Punkten.',
+  );
+
+  // Around the Clock
+  String get modeAroundClockName        => 'Around the Clock';
+  String get modeAroundClockTagline     => _t('Hit every number in order', 'Alle Zahlen der Reihe nach treffen');
+  String get modeAroundClockDescription => _t(
+    'The goal is to hit every number on the board from 1 to 20 in order, finishing on the Bull.\n\n'
+    'Each visit you throw 3 darts. You advance past a number as soon as you hit it — in the same visit you can move through multiple numbers.\n\n'
+    'The first player to hit all numbers 1–20 and finally the Bull wins.\n\n'
+    'Variants: in the "doubles/triples" variant you must hit a double or triple to advance. In the "strict" variant you may only move forward by one number per dart.',
+    'Ziel ist es, alle Felder der Dartscheibe von 1 bis 20 der Reihe nach zu treffen und anschließend den Bull zu treffen.\n\n'
+    'Pro Aufnahme wirfst du 3 Pfeile. Sobald du eine Zahl triffst, rückst du weiter — in derselben Aufnahme kannst du mehrere Zahlen überspringen.\n\n'
+    'Der erste Spieler, der alle Zahlen 1–20 und zuletzt den Bull trifft, gewinnt.\n\n'
+    'Varianten: In der "Doubles/Triples"-Variante musst du ein Double oder Triple treffen, um weiterzukommen. In der "Strict"-Variante kannst du pro Pfeil nur um eine Zahl vorrücken.',
+  );
 
   // ── Misc numbers/units ───────────────────────────────────────────────────
   String dartsN(int n) => _t('$n dart${n != 1 ? 's' : ''}', '$n Pfeil${n != 1 ? 'e' : ''}');
