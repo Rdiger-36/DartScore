@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../utils/finish_calculator.dart';
 
@@ -18,26 +19,69 @@ class FinishSuggestionWidget extends StatelessWidget {
     this.checkoutMode = CheckoutMode.doubleOut,
   });
 
+  // Blue tones for checkout-possible state (not part of the red/green theme)
+  static const _blueContainerLight = Color(0xFFBBDEFB); // blue 100
+  static const _blueOnContainerLight = Color(0xFF0D47A1); // blue 900
+  static const _blueContainerDark = Color(0xFF1565C0);  // blue 800
+  static const _blueOnContainerDark = Color(0xFFBBDEFB);  // blue 100
+
   @override
   Widget build(BuildContext context) {
-    // Score 1 only possible in straight-out
-    if (remaining > 170 || remaining <= 0) return const SizedBox.shrink();
-    if (remaining == 1 && checkoutMode != CheckoutMode.straightOut) {
-      return const SizedBox.shrink();
-    }
+    if (remaining <= 0) return const SizedBox.shrink();
 
-    final maxDarts = (3 - dartsThrown).clamp(1, 3);
-    final routes = FinishCalculator.getRoutes(
-      remaining,
-      favoriteDouble,
-      maxDarts: maxDarts,
-      checkoutMode: checkoutMode,
-    );
-    if (routes.primary == null) return const SizedBox.shrink();
-
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = cs.brightness == Brightness.dark;
 
+    // Determine if a checkout is possible at all
+    final bool noCheckout = remaining > 170 ||
+        (remaining == 1 && checkoutMode != CheckoutMode.straightOut);
+
+    if (!noCheckout) {
+      final maxDarts = (3 - dartsThrown).clamp(1, 3);
+      final routes = FinishCalculator.getRoutes(
+        remaining,
+        favoriteDouble,
+        maxDarts: maxDarts,
+        checkoutMode: checkoutMode,
+      );
+
+      if (routes.primary != null) {
+        final bgColor = isDark ? _blueContainerDark : _blueContainerLight;
+        final fgColor = isDark ? _blueOnContainerDark : _blueOnContainerLight;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Primary route ────────────────────────────────────────
+              _RouteRow(
+                route: routes.primary!,
+                color: fgColor,
+                bold: true,
+              ),
+              // ── Alternative route ────────────────────────────────────
+              if (routes.alternative != null) ...[
+                const SizedBox(height: 4),
+                _RouteRow(
+                  route: routes.alternative!,
+                  color: fgColor.withValues(alpha: 0.65),
+                  bold: false,
+                ),
+              ],
+            ],
+          ),
+        );
+      }
+    }
+
+    // No checkout possible — same red container as checkout hint, same sizing behaviour
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -48,21 +92,12 @@ class FinishSuggestionWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Primary route ──────────────────────────────────────────────
-          _RouteRow(
-            route: routes.primary!,
-            color: cs.onTertiaryContainer,
-            bold: true,
-          ),
-          // ── Alternative route ──────────────────────────────────────────
-          if (routes.alternative != null) ...[
-            const SizedBox(height: 4),
-            _RouteRow(
-              route: routes.alternative!,
-              color: cs.onTertiaryContainer.withValues(alpha: 0.65),
-              bold: false,
+          Text(
+            l10n.noCheckoutPossible,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onTertiaryContainer,
             ),
-          ],
+          ),
         ],
       ),
     );
