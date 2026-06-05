@@ -17,14 +17,15 @@ class PlayersScreen extends StatelessWidget {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final wideScreen = screenWidth >= 500;
 
+    final cs = Theme.of(context).colorScheme;
     final syncFab = FloatingActionButton.extended(
       heroTag: 'sync',
       onPressed: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const SyncScreen()),
       ),
-      backgroundColor: Colors.green,
-      foregroundColor: Colors.white,
+      backgroundColor: cs.secondary,
+      foregroundColor: cs.onSecondary,
       icon: const Icon(Icons.sync_rounded),
       label: Text(l.syncProfile),
     );
