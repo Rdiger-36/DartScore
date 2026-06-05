@@ -3,6 +3,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import 'game_mode_info_screen.dart';
 import 'game_setup_screen.dart';
+import 'cricket_setup_screen.dart';
 
 class GameModeSelectionScreen extends StatelessWidget {
   const GameModeSelectionScreen({super.key});
@@ -38,7 +39,12 @@ class GameModeSelectionScreen extends StatelessWidget {
                     mode: GameModeOption.cricket,
                     name: l.modeCricketName,
                     tagline: l.modeCricketTagline,
-                    available: false,
+                    available: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CricketSetupScreen()),
+                    ),
                     onInfo: () => _openInfo(context, GameModeOption.cricket),
                   ),
                   const SizedBox(height: 14),

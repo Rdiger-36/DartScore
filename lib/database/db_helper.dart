@@ -5,6 +5,7 @@ import 'package:path/path.dart';
 import '../models/player.dart';
 import '../models/game.dart';
 import '../models/dart_throw.dart';
+import '../models/cricket_game.dart';
 
 class DbHelper {
   static final DbHelper instance = DbHelper._();
@@ -21,7 +22,7 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -70,6 +71,32 @@ class DbHelper {
     if (oldVersion < 9) {
       await db.execute(
           'ALTER TABLE dart_throws ADD COLUMN hits_json TEXT');
+    }
+    if (oldVersion < 10) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cricket_games (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          variant INTEGER NOT NULL,
+          scoring_mode INTEGER NOT NULL,
+          legs INTEGER NOT NULL,
+          sets INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          finished_at INTEGER,
+          player_ids TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cricket_throws (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          game_id INTEGER NOT NULL,
+          player_id INTEGER NOT NULL,
+          field INTEGER NOT NULL,
+          multiplier INTEGER NOT NULL,
+          leg INTEGER NOT NULL,
+          set_ INTEGER NOT NULL,
+          thrown_at INTEGER NOT NULL
+        )
+      ''');
     }
   }
 
@@ -134,6 +161,30 @@ class DbHelper {
         thrown_at INTEGER NOT NULL,
         bust INTEGER NOT NULL DEFAULT 0,
         hits_json TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE cricket_games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        variant INTEGER NOT NULL,
+        scoring_mode INTEGER NOT NULL,
+        legs INTEGER NOT NULL,
+        sets INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        player_ids TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE cricket_throws (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        field INTEGER NOT NULL,
+        multiplier INTEGER NOT NULL,
+        leg INTEGER NOT NULL,
+        set_ INTEGER NOT NULL,
+        thrown_at INTEGER NOT NULL
       )
     ''');
   }
@@ -673,5 +724,53 @@ class DbHelper {
     if (syncedStatsJson != null) map['synced_stats'] = syncedStatsJson;
     await d.update('players', map,
         where: 'id = ?', whereArgs: [playerId]);
+  }
+
+  // ── Cricket ──────────────────────────────────────────────────────────────────
+
+  Future<int> insertCricketGame(CricketGame g) async {
+    final d = await db;
+    final map = g.toMap()..remove('id');
+    return d.insert('cricket_games', map);
+  }
+
+  Future<void> updateCricketGame(CricketGame g) async {
+    final d = await db;
+    await d.update('cricket_games', g.toMap(),
+        where: 'id = ?', whereArgs: [g.id]);
+  }
+
+  Future<int> insertCricketThrow(CricketThrow t) async {
+    final d = await db;
+    final map = t.toMap()..remove('id');
+    return d.insert('cricket_throws', map);
+  }
+
+  Future<void> deleteCricketThrow(int id) async {
+    final d = await db;
+    await d.delete('cricket_throws', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<CricketThrow>> getCricketThrowsForGame(int gameId) async {
+    final d = await db;
+    final rows = await d.query(
+      'cricket_throws',
+      where: 'game_id = ?',
+      whereArgs: [gameId],
+      orderBy: 'thrown_at ASC',
+    );
+    return rows.map(CricketThrow.fromMap).toList();
+  }
+
+  Future<List<CricketGame>> getCricketGames() async {
+    final d = await db;
+    final rows = await d.query('cricket_games', orderBy: 'created_at DESC');
+    return rows.map(CricketGame.fromMap).toList();
+  }
+
+  Future<void> deleteCricketGame(int gameId) async {
+    final d = await db;
+    await d.delete('cricket_throws', where: 'game_id = ?', whereArgs: [gameId]);
+    await d.delete('cricket_games', where: 'id = ?', whereArgs: [gameId]);
   }
 }

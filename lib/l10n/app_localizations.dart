@@ -461,6 +461,39 @@ class AppLocalizations {
   String get removeTeam     => _t('Remove team', 'Team entfernen');
   String teamN(int n)       => _t('Team $n', 'Team $n');
   String get doublesLabel   => _t('Doubles', 'Doubles');
+
+  // ── Cricket Setup ────────────────────────────────────────────────────────────
+  String get cricketSetup         => _t('Cricket Setup', 'Cricket einrichten');
+  String get cricketVariant       => _t('Variant', 'Variante');
+  String get cricketNormal        => _t('Normal', 'Normal');
+  String get cricketCutThroat     => 'Cut Throat';
+  String get cricketCutThroatDesc =>
+      _t('Points go to opponents who haven\'t closed the field. Fewest points wins.',
+         'Punkte gehen an Gegner, die das Feld noch nicht geschlossen haben. Wenigste Punkte gewinnt.');
+  String get cricketScoringMode   => _t('Scoring Mode', 'Wertungsmodus');
+  String get cricketStandard      => _t('Standard (S/D/T)', 'Standard (E/D/T)');
+  String get cricketSimple        => _t('Simple (singles only)', 'Einfach (nur Singles)');
+  String get cricketSimpleDesc    =>
+      _t('Every dart counts as 1 mark regardless of segment hit.',
+         'Jeder Pfeil zählt als 1 Treffer unabhängig vom getroffenen Segment.');
+  String get cricketMinPlayers    =>
+      _t('Cricket requires at least 2 players.', 'Cricket benötigt mindestens 2 Spieler.');
+
+  // ── Cricket Game ─────────────────────────────────────────────────────────────
+  String get bull                 => 'Bull';
+  String get cricketMiss          => _t('Miss', 'Miss');
+  String get cricketConfirmVisit  => _t('Done', 'Fertig');
+  String get cricketDart          => _t('Dart', 'Pfeil');
+  String get cricketScore         => _t('Score', 'Punkte');
+  String get cricketMarks         => _t('Marks', 'Treffer');
+  String get cricketQuit          => _t('Quit', 'Beenden');
+
+  // ── Cricket Summary ──────────────────────────────────────────────────────────
+  String get cricketSummaryTitle  => _t('Game Summary', 'Spielübersicht');
+  String get cricketFieldsClosed  => _t('Fields closed', 'Felder geschlossen');
+  String get cricketTotalScore    => _t('Total Score', 'Gesamtpunkte');
+  String get cricketWins          =>  _t('wins!', 'hat gewonnen!');
+  String cricketWinner(String name) => '🎯 $name $cricketWins';
 }
 
 // ── Delegate ──────────────────────────────────────────────────────────────────
