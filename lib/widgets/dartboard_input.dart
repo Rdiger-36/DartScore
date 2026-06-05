@@ -159,10 +159,26 @@ class _DartboardInputState extends State<DartboardInput> {
     }
   }
 
+  /// Recompute _checkedInThisVisit by scanning current darts.
+  /// Called after intra-visit undo/redo so check-in state stays consistent.
+  void _recomputeCheckedInThisVisit() {
+    if (!_requiresCheckIn || widget.hasCheckedIn) {
+      _checkedInThisVisit = false;
+      return;
+    }
+    _checkedInThisVisit = _darts.any((d) {
+      if (d.field == 0) return false;
+      if (_isDoubleIn) return d.modifier == 2;
+      if (_isMasterIn) return d.modifier == 2 || (d.modifier == 3 && d.field != 25);
+      return false;
+    });
+  }
+
   void _undo() {
     if (_darts.isEmpty) return;
     setState(() {
       _redoStack.add(_darts.removeLast());
+      _recomputeCheckedInThisVisit();
     });
     _notify();
   }
@@ -171,6 +187,7 @@ class _DartboardInputState extends State<DartboardInput> {
     if (_redoStack.isEmpty) return;
     setState(() {
       _darts.add(_redoStack.removeLast());
+      _recomputeCheckedInThisVisit();
     });
     _notify();
   }
