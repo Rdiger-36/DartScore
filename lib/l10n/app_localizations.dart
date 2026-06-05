@@ -85,6 +85,7 @@ class AppLocalizations {
   String get done              => _t('Done', 'Fertig');
   String get bust              => _t('Bust', 'Bust');
   String get checkoutHint      => _t('Check-Out:', 'Check-Out:');
+  String get noCheckoutPossible => _t('No Check-out possible', 'Kein Check-out möglich');
   String dart(int n)           => _t('Dart $n', 'Dart $n');
   String get undoVisit         => _t('Undo last visit', 'Letzte Aufnahme rückgängig');
   String get redoVisit         => _t('Redo', 'Wiederherstellen');
