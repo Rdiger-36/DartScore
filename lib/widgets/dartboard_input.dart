@@ -255,10 +255,10 @@ class _DartboardInputState extends State<DartboardInput> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 1, label: Text('Single')),
-                ButtonSegment(value: 2, label: Text('Double')),
-                ButtonSegment(value: 3, label: Text('Triple')),
+              segments: [
+                ButtonSegment(value: 1, label: Text(context.l10n.single)),
+                ButtonSegment(value: 2, label: Text(context.l10n.double_)),
+                ButtonSegment(value: 3, label: Text(context.l10n.triple)),
               ],
               selected: {_modifier},
               onSelectionChanged: (s) => setState(() => _modifier = s.first),
@@ -297,7 +297,7 @@ class _DartboardInputState extends State<DartboardInput> {
               children: [
                 Expanded(
                   child: _ActionButton(
-                    label: 'Miss',
+                    label: context.l10n.miss,
                     icon: Icons.close,
                     color: cs.errorContainer,
                     textColor: cs.onErrorContainer,
@@ -310,7 +310,7 @@ class _DartboardInputState extends State<DartboardInput> {
                 Expanded(
                   flex: 2,
                   child: _ActionButton(
-                    label: _modifier == 2 ? 'Bull (50)' : 'Bull (25)',
+                    label: context.l10n.bullLabel(_modifier == 2),
                     icon: Icons.adjust,
                     color: cs.secondaryContainer,
                     textColor: cs.onSecondaryContainer,

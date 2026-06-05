@@ -43,7 +43,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            .showSnackBar(SnackBar(content: Text('${context.l10n.error}: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -52,6 +52,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
 
   Future<void> _shareCard() async {
     setState(() => _saving = true);
+    final shareSubject = context.l10n.shareSubject;
     try {
       final img = await _renderCard();
       final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
@@ -61,12 +62,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
       // ignore: deprecated_member_use
       await Share.shareXFiles(
         [XFile(file.path)],
-        subject: 'DartScore Ergebnis',
+        subject: shareSubject,
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            .showSnackBar(SnackBar(content: Text('${context.l10n.error}: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -272,7 +273,7 @@ class _TeamSummaryCard extends StatelessWidget {
                       Text(state.displayName,
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold)),
-                      Text('Sets: ${state.setsWon}  Legs: ${state.legsWon}',
+                      Text('${context.l10n.sets}: ${state.setsWon}  ${context.l10n.legs}: ${state.legsWon}',
                           style: theme.textTheme.bodySmall),
                     ],
                   ),
@@ -325,11 +326,11 @@ class _TeamSummaryCard extends StatelessWidget {
                           style: theme.textTheme.bodySmall
                               ?.copyWith(color: cs.onSurfaceVariant)),
                       const SizedBox(width: 12),
-                      Text('High $phigh',
+                      Text('${context.l10n.highAbbr} $phigh',
                           style: theme.textTheme.bodySmall
                               ?.copyWith(color: cs.onSurfaceVariant)),
                       const SizedBox(width: 12),
-                      Text('${pd}P',
+                      Text(context.l10n.dartsShort(pd),
                           style: theme.textTheme.bodySmall
                               ?.copyWith(fontWeight: FontWeight.bold)),
                     ],
@@ -454,7 +455,7 @@ class _ThrowRow extends StatelessWidget {
           SizedBox(
             width: 36,
             child: Text(
-              t.bust ? 'BUST' : '${t.score}',
+              t.bust ? context.l10n.bust.toUpperCase() : '${t.score}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: t.bust ? theme.colorScheme.error : null,

@@ -402,7 +402,7 @@ class PlayerStatsScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError || snap.data == null) {
-            return Center(child: Text('Fehler: ${snap.error}'));
+            return Center(child: Text('${context.l10n.error}: ${snap.error}'));
           }
           final stats = snap.data!;
           // No throws at all — show synced snapshot or empty state
@@ -623,7 +623,7 @@ class _HeroCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '3-Dart Average',
+                  context.l10n.threeDartAvg,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: cs.onPrimary.withValues(alpha: 0.8),
                   ),
@@ -648,7 +648,7 @@ class _HeroCard extends StatelessWidget {
                   label: context.l10n.visits, value: '${stats.totalVisits}', cs: cs),
               const SizedBox(height: 6),
               _HeroStat(
-                  label: 'Legs', value: '${stats.legsWon}', cs: cs),
+                  label: context.l10n.legsWon, value: '${stats.legsWon}', cs: cs),
             ],
           ),
         ],
@@ -1621,7 +1621,7 @@ class _SyncedStatsView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('3-Dart Average',
+                    Text(context.l10n.threeDartAvg,
                         style: theme.textTheme.labelMedium?.copyWith(
                             color: cs.onPrimary.withValues(alpha: 0.8))),
                     Text(
@@ -1639,7 +1639,7 @@ class _SyncedStatsView extends StatelessWidget {
                   const SizedBox(height: 4),
                   _SyncHeroStat(context.l10n.visits, '${s.totalVisits}', cs),
                   const SizedBox(height: 4),
-                  _SyncHeroStat('Legs', '${s.legsWon}', cs),
+                  _SyncHeroStat(context.l10n.legsWon, '${s.legsWon}', cs),
                 ],
               ),
             ],
@@ -1704,7 +1704,7 @@ class _SyncHighlights extends StatelessWidget {
         Expanded(child: _SyncTile(context.l10n.highestVisit, '${s.highestVisit}',
             Icons.arrow_upward, false, cs)),
         const SizedBox(width: 8),
-        Expanded(child: _SyncTile('Legs', '${s.legsWon}',
+        Expanded(child: _SyncTile(context.l10n.legsWon, '${s.legsWon}',
             Icons.flag_rounded, s.legsWon > 0, cs)),
       ],
     );

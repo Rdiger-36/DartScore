@@ -34,7 +34,7 @@ class HistoryGameSummaryScreen extends StatelessWidget {
           }
           final data = snap.data;
           if (data == null || data.playerThrows.isEmpty) {
-            return const Center(child: Text('Keine Wurfdaten vorhanden.'));
+            return Center(child: Text(context.l10n.noThrowData));
           }
           return _SummaryBody(game: game, data: data, players: players);
         },
@@ -103,7 +103,7 @@ class _SummaryBody extends StatelessWidget {
                 Icon(Icons.emoji_events_rounded, size: 40, color: cs.primary),
                 const SizedBox(height: 6),
                 Text(
-                  '🎯 ${winner.name} gewinnt!',
+                  context.l10n.wins(winner.name),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.onPrimaryContainer,
@@ -281,7 +281,7 @@ class _ThrowLogRow extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            'L${t.leg}  ${t.dartsUsed}P',
+            '${context.l10n.legLabel(t.leg)}  ${context.l10n.dartsShort(t.dartsUsed)}',
             style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
