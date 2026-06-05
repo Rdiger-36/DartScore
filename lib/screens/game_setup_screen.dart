@@ -91,27 +91,33 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
           const SizedBox(height: 16),
           _Section(
             title: l.checkIn,
-            child: SegmentedButton<GameMode>(
-              segments: const [
-                ButtonSegment(value: GameMode.straightIn, label: Text('Straight')),
-                ButtonSegment(value: GameMode.doubleIn, label: Text('Double')),
-                ButtonSegment(value: GameMode.masterIn, label: Text('Master')),
-              ],
-              selected: {_gameMode},
-              onSelectionChanged: (s) => setState(() => _gameMode = s.first),
+            child: Wrap(
+              spacing: 8,
+              children: const [
+                (GameMode.straightIn, 'Straight'),
+                (GameMode.doubleIn,   'Double'),
+                (GameMode.masterIn,   'Master'),
+              ].map((e) => ChoiceChip(
+                label: Text(e.$2),
+                selected: _gameMode == e.$1,
+                onSelected: (_) => setState(() => _gameMode = e.$1),
+              )).toList(),
             ),
           ),
           const SizedBox(height: 16),
           _Section(
             title: l.checkOut,
-            child: SegmentedButton<CheckoutMode>(
-              segments: const [
-                ButtonSegment(value: CheckoutMode.straightOut, label: Text('Straight')),
-                ButtonSegment(value: CheckoutMode.doubleOut, label: Text('Double')),
-                ButtonSegment(value: CheckoutMode.masterOut, label: Text('Master')),
-              ],
-              selected: {_checkoutMode},
-              onSelectionChanged: (s) => setState(() => _checkoutMode = s.first),
+            child: Wrap(
+              spacing: 8,
+              children: const [
+                (CheckoutMode.straightOut, 'Straight'),
+                (CheckoutMode.doubleOut,   'Double'),
+                (CheckoutMode.masterOut,   'Master'),
+              ].map((e) => ChoiceChip(
+                label: Text(e.$2),
+                selected: _checkoutMode == e.$1,
+                onSelected: (_) => setState(() => _checkoutMode = e.$1),
+              )).toList(),
             ),
           ),
           const SizedBox(height: 16),
