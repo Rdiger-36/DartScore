@@ -47,9 +47,14 @@ class _GameScreenState extends State<GameScreen> {
         final displayRemaining = _liveRemaining ?? current.remaining;
         final handicaps  = provider.handicaps;
 
+        // Check-In only applies in the very first leg of the game (leg 1, set 1).
+        final checkInActive = provider.currentLeg == 1 && provider.currentSet == 1;
+
         // Per-player resolved modes (handicap overrides game defaults)
         List<GameMode> playerCheckIns = states
-            .map((s) => handicaps[s.player.id]?.checkIn ?? game.gameMode)
+            .map((s) => checkInActive
+                ? (handicaps[s.player.id]?.checkIn ?? game.gameMode)
+                : GameMode.straightIn)
             .toList();
         List<CheckoutMode> playerCheckOuts = states
             .map((s) => handicaps[s.player.id]?.checkOut ?? game.checkoutMode)
