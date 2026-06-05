@@ -462,6 +462,12 @@ class AppLocalizations {
   String teamN(int n)       => _t('Team $n', 'Team $n');
   String get doublesLabel   => _t('Doubles', 'Doubles');
 
+  // ── Cricket History ──────────────────────────────────────────────────────────
+  String cricketGameInfo(String variant) =>
+      _t('Cricket · $variant', 'Cricket · $variant');
+  String get cricketVariantNormal    => _t('Normal', 'Normal');
+  String get cricketVariantCutThroat => 'Cut Throat';
+
   // ── Cricket Setup ────────────────────────────────────────────────────────────
   String get cricketSetup         => _t('Cricket Setup', 'Cricket einrichten');
   String get cricketVariant       => _t('Variant', 'Variante');

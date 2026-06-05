@@ -4,6 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
+import '../widgets/cricket_marks_widget.dart';
 import 'cricket_summary_screen.dart';
 
 class CricketScreen extends StatelessWidget {
@@ -268,7 +269,7 @@ class _FieldRow extends StatelessWidget {
           ...states.map((s) {
             final marks = s.marks[field] ?? 0;
             return Expanded(
-              child: Center(child: _MarksWidget(marks: marks)),
+              child: Center(child: CricketMarksWidget(marks: marks)),
             );
           }),
         ],
@@ -278,103 +279,6 @@ class _FieldRow extends StatelessWidget {
 }
 
 // ── Marks widget: shows /, X, or ⊗ ──────────────────────────────────────────
-
-class _MarksWidget extends StatelessWidget {
-  final int marks;
-  const _MarksWidget({required this.marks});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    if (marks == 0) {
-      return const SizedBox(width: 36, height: 36);
-    }
-
-    if (marks >= 3) {
-      // Closed: circle with X
-      return SizedBox(
-        width: 36,
-        height: 36,
-        child: CustomPaint(painter: _ClosedPainter(color: cs.primary)),
-      );
-    }
-
-    // 1 or 2 marks: slash(es)
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: CustomPaint(
-          painter: _MarksPainter(marks: marks, color: cs.onSurface)),
-    );
-  }
-}
-
-class _MarksPainter extends CustomPainter {
-  final int marks;
-  final Color color;
-  const _MarksPainter({required this.marks, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = size.width * 0.38;
-
-    // First slash: bottom-left to top-right
-    canvas.drawLine(
-      Offset(cx - r, cy + r),
-      Offset(cx + r, cy - r),
-      paint,
-    );
-    if (marks >= 2) {
-      // Second slash: top-left to bottom-right → forms X
-      canvas.drawLine(
-        Offset(cx - r, cy - r),
-        Offset(cx + r, cy + r),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MarksPainter old) =>
-      old.marks != marks || old.color != color;
-}
-
-class _ClosedPainter extends CustomPainter {
-  final Color color;
-  const _ClosedPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = size.width * 0.42;
-
-    // Circle
-    canvas.drawCircle(Offset(cx, cy), r, paint);
-
-    // X inside
-    final xi = r * 0.6;
-    canvas.drawLine(Offset(cx - xi, cy + xi), Offset(cx + xi, cy - xi), paint);
-    canvas.drawLine(Offset(cx - xi, cy - xi), Offset(cx + xi, cy + xi), paint);
-  }
-
-  @override
-  bool shouldRepaint(_ClosedPainter old) => old.color != color;
-}
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 

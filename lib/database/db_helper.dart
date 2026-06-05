@@ -565,6 +565,8 @@ class DbHelper {
     await d.delete('dart_throws');
     await d.delete('game_players');
     await d.delete('games');
+    await d.delete('cricket_throws');
+    await d.delete('cricket_games');
   }
 
   Future<void> updateGame(Game g) async {

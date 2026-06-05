@@ -61,6 +61,25 @@ class CricketProvider extends ChangeNotifier {
   int                      get dartsInVisit       => _visitBuffer.length;
   bool                     get canUndo            => _throwHistory.isNotEmpty;
 
+  // ── Resume ────────────────────────────────────────────────────────────────
+
+  Future<void> resumeGame(CricketGame game, List<Player> players) async {
+    _game = game;
+    _playerStates = players.map((p) => CricketPlayerState(
+      displayName: p.name,
+      player:      p,
+      marks:       {},
+      score:       0,
+    )).toList();
+    _currentPlayerIndex = 0;
+    _gameOver           = false;
+    _winnerId           = null;
+    _visitBuffer.clear();
+    _throwHistory.clear();
+    await _replayState();
+    notifyListeners();
+  }
+
   // ── Start ──────────────────────────────────────────────────────────────────
 
   Future<void> startGame(CricketGame game, List<Player> players) async {
