@@ -221,7 +221,9 @@ class _DartboardInputState extends State<DartboardInput> {
     final cs = theme.colorScheme;
     final dartCount = _darts.length;
 
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: bottomInset),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 500),
