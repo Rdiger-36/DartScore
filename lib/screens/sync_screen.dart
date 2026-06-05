@@ -676,7 +676,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   Future<Object?> _showNameConflictDialog(
       SyncPacket packet, Player sameNamePlayer) async {
     final nameCtrl =
-        TextEditingController(text: '${packet.playerName} (Gast)');
+        TextEditingController(text: '${packet.playerName} (${context.l10n.guest})');
     return showDialog<Object>(
       context: context,
       barrierDismissible: false,
@@ -864,7 +864,7 @@ class _ConfirmDialog extends StatelessWidget {
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold)),
                       if (packet.favoriteDoubles.isNotEmpty)
-                        Text('Doubles: ${packet.favoriteDoubles}',
+                        Text('${l.doublesLabel}: ${packet.favoriteDoubles}',
                             style: theme.textTheme.bodySmall),
                       Text(
                         '${l.fromDevice(packet.senderDevice)}  ·  ${packet.stats.totalVisits} ${l.visits}',
