@@ -508,7 +508,7 @@ class _FieldButton extends StatelessWidget {
       child: Material(
         color: allClosed
             ? cs.surfaceContainerHighest.withValues(alpha: 0.4)
-            : cs.primaryContainer,
+            : cs.secondaryContainer,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -520,7 +520,7 @@ class _FieldButton extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: allClosed
                         ? cs.onSurface.withValues(alpha: 0.3)
-                        : cs.onPrimaryContainer,
+                        : cs.onSecondaryContainer,
                   ),
             ),
           ),
@@ -542,7 +542,7 @@ class _MissButton extends StatelessWidget {
       width: 72,
       height: 56,
       child: Material(
-        color: cs.surfaceContainerHigh,
+        color: cs.errorContainer,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -551,7 +551,8 @@ class _MissButton extends StatelessWidget {
             child: Text(
               l.cricketMiss,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onErrorContainer,
                   ),
             ),
           ),
