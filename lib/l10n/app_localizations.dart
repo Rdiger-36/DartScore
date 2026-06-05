@@ -224,8 +224,8 @@ class AppLocalizations {
   String get quickQr           => _t('Quick QR', 'Schnell-QR');
   String get wifiSync          => _t('WiFi Sync', 'WLAN-Sync');
   String get quickQrDesc       =>
-      _t('Encodes your profile & new throws directly into the QR code — works anywhere, no network needed.',
-         'Kodiert Profil & neue Würfe direkt in den QR-Code — funktioniert überall, kein Netzwerk nötig.');
+      _t('Transfer your profile & new throws directly via QR code. No network needed.',
+         'Übertrage dein Profil & neue Würfe direkt über einen QR-Code. Kein Netzwerk nötig.');
   String get qrTooLargeWarning =>
       _t('Too many throws for a QR code.\nUse WiFi Sync to transfer all data.',
          'Zu viele Würfe für einen QR-Code.\nNutze WLAN-Sync um alle Daten zu übertragen.');

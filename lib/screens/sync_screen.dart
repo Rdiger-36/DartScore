@@ -230,13 +230,17 @@ class _SenderTabState extends State<_SenderTab> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  void _onPlayerChanged(Player? p) {
+  void _onPlayerChanged(Player? p) async {
+    if (_server.isRunning) await _server.stop();
     setState(() {
       _selectedPlayer = p;
+      _mode = _SenderMode.quickQr;
       _quickQrData = null;
       _qrTooLarge = false;
+      _ip = null;
+      _port = null;
     });
-    if (_mode == _SenderMode.quickQr && p != null) _generateQuickQr();
+    if (p != null) _generateQuickQr();
   }
 
   void _onModeChanged(_SenderMode mode) {
@@ -262,25 +266,6 @@ class _SenderTabState extends State<_SenderTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // ── Mode toggle ───────────────────────────────────────────────────
-        SegmentedButton<_SenderMode>(
-          segments: [
-            ButtonSegment(
-              value: _SenderMode.quickQr,
-              icon: const Icon(Icons.qr_code_rounded),
-              label: Text(l.quickQr),
-            ),
-            ButtonSegment(
-              value: _SenderMode.wifi,
-              icon: const Icon(Icons.wifi_tethering),
-              label: Text(l.wifiSync),
-            ),
-          ],
-          selected: {_mode},
-          onSelectionChanged: (s) => _onModeChanged(s.first),
-        ),
-        const SizedBox(height: 14),
-
         // ── Description ───────────────────────────────────────────────────
         Text(
           _mode == _SenderMode.quickQr ? l.quickQrDesc : l.syncSendDesc,
