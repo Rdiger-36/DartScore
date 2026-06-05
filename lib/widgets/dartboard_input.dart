@@ -562,9 +562,9 @@ class _FieldButton extends StatelessWidget {
                 ),
               )
             else ...[
-              // Normal: notation (D20 / T20 / 20) + score for doubles/triples
+              // Normal: field number + score for doubles/triples
               Text(
-                notation,
+                '$field',
                 style: t.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: _fg(cs),
