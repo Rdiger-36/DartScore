@@ -93,8 +93,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             title: l.checkIn,
             child: SegmentedButton<GameMode>(
               segments: const [
-                ButtonSegment(value: GameMode.straightIn, label: Text('Straight In')),
-                ButtonSegment(value: GameMode.doubleIn, label: Text('Double In')),
+                ButtonSegment(value: GameMode.straightIn, label: Text('Straight')),
+                ButtonSegment(value: GameMode.doubleIn, label: Text('Double')),
+                ButtonSegment(value: GameMode.masterIn, label: Text('Master')),
               ],
               selected: {_gameMode},
               onSelectionChanged: (s) => setState(() => _gameMode = s.first),
@@ -505,11 +506,12 @@ class _HandicapSection extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _ModeDropdown<GameMode>(
-                              label: 'Check-in',
+                              label: 'Check-In',
                               value: h.checkIn,
                               items: const [
                                 (GameMode.straightIn, 'Straight'),
                                 (GameMode.doubleIn,   'Double'),
+                                (GameMode.masterIn,   'Master'),
                               ],
                               onChanged: (v) => onChanged(
                                 p, h.copyWith(checkIn: v)),
@@ -518,7 +520,7 @@ class _HandicapSection extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _ModeDropdown<CheckoutMode>(
-                              label: 'Checkout',
+                              label: 'Check-Out',
                               value: h.checkOut,
                               items: const [
                                 (CheckoutMode.straightOut, 'Straight'),

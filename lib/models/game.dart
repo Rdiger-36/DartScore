@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum GameMode { straightIn, doubleIn }
+enum GameMode { straightIn, doubleIn, masterIn }
 enum CheckoutMode { straightOut, doubleOut, masterOut }
 
 /// Per-player handicap: individual check-in and check-out rules.

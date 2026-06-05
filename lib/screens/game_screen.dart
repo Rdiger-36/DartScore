@@ -18,7 +18,8 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   int? _liveRemaining;
   bool _liveBust = false;
-  int _liveDartsInVisit = 0; // darts thrown so far in current visit
+  int _liveDartsInVisit = 0;
+  bool _liveCheckedInThisVisit = false;
 
   @override
   Widget build(BuildContext context) {
@@ -46,21 +47,34 @@ class _GameScreenState extends State<GameScreen> {
         final displayRemaining = _liveRemaining ?? current.remaining;
         final handicaps  = provider.handicaps;
 
+        // Check-In only applies in the very first leg of the game (leg 1, set 1).
+        final checkInActive = provider.currentLeg == 1 && provider.currentSet == 1;
+
         // Per-player resolved modes (handicap overrides game defaults)
         List<GameMode> playerCheckIns = states
-            .map((s) => handicaps[s.player.id]?.checkIn ?? game.gameMode)
+            .map((s) => checkInActive
+                ? (handicaps[s.player.id]?.checkIn ?? game.gameMode)
+                : GameMode.straightIn)
             .toList();
         List<CheckoutMode> playerCheckOuts = states
             .map((s) => handicaps[s.player.id]?.checkOut ?? game.checkoutMode)
             .toList();
-        // hasCheckedIn: straight-in is always checked in; double-in requires remaining < startScore
+        // hasCheckedIn: straight-in is always checked in; double-in/master-in require remaining < startScore
         List<bool> playerCheckedIn = states.asMap().entries.map((e) {
-          return playerCheckIns[e.key] == GameMode.straightIn ||
+          final alreadyIn = playerCheckIns[e.key] == GameMode.straightIn ||
               e.value.remaining < game.startScore;
+          // Live override: if the qualifying dart was thrown this visit, show as checked in immediately
+          if (e.key == currentIdx) return alreadyIn || _liveCheckedInThisVisit;
+          return alreadyIn;
         }).toList();
 
         final currentCheckOut = playerCheckOuts[currentIdx];
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
+        // Committed check-in only (no live component) — passed to DartboardInput
+        // so its scoring gate is stable and doesn't create a feedback loop.
+        final currentHasCheckedInCommitted =
+            playerCheckIns[currentIdx] == GameMode.straightIn ||
+            current.remaining < game.startScore;
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
@@ -84,7 +98,7 @@ class _GameScreenState extends State<GameScreen> {
                 tooltip: context.l10n.undoVisit,
                 onPressed: provider.canUndo
                     ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; });
+                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
                         provider.undoLastThrow();
                       }
                     : null,
@@ -99,7 +113,7 @@ class _GameScreenState extends State<GameScreen> {
                 tooltip: context.l10n.redoVisit,
                 onPressed: provider.canRedo
                     ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; });
+                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
                         provider.redoLastThrow();
                       }
                     : null,
@@ -168,17 +182,19 @@ class _GameScreenState extends State<GameScreen> {
                   remaining: current.remaining,
                   checkoutMode: currentCheckOut,
                   gameMode: playerCheckIns[currentIdx],
-                  hasCheckedIn: currentHasCheckedIn,
-                  onScoreUpdate: (live, bust, dartsInVisit) => setState(() {
+                  hasCheckedIn: currentHasCheckedInCommitted,
+                  onScoreUpdate: (live, bust, dartsInVisit, checkedInThisVisit) => setState(() {
                     _liveRemaining = live;
                     _liveBust = bust;
                     _liveDartsInVisit = dartsInVisit;
+                    _liveCheckedInThisVisit = checkedInThisVisit;
                   }),
                   onVisitComplete: (score, darts, bust, hits) {
                     setState(() {
                       _liveRemaining = null;
                       _liveBust = false;
                       _liveDartsInVisit = 0;
+                      _liveCheckedInThisVisit = false;
                     });
                     provider.submitScore(score, darts, bust: bust, hits: hits);
                   },
@@ -329,12 +345,14 @@ class _Scoreboard extends StatelessWidget {
                       ),
                     ),
                   // Mode badge (check-in required OR in checkout range)
-                  _ModeBadge(
-                    remaining: displayValue,
-                    checkIn: playerCheckIns[i],
-                    checkOut: playerCheckOuts[i],
-                    checkedIn: playerCheckedIn[i],
-                    onCard: onCard,
+                  Center(
+                    child: _ModeBadge(
+                      remaining: displayValue,
+                      checkIn: playerCheckIns[i],
+                      checkOut: playerCheckOuts[i],
+                      checkedIn: playerCheckedIn[i],
+                      onCard: onCard,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   // Big score
@@ -529,8 +547,9 @@ class _ModeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Priority 1: Double-In not yet done
-    if (checkIn == GameMode.doubleIn && !checkedIn) {
+    // Priority 1: Double-In / Master-In not yet done
+    if ((checkIn == GameMode.doubleIn || checkIn == GameMode.masterIn) && !checkedIn) {
+      final label = checkIn == GameMode.masterIn ? 'MASTER IN' : 'DOUBLE IN';
       return Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Container(
@@ -539,9 +558,9 @@ class _ModeBadge extends StatelessWidget {
             color: const Color(0xFFFFB300).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Text(
-            'DOUBLE IN',
-            style: TextStyle(
+          child: Text(
+            label,
+            style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.bold,
               color: Colors.black,

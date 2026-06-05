@@ -28,7 +28,8 @@ class DartboardInput extends StatefulWidget {
   final bool hasCheckedIn;
   /// Fired after every dart / undo / redo so scoreboard + checkout update live.
   /// [dartsInVisit] = darts thrown so far in current visit (1–3).
-  final void Function(int runningRemaining, bool isBust, int dartsInVisit) onScoreUpdate;
+  /// [checkedInThisVisit] = true once a qualifying check-in dart was thrown this visit.
+  final void Function(int runningRemaining, bool isBust, int dartsInVisit, bool checkedInThisVisit) onScoreUpdate;
   /// Fired when the visit (≤3 darts) is complete.
   final void Function(int visitScore, int dartsUsed, bool bust, List<DartEntry> hits) onVisitComplete;
 
@@ -62,6 +63,8 @@ class _DartboardInputState extends State<DartboardInput> {
   int get _runningRemaining => widget.remaining - _visitScoreSoFar;
   bool get _isNegative => _runningRemaining < 0;
   bool get _isDoubleIn => widget.gameMode == GameMode.doubleIn;
+  bool get _isMasterIn => widget.gameMode == GameMode.masterIn;
+  bool get _requiresCheckIn => _isDoubleIn || _isMasterIn;
   bool get _isCheckedIn => widget.hasCheckedIn || _checkedInThisVisit;
 
   void _notify() {
@@ -72,7 +75,7 @@ class _DartboardInputState extends State<DartboardInput> {
         _isCheckedIn;
     final bust = _isNegative || stuck;
     widget.onScoreUpdate(
-        bust ? widget.remaining : _runningRemaining, bust, _darts.length);
+        bust ? widget.remaining : _runningRemaining, bust, _darts.length, _checkedInThisVisit);
   }
 
   void _tapField(int field) {
@@ -88,12 +91,16 @@ class _DartboardInputState extends State<DartboardInput> {
       score = field * mod;
     }
 
-    // ── Double-In enforcement ────────────────────────────────────────────
-    // Non-double darts before check-in count as thrown (use a dart) but score 0.
+    // ── Check-In enforcement (Double-In / Master-In) ─────────────────────
+    // Non-qualifying darts before check-in count as thrown but score 0.
     final bool isDouble = field != 0 && mod == 2;
+    final bool isTriple = field != 0 && mod == 3 && field != 25; // no triple bull
+    final bool qualifiesForCheckIn = _isDoubleIn
+        ? isDouble
+        : (_isMasterIn ? (isDouble || isTriple) : false);
     bool dartScores = true;
-    if (_isDoubleIn && !_isCheckedIn) {
-      if (isDouble) {
+    if (_requiresCheckIn && !_isCheckedIn) {
+      if (qualifiesForCheckIn) {
         _checkedInThisVisit = true; // check-in achieved with this dart
       } else {
         dartScores = false;
@@ -152,10 +159,26 @@ class _DartboardInputState extends State<DartboardInput> {
     }
   }
 
+  /// Recompute _checkedInThisVisit by scanning current darts.
+  /// Called after intra-visit undo/redo so check-in state stays consistent.
+  void _recomputeCheckedInThisVisit() {
+    if (!_requiresCheckIn || widget.hasCheckedIn) {
+      _checkedInThisVisit = false;
+      return;
+    }
+    _checkedInThisVisit = _darts.any((d) {
+      if (d.field == 0) return false;
+      if (_isDoubleIn) return d.modifier == 2;
+      if (_isMasterIn) return d.modifier == 2 || (d.modifier == 3 && d.field != 25);
+      return false;
+    });
+  }
+
   void _undo() {
     if (_darts.isEmpty) return;
     setState(() {
       _redoStack.add(_darts.removeLast());
+      _recomputeCheckedInThisVisit();
     });
     _notify();
   }
@@ -164,6 +187,7 @@ class _DartboardInputState extends State<DartboardInput> {
     if (_redoStack.isEmpty) return;
     setState(() {
       _darts.add(_redoStack.removeLast());
+      _recomputeCheckedInThisVisit();
     });
     _notify();
   }
