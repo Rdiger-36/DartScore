@@ -293,8 +293,23 @@ class AppLocalizations {
 
   // ── Misc numbers/units ───────────────────────────────────────────────────
   String dartsN(int n) => _t('$n dart${n != 1 ? 's' : ''}', '$n Pfeil${n != 1 ? 'e' : ''}');
+  String dartsShort(int n) => _t('${n}D', '${n}P');
   String legLabel(int l) => 'Leg $l';
   String setLabel(int s) => 'Set $s';
+
+  // ── Compact / abbreviation labels ────────────────────────────────────────
+  String get straight       => _t('Straight', 'Straight');
+  String get master         => _t('Master', 'Master');
+  String get setsAbbr       => _t('S', 'S');
+  String get legsAbbr       => _t('L', 'L');
+  String get highAbbr       => _t('High', 'High');
+  String get shareSubject   => _t('DartScore Result', 'DartScore Ergebnis');
+  String get noThrowData    => _t('No throw data available.', 'Keine Wurfdaten vorhanden.');
+  String get guest          => _t('Guest', 'Gast');
+  String get addTeam        => _t('Add team', 'Team hinzufügen');
+  String get removeTeam     => _t('Remove team', 'Team entfernen');
+  String teamN(int n)       => _t('Team $n', 'Team $n');
+  String get doublesLabel   => _t('Doubles', 'Doubles');
 }
 
 // ── Delegate ──────────────────────────────────────────────────────────────────

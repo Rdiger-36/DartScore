@@ -93,10 +93,10 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             title: l.checkIn,
             child: Wrap(
               spacing: 8,
-              children: const [
-                (GameMode.straightIn, 'Straight'),
-                (GameMode.doubleIn,   'Double'),
-                (GameMode.masterIn,   'Master'),
+              children: [
+                (GameMode.straightIn, l.straight),
+                (GameMode.doubleIn,   l.double_),
+                (GameMode.masterIn,   l.master),
               ].map((e) => ChoiceChip(
                 label: Text(e.$2),
                 selected: _gameMode == e.$1,
@@ -109,10 +109,10 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             title: l.checkOut,
             child: Wrap(
               spacing: 8,
-              children: const [
-                (CheckoutMode.straightOut, 'Straight'),
-                (CheckoutMode.doubleOut,   'Double'),
-                (CheckoutMode.masterOut,   'Master'),
+              children: [
+                (CheckoutMode.straightOut, l.straight),
+                (CheckoutMode.doubleOut,   l.double_),
+                (CheckoutMode.masterOut,   l.master),
               ].map((e) => ChoiceChip(
                 label: Text(e.$2),
                 selected: _checkoutMode == e.$1,
@@ -163,7 +163,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                 children: [
                   Expanded(
                     child: _Stepper(
-                      label: 'Legs',
+                      label: l.legs,
                       value: _legs,
                       min: 1,
                       max: 9,
@@ -173,7 +173,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: _Stepper(
-                      label: 'Sets',
+                      label: l.sets,
                       value: _sets,
                       min: 1,
                       max: 9,
@@ -512,12 +512,12 @@ class _HandicapSection extends StatelessWidget {
                         children: [
                           Expanded(
                             child: _ModeDropdown<GameMode>(
-                              label: 'Check-In',
+                              label: context.l10n.checkIn,
                               value: h.checkIn,
-                              items: const [
-                                (GameMode.straightIn, 'Straight'),
-                                (GameMode.doubleIn,   'Double'),
-                                (GameMode.masterIn,   'Master'),
+                              items: [
+                                (GameMode.straightIn, context.l10n.straight),
+                                (GameMode.doubleIn,   context.l10n.double_),
+                                (GameMode.masterIn,   context.l10n.master),
                               ],
                               onChanged: (v) => onChanged(
                                 p, h.copyWith(checkIn: v)),
@@ -526,12 +526,12 @@ class _HandicapSection extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: _ModeDropdown<CheckoutMode>(
-                              label: 'Check-Out',
+                              label: context.l10n.checkOut,
                               value: h.checkOut,
-                              items: const [
-                                (CheckoutMode.straightOut, 'Straight'),
-                                (CheckoutMode.doubleOut,   'Double'),
-                                (CheckoutMode.masterOut,   'Master'),
+                              items: [
+                                (CheckoutMode.straightOut, context.l10n.straight),
+                                (CheckoutMode.doubleOut,   context.l10n.double_),
+                                (CheckoutMode.masterOut,   context.l10n.master),
                               ],
                               onChanged: (v) => onChanged(
                                 p, h.copyWith(checkOut: v)),
@@ -682,7 +682,7 @@ class _TeamSection extends StatelessWidget {
                       child: TextField(
                         controller: teamNameCtrl[ti],
                         decoration: InputDecoration(
-                          labelText: 'Team ${ti + 1}',
+                          labelText: context.l10n.teamN(ti + 1),
                           border: const OutlineInputBorder(),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 8),
@@ -696,7 +696,7 @@ class _TeamSection extends StatelessWidget {
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                         color: cs.error,
                         onPressed: () => onRemoveTeam(ti),
-                        tooltip: 'Team entfernen',
+                        tooltip: context.l10n.removeTeam,
                       ),
                     ],
                   ],
@@ -707,7 +707,7 @@ class _TeamSection extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onAddTeam,
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Team hinzufügen'),
+                  label: Text(context.l10n.addTeam),
                 ),
               const SizedBox(height: 4),
               const Divider(),

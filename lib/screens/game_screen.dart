@@ -83,8 +83,8 @@ class _GameScreenState extends State<GameScreen> {
             toolbarHeight: 44,
             title: Text(
               isSolo
-                  ? 'Open Play · ${game.startScore}'
-                  : '${game.startScore} · Leg ${provider.currentLeg} · Set ${provider.currentSet}',
+                  ? '${context.l10n.openPlay} · ${game.startScore}'
+                  : '${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)} · ${context.l10n.setLabel(provider.currentSet)}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             ),
             actions: [
@@ -381,8 +381,8 @@ class _Scoreboard extends StatelessWidget {
                           if (!isSolo)
                             Text(
                               game.sets > 1
-                                  ? 'S ${s.setsWon}  L ${s.legsWon}'
-                                  : 'Legs: ${s.legsWon}',
+                                  ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
+                                  : '${context.l10n.legs}: ${s.legsWon}',
                               style: theme.textTheme.bodySmall
                                   ?.copyWith(color: onCardMuted),
                             ),

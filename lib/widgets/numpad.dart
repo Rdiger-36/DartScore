@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 
 class NumPad extends StatefulWidget {
   final int maxScore;
@@ -71,7 +72,7 @@ class _NumPadState extends State<NumPad> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Darts: ', style: theme.textTheme.bodyMedium),
+              Text('${context.l10n.darts_}: ', style: theme.textTheme.bodyMedium),
               for (final d in [1, 2, 3])
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -99,7 +100,7 @@ class _NumPadState extends State<NumPad> {
                 _NumKey(label: n, onTap: () => _tap(n)),
               _NumKey(label: '0', onTap: () => _tap('0')),
               _NumKey(
-                label: 'MISS',
+                label: context.l10n.miss.toUpperCase(),
                 onTap: () {
                   setState(() => _input = '0');
                   _submit();
@@ -108,7 +109,7 @@ class _NumPadState extends State<NumPad> {
                 textColor: Theme.of(context).colorScheme.onErrorContainer,
               ),
               _NumKey(
-                label: 'OK',
+                label: context.l10n.ok,
                 onTap: _submit,
                 color: Theme.of(context).colorScheme.primaryContainer,
                 textColor: Theme.of(context).colorScheme.onPrimaryContainer,
