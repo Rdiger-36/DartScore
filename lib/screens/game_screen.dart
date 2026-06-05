@@ -18,7 +18,8 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   int? _liveRemaining;
   bool _liveBust = false;
-  int _liveDartsInVisit = 0; // darts thrown so far in current visit
+  int _liveDartsInVisit = 0;
+  bool _liveCheckedInThisVisit = false;
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +56,11 @@ class _GameScreenState extends State<GameScreen> {
             .toList();
         // hasCheckedIn: straight-in is always checked in; double-in/master-in require remaining < startScore
         List<bool> playerCheckedIn = states.asMap().entries.map((e) {
-          return playerCheckIns[e.key] == GameMode.straightIn ||
+          final alreadyIn = playerCheckIns[e.key] == GameMode.straightIn ||
               e.value.remaining < game.startScore;
+          // Live override: if the qualifying dart was thrown this visit, show as checked in immediately
+          if (e.key == currentIdx) return alreadyIn || _liveCheckedInThisVisit;
+          return alreadyIn;
         }).toList();
 
         final currentCheckOut = playerCheckOuts[currentIdx];
@@ -84,7 +88,7 @@ class _GameScreenState extends State<GameScreen> {
                 tooltip: context.l10n.undoVisit,
                 onPressed: provider.canUndo
                     ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; });
+                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
                         provider.undoLastThrow();
                       }
                     : null,
@@ -99,7 +103,7 @@ class _GameScreenState extends State<GameScreen> {
                 tooltip: context.l10n.redoVisit,
                 onPressed: provider.canRedo
                     ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; });
+                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
                         provider.redoLastThrow();
                       }
                     : null,
@@ -169,16 +173,18 @@ class _GameScreenState extends State<GameScreen> {
                   checkoutMode: currentCheckOut,
                   gameMode: playerCheckIns[currentIdx],
                   hasCheckedIn: currentHasCheckedIn,
-                  onScoreUpdate: (live, bust, dartsInVisit) => setState(() {
+                  onScoreUpdate: (live, bust, dartsInVisit, checkedInThisVisit) => setState(() {
                     _liveRemaining = live;
                     _liveBust = bust;
                     _liveDartsInVisit = dartsInVisit;
+                    _liveCheckedInThisVisit = checkedInThisVisit;
                   }),
                   onVisitComplete: (score, darts, bust, hits) {
                     setState(() {
                       _liveRemaining = null;
                       _liveBust = false;
                       _liveDartsInVisit = 0;
+                      _liveCheckedInThisVisit = false;
                     });
                     provider.submitScore(score, darts, bust: bust, hits: hits);
                   },
@@ -329,12 +335,14 @@ class _Scoreboard extends StatelessWidget {
                       ),
                     ),
                   // Mode badge (check-in required OR in checkout range)
-                  _ModeBadge(
-                    remaining: displayValue,
-                    checkIn: playerCheckIns[i],
-                    checkOut: playerCheckOuts[i],
-                    checkedIn: playerCheckedIn[i],
-                    onCard: onCard,
+                  Center(
+                    child: _ModeBadge(
+                      remaining: displayValue,
+                      checkIn: playerCheckIns[i],
+                      checkOut: playerCheckOuts[i],
+                      checkedIn: playerCheckedIn[i],
+                      onCard: onCard,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   // Big score
