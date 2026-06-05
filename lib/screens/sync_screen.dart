@@ -13,6 +13,71 @@ import '../utils/layout.dart';
 
 enum _NameResolution { useExisting }
 
+/// Builds a [SyncPacket] for [player] using all live throws plus the
+/// persisted [local_stats_json] snapshot (covers cleared game history).
+Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
+  final db        = DbHelper.instance;
+  final allThrows = await db.getThrowsForPlayer(player.id!);
+
+  // Live stats
+  int liveDarts = 0, liveScored = 0, liveLegs = 0, liveHigh = 0;
+  int liveBusts = 0, live180 = 0;
+  for (final t in allThrows) {
+    liveDarts += t.dartsUsed;
+    if (!t.bust) {
+      liveScored += t.score;
+      if (t.score > liveHigh) liveHigh = t.score;
+      if (t.score == 180) live180++;
+      if (t.remainingBefore - t.score == 0) liveLegs++;
+    } else {
+      liveBusts++;
+    }
+  }
+
+  // Persistent stats from cleared-game snapshot
+  int persD = 0, persV = 0, persLegs = 0, persHigh = 0, persBusts = 0, pers180 = 0, persScored = 0;
+  if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
+    try {
+      final p = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
+      persD      = p['total_darts']   as int? ?? 0;
+      persV      = p['total_visits']  as int? ?? 0;
+      persLegs   = p['legs_won']      as int? ?? 0;
+      persHigh   = p['highest_visit'] as int? ?? 0;
+      persBusts  = p['busts']         as int? ?? 0;
+      pers180    = p['count_180']     as int? ?? 0;
+      persScored = p['total_scored']  as int? ?? 0;
+    } catch (_) {}
+  }
+
+  final totalDarts   = liveDarts  + persD;
+  final totalVisits  = allThrows.length + persV;
+  final totalScored  = liveScored + persScored;
+  final totalLegs    = liveLegs   + persLegs;
+  final highestVisit = liveHigh > persHigh ? liveHigh : persHigh;
+  final totalBusts   = liveBusts  + persBusts;
+  final total180     = live180    + pers180;
+  final avg = totalDarts == 0 ? 0.0 : (totalScored / totalDarts) * 3;
+
+  return SyncPacket(
+    version:         1,
+    senderDevice:    senderDevice,
+    playerUuid:      player.uuid,
+    playerName:      player.name,
+    favoriteDoubles: player.favoriteDoubles,
+    localStatsJson:  player.localStatsJson,
+    stats: SyncStats(
+      totalDarts:   totalDarts,
+      totalVisits:  totalVisits,
+      average:      double.parse(avg.toStringAsFixed(2)),
+      legsWon:      totalLegs,
+      highestVisit: highestVisit,
+      busts:        totalBusts,
+      count180:     total180,
+    ),
+    throws: allThrows.map(SyncThrow.fromDartThrow).toList(),
+  );
+}
+
 // Prefix that marks a QR code as containing embedded data (not IP:port).
 const _kQrPrefix = 'QR1:';
 
@@ -98,7 +163,6 @@ class _SenderTabState extends State<_SenderTab> {
   bool _qrTooLarge = false;
   bool _generatingQr = false;
   int _newThrowsCount = 0;
-  bool _isFirstSync = false;
 
   // WiFi state
   final _server = SyncServer();
@@ -122,44 +186,11 @@ class _SenderTabState extends State<_SenderTab> {
       _qrTooLarge = false;
     });
 
-    final player = _selectedPlayer!;
-    final db = DbHelper.instance;
-    final allThrows = await db.getThrowsForPlayer(player.id!);
-
-    // Full stats from all throws
-    final totalDarts = allThrows.fold(0, (s, t) => s + t.dartsUsed);
-    final scored    = allThrows.fold(0, (s, t) => t.bust ? s : s + t.score);
-    final avg       = totalDarts == 0 ? 0.0 : (scored / totalDarts) * 3;
-    final legs      = allThrows.where((t) => !t.bust && t.remainingBefore - t.score == 0).length;
-    final high      = allThrows.isEmpty ? 0 : allThrows.map((t) => t.score).reduce((a, b) => a > b ? a : b);
-    final busts     = allThrows.where((t) => t.bust).length;
-    final c180      = allThrows.where((t) => t.score == 180).length;
-
-    // Only new throws since last sync
-    final since = player.lastSyncedAt;
-    _isFirstSync = since == null;
-    final newThrows = since == null
-        ? allThrows
-        : allThrows.where((t) => t.thrownAt.millisecondsSinceEpoch > since).toList();
-    _newThrowsCount = newThrows.length;
-
-    final packet = SyncPacket(
-      version: 1,
-      senderDevice: Platform.isIOS ? 'iPhone' : 'Android',
-      playerUuid: player.uuid,
-      playerName: player.name,
-      favoriteDoubles: player.favoriteDoubles,
-      stats: SyncStats(
-        totalDarts: totalDarts,
-        totalVisits: allThrows.length,
-        average: double.parse(avg.toStringAsFixed(2)),
-        legsWon: legs,
-        highestVisit: high,
-        busts: busts,
-        count180: c180,
-      ),
-      throws: newThrows.map(SyncThrow.fromDartThrow).toList(),
+    final packet = await _buildSyncPacket(
+      _selectedPlayer!,
+      Platform.isIOS ? 'iPhone' : 'Android',
     );
+    _newThrowsCount = packet.stats.totalVisits;
 
     // gzip → base64url
     final jsonBytes  = utf8.encode(jsonEncode(packet.toJson()));
@@ -180,33 +211,9 @@ class _SenderTabState extends State<_SenderTab> {
     if (_selectedPlayer == null) return;
     setState(() => _wifiStarting = true);
 
-    final player = _selectedPlayer!;
-    final throws = await DbHelper.instance.getThrowsForPlayer(player.id!);
-
-    final totalDarts = throws.fold(0, (s, t) => s + t.dartsUsed);
-    final scored    = throws.fold(0, (s, t) => s + (t.bust ? 0 : t.score));
-    final avg       = totalDarts == 0 ? 0.0 : (scored / totalDarts) * 3;
-    final legs      = throws.where((t) => !t.bust && t.remainingBefore - t.score == 0).length;
-    final high      = throws.isEmpty ? 0 : throws.map((t) => t.score).reduce((a, b) => a > b ? a : b);
-    final busts     = throws.where((t) => t.bust).length;
-    final c180      = throws.where((t) => t.score == 180).length;
-
-    final packet = SyncPacket(
-      version: 1,
-      senderDevice: Platform.isIOS ? 'iPhone' : 'Android',
-      playerUuid: player.uuid,
-      playerName: player.name,
-      favoriteDoubles: player.favoriteDoubles,
-      stats: SyncStats(
-        totalDarts: totalDarts,
-        totalVisits: throws.length,
-        average: double.parse(avg.toStringAsFixed(2)),
-        legsWon: legs,
-        highestVisit: high,
-        busts: busts,
-        count180: c180,
-      ),
-      throws: throws.map(SyncThrow.fromDartThrow).toList(),
+    final packet = await _buildSyncPacket(
+      _selectedPlayer!,
+      Platform.isIOS ? 'iPhone' : 'Android',
     );
 
     if (_server.isRunning) await _server.stop();
@@ -375,11 +382,9 @@ class _SenderTabState extends State<_SenderTab> {
     if (_quickQrData == null) return const SizedBox.shrink();
 
     // Info chip: how many throws
-    final infoText = _isFirstSync
-        ? l.allThrowsFirstSync
-        : (_newThrowsCount == 0
-            ? l.noNewThrowsQr
-            : l.newThrowsSinceSync(_newThrowsCount));
+    final infoText = _newThrowsCount == 0
+        ? l.noNewThrowsQr
+        : l.allThrowsFirstSync;
 
     return Column(
       children: [
@@ -745,6 +750,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
           name: packet.playerName,
           favoriteDoubles: packet.favoriteDoubles,
           syncedStats: statsJson,
+          localStatsJson: packet.localStatsJson,
         ));
         await db.updatePlayerSyncTime(existing.id!, now,
             syncedStatsJson: statsJson);
@@ -758,6 +764,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
           uuid: packet.playerUuid,
           lastSyncedAt: now,
           syncedStats: statsJson,
+          localStatsJson: packet.localStatsJson,
         );
         await db.updatePlayer(updated);
         await provider.load();
@@ -781,15 +788,20 @@ class _ReceiverTabState extends State<_ReceiverTab> {
           }
         }
 
-        final imported = packet.throws.length -
-            existingTs
-                .intersection(packet.throws.map((t) => t.thrownAt).toSet())
-                .length;
+        final duplicates = existingTs
+            .intersection(packet.throws.map((t) => t.thrownAt).toSet())
+            .length;
+        final newLiveVisits = packet.throws.length - duplicates;
+        // For display: new player shows total visits (live + historical snapshot),
+        // update shows only the newly added live visits.
+        final displayCount = existing != null
+            ? newLiveVisits
+            : packet.stats.totalVisits;
 
         messenger.showSnackBar(SnackBar(
           content: Text(existing != null
-              ? l.importedWithThrows(packet.playerName, imported)
-              : l.importedWithCount(packet.playerName, packet.throws.length)),
+              ? l.importedWithThrows(packet.playerName, displayCount)
+              : l.importedWithCount(packet.playerName, displayCount)),
         ));
       } else {
         messenger.showSnackBar(SnackBar(
@@ -855,7 +867,7 @@ class _ConfirmDialog extends StatelessWidget {
                         Text('Doubles: ${packet.favoriteDoubles}',
                             style: theme.textTheme.bodySmall),
                       Text(
-                        '${l.fromDevice(packet.senderDevice)}  ·  ${packet.throws.length} ${l.throws}',
+                        '${l.fromDevice(packet.senderDevice)}  ·  ${packet.stats.totalVisits} ${l.visits}',
                         style: theme.textTheme.labelSmall
                             ?.copyWith(color: cs.onSurfaceVariant),
                       ),
