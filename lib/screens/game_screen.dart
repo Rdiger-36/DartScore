@@ -330,7 +330,7 @@ class _Scoreboard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (s.isTeam)
+                  if (s.isTeamSlot)
                     Text(
                       s.player.name,
                       textAlign: TextAlign.center,

@@ -27,6 +27,8 @@ class PlayerState {
   final List<DartThrow> throws;
   final int perfectLegs;
 
+  final bool isTeamSlot;
+
   const PlayerState({
     required this.displayName,
     required this.players,
@@ -36,6 +38,7 @@ class PlayerState {
     required this.remaining,
     required this.throws,
     this.perfectLegs = 0,
+    this.isTeamSlot = false,
   });
 
   /// The player who throws next (backward-compatible accessor).
@@ -68,6 +71,7 @@ class PlayerState {
         remaining:        remaining        ?? this.remaining,
         throws:           throws           ?? this.throws,
         perfectLegs:      perfectLegs      ?? this.perfectLegs,
+        isTeamSlot:       isTeamSlot,
       );
 }
 
@@ -208,6 +212,7 @@ class GameProvider extends ChangeNotifier {
         setsWon:          teamSetsWon[ti],
         remaining:        remaining,
         throws:           allTeamThrows,
+        isTeamSlot:       true,
       );
     }).toList();
 
@@ -340,6 +345,7 @@ class GameProvider extends ChangeNotifier {
           setsWon:     0,
           remaining:   game.startScore,
           throws:      [],
+          isTeamSlot:  true,
         );
       }).toList();
     } else {
@@ -492,6 +498,7 @@ class GameProvider extends ChangeNotifier {
               remaining:        _game!.startScore,
               throws:           s.throws,
               perfectLegs:      s.perfectLegs,
+              isTeamSlot:       s.isTeamSlot,
             ))
         .toList();
   }
