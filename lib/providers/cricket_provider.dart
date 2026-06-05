@@ -190,9 +190,15 @@ class CricketProvider extends ChangeNotifier {
   Future<void> _endVisit() async {
     _visitBuffer.clear();
 
-    // Check win condition for current player
+    // Standard win: current player closed all fields with the winning score
     if (_checkWin(_currentPlayerIndex)) {
       await _handleWin(_currentPlayerIndex);
+      return;
+    }
+
+    // All players have closed all fields — nobody can score anymore, decide by score
+    if (_playerStates.every((s) => s.hasClosedAll)) {
+      await _handleWin(_scoreWinnerIndex());
       return;
     }
 
@@ -206,16 +212,28 @@ class CricketProvider extends ChangeNotifier {
 
     final isCutThroat = _game!.variant == CricketVariant.cutThroat;
     if (isCutThroat) {
-      // Win if my score <= all opponents' scores
       return _playerStates
           .where((s) => s.player.id != state.player.id)
           .every((s) => state.score <= s.score);
     } else {
-      // Win if my score >= all opponents' scores
       return _playerStates
           .where((s) => s.player.id != state.player.id)
           .every((s) => state.score >= s.score);
     }
+  }
+
+  /// Returns the index of the player who wins when all fields are closed.
+  int _scoreWinnerIndex() {
+    final isCutThroat = _game!.variant == CricketVariant.cutThroat;
+    int best = 0;
+    for (var i = 1; i < _playerStates.length; i++) {
+      final challenger = _playerStates[i].score;
+      final current    = _playerStates[best].score;
+      if (isCutThroat ? challenger < current : challenger > current) {
+        best = i;
+      }
+    }
+    return best;
   }
 
   Future<void> _handleWin(int playerIdx) async {
