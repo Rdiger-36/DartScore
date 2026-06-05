@@ -186,9 +186,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 16),
           // ── Handicap ──────────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2)
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
             _HandicapSection(
               enabled: _handicapEnabled,
               players: _selectedPlayers,
@@ -198,7 +198,6 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               onToggle: (v) => setState(() {
                 _handicapEnabled = v;
                 if (v) {
-                  // Pre-fill handicaps with game defaults
                   for (final p in _selectedPlayers) {
                     _handicaps.putIfAbsent(
                       p,
@@ -210,9 +209,10 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               }),
               onChanged: (p, h) => setState(() => _handicaps[p] = h),
             ),
-          const SizedBox(height: 16),
+          ],
           // ── Team game ──────────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2)
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
             _TeamSection(
               enabled: _teamGameEnabled,
               players: _selectedPlayers,
@@ -235,6 +235,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               onAddTeam: _addTeam,
               onRemoveTeam: _removeTeam,
             ),
+          ],
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: _selectedPlayers.isNotEmpty ? _startGame : null,
