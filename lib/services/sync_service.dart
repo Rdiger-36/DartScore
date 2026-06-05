@@ -147,6 +147,8 @@ class SyncPacket {
   final String favoriteDoubles;
   final SyncStats stats;
   final List<SyncThrow> throws;
+  // Full historical stats snapshot (local_stats_json) — includes data from cleared game history.
+  final String? localStatsJson;
 
   const SyncPacket({
     required this.version,
@@ -156,6 +158,7 @@ class SyncPacket {
     required this.favoriteDoubles,
     required this.stats,
     required this.throws,
+    this.localStatsJson,
   });
 
   Map<String, dynamic> toJson() => {
@@ -166,6 +169,7 @@ class SyncPacket {
         'favorite_doubles': favoriteDoubles,
         'stats': stats.toJson(),
         'throws': throws.map((t) => t.toJson()).toList(),
+        if (localStatsJson != null) 'local_stats_json': localStatsJson,
       };
 
   factory SyncPacket.fromJson(Map<String, dynamic> j) => SyncPacket(
@@ -179,6 +183,7 @@ class SyncPacket {
         throws: (j['throws'] as List? ?? [])
             .map((t) => SyncThrow.fromJson(t as Map<String, dynamic>))
             .toList(),
+        localStatsJson: j['local_stats_json'] as String?,
       );
 }
 

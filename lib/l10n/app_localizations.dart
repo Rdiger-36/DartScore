@@ -270,11 +270,11 @@ class AppLocalizations {
   String importedMsg(String name) => _t('$name imported.', '$name importiert.');
   String updatedMsg(String name) => _t('$name updated.', '$name aktualisiert.');
   String importedWithThrows(String name, int n) =>
-      _t('$name updated · $n new throws imported.',
-         '$name aktualisiert · $n neue Würfe importiert.');
+      _t('$name updated · $n new visits imported.',
+         '$name aktualisiert · $n neue Aufnahmen importiert.');
   String importedWithCount(String name, int n) =>
-      _t('$name imported · $n throws.',
-         '$name importiert · $n Würfe.');
+      _t('$name imported · $n visits.',
+         '$name importiert · $n Aufnahmen.');
   String overwriteProfile(String name) =>
       _t('Profile of "$name" will be overwritten with this data.',
          'Profil von "$name" wird mit diesen Daten überschrieben.');

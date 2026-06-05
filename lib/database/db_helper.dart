@@ -605,7 +605,8 @@ class DbHelper {
 
   Future<Player?> getPlayerByUuid(String uuid) async {
     final d = await db;
-    final rows = await d.query('players', where: 'uuid = ?', whereArgs: [uuid]);
+    final rows = await d.query('players',
+        where: 'uuid = ? AND is_deleted = 0', whereArgs: [uuid]);
     return rows.isEmpty ? null : Player.fromMap(rows.first);
   }
 
