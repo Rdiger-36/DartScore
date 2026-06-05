@@ -236,9 +236,9 @@ class _HistoryEntry {
   factory _HistoryEntry.cricket(CricketGame g, List<Player> players) =>
       _HistoryEntry._(cricketGame: g, players: players);
 
-  bool          get isCricket  => cricketGame != null;
-  DateTime      get createdAt  => x01Game?.createdAt ?? cricketGame!.createdAt;
-  DateTime?     get finishedAt => x01Game?.finishedAt ?? cricketGame!.finishedAt;
+  bool      get isCricket  => cricketGame != null;
+  DateTime  get createdAt  => isCricket ? cricketGame!.createdAt  : x01Game!.createdAt;
+  DateTime? get finishedAt => isCricket ? cricketGame!.finishedAt : x01Game!.finishedAt;
 }
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
