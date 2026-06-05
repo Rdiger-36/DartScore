@@ -14,7 +14,8 @@
   <img src="https://img.shields.io/badge/Flutter-%E2%89%A53.32-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Dart-%E2%89%A53.12-0175C2?style=flat-square&logo=dart&logoColor=white" alt="Dart" />
   <img src="https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square" alt="platform" />
-  <img src="https://img.shields.io/github/last-commit/Rdiger-36/DartScore?style=flat-square" alt="last commit" />
+  <img src="https://img.shields.io/badge/maintained-yes-brightgreen?style=flat-square" alt="maintained" />
+  <img src="https://img.shields.io/badge/status-active-brightgreen?style=flat-square" alt="status" />
 </p>
 
 ---
