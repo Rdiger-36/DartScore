@@ -83,9 +83,9 @@ class DartScoreApp extends StatelessWidget {
     onPrimary: Colors.white,
     primaryContainer: const Color(0xFFFFCDD2),
     onPrimaryContainer: const Color(0xFF7F0000),
-    // Green double ring — #1B5E20 on white = 7.5:1 ✓✓
-    secondary: const Color(0xFF1B5E20),
-    onSecondary: Colors.white,
+    // Green double ring — #66BB6A on white = 3.0:1 ✓ (large UI element)
+    secondary: const Color(0xFF66BB6A),
+    onSecondary: const Color(0xFF003909),
     secondaryContainer: const Color(0xFFA5D6A7),    // more saturated, visible
     onSecondaryContainer: const Color(0xFF002106),
     // Triple ring red — #8B0000 on white = 8.1:1 ✓✓
@@ -124,8 +124,8 @@ class DartScoreApp extends StatelessWidget {
     primaryContainer: const Color(0xFF7F0000),
     onPrimaryContainer: const Color(0xFFFFCDD2),
     // Muted green
-    secondary: const Color(0xFF66BB6A),         // green 400
-    onSecondary: const Color(0xFF003909),
+    secondary: const Color(0xFF1B5E20),         // green 800 — deep, calm on dark
+    onSecondary: Colors.white,
     secondaryContainer: const Color(0xFF1B5E20),
     onSecondaryContainer: const Color(0xFFC8E6C9),
     // Triple ring red — muted for dark mode
