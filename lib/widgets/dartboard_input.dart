@@ -221,6 +221,20 @@ class _DartboardInputState extends State<DartboardInput> {
     final cs = theme.colorScheme;
     final dartCount = _darts.length;
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Compact mode for small screens (e.g. iPhone SE): reduce spacing and
+        // increase childAspectRatio so the grid takes less vertical space.
+        final compact = constraints.maxHeight < 420;
+        final gridSpacing = compact ? 4.0 : 6.0;
+        final gridAspectRatio = compact ? 1.7 : 1.4;
+        final segmentVPadding = compact ? 4.0 : 8.0;
+        final gapAfterProgress = compact ? 6.0 : 10.0;
+        final gapAfterSegment = compact ? 6.0 : 12.0;
+        final gapBeforeActions = compact ? 4.0 : 6.0;
+        final actionVPadding = compact ? 7.0 : 11.0;
+        final bottomPad = compact ? 8.0 : 14.0;
+
     return SingleChildScrollView(
       child: Center(
         child: ConstrainedBox(
@@ -236,7 +250,7 @@ class _DartboardInputState extends State<DartboardInput> {
             onUndo: _undo,
             onRedo: _redo,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: gapAfterProgress),
           // Modifier
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -250,12 +264,12 @@ class _DartboardInputState extends State<DartboardInput> {
               onSelectionChanged: (s) => setState(() => _modifier = s.first),
               style: ButtonStyle(
                 padding: WidgetStateProperty.all(
-                    const EdgeInsets.symmetric(vertical: 8)),
+                    EdgeInsets.symmetric(vertical: segmentVPadding)),
                 textStyle: WidgetStateProperty.all(theme.textTheme.labelMedium),
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: gapAfterSegment),
           // Number grid
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -263,21 +277,22 @@ class _DartboardInputState extends State<DartboardInput> {
               crossAxisCount: 5,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 1.4,
+              mainAxisSpacing: gridSpacing,
+              crossAxisSpacing: gridSpacing,
+              childAspectRatio: gridAspectRatio,
               children: _fields.map((f) => _FieldButton(
                 field: f,
                 modifier: _modifier,
                 disabled: dartCount >= 3,
+                compact: compact,
                 onTap: () => _tapField(f),
               )).toList(),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: gapBeforeActions),
           // Miss | Bull | Fertig
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+            padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPad),
             child: Row(
               children: [
                 Expanded(
@@ -287,6 +302,7 @@ class _DartboardInputState extends State<DartboardInput> {
                     color: cs.errorContainer,
                     textColor: cs.onErrorContainer,
                     disabled: dartCount >= 3,
+                    verticalPadding: actionVPadding,
                     onTap: () => _tapField(0),
                   ),
                 ),
@@ -299,6 +315,7 @@ class _DartboardInputState extends State<DartboardInput> {
                     color: cs.secondaryContainer,
                     textColor: cs.onSecondaryContainer,
                     disabled: dartCount >= 3 || _modifier == 3,
+                    verticalPadding: actionVPadding,
                     onTap: () => _tapField(25),
                   ),
                 ),
@@ -310,6 +327,7 @@ class _DartboardInputState extends State<DartboardInput> {
                     color: cs.primaryContainer,
                     textColor: cs.onPrimaryContainer,
                     disabled: dartCount == 0,
+                    verticalPadding: actionVPadding,
                     onTap: _finishEarly,
                   ),
                 ),
@@ -320,6 +338,8 @@ class _DartboardInputState extends State<DartboardInput> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -485,12 +505,14 @@ class _FieldButton extends StatelessWidget {
   final int field;
   final int modifier;
   final bool disabled;
+  final bool compact;
   final VoidCallback onTap;
 
   const _FieldButton({
     required this.field,
     required this.modifier,
     required this.disabled,
+    this.compact = false,
     required this.onTap,
   });
 
@@ -518,6 +540,9 @@ class _FieldButton extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     final prefix = modifier == 2 ? 'D' : modifier == 3 ? 'T' : '';
 
+    final score = field * modifier;
+    final notation = '$prefix$field';
+
     return Material(
       color: _bg(cs),
       borderRadius: BorderRadius.circular(8),
@@ -527,20 +552,33 @@ class _FieldButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '$field',
-              style: t.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: _fg(cs),
-              ),
-            ),
-            if (modifier > 1)
+            if (compact)
+              // Compact: single line — notation (e.g. T20) or just the number
               Text(
-                '$prefix$field',
-                style: t.labelSmall?.copyWith(
-                  color: _fg(cs).withValues(alpha: 0.65),
+                modifier > 1 ? notation : '$field',
+                style: t.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _fg(cs),
+                ),
+              )
+            else ...[
+              // Normal: field number + score for doubles/triples
+              Text(
+                '$field',
+                style: t.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _fg(cs),
                 ),
               ),
+              if (modifier > 1)
+                Text(
+                  '$score',
+                  style: t.labelSmall?.copyWith(
+                    color: _fg(cs).withValues(alpha: 0.65),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -556,6 +594,7 @@ class _ActionButton extends StatelessWidget {
   final Color color;
   final Color textColor;
   final bool disabled;
+  final double verticalPadding;
   final VoidCallback onTap;
 
   const _ActionButton({
@@ -564,6 +603,7 @@ class _ActionButton extends StatelessWidget {
     required this.color,
     required this.textColor,
     required this.disabled,
+    this.verticalPadding = 11,
     required this.onTap,
   });
 
@@ -581,7 +621,7 @@ class _ActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         onTap: disabled ? null : onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 11),
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
           child: Column(
             children: [
               Icon(icon, size: 17, color: effectiveFg),
