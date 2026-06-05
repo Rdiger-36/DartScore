@@ -284,6 +284,7 @@ class _DartboardInputState extends State<DartboardInput> {
                 field: f,
                 modifier: _modifier,
                 disabled: dartCount >= 3,
+                compact: compact,
                 onTap: () => _tapField(f),
               )).toList(),
             ),
@@ -504,12 +505,14 @@ class _FieldButton extends StatelessWidget {
   final int field;
   final int modifier;
   final bool disabled;
+  final bool compact;
   final VoidCallback onTap;
 
   const _FieldButton({
     required this.field,
     required this.modifier,
     required this.disabled,
+    this.compact = false,
     required this.onTap,
   });
 
@@ -537,6 +540,9 @@ class _FieldButton extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     final prefix = modifier == 2 ? 'D' : modifier == 3 ? 'T' : '';
 
+    final score = field * modifier;
+    final notation = '$prefix$field';
+
     return Material(
       color: _bg(cs),
       borderRadius: BorderRadius.circular(8),
@@ -546,20 +552,39 @@ class _FieldButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '$field',
-              style: t.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: _fg(cs),
-              ),
-            ),
-            if (modifier > 1)
+            if (compact)
+              // Compact: single line — notation (e.g. T20) or just the number
               Text(
-                '$prefix$field',
-                style: t.labelSmall?.copyWith(
-                  color: _fg(cs).withValues(alpha: 0.65),
+                modifier > 1 ? notation : '$field',
+                style: t.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _fg(cs),
+                ),
+              )
+            else ...[
+              Text(
+                '$field',
+                style: t.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _fg(cs),
                 ),
               ),
+              if (modifier > 1) ...[
+                Text(
+                  notation,
+                  style: t.labelSmall?.copyWith(
+                    color: _fg(cs).withValues(alpha: 0.65),
+                  ),
+                ),
+                Text(
+                  '$score',
+                  style: t.labelSmall?.copyWith(
+                    color: _fg(cs).withValues(alpha: 0.65),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
