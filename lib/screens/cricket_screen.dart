@@ -50,15 +50,10 @@ class _CricketGameView extends StatelessWidget {
     final states     = provider.playerStates;
     final currentIdx = provider.currentPlayerIndex;
     final current    = provider.currentPlayerState;
-    final isSolo     = states.length == 1;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          isSolo
-              ? 'Cricket'
-              : '${l.leg} ${provider.currentLeg} · ${l.set_} ${provider.currentSet}',
-        ),
+        title: const Text('Cricket'),
         actions: [
           if (provider.canUndo)
             IconButton(
@@ -207,13 +202,6 @@ class _CricketBoard extends StatelessWidget {
                             color: isActive ? cs.primary : null,
                           ),
                         ),
-                        if (states.length > 1)
-                          Text(
-                            '${s.legsWon}L · ${s.setsWon}S',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
                       ],
                     ),
                   );
