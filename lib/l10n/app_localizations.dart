@@ -50,8 +50,8 @@ class AppLocalizations {
   // ── Game Setup ───────────────────────────────────────────────────────────
   String get gameSetup         => _t('Game Setup', 'Spiel einrichten');
   String get startScore        => _t('Start Score', 'Startpunkte');
-  String get checkIn           => _t('Check-in', 'Check-in');
-  String get checkOut          => _t('Checkout', 'Checkout');
+  String get checkIn           => _t('Check-In', 'Check-In');
+  String get checkOut          => _t('Check-Out', 'Check-Out');
   String get straightIn        => _t('Straight In', 'Straight In');
   String get doubleIn          => _t('Double In', 'Double In');
   String get straightOut       => _t('Straight Out', 'Straight Out');
@@ -84,7 +84,7 @@ class AppLocalizations {
   String get miss              => _t('Miss', 'Miss');
   String get done              => _t('Done', 'Fertig');
   String get bust              => _t('Bust', 'Bust');
-  String get checkoutHint      => _t('Checkout:', 'Checkout:');
+  String get checkoutHint      => _t('Check-Out:', 'Check-Out:');
   String dart(int n)           => _t('Dart $n', 'Dart $n');
   String get undoVisit         => _t('Undo last visit', 'Letzte Aufnahme rückgängig');
   String get redoVisit         => _t('Redo', 'Wiederherstellen');
@@ -131,7 +131,7 @@ class AppLocalizations {
   String get count180          => _t('180s', '180er');
   String get count140plus      => _t('140+', '140+');
   String get count100plus      => _t('100+', '100+');
-  String get highestCheckout   => _t('Highest Checkout', 'Höchster Checkout');
+  String get highestCheckout   => _t('Highest Check-Out', 'Höchster Check-Out');
   String get highestVisit      => _t('Highest Visit', 'Höchste Aufnahme');
   String get overview          => _t('Overview', 'Übersicht');
   String get gamesPlayed       => _t('Games Played', 'Spiele gespielt');
@@ -142,7 +142,7 @@ class AppLocalizations {
   String get accuracy          => _t('Accuracy', 'Treffsicherheit');
   String get threeDartAvg      => _t('3-Dart Average', '3-Dart Average');
   String get bustRate          => _t('Bust Rate', 'Bust-Rate');
-  String get checkoutRate      => _t('Checkout Rate', 'Checkout-Quote');
+  String get checkoutRate      => _t('Check-Out Rate', 'Check-Out-Quote');
   String get scoreDistribution => _t('Score Distribution', 'Score-Verteilung');
   String get recentThrows      => _t('Recent Throws', 'Letzte Würfe');
   String get syncedStatsFrom   => _t('Synced statistics from', 'Synchronisierte Statistiken vom');
@@ -161,7 +161,7 @@ class AppLocalizations {
   String stabilityHint(String s) =>
       _t('Standard deviation of visits: $s pts — lower = more consistent.',
          'Standardabweichung der Aufnahmen: $s Punkte — niedriger = gleichmäßiger.');
-  String get checkoutBreakdown  => _t('Checkout by Range', 'Checkout nach Restpunkten');
+  String get checkoutBreakdown  => _t('Check-Out by Range', 'Check-Out nach Restpunkten');
   String get weekComparison     => _t('Week Comparison', 'Wochenvergleich');
   String get thisWeek           => _t('This week', 'Diese Woche');
   String get lastWeek           => _t('Last week', 'Letzte Woche');
@@ -183,7 +183,7 @@ class AppLocalizations {
 
   // ── Game setup / Team / Handicap ─────────────────────────────────────────
   String get handicap            => _t('Handicap', 'Handicap');
-  String get handicapDesc        => _t('Individual check-in / checkout rules per player', 'Individuelle Check-in / Checkout Regeln pro Spieler');
+  String get handicapDesc        => _t('Individual Check-In / Check-Out rules per player', 'Individuelle Check-In / Check-Out Regeln pro Spieler');
   String get teamGame            => _t('Team Game', 'Team Spiel');
   String get teamGameDesc        => _t('Split players into teams. Each team shares one score.', 'Spieler auf Teams aufteilen. Jedes Team teilt sich einen Score.');
   String get done_               => _t('Done', 'Fertig');
