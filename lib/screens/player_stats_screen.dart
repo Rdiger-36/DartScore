@@ -1537,7 +1537,7 @@ class _WeekComparisonCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 col(
-                  l10n.totalVisits,
+                  l10n.visits,
                   '${stats.thisWeekVisits}',
                   '${stats.lastWeekVisits}',
                   diff: (stats.thisWeekVisits - stats.lastWeekVisits).toDouble(),

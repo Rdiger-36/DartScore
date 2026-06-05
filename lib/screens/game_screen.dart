@@ -81,6 +81,7 @@ class _GameScreenState extends State<GameScreen> {
           appBar: AppBar(
             backgroundColor: Theme.of(context).colorScheme.surface,
             toolbarHeight: 44,
+            automaticallyImplyLeading: false,
             title: Text(
               isSolo
                   ? '${context.l10n.openPlay} · ${game.startScore}'
@@ -225,7 +226,7 @@ class _GameScreenState extends State<GameScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pop(context);
+                Navigator.popUntil(context, (route) => route.isFirst);
               },
               child: Text(l.leave),
             ),
