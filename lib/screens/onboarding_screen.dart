@@ -16,6 +16,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nameCtrl = TextEditingController();
   String? _selectedDouble;
   bool _saving = false;
+  bool _showDoubleError = false;
 
   static const _allDoubles = [
     'D1','D2','D3','D4','D5','D6','D7','D8','D9','D10',
@@ -32,13 +33,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+    if (_selectedDouble == null) {
+      setState(() => _showDoubleError = true);
+      return;
+    }
     setState(() => _saving = true);
     final provider = context.read<PlayersProvider>();
     final player = await provider.addPlayer(name, isPrimary: true);
-    if (_selectedDouble != null) {
-      await provider.updatePlayer(
-          player.copyWith(favoriteDoubles: _selectedDouble));
-    }
+    await provider.updatePlayer(
+        player.copyWith(favoriteDoubles: _selectedDouble));
     // PlayersProvider now has a primary player → _AppGate will rebuild to HomeScreen.
   }
 
@@ -94,11 +97,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Favorite double (optional) ───────────────────────────
+                  // ── Favorite double (required) ────────────────────────────
                   Text(
                     l.favDoublesTitle,
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
+                      color: _showDoubleError ? cs.error : cs.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -106,15 +109,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     spacing: 6,
                     runSpacing: 6,
                     children: _allDoubles.map((d) {
-                      final sel = _selectedDouble == d;
                       return FilterChip(
                         label: Text(d),
-                        selected: sel,
-                        onSelected: (_) =>
-                            setState(() => _selectedDouble = sel ? null : d),
+                        selected: _selectedDouble == d,
+                        onSelected: (_) => setState(() {
+                          _selectedDouble = d;
+                          _showDoubleError = false;
+                        }),
                       );
                     }).toList(),
                   ),
+                  if (_showDoubleError) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      l.favDoublesRequired,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.error,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 36),
 
                   // ── CTA ──────────────────────────────────────────────────

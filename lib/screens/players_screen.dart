@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
 import '../models/player.dart';
+import '../widgets/player_dialog.dart';
 import 'player_stats_screen.dart';
 import 'sync_screen.dart';
 import '../utils/layout.dart';
@@ -130,7 +131,7 @@ class PlayersScreen extends StatelessWidget {
   void _addPlayer(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => _PlayerDialog(
+      builder: (_) => PlayerDialog(
         onSave: (name, doubles) {
           final provider = context.read<PlayersProvider>();
           provider.addPlayer(name).then(
@@ -145,8 +146,9 @@ class PlayersScreen extends StatelessWidget {
   void _editPlayer(BuildContext context, Player player) {
     showDialog(
       context: context,
-      builder: (_) => _PlayerDialog(
-        initial: player,
+      builder: (_) => PlayerDialog(
+        initialName: player.name,
+        initialDouble: player.favoriteDouble,
         onSave: (name, doubles) async {
           await context
               .read<PlayersProvider>()
@@ -364,100 +366,3 @@ class _OtherPlayerTile extends StatelessWidget {
   }
 }
 
-// ── Player dialog ─────────────────────────────────────────────────────────────
-
-class _PlayerDialog extends StatefulWidget {
-  final Player? initial;
-  final void Function(String name, String doubles) onSave;
-
-  const _PlayerDialog({this.initial, required this.onSave});
-
-  @override
-  State<_PlayerDialog> createState() => _PlayerDialogState();
-}
-
-class _PlayerDialogState extends State<_PlayerDialog> {
-  late final TextEditingController _nameCtrl;
-  String? _selectedDouble;
-
-  static const _allDoubles = [
-    'D1','D2','D3','D4','D5','D6','D7','D8','D9','D10',
-    'D11','D12','D13','D14','D15','D16','D17','D18','D19','D20',
-    'Bull',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _nameCtrl = TextEditingController(text: widget.initial?.name ?? '');
-    _selectedDouble = widget.initial?.favoriteDouble;
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = context.l10n;
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-      child: AlertDialog(
-      title: Text(
-          widget.initial == null ? l.addPlayerTitle : l.editPlayerTitle),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _nameCtrl,
-              decoration: InputDecoration(
-                labelText: l.nameLabel,
-                border: const OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 16),
-            Text(l.favDoublesTitle,
-                style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: _allDoubles.map((d) {
-                final selected = _selectedDouble == d;
-                return FilterChip(
-                  label: Text(d),
-                  selected: selected,
-                  onSelected: (v) => setState(() =>
-                      _selectedDouble = selected ? null : d),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l.cancel),
-        ),
-        FilledButton(
-          onPressed: _save,
-          child: Text(l.save),
-        ),
-      ],
-    ),
-    );
-  }
-
-  void _save() {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) return;
-    widget.onSave(name, _selectedDouble ?? '');
-    Navigator.pop(context);
-  }
-}
