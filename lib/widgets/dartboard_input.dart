@@ -562,20 +562,15 @@ class _FieldButton extends StatelessWidget {
                 ),
               )
             else ...[
+              // Normal: notation (D20 / T20 / 20) + score for doubles/triples
               Text(
-                '$field',
+                notation,
                 style: t.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: _fg(cs),
                 ),
               ),
-              if (modifier > 1) ...[
-                Text(
-                  notation,
-                  style: t.labelSmall?.copyWith(
-                    color: _fg(cs).withValues(alpha: 0.65),
-                  ),
-                ),
+              if (modifier > 1)
                 Text(
                   '$score',
                   style: t.labelSmall?.copyWith(
@@ -583,7 +578,6 @@ class _FieldButton extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
             ],
           ],
         ),
