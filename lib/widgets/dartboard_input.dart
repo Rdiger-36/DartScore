@@ -28,7 +28,8 @@ class DartboardInput extends StatefulWidget {
   final bool hasCheckedIn;
   /// Fired after every dart / undo / redo so scoreboard + checkout update live.
   /// [dartsInVisit] = darts thrown so far in current visit (1–3).
-  final void Function(int runningRemaining, bool isBust, int dartsInVisit) onScoreUpdate;
+  /// [checkedInThisVisit] = true once a qualifying check-in dart was thrown this visit.
+  final void Function(int runningRemaining, bool isBust, int dartsInVisit, bool checkedInThisVisit) onScoreUpdate;
   /// Fired when the visit (≤3 darts) is complete.
   final void Function(int visitScore, int dartsUsed, bool bust, List<DartEntry> hits) onVisitComplete;
 
@@ -74,7 +75,7 @@ class _DartboardInputState extends State<DartboardInput> {
         _isCheckedIn;
     final bust = _isNegative || stuck;
     widget.onScoreUpdate(
-        bust ? widget.remaining : _runningRemaining, bust, _darts.length);
+        bust ? widget.remaining : _runningRemaining, bust, _darts.length, _checkedInThisVisit);
   }
 
   void _tapField(int field) {
