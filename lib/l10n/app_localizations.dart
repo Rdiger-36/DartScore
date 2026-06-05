@@ -330,7 +330,7 @@ class AppLocalizations {
     '  Triple = 3 hits (closed instantly)\n\n'
     'Example: a Triple 20 closes the 20 with a single dart.\n\n'
     'SCORING POINTS\n'
-    'Once you have opened a field (3 hits), every additional hit on it scores points equal to the field value — as long as your opponent has not closed it yet.\n\n'
+    'Once you have opened a field (3 hits), every additional hit on it scores points equal to the field value, as long as your opponent has not closed it yet.\n\n'
     'Example:\n'
     '  You hit 20, 20, 20 -> field 20 is open\n'
     '  You hit 20 again -> +20 points for you\n'
@@ -353,7 +353,7 @@ class AppLocalizations {
     '  Triple = 3 Treffer (direkt geschlossen)\n\n'
     'Beispiel: Ein Triple auf die 20 schließt das Feld sofort mit einem Pfeil.\n\n'
     'PUNKTE MACHEN\n'
-    'Sobald du ein Feld geöffnet hast (3 Treffer), bringt jeder weitere Treffer darauf Punkte in Höhe des Feldwerts - solange dein Gegner das Feld noch nicht ebenfalls geschlossen hat.\n\n'
+    'Sobald du ein Feld geöffnet hast (3 Treffer), bringt jeder weitere Treffer darauf Punkte in Höhe des Feldwerts, solange dein Gegner das Feld noch nicht ebenfalls geschlossen hat.\n\n'
     'Beispiel:\n'
     '  Du triffst 20, 20, 20 -> Feld 20 ist offen\n'
     '  Du triffst nochmal 20 -> +20 Punkte für dich\n'
@@ -372,30 +372,74 @@ class AppLocalizations {
   String get modeShanghaiName        => 'Shanghai';
   String get modeShanghaiTagline     => _t('Hit the right number each round', 'Jede Runde die richtige Zahl treffen');
   String get modeShanghaiDescription => _t(
-    'Shanghai is played over 20 rounds (or fewer, depending on the variant).\n\n'
-    'In round 1 only the number 1 counts, in round 2 only the number 2, and so on up to 20.\n\n'
-    'Each single scores its face value, a double scores double, a triple scores triple.\n\n'
-    'Instant win: hit a Shanghai — single, double AND triple of the current number in one visit — and you immediately win the game regardless of the score.\n\n'
-    'After all rounds the player with the most points wins.',
-    'Shanghai wird über 20 Runden gespielt (oder weniger, je nach Variante).\n\n'
-    'In Runde 1 zählt nur die 1, in Runde 2 nur die 2, usw. bis zur 20.\n\n'
-    'Einfach trifft den Nennwert, Doppel das Doppelte, Triple das Dreifache.\n\n'
-    'Sofortiger Sieg: Triff ein Shanghai — Single, Double UND Triple der aktuellen Zahl in einer Aufnahme — und du gewinnst das Spiel sofort, unabhängig vom Punktestand.\n\n'
-    'Nach allen Runden gewinnt der Spieler mit den meisten Punkten.',
+    'Shanghai is played on the numbers 1 to 9. Only hits on the currently active field count. The maximum score per visit is 9 times the field value (3 darts, all Triple).\n\n'
+    'SHANGHAI: INSTANT WIN\n'
+    'If a player hits all three segments of the active field (Single, Double, and Triple) in one visit, this is called a Shanghai and wins the game immediately. Exception: if the following player also throws a Shanghai in their turn, the game continues. Otherwise the player with the most points wins.\n\n'
+    'VARIANT 1: Classic (fields 1-9)\n'
+    'Players take turns throwing 3 darts at the active number. Only hits on that number score. Numbers advance from 1 to 9.\n\n'
+    'Example (active field: 6):\n'
+    '  Single 6, Double 6, Triple 6 -> 6 + 12 + 18 = 36 points\n'
+    '  Single 6, Double 6, miss -> 18 points, no Shanghai\n\n'
+    'VARIANT 2: Clockwise (7 throws per player)\n'
+    'Each player throws 7 darts. The target number advances with every dart in clockwise order: dart 1 targets 1, dart 2 targets 2, and so on up to 20, then the Bull. A Shanghai in this variant means hitting 3 consecutive clockwise numbers in one visit.\n\n'
+    'Example:\n'
+    '  Single 1, Double 2, Triple 3 -> Shanghai!\n\n'
+    'VARIANT 3: Sequential\n'
+    'A player throws at 1 until they hit it, then moves on to 2, and so on. The game can end in as few as 20 darts. A Shanghai here also consists of three different consecutive fields.',
+    'Shanghai wird auf den Zahlen 1 bis 9 gespielt. Nur Treffer auf dem jeweils aktiven Feld zählen. Der maximale Punktestand pro Aufnahme beträgt das 9-Fache des Feldwerts (3 Pfeile, alle Triple).\n\n'
+    'SHANGHAI: SOFORTSIEG\n'
+    'Trifft ein Spieler alle drei Segmente des aktiven Feldes (Single, Double und Triple) in einer Aufnahme, nennt man das Shanghai und gewinnt das Spiel sofort. Ausnahme: Erzielt der Nachwerfer in seinem Zug ebenfalls einen Shanghai, wird das Spiel fortgesetzt. Ansonsten gewinnt der Spieler mit den meisten Punkten.\n\n'
+    'VARIANTE 1: Klassisch (Felder 1-9)\n'
+    'Die Spieler werfen abwechselnd 3 Pfeile auf die aktive Zahl. Nur Treffer auf dieser Zahl zählen. Die Zahlen gehen von 1 bis 9.\n\n'
+    'Beispiel (aktives Feld: 6):\n'
+    '  Single 6, Doppel 6, Triple 6 -> 6 + 12 + 18 = 36 Punkte\n'
+    '  Single 6, Doppel 6, Fehler -> 18 Punkte, kein Shanghai\n\n'
+    'VARIANTE 2: Im Uhrzeigersinn (7 Würfe pro Spieler)\n'
+    'Jeder Spieler wirft 7 Pfeile. Die Zielzahl wechselt mit jedem Pfeil im Uhrzeigersinn: Pfeil 1 zielt auf die 1, Pfeil 2 auf die 2, usw. bis zur 20, dann das Bull. Ein Shanghai bedeutet hier drei aufeinanderfolgende Felder im Uhrzeigersinn in einer Aufnahme zu treffen.\n\n'
+    'Beispiel:\n'
+    '  Single 1, Doppel 2, Triple 3 -> Shanghai!\n\n'
+    'VARIANTE 3: Sequenziell\n'
+    'Ein Spieler wirft so lange auf die 1, bis er sie getroffen hat, dann auf die 2 usw. Das Spiel kann in bereits 20 Pfeilen enden. Ein Shanghai besteht auch hier aus drei verschiedenen aufeinanderfolgenden Zahlenfeldern.',
   );
 
   // Around the Clock
   String get modeAroundClockName        => 'Around the Clock';
   String get modeAroundClockTagline     => _t('Hit every number in order', 'Alle Zahlen der Reihe nach treffen');
   String get modeAroundClockDescription => _t(
-    'The goal is to hit every number on the board from 1 to 20 in order, finishing on the Bull.\n\n'
-    'Each visit you throw 3 darts. You advance past a number as soon as you hit it — in the same visit you can move through multiple numbers.\n\n'
-    'The first player to hit all numbers 1–20 and finally the Bull wins.\n\n'
-    'Variants: in the "doubles/triples" variant you must hit a double or triple to advance. In the "strict" variant you may only move forward by one number per dart.',
-    'Ziel ist es, alle Felder der Dartscheibe von 1 bis 20 der Reihe nach zu treffen und anschließend den Bull zu treffen.\n\n'
-    'Pro Aufnahme wirfst du 3 Pfeile. Sobald du eine Zahl triffst, rückst du weiter — in derselben Aufnahme kannst du mehrere Zahlen überspringen.\n\n'
-    'Der erste Spieler, der alle Zahlen 1–20 und zuletzt den Bull trifft, gewinnt.\n\n'
-    'Varianten: In der "Doubles/Triples"-Variante musst du ein Double oder Triple treffen, um weiterzukommen. In der "Strict"-Variante kannst du pro Pfeil nur um eine Zahl vorrücken.',
+    'Around the Clock is played clockwise starting from 1 up to the Bull\'s Eye. You must hit each number at least once before moving to the next. The first player to reach and hit the Bull\'s Eye wins.\n\n'
+    'CLOCKWISE ORDER\n'
+    '1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20, Bull\n\n'
+    'FULL SEGMENT VARIANT\n'
+    'A stricter variant requires hitting all three segments of each number before advancing: Single, Double, and Triple. Only then can you move to the next clockwise number.\n\n'
+    'Example:\n'
+    '  Single 1, Double 1, Triple 1 -> advance to 18\n'
+    '  Single 18, Double 18, Triple 18 -> advance to 4\n\n'
+    'POPULAR VARIANT: Skip Rules\n'
+    'In the most popular variant, Double and Triple fields have a special bonus, similar to Shanghai:\n'
+    '  Double: skip one field ahead\n'
+    '  Triple: skip two fields ahead\n'
+    '  Bull\'s Eye (inner Bull): joker, skip the current field and advance to the next\n\n'
+    'Example:\n'
+    '  You hit Double 18 -> skip 4, continue at 13\n'
+    '  You hit Triple 4 -> skip 13 and 6, continue at 10\n'
+    '  You hit Bull\'s Eye -> skip current field, advance by one',
+    'Around the Clock wird im Uhrzeigersinn gespielt, beginnend bei der 1 bis zum Bull\'s Eye. Du musst jedes Feld mindestens einmal treffen, bevor du zum nächsten darfst. Der erste Spieler, der das Bull\'s Eye trifft, gewinnt.\n\n'
+    'REIHENFOLGE IM UHRZEIGERSINN\n'
+    '1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20, Bull\n\n'
+    'ALLE-SEGMENTE-VARIANTE\n'
+    'Eine strengere Variante verlangt, dass du alle drei Segmente jedes Feldes triffst, bevor du weiterdarf: Single, Double und Triple. Erst dann kannst du zur nächsten Zahl im Uhrzeigersinn wechseln.\n\n'
+    'Beispiel:\n'
+    '  Single 1, Doppel 1, Triple 1 -> weiter zur 18\n'
+    '  Single 18, Doppel 18, Triple 18 -> weiter zur 4\n\n'
+    'BELIEBTE VARIANTE: Überspringen\n'
+    'In der beliebtesten Variante haben Doppel- und Triple-Felder sowie das Bull eine besondere Funktion, ähnlich wie bei Shanghai:\n'
+    '  Doppel: ein Feld überspringen\n'
+    '  Triple: zwei Felder überspringen\n'
+    '  Bull\'s Eye (inneres Bull): Joker, aktuelle Zahl überspringen und beim nächsten Feld weiterspielen\n\n'
+    'Beispiel:\n'
+    '  Du triffst Doppel 18 -> überspringe 4, weiter bei 13\n'
+    '  Du triffst Triple 4 -> überspringe 13 und 6, weiter bei 10\n'
+    '  Du triffst Bull\'s Eye -> überspringe aktuelle Zahl, rücke um eins vor',
   );
 
   // ── Misc numbers/units ───────────────────────────────────────────────────
