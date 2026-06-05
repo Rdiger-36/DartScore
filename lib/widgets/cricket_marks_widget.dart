@@ -1,0 +1,82 @@
+import 'package:flutter/material.dart';
+
+/// Displays Cricket marks for a single field: nothing / slash / X / circle-X.
+class CricketMarksWidget extends StatelessWidget {
+  final int marks;
+  const CricketMarksWidget({super.key, required this.marks});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (marks == 0) return const SizedBox(width: 36, height: 36);
+
+    if (marks >= 3) {
+      return SizedBox(
+        width: 36,
+        height: 36,
+        child: CustomPaint(painter: _ClosedPainter(color: cs.primary)),
+      );
+    }
+
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: CustomPaint(
+          painter: _MarksPainter(marks: marks, color: cs.onSurface)),
+    );
+  }
+}
+
+class _MarksPainter extends CustomPainter {
+  final int marks;
+  final Color color;
+  const _MarksPainter({required this.marks, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width * 0.38;
+
+    canvas.drawLine(Offset(cx - r, cy + r), Offset(cx + r, cy - r), paint);
+    if (marks >= 2) {
+      canvas.drawLine(Offset(cx - r, cy - r), Offset(cx + r, cy + r), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MarksPainter old) =>
+      old.marks != marks || old.color != color;
+}
+
+class _ClosedPainter extends CustomPainter {
+  final Color color;
+  const _ClosedPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width * 0.42;
+
+    canvas.drawCircle(Offset(cx, cy), r, paint);
+    final xi = r * 0.6;
+    canvas.drawLine(Offset(cx - xi, cy + xi), Offset(cx + xi, cy - xi), paint);
+    canvas.drawLine(Offset(cx - xi, cy - xi), Offset(cx + xi, cy + xi), paint);
+  }
+
+  @override
+  bool shouldRepaint(_ClosedPainter old) => old.color != color;
+}
