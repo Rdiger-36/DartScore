@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/players_provider.dart';
 import 'providers/game_provider.dart';
+import 'providers/cricket_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'screens/home_screen.dart';
@@ -185,6 +186,7 @@ class DartScoreApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => PlayersProvider()..load()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(create: (_) => CricketProvider()),
       ],
       child: Consumer2<ThemeProvider, LanguageProvider>(
         builder: (context, tp, lp, child) => MaterialApp(
