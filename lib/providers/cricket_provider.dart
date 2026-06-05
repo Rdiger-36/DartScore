@@ -11,16 +11,12 @@ class CricketPlayerState {
   /// Total marks per field (never decremented; 3 = closed, >3 possible via Double/Triple).
   final Map<int, int> marks;
   final int score;
-  final int legsWon;
-  final int setsWon;
 
   const CricketPlayerState({
     required this.displayName,
     required this.player,
     required this.marks,
     required this.score,
-    required this.legsWon,
-    required this.setsWon,
   });
 
   bool hasClosedField(int field) => (marks[field] ?? 0) >= 3;
@@ -30,16 +26,12 @@ class CricketPlayerState {
   CricketPlayerState copyWith({
     Map<int, int>? marks,
     int? score,
-    int? legsWon,
-    int? setsWon,
   }) =>
       CricketPlayerState(
         displayName: displayName,
         player:      player,
-        marks:       marks  ?? Map.of(this.marks),
-        score:       score  ?? this.score,
-        legsWon:     legsWon ?? this.legsWon,
-        setsWon:     setsWon ?? this.setsWon,
+        marks:       marks ?? Map.of(this.marks),
+        score:       score ?? this.score,
       );
 }
 
@@ -51,8 +43,6 @@ class CricketProvider extends ChangeNotifier {
   CricketGame?              _game;
   List<CricketPlayerState>  _playerStates = [];
   int                       _currentPlayerIndex = 0;
-  int                       _currentLeg  = 1;
-  int                       _currentSet  = 1;
   bool                      _gameOver    = false;
   int?                      _winnerId;
 
@@ -65,8 +55,6 @@ class CricketProvider extends ChangeNotifier {
   List<CricketPlayerState> get playerStates       => _playerStates;
   int                      get currentPlayerIndex => _currentPlayerIndex;
   CricketPlayerState       get currentPlayerState => _playerStates[_currentPlayerIndex];
-  int                      get currentLeg         => _currentLeg;
-  int                      get currentSet         => _currentSet;
   bool                     get gameOver           => _gameOver;
   int?                     get winnerId           => _winnerId;
   List<CricketThrow>       get visitBuffer        => List.unmodifiable(_visitBuffer);
@@ -94,13 +82,9 @@ class CricketProvider extends ChangeNotifier {
       player:      p,
       marks:       {},
       score:       0,
-      legsWon:     0,
-      setsWon:     0,
     )).toList();
 
     _currentPlayerIndex = 0;
-    _currentLeg         = 1;
-    _currentSet         = 1;
     _gameOver           = false;
     _winnerId           = null;
     _visitBuffer.clear();
@@ -120,8 +104,8 @@ class CricketProvider extends ChangeNotifier {
       playerId:   currentPlayerState.player.id!,
       field:      field,
       multiplier: multiplier,
-      leg:        _currentLeg,
-      set_:       _currentSet,
+      leg:        1,
+      set_:       1,
       thrownAt:   DateTime.now(),
     );
     final id  = await _db.insertCricketThrow(t);
@@ -235,49 +219,10 @@ class CricketProvider extends ChangeNotifier {
   }
 
   Future<void> _handleWin(int playerIdx) async {
-    final state     = _playerStates[playerIdx];
-    int legsWon     = state.legsWon + 1;
-    int setsWon     = state.setsWon;
-
-    final legsToWinSet = _game!.legs;
-    if (legsWon >= legsToWinSet) {
-      setsWon += 1;
-      legsWon  = 0;
-      final setsToWin = _game!.sets;
-      if (setsWon >= setsToWin) {
-        _playerStates[playerIdx] =
-            state.copyWith(legsWon: legsWon, setsWon: setsWon);
-        _gameOver = true;
-        _winnerId = state.player.id;
-        await _db.updateCricketGame(
-            _game!.copyWith(finishedAt: DateTime.now()));
-        notifyListeners();
-        return;
-      }
-      _currentSet += 1;
-      _currentLeg  = 1;
-    } else {
-      _currentLeg += 1;
-    }
-
-    _playerStates[playerIdx] =
-        state.copyWith(legsWon: legsWon, setsWon: setsWon);
-    _resetForNewLeg();
-    _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+    _gameOver = true;
+    _winnerId = _playerStates[playerIdx].player.id;
+    await _db.updateCricketGame(_game!.copyWith(finishedAt: DateTime.now()));
     notifyListeners();
-  }
-
-  void _resetForNewLeg() {
-    _playerStates = _playerStates
-        .map((s) => CricketPlayerState(
-              displayName: s.displayName,
-              player:      s.player,
-              marks:       {},
-              score:       0,
-              legsWon:     s.legsWon,
-              setsWon:     s.setsWon,
-            ))
-        .toList();
   }
 
   // ── Undo ───────────────────────────────────────────────────────────────────
@@ -304,105 +249,46 @@ class CricketProvider extends ChangeNotifier {
 
     final allThrows = await _db.getCricketThrowsForGame(_game!.id!);
 
-    // Find max leg/set
-    int maxLeg = 1, maxSet = 1;
-    for (final t in allThrows) {
-      if (t.set_ > maxSet) maxSet = t.set_;
-      if (t.leg > maxLeg) maxLeg = t.leg;
-    }
-
-    // Recompute legs/sets won per player (all completed legs/sets)
-    final legsWon = <int, int>{
-      for (final s in _playerStates) s.player.id!: 0
-    };
-    final setsWon = <int, int>{
-      for (final s in _playerStates) s.player.id!: 0
-    };
-
-    // Determine who won each completed leg
-    for (var s = 1; s <= maxSet; s++) {
-      for (var l = 1; l <= (s == maxSet ? maxLeg - 1 : maxLeg); l++) {
-        final legThrows = allThrows
-            .where((t) => t.set_ == s && t.leg == l)
-            .toList();
-        final winner = _findLegWinner(legThrows, s, l);
-        if (winner != null) {
-          legsWon[winner] = (legsWon[winner] ?? 0) + 1;
-          if ((legsWon[winner] ?? 0) >= _game!.legs) {
-            setsWon[winner] = (setsWon[winner] ?? 0) + 1;
-            legsWon[winner] = 0;
-          }
-        }
-      }
-    }
-
-    // Rebuild current leg state
-    final currentLegThrows = allThrows
-        .where((t) => t.set_ == maxSet && t.leg == maxLeg)
+    // Reset marks and scores to zero, keep player identity
+    _playerStates = _playerStates
+        .map((s) => CricketPlayerState(
+              displayName: s.displayName,
+              player:      s.player,
+              marks:       {},
+              score:       0,
+            ))
         .toList();
 
-    _playerStates = _playerStates.map((s) {
-      final pid      = s.player.id!;
-      final myThrows = currentLegThrows
-          .where((t) => t.playerId == pid && !t.isMiss)
-          .toList();
-
-      final marks = <int, int>{};
-      for (final t in myThrows) {
-        final eff = _game!.scoringMode == CricketScoringMode.simple
-            ? 1
-            : t.multiplier;
-        marks[t.field] = ((marks[t.field] ?? 0) + eff).clamp(0, 3);
-      }
-
-      return CricketPlayerState(
-        displayName: s.displayName,
-        player:      s.player,
-        marks:       marks,
-        score:       0, // recalculated below
-        legsWon:     legsWon[pid] ?? 0,
-        setsWon:     setsWon[pid] ?? 0,
-      );
-    }).toList();
-
-    // Replay scoring dart-by-dart in chronological order
-    for (final t in currentLegThrows) {
+    // Replay all darts in chronological order
+    for (final t in allThrows) {
       if (t.isMiss) continue;
-      final playerIdx = _playerStates
-          .indexWhere((s) => s.player.id == t.playerId);
+      final playerIdx =
+          _playerStates.indexWhere((s) => s.player.id == t.playerId);
       if (playerIdx < 0) continue;
       _applyDart(playerIdx, t.field, t.multiplier);
     }
 
-    // Determine current player (who has fewer completed visits)
+    // Determine current player: fewest completed visits (groups of 3)
     final visitsPerPlayer = <int, int>{
       for (final s in _playerStates) s.player.id!: 0
     };
-    // Count completed visits = throws completed in full groups of 3 per player
     for (final s in _playerStates) {
-      final myCount = currentLegThrows
-          .where((t) => t.playerId == s.player.id)
-          .length;
-      visitsPerPlayer[s.player.id!] = myCount ~/ 3;
+      visitsPerPlayer[s.player.id!] =
+          allThrows.where((t) => t.playerId == s.player.id).length ~/ 3;
     }
-    final minVisits = visitsPerPlayer.values
-        .fold(999, (a, b) => a < b ? a : b);
+    final minVisits =
+        visitsPerPlayer.values.fold(999, (a, b) => a < b ? a : b);
     _currentPlayerIndex = _playerStates
         .indexWhere((s) => (visitsPerPlayer[s.player.id] ?? 0) == minVisits);
     if (_currentPlayerIndex < 0) _currentPlayerIndex = 0;
 
-    _currentLeg = maxLeg;
-    _currentSet = maxSet;
-
-    // Rebuild visit buffer (remaining darts in current visit for current player)
+    // Rebuild visit buffer for current player
     final pid = currentPlayerState.player.id!;
-    final myCurrentThrows = currentLegThrows
-        .where((t) => t.playerId == pid)
-        .toList();
-    final dartsInCurrentVisit = myCurrentThrows.length % 3;
+    final myThrows = allThrows.where((t) => t.playerId == pid).toList();
+    final dartsInCurrentVisit = myThrows.length % 3;
     _visitBuffer
       ..clear()
-      ..addAll(myCurrentThrows.reversed
+      ..addAll(myThrows.reversed
           .take(dartsInCurrentVisit)
           .toList()
           .reversed);
@@ -410,57 +296,5 @@ class CricketProvider extends ChangeNotifier {
     _throwHistory
       ..clear()
       ..addAll(allThrows);
-  }
-
-  // Find who won a completed leg (simplified: last player to satisfy win condition)
-  int? _findLegWinner(List<CricketThrow> legThrows, int set_, int leg) {
-    // Rebuild state for this leg and find who satisfied win condition
-    final marks   = <int, Map<int, int>>{};
-    final scores  = <int, int>{};
-
-    for (final s in _playerStates) {
-      marks[s.player.id!]  = {};
-      scores[s.player.id!] = 0;
-    }
-
-    for (final t in legThrows) {
-      if (t.isMiss) continue;
-      final pid        = t.playerId;
-      final eff        = _game!.scoringMode == CricketScoringMode.simple
-          ? 1 : t.multiplier;
-      final cur        = marks[pid]?[t.field] ?? 0;
-      final newM       = cur + eff;
-      marks[pid]![t.field] = newM.clamp(0, 3);
-
-      final scoringM   = (newM - 3).clamp(0, eff);
-      if (scoringM <= 0) continue;
-      final fieldValue = t.field == 25 ? 25 : t.field;
-      final points     = scoringM * fieldValue;
-
-      if (_game!.variant == CricketVariant.cutThroat) {
-        for (final s in _playerStates) {
-          if (s.player.id == pid) continue;
-          final oMarks = marks[s.player.id!]?[t.field] ?? 0;
-          if (oMarks < 3) scores[s.player.id!] = (scores[s.player.id!] ?? 0) + points;
-        }
-      } else {
-        final fieldAlive = _playerStates
-            .where((s) => s.player.id != pid)
-            .any((s) => (marks[s.player.id!]?[t.field] ?? 0) < 3);
-        if (fieldAlive) scores[pid] = (scores[pid] ?? 0) + points;
-      }
-
-      // Check if this player won
-      final closedAll = cricketFields.every((f) => (marks[pid]![f] ?? 0) >= 3);
-      if (!closedAll) continue;
-      final isCT = _game!.variant == CricketVariant.cutThroat;
-      final won  = _playerStates
-          .where((s) => s.player.id != pid)
-          .every((s) => isCT
-              ? (scores[pid] ?? 0) <= (scores[s.player.id!] ?? 0)
-              : (scores[pid] ?? 0) >= (scores[s.player.id!] ?? 0));
-      if (won) return pid;
-    }
-    return null;
   }
 }

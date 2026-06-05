@@ -20,8 +20,6 @@ class CricketSetupScreen extends StatefulWidget {
 class _CricketSetupScreenState extends State<CricketSetupScreen> {
   CricketVariant     _variant     = CricketVariant.normal;
   CricketScoringMode _scoringMode = CricketScoringMode.standard;
-  int                _legs        = 3;
-  int                _sets        = 1;
   final List<Player> _selectedPlayers = [];
 
   @override
@@ -125,37 +123,6 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
             onAddPlayer: () => _showAddPlayerDialog(context),
           ),
 
-          // ── Legs & Sets ───────────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2) ...[
-            const SizedBox(height: 16),
-            _Section(
-              title: l.legsSets,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _Stepper(
-                      label: l.legs,
-                      value: _legs,
-                      min: 1,
-                      max: 9,
-                      onChanged: (v) => setState(() => _legs = v),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _Stepper(
-                      label: l.sets,
-                      value: _sets,
-                      min: 1,
-                      max: 9,
-                      onChanged: (v) => setState(() => _sets = v),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed:
@@ -203,8 +170,8 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
     final game = CricketGame(
       variant:     _variant,
       scoringMode: _scoringMode,
-      legs:        _legs,
-      sets:        _sets,
+      legs:        1,
+      sets:        1,
       createdAt:   DateTime.now(),
       playerIds:   players.map((p) => p.id!).toList(),
     );
@@ -313,43 +280,3 @@ class _PlayersSection extends StatelessWidget {
   }
 }
 
-class _Stepper extends StatelessWidget {
-  final String label;
-  final int value;
-  final int min;
-  final int max;
-  final void Function(int) onChanged;
-
-  const _Stepper({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.remove),
-              onPressed: value > min ? () => onChanged(value - 1) : null,
-            ),
-            Text('$value',
-                style: Theme.of(context).textTheme.headlineSmall),
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: value < max ? () => onChanged(value + 1) : null,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
