@@ -118,7 +118,8 @@ class AppLocalizations {
   String get addPlayerTitle    => _t('Add Player', 'Spieler hinzufügen');
   String get editPlayerTitle   => _t('Edit Player', 'Spieler bearbeiten');
   String get nameLabel         => _t('Name', 'Name');
-  String get favDoublesTitle   => _t('Favorite Double', 'Lieblings-Double');
+  String get favDoublesTitle      => _t('Favorite Double', 'Lieblings-Double');
+  String get favDoublesRequired   => _t('Please select a favorite double', 'Bitte ein Lieblings-Double auswählen');
   String get deletePlayerTitle => _t('Delete Player', 'Spieler löschen');
   String deletePlayerConfirm(String name) =>
       _t('Really delete $name?', '$name wirklich löschen?');
