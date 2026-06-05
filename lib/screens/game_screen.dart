@@ -65,6 +65,11 @@ class _GameScreenState extends State<GameScreen> {
 
         final currentCheckOut = playerCheckOuts[currentIdx];
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
+        // Committed check-in only (no live component) — passed to DartboardInput
+        // so its scoring gate is stable and doesn't create a feedback loop.
+        final currentHasCheckedInCommitted =
+            playerCheckIns[currentIdx] == GameMode.straightIn ||
+            current.remaining < game.startScore;
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
@@ -172,7 +177,7 @@ class _GameScreenState extends State<GameScreen> {
                   remaining: current.remaining,
                   checkoutMode: currentCheckOut,
                   gameMode: playerCheckIns[currentIdx],
-                  hasCheckedIn: currentHasCheckedIn,
+                  hasCheckedIn: currentHasCheckedInCommitted,
                   onScoreUpdate: (live, bust, dartsInVisit, checkedInThisVisit) => setState(() {
                     _liveRemaining = live;
                     _liveBust = bust;
