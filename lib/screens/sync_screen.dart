@@ -82,7 +82,8 @@ Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
 const _kQrPrefix = 'QR1:';
 
 class SyncScreen extends StatefulWidget {
-  const SyncScreen({super.key});
+  final Player? initialPlayer;
+  const SyncScreen({super.key, this.initialPlayer});
 
   @override
   State<SyncScreen> createState() => _SyncScreenState();
@@ -95,7 +96,12 @@ class _SyncScreenState extends State<SyncScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    // Start on Senden (index 1) when a player was passed, otherwise Empfangen (index 0).
+    _tab = TabController(
+      length: 2,
+      initialIndex: widget.initialPlayer != null ? 1 : 0,
+      vsync: this,
+    );
   }
 
   @override
@@ -117,8 +123,8 @@ class _SyncScreenState extends State<SyncScreen>
               child: TabBar(
                 controller: _tab,
                 tabs: [
-                  Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
                   Tab(icon: const Icon(Icons.download_rounded), text: context.l10n.syncReceive),
+                  Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
                 ],
               ),
             ),
@@ -131,9 +137,9 @@ class _SyncScreenState extends State<SyncScreen>
           child: TabBarView(
         controller: _tab,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          _SenderTab(),
-          _ReceiverTab(),
+        children: [
+          const _ReceiverTab(),
+          _SenderTab(initialPlayer: widget.initialPlayer),
         ],
       ),
         ),
@@ -147,7 +153,8 @@ class _SyncScreenState extends State<SyncScreen>
 enum _SenderMode { quickQr, wifi }
 
 class _SenderTab extends StatefulWidget {
-  const _SenderTab();
+  final Player? initialPlayer;
+  const _SenderTab({this.initialPlayer});
 
   @override
   State<_SenderTab> createState() => _SenderTabState();
@@ -169,6 +176,17 @@ class _SenderTabState extends State<_SenderTab> {
   String? _ip;
   int? _port;
   bool _wifiStarting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialPlayer != null) {
+      _selectedPlayer = widget.initialPlayer;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _generateQuickQr();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -263,6 +281,16 @@ class _SenderTabState extends State<_SenderTab> {
     final l     = context.l10n;
     final players = context.watch<PlayersProvider>().players;
 
+    // Resolve to provider's object so DropdownButton equality works.
+    Player? dropdownValue;
+    if (_selectedPlayer != null) {
+      try {
+        dropdownValue = players.firstWhere((p) => p.id == _selectedPlayer!.id);
+      } catch (_) {
+        dropdownValue = null;
+      }
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -279,7 +307,7 @@ class _SenderTabState extends State<_SenderTab> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<Player>(
-                value: _selectedPlayer,
+                value: dropdownValue,
                 hint: Text(l.selectPlayer),
                 isExpanded: true,
                 items: players.map((p) => DropdownMenuItem(
