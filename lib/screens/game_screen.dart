@@ -309,17 +309,6 @@ class _Scoreboard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // "NEXT →" label for the upcoming player
-                  if (isNext && !isCurrent)
-                    Text(
-                      'NEXT',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: onCardMuted,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
                   // Name: team name (big) + current player (small) for teams
                   Text(
                     s.displayName,
