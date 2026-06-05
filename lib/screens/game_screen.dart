@@ -53,7 +53,7 @@ class _GameScreenState extends State<GameScreen> {
         List<CheckoutMode> playerCheckOuts = states
             .map((s) => handicaps[s.player.id]?.checkOut ?? game.checkoutMode)
             .toList();
-        // hasCheckedIn: straight-in is always checked in; double-in requires remaining < startScore
+        // hasCheckedIn: straight-in is always checked in; double-in/master-in require remaining < startScore
         List<bool> playerCheckedIn = states.asMap().entries.map((e) {
           return playerCheckIns[e.key] == GameMode.straightIn ||
               e.value.remaining < game.startScore;
@@ -529,8 +529,9 @@ class _ModeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Priority 1: Double-In not yet done
-    if (checkIn == GameMode.doubleIn && !checkedIn) {
+    // Priority 1: Double-In / Master-In not yet done
+    if ((checkIn == GameMode.doubleIn || checkIn == GameMode.masterIn) && !checkedIn) {
+      final label = checkIn == GameMode.masterIn ? 'MASTER IN' : 'DOUBLE IN';
       return Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Container(
@@ -539,9 +540,9 @@ class _ModeBadge extends StatelessWidget {
             color: const Color(0xFFFFB300).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Text(
-            'DOUBLE IN',
-            style: TextStyle(
+          child: Text(
+            label,
+            style: const TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.bold,
               color: Colors.black,

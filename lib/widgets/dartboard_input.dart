@@ -62,6 +62,8 @@ class _DartboardInputState extends State<DartboardInput> {
   int get _runningRemaining => widget.remaining - _visitScoreSoFar;
   bool get _isNegative => _runningRemaining < 0;
   bool get _isDoubleIn => widget.gameMode == GameMode.doubleIn;
+  bool get _isMasterIn => widget.gameMode == GameMode.masterIn;
+  bool get _requiresCheckIn => _isDoubleIn || _isMasterIn;
   bool get _isCheckedIn => widget.hasCheckedIn || _checkedInThisVisit;
 
   void _notify() {
@@ -88,12 +90,16 @@ class _DartboardInputState extends State<DartboardInput> {
       score = field * mod;
     }
 
-    // ── Double-In enforcement ────────────────────────────────────────────
-    // Non-double darts before check-in count as thrown (use a dart) but score 0.
+    // ── Check-In enforcement (Double-In / Master-In) ─────────────────────
+    // Non-qualifying darts before check-in count as thrown but score 0.
     final bool isDouble = field != 0 && mod == 2;
+    final bool isTriple = field != 0 && mod == 3 && field != 25; // no triple bull
+    final bool qualifiesForCheckIn = _isDoubleIn
+        ? isDouble
+        : (_isMasterIn ? (isDouble || isTriple) : false);
     bool dartScores = true;
-    if (_isDoubleIn && !_isCheckedIn) {
-      if (isDouble) {
+    if (_requiresCheckIn && !_isCheckedIn) {
+      if (qualifiesForCheckIn) {
         _checkedInThisVisit = true; // check-in achieved with this dart
       } else {
         dartScores = false;
