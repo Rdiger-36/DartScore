@@ -112,22 +112,19 @@ class _ModeCard extends StatelessWidget {
     final cs = theme.colorScheme;
     final l = context.l10n;
 
-    final cardColor = available
-        ? cs.primaryContainer
-        : theme.cardColor;
     final contentColor = available
-        ? cs.onPrimaryContainer
+        ? cs.onSurface
         : cs.onSurface.withValues(alpha: 0.45);
     final iconColor = available ? cs.primary : cs.onSurface.withValues(alpha: 0.35);
 
     return Card(
-      color: cardColor,
-      elevation: available ? 2 : 0,
+      color: Colors.transparent,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: available
-            ? BorderSide.none
-            : BorderSide(color: cs.outlineVariant, width: 1),
+        side: BorderSide(
+          color: available ? cs.outlineVariant : cs.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: InkWell(
         onTap: available ? onTap : null,

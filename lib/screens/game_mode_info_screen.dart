@@ -26,7 +26,7 @@ class GameModeInfoScreen extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
                     child: Container(
@@ -41,6 +41,7 @@ class GameModeInfoScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     name,
+                    textAlign: TextAlign.center,
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: cs.primary,
@@ -49,6 +50,7 @@ class GameModeInfoScreen extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     tagline,
+                    textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: cs.onSurface.withValues(alpha: 0.65),
                     ),
@@ -58,6 +60,7 @@ class GameModeInfoScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                   Text(
                     description,
+                    textAlign: TextAlign.start,
                     style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
                   ),
                   const SizedBox(height: 40),
