@@ -124,6 +124,15 @@ class _LanguageSection extends StatelessWidget {
       child: Column(
         children: [
           _LangTile(
+            label: l.system,
+            subtitle: l.systemDesc,
+            flag: '🌐',
+            selected: lp.languageCode == null,
+            onTap: () => lp.setLanguage(null),
+            cs: cs,
+          ),
+          const Divider(height: 1),
+          _LangTile(
             label: 'English',
             subtitle: 'English',
             flag: '🇬🇧',
@@ -138,15 +147,6 @@ class _LanguageSection extends StatelessWidget {
             flag: '🇩🇪',
             selected: lp.languageCode == 'de',
             onTap: () => lp.setLanguage('de'),
-            cs: cs,
-          ),
-          const Divider(height: 1),
-          _LangTile(
-            label: l.system,
-            subtitle: l.systemDesc,
-            flag: '🌐',
-            selected: lp.languageCode == null,
-            onTap: () => lp.setLanguage(null),
             cs: cs,
           ),
         ],
