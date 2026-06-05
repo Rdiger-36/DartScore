@@ -25,6 +25,9 @@ dependencies:
   gal: ^2.3.2
   path_provider: ^2.1.5
 
+dependency_overrides:
+  path_provider_foundation: 2.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
