@@ -65,7 +65,7 @@ class AppLocalizations {
   String get addPlayerLink     => _t('Add player', 'Spieler anlegen');
   String get startGame         => _t('Start Game', 'Spiel starten');
   String get startOpenPlay     => _t('Start Solo Game', 'Solo Spiel starten');
-  String get minOnePLayer      => _t('Select at least 1 player', 'Mindestens 1 Spieler auswählen');
+  String get minOnePlayer      => _t('Select at least 1 player', 'Mindestens 1 Spieler auswählen');
   String get openPlayHint      => _t('1 player = Solo Game (no opponent)', '1 Spieler = Solo Spiel (kein Gegner)');
   String get soloLegsHint      => _t('Solo game plays 1 leg · 1 set', 'Solo Spiel: 1 Leg · 1 Set');
   String playerN(int n)        => _t('Player $n', 'Spieler $n');
@@ -85,7 +85,7 @@ class AppLocalizations {
   String get done              => _t('Done', 'Fertig');
   String get bust              => _t('Bust', 'Bust');
   String get checkoutHint      => _t('Check-Out:', 'Check-Out:');
-  String get noCheckoutPossible => _t('No Check-out possible', 'Kein Check-out möglich');
+  String get noCheckoutPossible => _t('No Check-Out possible', 'Kein Check-Out möglich');
   String dart(int n)           => _t('Dart $n', 'Dart $n');
   String get undoVisit         => _t('Undo last visit', 'Letzte Aufnahme rückgängig');
   String get redoVisit         => _t('Redo', 'Wiederherstellen');
@@ -247,7 +247,7 @@ class AppLocalizations {
          'Zu viele Würfe für einen QR-Code.\nNutze WLAN-Sync um alle Daten zu übertragen.');
   String newThrowsSinceSync(int n) =>
       _t('$n new throw${n != 1 ? 's' : ''} since last sync',
-         '$n neue Würfe seit letztem Sync');
+         '$n neue${n != 1 ? '' : 'r'} ${n != 1 ? 'Würfe' : 'Wurf'} seit letztem Sync');
   String get allThrowsFirstSync =>
       _t('All throws included — first sync', 'Alle Würfe enthalten — erster Sync');
   String get noNewThrowsQr    =>
@@ -278,7 +278,7 @@ class AppLocalizations {
   String importAs(String name) => _t('Import as "$name"', 'Als "$name" importieren');
   String get renameAndImport   => _t('Rename & Import', 'Umbenennen & importieren');
   String get alternativeName   => _t('Alternative name', 'Alternativer Name');
-  String get lastSyncPrefix    => _t('Last sync: ', 'Zuletzt sync: ');
+  String get lastSyncPrefix    => _t('Last sync: ', 'Letzter Sync: ');
   String fromDevice(String d)  => _t('From: $d', 'Von: $d');
   String get updateProfileToggle =>
       _t('Update name & favorite double', 'Name & Lieblings-Double übernehmen');
@@ -296,7 +296,7 @@ class AppLocalizations {
   String overwriteProfile(String name) =>
       _t('Profile of "$name" will be overwritten with this data.',
          'Profil von "$name" wird mit diesen Daten überschrieben.');
-  String restBleibt(int n) => _t('Remaining: $n', 'Rest bleibt $n');
+  String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
   String get noQrInImage       => _t('No QR code found in image.', 'Kein QR-Code im Bild gefunden.');
   String get invalidQr         => _t('Invalid QR code.', 'Ungültiger QR-Code.');
   String get nameMissing       => _t('Name missing in QR code.', 'Name fehlt im QR-Code.');
@@ -439,7 +439,7 @@ class AppLocalizations {
     'REIHENFOLGE IM UHRZEIGERSINN\n'
     '1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20, Bull\n\n'
     'ALLE-SEGMENTE-VARIANTE\n'
-    'Eine strengere Variante verlangt, dass du alle drei Segmente jedes Feldes triffst, bevor du weiterdarf: Single, Double und Triple. Erst dann kannst du zur nächsten Zahl im Uhrzeigersinn wechseln.\n\n'
+    'Eine strengere Variante verlangt, dass du alle drei Segmente jedes Feldes triffst, bevor du weiterdarfst: Single, Double und Triple. Erst dann kannst du zur nächsten Zahl im Uhrzeigersinn wechseln.\n\n'
     'Beispiel:\n'
     '  Single 1, Doppel 1, Triple 1 -> weiter zur 18\n'
     '  Single 18, Doppel 18, Triple 18 -> weiter zur 4\n\n'
@@ -550,7 +550,7 @@ class AppLocalizations {
   // ── Shanghai Summary ─────────────────────────────────────────────────────────
   String get shanghaiSummaryTitle => _t('Game Summary', 'Spielübersicht');
   String get shanghaiTotalScore   => _t('Total Score', 'Gesamtpunkte');
-  String shanghaiDartsUsed(int n) => _t('$n darts', '$n Pfeile');
+  String shanghaiDartsUsed(int n) => dartsN(n);
   String get shanghaiWins         => _t('wins!', 'hat gewonnen!');
   String shanghaiWinner(String name) => '🎯 $name $shanghaiWins';
 }

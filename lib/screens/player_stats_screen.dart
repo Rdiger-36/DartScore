@@ -948,7 +948,7 @@ class _ThrowRow extends StatelessWidget {
               children: [
                 Text(
                   t.bust
-                      ? context.l10n.restBleibt(t.remainingBefore)
+                      ? context.l10n.remainingScore(t.remainingBefore)
                       : '→ ${t.remainingBefore - t.score} ${context.l10n.remaining}',
                   style: theme.textTheme.bodySmall,
                 ),
