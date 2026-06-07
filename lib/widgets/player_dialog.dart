@@ -102,6 +102,7 @@ class _PlayerDialogState extends State<PlayerDialog> {
                           controller: _nameCtrl,
                           autofocus: !isEditing,
                           textInputAction: TextInputAction.done,
+                          maxLength: 12,
                           decoration: InputDecoration(
                             labelText: l.nameLabel,
                             border: const OutlineInputBorder(),
