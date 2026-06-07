@@ -166,20 +166,38 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               ),
             ),
           ] else if (_selectedPlayers.length == 1) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.info_outline_rounded,
-                      size: 14,
-                      color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 6),
-                  Text(
-                    l.soloLegsHint,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      size: 18, color: theme.colorScheme.onSecondaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l.openPlayHint,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSecondaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          l.soloLegsHint,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -237,6 +255,17 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             ),
           ],
           const SizedBox(height: 24),
+          if (_selectedPlayers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                l.minOnePLayer,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
           FilledButton.icon(
             onPressed: _selectedPlayers.isNotEmpty ? _startGame : null,
             icon: const Icon(Icons.play_arrow),
@@ -248,28 +277,6 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               textStyle: theme.textTheme.titleMedium,
             ),
           ),
-          if (_selectedPlayers.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                l.minOnePLayer,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            )
-          else if (_selectedPlayers.length == 1)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                l.openPlayHint,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.secondary,
-                ),
-              ),
-            ),
         ],
       ),
     );

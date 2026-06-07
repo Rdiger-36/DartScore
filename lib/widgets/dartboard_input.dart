@@ -325,8 +325,8 @@ class _DartboardInputState extends State<DartboardInput> {
                   child: _ActionButton(
                     label: context.l10n.done_,
                     icon: Icons.check,
-                    color: cs.primaryContainer,
-                    textColor: cs.onPrimaryContainer,
+                    color: Colors.amber,
+                    textColor: Colors.black,
                     disabled: dartCount == 0,
                     verticalPadding: actionVPadding,
                     onTap: _finishEarly,
