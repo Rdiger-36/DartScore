@@ -540,6 +540,11 @@ class AppLocalizations {
   String get shanghaiScore        => _t('Score', 'Punkte');
   String get shanghaiQuit         => _t('Quit', 'Beenden');
   String get shanghaiInstantWin   => _t('Shanghai! Instant win', 'Shanghai! Sofortsieg');
+  String get shanghaiPending      => _t('Shanghai pending', 'Shanghai ausstehend');
+  String get shanghaiHintTitle    => _t('Shanghai chance', 'Shanghai-Chance');
+  String shanghaiHintStreak(int n) => n == 1
+      ? _t('1 more hit in a row', 'noch 1 Treffer in Folge')
+      : _t('$n more hits in a row', 'noch $n Treffer in Folge');
 
   // ── Shanghai Summary ─────────────────────────────────────────────────────────
   String get shanghaiSummaryTitle => _t('Game Summary', 'Spielübersicht');
