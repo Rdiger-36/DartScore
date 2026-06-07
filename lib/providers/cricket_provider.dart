@@ -59,6 +59,7 @@ class CricketProvider extends ChangeNotifier {
   int?                     get winnerId           => _winnerId;
   List<CricketThrow>       get visitBuffer        => List.unmodifiable(_visitBuffer);
   int                      get dartsInVisit       => _visitBuffer.length;
+  int                      get throwCount         => _throwHistory.length;
   bool                     get canUndo            => _throwHistory.isNotEmpty;
 
   // ── Resume ────────────────────────────────────────────────────────────────
@@ -144,6 +145,14 @@ class CricketProvider extends ChangeNotifier {
 
     if (!saved.isMiss) {
       _applyDart(_currentPlayerIndex, field, multiplier);
+
+      // A leg ends the instant a player closes the last field while leading
+      // (or level) - no need to finish the rest of the visit.
+      if (_checkWin(_currentPlayerIndex)) {
+        _visitBuffer.clear();
+        await _handleWin(_currentPlayerIndex);
+        return;
+      }
     }
 
     if (_visitBuffer.length == 3) {
@@ -209,11 +218,9 @@ class CricketProvider extends ChangeNotifier {
   Future<void> _endVisit() async {
     _visitBuffer.clear();
 
-    // Standard win: current player closed all fields with the winning score
-    if (_checkWin(_currentPlayerIndex)) {
-      await _handleWin(_currentPlayerIndex);
-      return;
-    }
+    // A win for the current player is already handled right after the dart
+    // that closes their last field (see recordDart), so only the "stalemate"
+    // case remains here.
 
     // All players have closed all fields — nobody can score anymore, decide by score
     if (_playerStates.every((s) => s.hasClosedAll)) {
@@ -274,6 +281,25 @@ class CricketProvider extends ChangeNotifier {
     if (_visitBuffer.isNotEmpty &&
         _visitBuffer.last.id == last.id) {
       _visitBuffer.removeLast();
+    }
+
+    // Undoing the winning dart un-finishes the game (recordDart blocks any
+    // dart from being recorded once the game is over, so the last dart in
+    // history can only be the winning one if the game was over).
+    if (_gameOver) {
+      _gameOver = false;
+      _winnerId = null;
+      _game = CricketGame(
+        id:           _game!.id,
+        variant:      _game!.variant,
+        scoringMode:  _game!.scoringMode,
+        legs:         _game!.legs,
+        sets:         _game!.sets,
+        createdAt:    _game!.createdAt,
+        finishedAt:   null,
+        playerIds:    _game!.playerIds,
+      );
+      await _db.updateCricketGame(_game!);
     }
 
     // Replay from scratch for this leg/set
