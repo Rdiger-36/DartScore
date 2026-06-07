@@ -10,7 +10,7 @@ const _projectUrl = 'https://rdiger-36.github.io/Rdiger-36/';
 const _mitLicenseText = '''
 MIT License
 
-Copyright (c) 2026 Rdiger-36
+Copyright (c) 2026 Niklas Ratka
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
