@@ -233,6 +233,14 @@ class AppLocalizations {
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
+  // ── Test build ───────────────────────────────────────────────────────────
+  String get testBuild         => _t('Test build', 'Testversion');
+  String get tester            => _t('Tester', 'Tester');
+  String get testBuildExpired  => _t(
+        'This test build has expired.\nPlease uninstall the app.',
+        'Diese Testversion ist abgelaufen.\nBitte deinstalliere die App.',
+      );
+
   // ── Sync ──────────────────────────────────────────────────────────────────
   String get syncTitle         => _t('Profile Sync', 'Profil Sync');
   String get syncSend          => _t('Send', 'Senden');

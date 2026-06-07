@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/dev_build_info.dart';
 import '../utils/layout.dart';
 import 'about_screen.dart';
 
@@ -12,17 +13,44 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final devBuild = devBuildInfo;
     return Scaffold(
       appBar: AppBar(title: Text(l.settingsTitle)),
       body: ListView(
         padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
-        children: const [
-          _ThemeSection(),
-          SizedBox(height: 20),
-          _LanguageSection(),
-          SizedBox(height: 20),
-          _AboutSection(),
+        children: [
+          const _ThemeSection(),
+          const SizedBox(height: 20),
+          const _LanguageSection(),
+          const SizedBox(height: 20),
+          const _AboutSection(),
+          if (devBuild != null) ...[
+            const SizedBox(height: 20),
+            _TesterBuildSection(name: devBuild.name),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+// ── Tester build (dev/test builds only) ──────────────────────────────────────
+
+class _TesterBuildSection extends StatelessWidget {
+  final String name;
+
+  const _TesterBuildSection({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return _Card(
+      title: l.testBuild,
+      icon: Icons.science_outlined,
+      child: ListTile(
+        leading: const Icon(Icons.badge_outlined),
+        title: Text(l.tester),
+        subtitle: Text(name),
       ),
     );
   }
