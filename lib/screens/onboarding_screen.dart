@@ -89,6 +89,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     autofocus: true,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.done,
+                    maxLength: 12,
                     decoration: InputDecoration(
                       labelText: l.yourName,
                       border: const OutlineInputBorder(),
