@@ -259,7 +259,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                l.minOnePLayer,
+                l.minOnePlayer,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
