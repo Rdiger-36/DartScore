@@ -124,24 +124,28 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               child: Column(
                 children: [
                   // Winner banner
-                  Card(
-                    color: cs.primaryContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          Icon(Icons.emoji_events, size: 48, color: cs.primary),
-                          const SizedBox(height: 8),
-                          Text(
-                            l.wins(winner.displayName),
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer,
+                            shape: BoxShape.circle,
                           ),
-                        ],
-                      ),
+                          child: Icon(Icons.emoji_events_rounded,
+                              size: 52, color: cs.primary),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          l.wins(winner.displayName),
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: cs.primary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                   // Perfect game badges

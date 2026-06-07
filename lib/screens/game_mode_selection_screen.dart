@@ -4,6 +4,7 @@ import '../utils/layout.dart';
 import 'game_mode_info_screen.dart';
 import 'game_setup_screen.dart';
 import 'cricket_setup_screen.dart';
+import 'shanghai_setup_screen.dart';
 
 class GameModeSelectionScreen extends StatelessWidget {
   const GameModeSelectionScreen({super.key});
@@ -52,7 +53,12 @@ class GameModeSelectionScreen extends StatelessWidget {
                     mode: GameModeOption.shanghai,
                     name: l.modeShanghaiName,
                     tagline: l.modeShanghaiTagline,
-                    available: false,
+                    available: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ShanghaiSetupScreen()),
+                    ),
                     onInfo: () => _openInfo(context, GameModeOption.shanghai),
                   ),
                   const SizedBox(height: 14),
