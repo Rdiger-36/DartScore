@@ -83,22 +83,24 @@ class _Body extends StatelessWidget {
       padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
       children: [
         if (winnerId != null) ...[
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
+          Center(
             child: Column(
               children: [
-                Icon(Icons.emoji_events_rounded, size: 40, color: cs.primary),
-                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emoji_events_rounded, size: 52, color: cs.primary),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   l.shanghaiWinner(
                       states.firstWhere((s) => s.player.id == winnerId).displayName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: cs.onPrimaryContainer,
+                    color: cs.primary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -107,6 +109,12 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
+
+        // Game info
+        _InfoRow(l.gameLabel, l.modeShanghaiName),
+        const SizedBox(height: 6),
+        _InfoRow(l.gameMode_, _shanghaiVariantLabel(l, game.variant)),
+        const SizedBox(height: 16),
 
         Card(
           child: Padding(
@@ -166,6 +174,39 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
+  switch (variant) {
+    case ShanghaiVariant.classic:
+      return l.shanghaiClassic;
+    case ShanghaiVariant.clockwise:
+      return l.shanghaiClockwise;
+    case ShanghaiVariant.sequential:
+      return l.shanghaiSequential;
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        )),
+        Text(value, style: theme.textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.bold,
+        )),
       ],
     );
   }
