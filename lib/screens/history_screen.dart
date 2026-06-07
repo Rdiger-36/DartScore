@@ -6,12 +6,16 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../models/game.dart';
 import '../models/player.dart';
+import '../models/shanghai_game.dart';
 import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
+import '../providers/shanghai_provider.dart';
 import 'cricket_history_summary_screen.dart';
 import 'cricket_screen.dart';
 import 'game_screen.dart';
 import 'history_game_summary_screen.dart';
+import 'shanghai_history_summary_screen.dart';
+import 'shanghai_screen.dart';
 import '../utils/layout.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -55,6 +59,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
       entries.add(_HistoryEntry.cricket(g, players));
     }
 
+    // Shanghai games
+    for (final g in await db.getShanghaiGames()) {
+      final players = <Player>[];
+      for (final id in g.playerIds) {
+        final p = await db.getPlayer(id);
+        if (p != null) players.add(p);
+      }
+      entries.add(_HistoryEntry.shanghai(g, players));
+    }
+
     entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return entries;
   }
@@ -65,6 +79,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final db = DbHelper.instance;
     if (entry.isCricket) {
       await db.deleteCricketGame(entry.cricketGame!.id!);
+    } else if (entry.isShanghai) {
+      await db.deleteShanghaiGame(entry.shanghaiGame!.id!);
     } else {
       await db.snapshotGameStats(entry.x01Game!.id!);
       await db.deleteGame(entry.x01Game!.id!);
@@ -120,6 +136,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (context.mounted) {
       Navigator.push(context,
           MaterialPageRoute(builder: (_) => const CricketScreen()))
+        .then((_) => _reload());
+    }
+  }
+
+  Future<void> _resumeShanghai(BuildContext context, _HistoryEntry entry) async {
+    if (entry.players.isEmpty) return;
+    final provider = context.read<ShanghaiProvider>();
+    await provider.resumeGame(entry.shanghaiGame!, entry.players);
+    if (context.mounted) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const ShanghaiScreen()))
         .then((_) => _reload());
     }
   }
@@ -185,7 +212,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           onDelete: () => _deleteEntry(e),
                           onResume: () => e.isCricket
                               ? _resumeCricket(context, e)
-                              : _resumeX01(context, e),
+                              : e.isShanghai
+                                  ? _resumeShanghai(context, e)
+                                  : _resumeX01(context, e),
                         )),
                     const SizedBox(height: 8),
                   ],
@@ -203,10 +232,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       game: e.cricketGame!,
                                       players: e.players,
                                     )
-                                  : HistoryGameSummaryScreen(
-                                      game: e.x01Game!,
-                                      players: e.players,
-                                    ),
+                                  : e.isShanghai
+                                      ? ShanghaiHistorySummaryScreen(
+                                          game: e.shanghaiGame!,
+                                          players: e.players,
+                                        )
+                                      : HistoryGameSummaryScreen(
+                                          game: e.x01Game!,
+                                          players: e.players,
+                                        ),
                             ),
                           ),
                         )),
@@ -221,14 +255,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 }
 
+String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
+  switch (variant) {
+    case ShanghaiVariant.classic:
+      return l.shanghaiClassic;
+    case ShanghaiVariant.clockwise:
+      return l.shanghaiClockwise;
+    case ShanghaiVariant.sequential:
+      return l.shanghaiSequential;
+  }
+}
+
 // ── Data model ────────────────────────────────────────────────────────────────
 
 class _HistoryEntry {
-  final Game?        x01Game;
-  final CricketGame? cricketGame;
-  final List<Player> players;
+  final Game?          x01Game;
+  final CricketGame?   cricketGame;
+  final ShanghaiGame?  shanghaiGame;
+  final List<Player>   players;
 
-  const _HistoryEntry._({this.x01Game, this.cricketGame, required this.players});
+  const _HistoryEntry._({
+    this.x01Game,
+    this.cricketGame,
+    this.shanghaiGame,
+    required this.players,
+  });
 
   factory _HistoryEntry.x01(Game g, List<Player> players) =>
       _HistoryEntry._(x01Game: g, players: players);
@@ -236,9 +287,23 @@ class _HistoryEntry {
   factory _HistoryEntry.cricket(CricketGame g, List<Player> players) =>
       _HistoryEntry._(cricketGame: g, players: players);
 
+  factory _HistoryEntry.shanghai(ShanghaiGame g, List<Player> players) =>
+      _HistoryEntry._(shanghaiGame: g, players: players);
+
   bool      get isCricket  => cricketGame != null;
-  DateTime  get createdAt  => isCricket ? cricketGame!.createdAt  : x01Game!.createdAt;
-  DateTime? get finishedAt => isCricket ? cricketGame!.finishedAt : x01Game!.finishedAt;
+  bool      get isShanghai => shanghaiGame != null;
+
+  DateTime get createdAt {
+    if (isCricket) return cricketGame!.createdAt;
+    if (isShanghai) return shanghaiGame!.createdAt;
+    return x01Game!.createdAt;
+  }
+
+  DateTime? get finishedAt {
+    if (isCricket) return cricketGame!.finishedAt;
+    if (isShanghai) return shanghaiGame!.finishedAt;
+    return x01Game!.finishedAt;
+  }
 }
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
@@ -311,14 +376,19 @@ class _GameTile extends StatelessWidget {
                 ? l.cricketVariantCutThroat
                 : l.cricketVariantNormal,
           )
-        : l.gameSummaryInfo(
-            entry.x01Game!.startScore,
-            entry.x01Game!.legs,
-            entry.x01Game!.sets,
-          );
+        : entry.isShanghai
+            ? l.shanghaiGameInfo(_shanghaiVariantLabel(l, entry.shanghaiGame!.variant))
+            : l.gameSummaryInfo(
+                entry.x01Game!.startScore,
+                entry.x01Game!.legs,
+                entry.x01Game!.sets,
+              );
+
+    final entryId = entry.x01Game?.id ?? entry.cricketGame?.id ?? entry.shanghaiGame?.id;
+    final entryPrefix = entry.isCricket ? 'c' : (entry.isShanghai ? 's' : 'x');
 
     return Dismissible(
-      key: ValueKey('${entry.isCricket ? 'c' : 'x'}${entry.x01Game?.id ?? entry.cricketGame?.id}'),
+      key: ValueKey('$entryPrefix$entryId'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
@@ -350,7 +420,9 @@ class _GameTile extends StatelessWidget {
                   child: Icon(
                     entry.isCricket
                         ? Icons.sports_cricket_rounded
-                        : (finished ? Icons.check : Icons.play_arrow_rounded),
+                        : entry.isShanghai
+                            ? Icons.layers_rounded
+                            : (finished ? Icons.check : Icons.play_arrow_rounded),
                     size: 18,
                     color: finished
                         ? cs.onPrimaryContainer

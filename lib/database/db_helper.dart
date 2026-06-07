@@ -6,6 +6,7 @@ import '../models/player.dart';
 import '../models/game.dart';
 import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
+import '../models/shanghai_game.dart';
 
 class DbHelper {
   static final DbHelper instance = DbHelper._();
@@ -22,7 +23,7 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -92,6 +93,32 @@ class DbHelper {
           player_id INTEGER NOT NULL,
           field INTEGER NOT NULL,
           multiplier INTEGER NOT NULL,
+          leg INTEGER NOT NULL,
+          set_ INTEGER NOT NULL,
+          thrown_at INTEGER NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 11) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS shanghai_games (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          variant INTEGER NOT NULL,
+          legs INTEGER NOT NULL,
+          sets INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          finished_at INTEGER,
+          player_ids TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS shanghai_throws (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          game_id INTEGER NOT NULL,
+          player_id INTEGER NOT NULL,
+          target INTEGER NOT NULL,
+          multiplier INTEGER NOT NULL,
+          round INTEGER NOT NULL,
           leg INTEGER NOT NULL,
           set_ INTEGER NOT NULL,
           thrown_at INTEGER NOT NULL
@@ -182,6 +209,30 @@ class DbHelper {
         player_id INTEGER NOT NULL,
         field INTEGER NOT NULL,
         multiplier INTEGER NOT NULL,
+        leg INTEGER NOT NULL,
+        set_ INTEGER NOT NULL,
+        thrown_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE shanghai_games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        variant INTEGER NOT NULL,
+        legs INTEGER NOT NULL,
+        sets INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        player_ids TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE shanghai_throws (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        target INTEGER NOT NULL,
+        multiplier INTEGER NOT NULL,
+        round INTEGER NOT NULL,
         leg INTEGER NOT NULL,
         set_ INTEGER NOT NULL,
         thrown_at INTEGER NOT NULL
@@ -567,6 +618,8 @@ class DbHelper {
     await d.delete('games');
     await d.delete('cricket_throws');
     await d.delete('cricket_games');
+    await d.delete('shanghai_throws');
+    await d.delete('shanghai_games');
   }
 
   Future<void> updateGame(Game g) async {
@@ -774,5 +827,53 @@ class DbHelper {
     final d = await db;
     await d.delete('cricket_throws', where: 'game_id = ?', whereArgs: [gameId]);
     await d.delete('cricket_games', where: 'id = ?', whereArgs: [gameId]);
+  }
+
+  // ── Shanghai ─────────────────────────────────────────────────────────────────
+
+  Future<int> insertShanghaiGame(ShanghaiGame g) async {
+    final d = await db;
+    final map = g.toMap()..remove('id');
+    return d.insert('shanghai_games', map);
+  }
+
+  Future<void> updateShanghaiGame(ShanghaiGame g) async {
+    final d = await db;
+    await d.update('shanghai_games', g.toMap(),
+        where: 'id = ?', whereArgs: [g.id]);
+  }
+
+  Future<int> insertShanghaiThrow(ShanghaiThrow t) async {
+    final d = await db;
+    final map = t.toMap()..remove('id');
+    return d.insert('shanghai_throws', map);
+  }
+
+  Future<void> deleteShanghaiThrow(int id) async {
+    final d = await db;
+    await d.delete('shanghai_throws', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<ShanghaiThrow>> getShanghaiThrowsForGame(int gameId) async {
+    final d = await db;
+    final rows = await d.query(
+      'shanghai_throws',
+      where: 'game_id = ?',
+      whereArgs: [gameId],
+      orderBy: 'thrown_at ASC',
+    );
+    return rows.map(ShanghaiThrow.fromMap).toList();
+  }
+
+  Future<List<ShanghaiGame>> getShanghaiGames() async {
+    final d = await db;
+    final rows = await d.query('shanghai_games', orderBy: 'created_at DESC');
+    return rows.map(ShanghaiGame.fromMap).toList();
+  }
+
+  Future<void> deleteShanghaiGame(int gameId) async {
+    final d = await db;
+    await d.delete('shanghai_throws', where: 'game_id = ?', whereArgs: [gameId]);
+    await d.delete('shanghai_games', where: 'id = ?', whereArgs: [gameId]);
   }
 }

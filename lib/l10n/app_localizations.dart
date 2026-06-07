@@ -196,6 +196,7 @@ class AppLocalizations {
   String get statsTooltip        => _t('Statistics', 'Statistik');
   String get statsLoadError      => _t('Statistics could not be loaded.', 'Statistiken konnten nicht geladen werden.');
   String get gameMode_           => _t('Mode', 'Modus');
+  String get gameLabel           => _t('Game', 'Spiel');
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
 
@@ -511,6 +512,47 @@ class AppLocalizations {
   String get cricketTotalScore    => _t('Total Score', 'Gesamtpunkte');
   String get cricketWins          =>  _t('wins!', 'hat gewonnen!');
   String cricketWinner(String name) => '🎯 $name $cricketWins';
+
+  // ── Shanghai History ─────────────────────────────────────────────────────────
+  String shanghaiGameInfo(String variant) =>
+      _t('Shanghai · $variant', 'Shanghai · $variant');
+
+  // ── Shanghai Setup ───────────────────────────────────────────────────────────
+  String get shanghaiSetup        => _t('Shanghai Setup', 'Shanghai einrichten');
+  String get shanghaiVariant      => _t('Variant', 'Variante');
+  String get shanghaiClassic      => _t('Classic (1-9)', 'Klassisch (1-9)');
+  String get shanghaiClockwise    => _t('Clockwise', 'Im Uhrzeigersinn');
+  String get shanghaiSequential   => _t('Sequential', 'Sequenziell');
+  String get shanghaiClassicDesc  =>
+      _t('9 rounds, target advances from 1 to 9. Each player throws 3 darts at the active number per round.',
+         '9 Runden, die Zielzahl steigt von 1 bis 9. Jeder Spieler wirft pro Runde 3 Pfeile auf die aktive Zahl.');
+  String get shanghaiClockwiseDesc =>
+      _t('One visit of 7 darts per player. The target advances by one with every dart, from 1 to 7.',
+         'Eine Aufnahme mit 7 Pfeilen pro Spieler. Die Zielzahl steigt mit jedem Pfeil von 1 bis 7.');
+  String get shanghaiSequentialDesc =>
+      _t('Throw at 1 until you hit it, then move on to 2, and so on up to 20. First to finish wins.',
+         'Wirf auf die 1, bis du sie triffst, dann auf die 2 usw. bis 20. Wer zuerst fertig ist, gewinnt.');
+  String get shanghaiMinPlayers   =>
+      _t('Shanghai requires at least 2 players.', 'Shanghai benötigt mindestens 2 Spieler.');
+
+  // ── Shanghai Game ────────────────────────────────────────────────────────────
+  String get shanghaiTarget       => _t('Target', 'Ziel');
+  String get shanghaiMiss         => _t('Miss', 'Fehler');
+  String get shanghaiScore        => _t('Score', 'Punkte');
+  String get shanghaiQuit         => _t('Quit', 'Beenden');
+  String get shanghaiInstantWin   => _t('Shanghai! Instant win', 'Shanghai! Sofortsieg');
+  String get shanghaiPending      => _t('Shanghai pending', 'Shanghai ausstehend');
+  String get shanghaiHintTitle    => _t('Shanghai chance', 'Shanghai-Chance');
+  String shanghaiHintStreak(int n) => n == 1
+      ? _t('1 more hit in a row', 'noch 1 Treffer in Folge')
+      : _t('$n more hits in a row', 'noch $n Treffer in Folge');
+
+  // ── Shanghai Summary ─────────────────────────────────────────────────────────
+  String get shanghaiSummaryTitle => _t('Game Summary', 'Spielübersicht');
+  String get shanghaiTotalScore   => _t('Total Score', 'Gesamtpunkte');
+  String shanghaiDartsUsed(int n) => _t('$n darts', '$n Pfeile');
+  String get shanghaiWins         => _t('wins!', 'hat gewonnen!');
+  String shanghaiWinner(String name) => '🎯 $name $shanghaiWins';
 }
 
 // ── Delegate ──────────────────────────────────────────────────────────────────

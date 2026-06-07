@@ -156,22 +156,24 @@ class _Body extends StatelessWidget {
       children: [
         // Winner banner
         if (data.winnerId != null) ...[
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
+          Center(
             child: Column(
               children: [
-                Icon(Icons.emoji_events_rounded, size: 40, color: cs.primary),
-                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emoji_events_rounded, size: 52, color: cs.primary),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   l.cricketWinner(
                       players.firstWhere((p) => p.id == data.winnerId).name),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: cs.onPrimaryContainer,
+                    color: cs.primary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -180,6 +182,12 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
+
+        // Game info
+        _InfoRow(l.gameLabel, l.modeCricketName),
+        const SizedBox(height: 6),
+        _InfoRow(l.gameMode_, isCT ? l.cricketVariantCutThroat : l.cricketVariantNormal),
+        const SizedBox(height: 16),
 
         // Per-player score cards
         Card(
@@ -292,6 +300,28 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        )),
+        Text(value, style: theme.textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.bold,
+        )),
       ],
     );
   }
