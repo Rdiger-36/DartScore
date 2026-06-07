@@ -4,6 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
+import '../utils/triple_color.dart';
 import '../widgets/cricket_marks_widget.dart';
 import 'cricket_summary_screen.dart';
 
@@ -497,12 +498,12 @@ class _MultiplierRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _MultBtn(label: l.single, sub: '×1', onTap: () => onSelected(1)),
+            _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => onSelected(1)),
             const SizedBox(width: 10),
-            _MultBtn(label: l.double_, sub: '×2', onTap: () => onSelected(2)),
+            _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => onSelected(2)),
             const SizedBox(width: 10),
             if (field != 25) // Bull has no triple
-              _MultBtn(label: l.triple, sub: '×3', onTap: () => onSelected(3)),
+              _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => onSelected(3)),
           ],
         ),
         const SizedBox(height: 6),
@@ -518,17 +519,38 @@ class _MultiplierRow extends StatelessWidget {
 class _MultBtn extends StatelessWidget {
   final String label;
   final String sub;
+  final int multiplier;
   final VoidCallback onTap;
-  const _MultBtn({required this.label, required this.sub, required this.onTap});
+  const _MultBtn({
+    required this.label,
+    required this.sub,
+    required this.multiplier,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final Color bg;
+    final Color fg;
+    switch (multiplier) {
+      case 2:
+        bg = cs.secondaryContainer;
+        fg = cs.onSecondaryContainer;
+        break;
+      case 3:
+        bg = tripleContainerColor(context);
+        fg = onTripleContainerColor(context);
+        break;
+      default:
+        bg = cs.surfaceContainerHighest;
+        fg = cs.onSurface;
+    }
     return SizedBox(
       width: 80,
       height: 64,
       child: Material(
-        color: cs.secondaryContainer,
+        color: bg,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -539,11 +561,11 @@ class _MultBtn extends StatelessWidget {
               Text(label,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: cs.onSecondaryContainer,
+                        color: fg,
                       )),
               Text(sub,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: cs.onSecondaryContainer.withValues(alpha: 0.7),
+                        color: fg.withValues(alpha: 0.7),
                       )),
             ],
           ),

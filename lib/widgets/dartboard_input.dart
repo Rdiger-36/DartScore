@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/game.dart';
+import '../utils/triple_color.dart';
 
 class DartEntry {
   final int field;    // 1-20, 25=bull, 0=miss
@@ -516,27 +517,28 @@ class _FieldButton extends StatelessWidget {
     required this.onTap,
   });
 
-  Color _bg(ColorScheme cs) {
+  Color _bg(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (disabled) return cs.surfaceContainerLow;
     return switch (modifier) {
       2 => cs.secondaryContainer,
-      3 => cs.tertiaryContainer,
+      3 => tripleContainerColor(context),
       _ => cs.surfaceContainerHigh,
     };
   }
 
-  Color _fg(ColorScheme cs) {
+  Color _fg(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (disabled) return cs.onSurface.withValues(alpha: 0.35);
     return switch (modifier) {
       2 => cs.onSecondaryContainer,
-      3 => cs.onTertiaryContainer,
+      3 => onTripleContainerColor(context),
       _ => cs.onSurface,
     };
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
     final prefix = modifier == 2 ? 'D' : modifier == 3 ? 'T' : '';
 
@@ -544,7 +546,7 @@ class _FieldButton extends StatelessWidget {
     final notation = '$prefix$field';
 
     return Material(
-      color: _bg(cs),
+      color: _bg(context),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -558,7 +560,7 @@ class _FieldButton extends StatelessWidget {
                 modifier > 1 ? notation : '$field',
                 style: t.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: _fg(cs),
+                  color: _fg(context),
                 ),
               )
             else ...[
@@ -567,14 +569,14 @@ class _FieldButton extends StatelessWidget {
                 '$field',
                 style: t.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: _fg(cs),
+                  color: _fg(context),
                 ),
               ),
               if (modifier > 1)
                 Text(
                   '$score',
                   style: t.labelSmall?.copyWith(
-                    color: _fg(cs).withValues(alpha: 0.65),
+                    color: _fg(context).withValues(alpha: 0.65),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
