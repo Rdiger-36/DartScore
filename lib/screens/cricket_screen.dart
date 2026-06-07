@@ -79,6 +79,7 @@ class _CricketGameView extends StatelessWidget {
               child: _CricketBoard(
                 states:     states,
                 currentIdx: currentIdx,
+                throwCount: provider.throwCount,
                 game:       game,
               ),
             ),
@@ -150,130 +151,193 @@ class _CricketGameView extends StatelessWidget {
 
 // ── Cricket Board ─────────────────────────────────────────────────────────────
 
-class _CricketBoard extends StatelessWidget {
+const double _kLabelColumnWidth = 52;
+const double _kPlayerColumnWidth = 92;
+const double _kHeaderHeight = 52;
+
+class _CricketBoard extends StatefulWidget {
   final List<CricketPlayerState> states;
   final int currentIdx;
+  final int throwCount;
   final CricketGame game;
 
   const _CricketBoard({
     required this.states,
     required this.currentIdx,
+    required this.throwCount,
     required this.game,
   });
+
+  @override
+  State<_CricketBoard> createState() => _CricketBoardState();
+}
+
+class _CricketBoardState extends State<_CricketBoard> {
+  final ScrollController _hController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusCurrentPlayer());
+  }
+
+  @override
+  void didUpdateWidget(covariant _CricketBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refocus on every turn change AND every recorded dart (including undo),
+    // so the active player's column is always scrolled into view.
+    if (oldWidget.currentIdx != widget.currentIdx ||
+        oldWidget.throwCount != widget.throwCount) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusCurrentPlayer());
+    }
+  }
+
+  @override
+  void dispose() {
+    _hController.dispose();
+    super.dispose();
+  }
+
+  void _focusCurrentPlayer() {
+    if (!_hController.hasClients) return;
+
+    final viewport   = _hController.position.viewportDimension;
+    final columnLeft = widget.currentIdx * _kPlayerColumnWidth;
+    final target = (columnLeft - (viewport - _kPlayerColumnWidth) / 2)
+        .clamp(0.0, _hController.position.maxScrollExtent);
+
+    _hController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve:    Curves.easeInOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
     final l     = context.l10n;
+    final states     = widget.states;
+    final currentIdx = widget.currentIdx;
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header row: player names + scores ──────────────────────────
-            Row(
-              children: [
-                const SizedBox(width: 52),
-                ...states.indexed.map((e) {
-                  final i = e.$1;
-                  final s = e.$2;
-                  final isActive = i == currentIdx;
-                  return Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          s.displayName,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            fontWeight: isActive
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isActive ? cs.primary : cs.onSurface,
+            // ── Fixed field-label column ────────────────────────────────────
+            SizedBox(
+              width: _kLabelColumnWidth,
+              child: Column(
+                children: [
+                  const SizedBox(height: _kHeaderHeight), // header spacer
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 4),
+                  ...cricketFields.map((field) {
+                    final allClosed =
+                        states.every((s) => s.hasClosedField(field));
+                    final label = field == 25 ? l.bull : '$field';
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: SizedBox(
+                        height: 40,
+                        child: Center(
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: allClosed
+                                  ? cs.onSurface.withValues(alpha: 0.3)
+                                  : cs.onSurface,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${s.score}',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: isActive ? cs.primary : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            const SizedBox(height: 4),
-            // ── Field rows ─────────────────────────────────────────────────
-            ...cricketFields.map((field) {
-              final allClosed =
-                  states.every((s) => s.hasClosedField(field));
-              return _FieldRow(
-                field:     field,
-                states:    states,
-                allClosed: allClosed,
-                l:         l,
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FieldRow extends StatelessWidget {
-  final int field;
-  final List<CricketPlayerState> states;
-  final bool allClosed;
-  final AppLocalizations l;
-
-  const _FieldRow({
-    required this.field,
-    required this.states,
-    required this.allClosed,
-    required this.l,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
-    final label = field == 25 ? l.bull : '$field';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 52,
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: allClosed
-                    ? cs.onSurface.withValues(alpha: 0.3)
-                    : cs.onSurface,
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
-          ),
-          ...states.map((s) {
-            final marks = s.marks[field] ?? 0;
-            return Expanded(
-              child: Center(child: CricketMarksWidget(marks: marks)),
-            );
-          }),
-        ],
+            // ── Scrollable player columns (focused on the active player) ────
+            Expanded(
+              child: SingleChildScrollView(
+                controller:     _hController,
+                scrollDirection: Axis.horizontal,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header: player names + scores
+                    Row(
+                      children: states.indexed.map((e) {
+                        final i = e.$1;
+                        final s = e.$2;
+                        final isActive = i == currentIdx;
+                        return SizedBox(
+                          width:  _kPlayerColumnWidth,
+                          height: _kHeaderHeight,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                s.displayName,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isActive ? cs.primary : cs.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${s.score}',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: isActive ? cs.primary : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: _kPlayerColumnWidth * states.length,
+                      child: const Divider(height: 1),
+                    ),
+                    const SizedBox(height: 4),
+                    // Field rows
+                    ...cricketFields.map((field) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          children: states.map((s) {
+                            final marks = s.marks[field] ?? 0;
+                            return SizedBox(
+                              width:  _kPlayerColumnWidth,
+                              height: 40,
+                              child: Center(
+                                child: CricketMarksWidget(marks: marks),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
