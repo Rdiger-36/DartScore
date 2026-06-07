@@ -124,6 +124,17 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
           ),
 
           const SizedBox(height: 24),
+          if (_selectedPlayers.length < 2)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                l.cricketMinPlayers,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
           FilledButton.icon(
             onPressed:
                 _selectedPlayers.length >= 2 ? _startGame : null,
@@ -134,17 +145,6 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
               textStyle: theme.textTheme.titleMedium,
             ),
           ),
-          if (_selectedPlayers.length < 2)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                l.cricketMinPlayers,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ),
         ],
       ),
     );
