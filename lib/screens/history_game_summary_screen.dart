@@ -92,21 +92,23 @@ class _SummaryBody extends StatelessWidget {
       children: [
         // Winner banner
         if (winner != null)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(14),
-            ),
+          Center(
             child: Column(
               children: [
-                Icon(Icons.emoji_events_rounded, size: 40, color: cs.primary),
-                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emoji_events_rounded, size: 52, color: cs.primary),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   context.l10n.wins(winner.name),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: cs.onPrimaryContainer,
+                    color: cs.primary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -115,6 +117,8 @@ class _SummaryBody extends StatelessWidget {
           ),
         const SizedBox(height: 14),
         // Game info
+        _InfoRow(context.l10n.gameLabel, context.l10n.modeX01Name),
+        const SizedBox(height: 6),
         _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets)),
         const SizedBox(height: 12),
         // Per-player stats

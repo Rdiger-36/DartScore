@@ -196,6 +196,7 @@ class AppLocalizations {
   String get statsTooltip        => _t('Statistics', 'Statistik');
   String get statsLoadError      => _t('Statistics could not be loaded.', 'Statistiken konnten nicht geladen werden.');
   String get gameMode_           => _t('Mode', 'Modus');
+  String get gameLabel           => _t('Game', 'Spiel');
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
 
