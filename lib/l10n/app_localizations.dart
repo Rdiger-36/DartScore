@@ -439,7 +439,7 @@ class AppLocalizations {
     'REIHENFOLGE IM UHRZEIGERSINN\n'
     '1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20, Bull\n\n'
     'ALLE-SEGMENTE-VARIANTE\n'
-    'Eine strengere Variante verlangt, dass du alle drei Segmente jedes Feldes triffst, bevor du weiterdarfst: Single, Double und Triple. Erst dann kannst du zur nächsten Zahl im Uhrzeigersinn wechseln.\n\n'
+    'Eine strengere Variante verlangt, dass du alle drei Segmente jedes Feldes triffst, bevor du weiter darfst: Single, Double und Triple. Erst dann kannst du zur nächsten Zahl im Uhrzeigersinn wechseln.\n\n'
     'Beispiel:\n'
     '  Single 1, Doppel 1, Triple 1 -> weiter zur 18\n'
     '  Single 18, Doppel 18, Triple 18 -> weiter zur 4\n\n'
