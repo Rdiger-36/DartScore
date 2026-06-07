@@ -120,6 +120,7 @@ class _ShanghaiGameView extends StatelessWidget {
                         _DartDots(count: provider.dartsInVisit, total: provider.visitDartLimit),
                       ],
                     ),
+                    _ShanghaiHint(provider: provider),
                     const SizedBox(height: 10),
                     _ShanghaiInput(provider: provider),
                   ],
@@ -211,6 +212,7 @@ class _ShanghaiBoard extends StatelessWidget {
     final l     = context.l10n;
     final isSequential = provider.game!.variant == ShanghaiVariant.sequential;
     final currentIdx   = provider.currentPlayerIndex;
+    final pendingIdx   = provider.pendingShanghaiIdx;
 
     return Card(
       child: Padding(
@@ -225,14 +227,42 @@ class _ShanghaiBoard extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      s.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                        color: isActive ? cs.primary : cs.onSurface,
-                      ),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            s.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              color: isActive ? cs.primary : cs.onSurface,
+                            ),
+                          ),
+                        ),
+                        if (i == pendingIdx) ...[
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: l.shanghaiPending,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFB300),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'S',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                   if (isSequential)
@@ -286,6 +316,72 @@ class _DartDots extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+// ── Shanghai hint ─────────────────────────────────────────────────────────────
+
+class _ShanghaiHint extends StatelessWidget {
+  final ShanghaiProvider provider;
+  const _ShanghaiHint({required this.provider});
+
+  static const _multiplierLabels = {1: 'S', 2: 'D', 3: 'T'};
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final theme = Theme.of(context);
+    final bg = tripleContainerColor(context);
+    final fg = onTripleContainerColor(context);
+
+    final needed = provider.shanghaiNeededMultipliers;
+    final streakNeeded = provider.shanghaiStreakNeeded;
+
+    Widget? content;
+    if (needed != null && needed.isNotEmpty) {
+      final target = provider.activeTarget;
+      content = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < needed.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.arrow_forward_rounded, size: 13, color: fg.withValues(alpha: 0.7)),
+              ),
+            Text(
+              '${_multiplierLabels[needed[i]]}$target',
+              style: theme.textTheme.bodySmall?.copyWith(color: fg, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ],
+      );
+    } else if (streakNeeded != null && streakNeeded > 0) {
+      content = Text(
+        l.shanghaiHintStreak(streakNeeded),
+        style: theme.textTheme.bodySmall?.copyWith(color: fg, fontWeight: FontWeight.bold),
+      );
+    }
+
+    if (content == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l.shanghaiHintTitle,
+            style: theme.textTheme.labelSmall?.copyWith(color: fg.withValues(alpha: 0.8)),
+          ),
+          const SizedBox(height: 4),
+          content,
+        ],
+      ),
     );
   }
 }

@@ -74,6 +74,10 @@ class ShanghaiProvider extends ChangeNotifier {
   int get dartsInVisit => _visitBuffer.length;
   bool get canUndo => _throwHistory.isNotEmpty;
 
+  /// Index of the player awaiting Shanghai confirmation (cancelled if the
+  /// next player also throws a Shanghai), or null if none is pending.
+  int? get pendingShanghaiIdx => _pendingShanghaiIdx;
+
   ShanghaiVariant get _variant => _game!.variant;
 
   /// The number the next dart in the current visit aims at.
@@ -100,6 +104,49 @@ class ShanghaiProvider extends ChangeNotifier {
   }
 
   int get visitDartLimit => _variant == ShanghaiVariant.clockwise ? _clockwiseMaxTarget : 3;
+
+  // ── Shanghai hint ──────────────────────────────────────────────────────────
+
+  /// Classic only: multipliers (1=Single, 2=Double, 3=Triple) still missing
+  /// on the active target to complete a Shanghai this visit.
+  /// Null if a Shanghai is no longer reachable in the current visit.
+  List<int>? get shanghaiNeededMultipliers {
+    if (_game == null || _variant != ShanghaiVariant.classic) return null;
+
+    final target = activeTarget;
+    final hit = <int>[];
+    for (final d in _visitBuffer) {
+      if (d.isMiss || d.target != target || hit.contains(d.multiplier)) return null;
+      hit.add(d.multiplier);
+    }
+    return [1, 2, 3].where((m) => !hit.contains(m)).toList();
+  }
+
+  /// Clockwise/Sequential only: consecutive hits on consecutive targets still
+  /// needed to complete a Shanghai from the current visit state.
+  /// Null if a Shanghai is no longer reachable in the current visit.
+  int? get shanghaiStreakNeeded {
+    if (_game == null ||
+        (_variant != ShanghaiVariant.clockwise && _variant != ShanghaiVariant.sequential)) {
+      return null;
+    }
+
+    var streak = 0;
+    for (var i = _visitBuffer.length - 1; i >= 0; i--) {
+      final d = _visitBuffer[i];
+      if (d.isMiss) break;
+      if (streak == 0 || _visitBuffer[i + 1].target == d.target + 1) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    if (streak >= 3) return 0;
+
+    final needed = 3 - streak;
+    final remaining = visitDartLimit - _visitBuffer.length;
+    return needed <= remaining ? needed : null;
+  }
 
   // ── Resume / Start ─────────────────────────────────────────────────────────
 
@@ -256,8 +303,12 @@ class ShanghaiProvider extends ChangeNotifier {
     }
 
     if (isLastScheduledVisit) {
-      await _handleWin(_scoreWinnerIndex());
-      return;
+      final winnerIdx = _scoreWinnerIndex();
+      if (winnerIdx != null) {
+        await _handleWin(winnerIdx);
+        return;
+      }
+      // Tied: sudden death - play continues until someone takes the lead.
     }
 
     _advanceTurn();
@@ -297,7 +348,8 @@ class ShanghaiProvider extends ChangeNotifier {
   bool _isGameComplete() {
     switch (_variant) {
       case ShanghaiVariant.classic:
-        return _currentRound == _classicMaxRound &&
+        // `>=` so a tied game keeps re-checking each extra sudden-death round.
+        return _currentRound >= _classicMaxRound &&
             _currentPlayerIndex == _playerStates.length - 1;
       case ShanghaiVariant.clockwise:
         return _currentPlayerIndex == _playerStates.length - 1;
@@ -315,14 +367,12 @@ class ShanghaiProvider extends ChangeNotifier {
     }
   }
 
-  int _scoreWinnerIndex() {
-    int best = 0;
-    for (var i = 1; i < _playerStates.length; i++) {
-      if (_playerStates[i].score > _playerStates[best].score) {
-        best = i;
-      }
-    }
-    return best;
+  /// Index of the player with the strictly highest score, or null if the
+  /// top score is shared (draw).
+  int? _scoreWinnerIndex() {
+    final topScore = _playerStates.map((s) => s.score).reduce((a, b) => a > b ? a : b);
+    final leaders = _playerStates.indexed.where((e) => e.$2.score == topScore).toList();
+    return leaders.length == 1 ? leaders.first.$1 : null;
   }
 
   Future<void> _handleWin(int playerIdx) async {
@@ -412,9 +462,13 @@ class ShanghaiProvider extends ChangeNotifier {
     }
 
     if (isLastScheduledVisit) {
-      _gameOver = true;
-      _winnerId = _playerStates[_scoreWinnerIndex()].player.id;
-      return;
+      final winnerIdx = _scoreWinnerIndex();
+      if (winnerIdx != null) {
+        _gameOver = true;
+        _winnerId = _playerStates[winnerIdx].player.id;
+        return;
+      }
+      // Tied: sudden death - play continues until someone takes the lead.
     }
 
     _advanceTurn();
