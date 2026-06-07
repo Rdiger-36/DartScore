@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../utils/finish_calculator.dart';
+import '../utils/triple_color.dart';
 
 class FinishSuggestionWidget extends StatelessWidget {
   final int remaining;
@@ -19,12 +20,6 @@ class FinishSuggestionWidget extends StatelessWidget {
     this.checkoutMode = CheckoutMode.doubleOut,
   });
 
-  // Blue tones for checkout-possible state (not part of the red/green theme)
-  static const _blueContainerLight = Color(0xFFBBDEFB); // blue 100
-  static const _blueOnContainerLight = Color(0xFF0D47A1); // blue 900
-  static const _blueContainerDark = Color(0xFF1565C0);  // blue 800
-  static const _blueOnContainerDark = Color(0xFFBBDEFB);  // blue 100
-
   @override
   Widget build(BuildContext context) {
     if (remaining <= 0) return const SizedBox.shrink();
@@ -32,7 +27,6 @@ class FinishSuggestionWidget extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = cs.brightness == Brightness.dark;
 
     // Determine if a checkout is possible at all
     final bool noCheckout = remaining > 170 ||
@@ -48,8 +42,8 @@ class FinishSuggestionWidget extends StatelessWidget {
       );
 
       if (routes.primary != null) {
-        final bgColor = isDark ? _blueContainerDark : _blueContainerLight;
-        final fgColor = isDark ? _blueOnContainerDark : _blueOnContainerLight;
+        final bgColor = tripleContainerColor(context);
+        final fgColor = onTripleContainerColor(context);
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

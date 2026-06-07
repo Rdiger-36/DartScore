@@ -1,0 +1,172 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
+import '../models/shanghai_game.dart';
+import '../models/player.dart';
+import '../providers/shanghai_provider.dart';
+import '../utils/layout.dart';
+
+class ShanghaiHistorySummaryScreen extends StatelessWidget {
+  final ShanghaiGame game;
+  final List<Player> players;
+
+  const ShanghaiHistorySummaryScreen({
+    super.key,
+    required this.game,
+    required this.players,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: FutureBuilder<ShanghaiProvider>(
+            future: _load(),
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final provider = snap.data;
+              if (provider == null) {
+                return Center(child: Text(context.l10n.noThrowData));
+              }
+              return _Body(game: game, provider: provider);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Replays the game's throws via a standalone provider instance, reusing
+  /// its variant-aware scoring/winner logic instead of duplicating it here.
+  Future<ShanghaiProvider> _load() async {
+    final provider = ShanghaiProvider();
+    await provider.resumeGame(game, players);
+    return provider;
+  }
+}
+
+class _Body extends StatelessWidget {
+  final ShanghaiGame game;
+  final ShanghaiProvider provider;
+
+  const _Body({required this.game, required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme  = Theme.of(context);
+    final cs     = theme.colorScheme;
+    final l      = context.l10n;
+    final states = provider.playerStates;
+    final winnerId = provider.winnerId;
+    final isSequential = game.variant == ShanghaiVariant.sequential;
+
+    final sorted = List.of(states)
+      ..sort((a, b) {
+        if (a.player.id == winnerId) return -1;
+        if (b.player.id == winnerId) return 1;
+        if (isSequential) {
+          final fa = a.finishedAtDart ?? 1 << 30;
+          final fb = b.finishedAtDart ?? 1 << 30;
+          if (fa != fb) return fa.compareTo(fb);
+        }
+        return b.score.compareTo(a.score);
+      });
+
+    return ListView(
+      padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
+      children: [
+        if (winnerId != null) ...[
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.emoji_events_rounded, size: 40, color: cs.primary),
+                const SizedBox(height: 6),
+                Text(
+                  l.shanghaiWinner(
+                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.onPrimaryContainer,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.shanghaiSummaryTitle,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                ...sorted.map((s) {
+                  final isWinner = s.player.id == winnerId;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        if (isWinner)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 6),
+                            child: Icon(Icons.emoji_events_rounded, size: 18),
+                          )
+                        else
+                          const SizedBox(width: 24),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(s.displayName,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: isWinner
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isWinner ? cs.primary : null,
+                                  )),
+                              if (isSequential)
+                                Text(
+                                  s.finishedAtDart != null
+                                      ? l.shanghaiDartsUsed(s.finishedAtDart!)
+                                      : '${l.shanghaiTarget}: ${s.progress}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text('${s.score}',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isWinner ? cs.primary : null,
+                            )),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
