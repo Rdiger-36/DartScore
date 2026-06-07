@@ -219,6 +219,17 @@ class AppLocalizations {
   String get importFromLibDesc => _t('Select a saved QR code image', 'Gespeichertes QR-Code Bild auswählen');
   String get noPlayersSettings => _t('No players added yet.', 'Noch keine Spieler angelegt.');
 
+  // ── About ────────────────────────────────────────────────────────────────
+  String get about             => _t('About', 'Info');
+  String get aboutTitle        => _t('About DartScore', 'Über DartScore');
+  String get version           => _t('Version', 'Version');
+  String get developer         => _t('Developer', 'Entwickler');
+  String get support           => _t('Support', 'Support');
+  String get supportDesc       => _t('Get help or report an issue', 'Hilfe erhalten oder ein Problem melden');
+  String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
+  String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
+  String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
+
   // ── Sync ──────────────────────────────────────────────────────────────────
   String get syncTitle         => _t('Profile Sync', 'Profil Sync');
   String get syncSend          => _t('Send', 'Senden');

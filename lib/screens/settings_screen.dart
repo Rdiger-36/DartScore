@@ -4,6 +4,7 @@ import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
+import 'about_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -19,6 +20,8 @@ class SettingsScreen extends StatelessWidget {
           _ThemeSection(),
           SizedBox(height: 20),
           _LanguageSection(),
+          SizedBox(height: 20),
+          _AboutSection(),
         ],
       ),
     );
@@ -186,6 +189,32 @@ class _LangTile extends StatelessWidget {
       trailing:
           selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
       onTap: onTap,
+    );
+  }
+}
+
+// ── About ─────────────────────────────────────────────────────────────────────
+
+class _AboutSection extends StatelessWidget {
+  const _AboutSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+
+    return _Card(
+      title: l.about,
+      icon: Icons.info_outline_rounded,
+      child: ListTile(
+        leading: Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant),
+        title: Text(l.about),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AboutScreen()),
+        ),
+      ),
     );
   }
 }
