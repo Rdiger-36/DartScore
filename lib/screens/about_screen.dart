@@ -7,6 +7,55 @@ import '../widgets/dartboard_icon.dart';
 
 const _projectUrl = 'https://rdiger-36.github.io/Rdiger-36/';
 
+const _mitLicenseText = '''
+MIT License
+
+Copyright (c) 2026 Niklas Ratka
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+''';
+
+class _LicenseTextScreen extends StatelessWidget {
+  const _LicenseTextScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Scaffold(
+      appBar: AppBar(title: Text(l.license)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(l.appName,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(l.licenseDesc,
+              style: Theme.of(context).textTheme.bodySmall),
+          const Divider(height: 24),
+          Text(_mitLicenseText, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
@@ -81,6 +130,20 @@ class _AboutScreenState extends State<AboutScreen> {
               subtitle: Text(l.supportDesc),
               trailing: const Icon(Icons.open_in_new_rounded),
               onTap: () => _openLink(Uri.parse(_projectUrl)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _Card(
+            title: l.license,
+            icon: Icons.gavel_rounded,
+            child: ListTile(
+              leading: const Icon(Icons.balance_outlined),
+              title: Text(l.license),
+              subtitle: Text(l.licenseDesc),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const _LicenseTextScreen()),
+              ),
             ),
           ),
           const SizedBox(height: 20),
