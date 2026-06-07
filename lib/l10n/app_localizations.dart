@@ -227,6 +227,8 @@ class AppLocalizations {
   String get developer         => _t('Developer', 'Entwickler');
   String get support           => _t('Support', 'Support');
   String get supportDesc       => _t('Get help or report an issue', 'Hilfe erhalten oder ein Problem melden');
+  String get license           => _t('License', 'Lizenz');
+  String get licenseDesc       => _t('MIT License', 'MIT-Lizenz');
   String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
