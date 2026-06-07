@@ -12,9 +12,11 @@ import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'utils/dev_build_info.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  devBuildInfo = await DevBuildInfo.load();
   // Android 15+ forces edge-to-edge. Enable it explicitly so Flutter
   // correctly reports the bottom inset (navigation bar height).
   // iOS handles safe-area insets natively — no change needed there.
@@ -24,12 +26,46 @@ void main() {
   runApp(const DartScoreApp());
 }
 
+/// Full-screen notice shown once a dev build has passed its expiry date.
+class _DevBuildExpiredScreen extends StatelessWidget {
+  const _DevBuildExpiredScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.info_outline, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  context.l10n.testBuildExpired,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Routes to OnboardingScreen until a primary player exists, then HomeScreen.
 class _AppGate extends StatelessWidget {
   const _AppGate();
 
   @override
   Widget build(BuildContext context) {
+    final devBuild = devBuildInfo;
+    if (devBuild != null && DateTime.now().isAfter(devBuild.expiry)) {
+      return const _DevBuildExpiredScreen();
+    }
     final provider = context.watch<PlayersProvider>();
     if (!provider.loaded) {
       return const Scaffold(
