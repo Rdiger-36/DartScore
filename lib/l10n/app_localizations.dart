@@ -228,7 +228,8 @@ class AppLocalizations {
   String get support           => _t('Support', 'Support');
   String get supportDesc       => _t('Get help or report an issue', 'Hilfe erhalten oder ein Problem melden');
   String get license           => _t('License', 'Lizenz');
-  String get licenseDesc       => _t('MIT License', 'MIT-Lizenz');
+  String get licenseDesc       => _t('GNU General Public License v3.0', 'GNU General Public License v3.0');
+  String get licenseFullText   => _t('Read full license text', 'Vollständigen Lizenztext lesen');
   String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
