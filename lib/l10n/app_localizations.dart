@@ -183,6 +183,18 @@ class AppLocalizations {
          'Gesamten Spielverlauf unwiderruflich löschen?');
   String get resume            => _t('Resume', 'Fortsetzen');
   String get noHistory         => _t('No games played yet.', 'Noch keine Spiele gespielt.');
+  String get filterAll         => _t('All', 'Alle');
+  String get gameModeX01       => 'X01';
+  String get gameModeCricket   => 'Cricket';
+  String get gameModeShanghai  => 'Shanghai';
+  String get gameModeAroundTheClock => _t('Around the Clock', 'Around the Clock');
+  String get openAdj           => _t('open', 'offenen');
+  String get finishedAdj       => _t('finished', 'abgeschlossenen');
+  String deleteVisibleBody(String adj, String mode) => mode.isEmpty
+      ? _t('Permanently delete all $adj games?',
+           'Alle $adj Spiele unwiderruflich löschen?')
+      : _t('Permanently delete all $adj $mode games?',
+           'Alle $adj $mode Spiele unwiderruflich löschen?');
   String get points            => _t('Points', 'Punkte');
   String gameSummaryInfo(int score, int l, int s) =>
       _t('$score pts · $l Legs · $s Sets', '$score Punkte · $l Legs · $s Sets');
