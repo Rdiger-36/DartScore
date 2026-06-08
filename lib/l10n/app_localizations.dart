@@ -234,11 +234,17 @@ class AppLocalizations {
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
   // ── Test build ───────────────────────────────────────────────────────────
-  String get testBuild         => _t('Test build', 'Testversion');
-  String get tester            => _t('Tester', 'Tester');
+  String betaBadgeValidUntil(String date) => _t(
+        'Beta build — valid until $date',
+        'Beta-Version — gültig bis $date',
+      );
   String get testBuildExpired  => _t(
         'This test build has expired.\nPlease uninstall the app.',
         'Diese Testversion ist abgelaufen.\nBitte deinstalliere die App.',
+      );
+  String get testBuildNetworkRequired => _t(
+        'This beta version requires an active network connection.\nPlease connect to the internet and restart the app.',
+        'Diese Beta-Version kann nur mit aktiver Netzwerkverbindung genutzt werden.\nBitte verbinde dich mit dem Internet und starte die App erneut.',
       );
 
   // ── Sync ──────────────────────────────────────────────────────────────────

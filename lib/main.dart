@@ -13,10 +13,23 @@ import 'providers/language_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'utils/dev_build_info.dart';
+import 'utils/remote_killswitch.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  devBuildInfo = await DevBuildInfo.load();
+  // The dev-build expiry/tester banner is only relevant for Android test
+  // APKs handed out directly; iOS builds are distributed via TestFlight,
+  // which already enforces its own expiry.
+  if (Platform.isAndroid) {
+    devBuildInfo = await DevBuildInfo.load();
+    if (devBuildInfo != null) {
+      // Lets the developer extend or disable a specific device's expiry
+      // remotely (by editing its file on the config server) without
+      // shipping a new build. A working connection is required for active
+      // beta builds — see _AppGate below.
+      remoteKillswitchStatus = await checkRemoteKillswitch();
+    }
+  }
   // Android 15+ forces edge-to-edge. Enable it explicitly so Flutter
   // correctly reports the bottom inset (navigation bar height).
   // iOS handles safe-area insets natively — no change needed there.
@@ -26,9 +39,12 @@ void main() async {
   runApp(const DartScoreApp());
 }
 
-/// Full-screen notice shown once a dev build has passed its expiry date.
-class _DevBuildExpiredScreen extends StatelessWidget {
-  const _DevBuildExpiredScreen();
+/// Full-screen notice blocking the app, e.g. once a dev build has expired
+/// or while it can't reach the remote check it depends on.
+class _DevBuildNoticeScreen extends StatelessWidget {
+  final String message;
+
+  const _DevBuildNoticeScreen({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +59,7 @@ class _DevBuildExpiredScreen extends StatelessWidget {
                 const Icon(Icons.info_outline, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  context.l10n.testBuildExpired,
+                  message,
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16),
                 ),
@@ -63,8 +79,23 @@ class _AppGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final devBuild = devBuildInfo;
-    if (devBuild != null && DateTime.now().isAfter(devBuild.expiry)) {
-      return const _DevBuildExpiredScreen();
+    if (devBuild != null) {
+      final remote = remoteKillswitchStatus;
+      if (remote == null) {
+        // The remote check couldn't be reached (no connection, server down,
+        // ...). Rather than silently falling back to the bundled date —
+        // which would let someone work around the killswitch simply by
+        // staying offline — require a working connection for beta builds.
+        return _DevBuildNoticeScreen(message: context.l10n.testBuildNetworkRequired);
+      }
+      // "active" is the developer's remote on/off switch for this one
+      // device: false revokes its beta access immediately (e.g. once a
+      // leak's source device is identified), independent of the date.
+      // true grants access, subject to the normal 7-day expiry.
+      final blocked = !remote.active || DateTime.now().isAfter(remote.expiry);
+      if (blocked) {
+        return _DevBuildNoticeScreen(message: context.l10n.testBuildExpired);
+      }
     }
     final provider = context.watch<PlayersProvider>();
     if (!provider.loaded) {
