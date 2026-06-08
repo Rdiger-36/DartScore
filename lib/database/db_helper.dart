@@ -7,6 +7,7 @@ import '../models/game.dart';
 import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
+import '../models/around_the_clock_game.dart';
 
 class DbHelper {
   static final DbHelper instance = DbHelper._();
@@ -23,7 +24,7 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 11,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -119,6 +120,31 @@ class DbHelper {
           target INTEGER NOT NULL,
           multiplier INTEGER NOT NULL,
           round INTEGER NOT NULL,
+          leg INTEGER NOT NULL,
+          set_ INTEGER NOT NULL,
+          thrown_at INTEGER NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 12) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS around_the_clock_games (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          variant INTEGER NOT NULL,
+          legs INTEGER NOT NULL,
+          sets INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          finished_at INTEGER,
+          player_ids TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS around_the_clock_throws (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          game_id INTEGER NOT NULL,
+          player_id INTEGER NOT NULL,
+          field INTEGER NOT NULL,
+          multiplier INTEGER NOT NULL,
           leg INTEGER NOT NULL,
           set_ INTEGER NOT NULL,
           thrown_at INTEGER NOT NULL
@@ -233,6 +259,29 @@ class DbHelper {
         target INTEGER NOT NULL,
         multiplier INTEGER NOT NULL,
         round INTEGER NOT NULL,
+        leg INTEGER NOT NULL,
+        set_ INTEGER NOT NULL,
+        thrown_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE around_the_clock_games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        variant INTEGER NOT NULL,
+        legs INTEGER NOT NULL,
+        sets INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        finished_at INTEGER,
+        player_ids TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE around_the_clock_throws (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id INTEGER NOT NULL,
+        player_id INTEGER NOT NULL,
+        field INTEGER NOT NULL,
+        multiplier INTEGER NOT NULL,
         leg INTEGER NOT NULL,
         set_ INTEGER NOT NULL,
         thrown_at INTEGER NOT NULL
@@ -620,6 +669,8 @@ class DbHelper {
     await d.delete('cricket_games');
     await d.delete('shanghai_throws');
     await d.delete('shanghai_games');
+    await d.delete('around_the_clock_throws');
+    await d.delete('around_the_clock_games');
   }
 
   Future<void> updateGame(Game g) async {
@@ -875,5 +926,53 @@ class DbHelper {
     final d = await db;
     await d.delete('shanghai_throws', where: 'game_id = ?', whereArgs: [gameId]);
     await d.delete('shanghai_games', where: 'id = ?', whereArgs: [gameId]);
+  }
+
+  // ── Around the Clock ─────────────────────────────────────────────────────────
+
+  Future<int> insertAroundTheClockGame(AroundTheClockGame g) async {
+    final d = await db;
+    final map = g.toMap()..remove('id');
+    return d.insert('around_the_clock_games', map);
+  }
+
+  Future<void> updateAroundTheClockGame(AroundTheClockGame g) async {
+    final d = await db;
+    await d.update('around_the_clock_games', g.toMap(),
+        where: 'id = ?', whereArgs: [g.id]);
+  }
+
+  Future<int> insertAroundTheClockThrow(AroundTheClockThrow t) async {
+    final d = await db;
+    final map = t.toMap()..remove('id');
+    return d.insert('around_the_clock_throws', map);
+  }
+
+  Future<void> deleteAroundTheClockThrow(int id) async {
+    final d = await db;
+    await d.delete('around_the_clock_throws', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<AroundTheClockThrow>> getAroundTheClockThrowsForGame(int gameId) async {
+    final d = await db;
+    final rows = await d.query(
+      'around_the_clock_throws',
+      where: 'game_id = ?',
+      whereArgs: [gameId],
+      orderBy: 'thrown_at ASC',
+    );
+    return rows.map(AroundTheClockThrow.fromMap).toList();
+  }
+
+  Future<List<AroundTheClockGame>> getAroundTheClockGames() async {
+    final d = await db;
+    final rows = await d.query('around_the_clock_games', orderBy: 'created_at DESC');
+    return rows.map(AroundTheClockGame.fromMap).toList();
+  }
+
+  Future<void> deleteAroundTheClockGame(int gameId) async {
+    final d = await db;
+    await d.delete('around_the_clock_throws', where: 'game_id = ?', whereArgs: [gameId]);
+    await d.delete('around_the_clock_games', where: 'id = ?', whereArgs: [gameId]);
   }
 }
