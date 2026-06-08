@@ -22,6 +22,8 @@ import 'around_the_clock_history_summary_screen.dart';
 import 'around_the_clock_screen.dart';
 import '../utils/layout.dart';
 
+enum _ModeFilter { all, x01, cricket, shanghai, aroundTheClock }
+
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -29,20 +31,59 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _HistoryScreenState extends State<HistoryScreen>
+    with SingleTickerProviderStateMixin {
   late Future<List<_HistoryEntry>> _future;
+  late TabController _tabController;
+  List<_HistoryEntry> _entries = [];
+  _ModeFilter _openFilter     = _ModeFilter.all;
+  _ModeFilter _finishedFilter = _ModeFilter.all;
+
+  _ModeFilter get _currentFilter =>
+      _tabController.index == 0 ? _openFilter : _finishedFilter;
+
+  List<_HistoryEntry> get _visibleEntries {
+    final isOpen = _tabController.index == 0;
+    final tabEntries =
+        _entries.where((e) => isOpen ? e.finishedAt == null : e.finishedAt != null).toList();
+    final f = _currentFilter;
+    if (f == _ModeFilter.all) return tabEntries;
+    return tabEntries.where((e) => _matchesFilter(e, f)).toList();
+  }
+
+  static bool _matchesFilter(_HistoryEntry e, _ModeFilter f) {
+    switch (f) {
+      case _ModeFilter.all:           return true;
+      case _ModeFilter.x01:           return !e.isCricket && !e.isShanghai && !e.isAroundTheClock;
+      case _ModeFilter.cricket:       return e.isCricket;
+      case _ModeFilter.shanghai:      return e.isShanghai;
+      case _ModeFilter.aroundTheClock: return e.isAroundTheClock;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
+    _reload();
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<List<_HistoryEntry>> _load() async {
     final db      = DbHelper.instance;
     final entries = <_HistoryEntry>[];
 
-    // X01 games
     for (final g in await db.getGames()) {
       final ids     = await db.getGamePlayerIds(g.id!);
       final players = <Player>[];
@@ -53,7 +94,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       entries.add(_HistoryEntry.x01(g, players));
     }
 
-    // Cricket games
     for (final g in await db.getCricketGames()) {
       final players = <Player>[];
       for (final id in g.playerIds) {
@@ -63,7 +103,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       entries.add(_HistoryEntry.cricket(g, players));
     }
 
-    // Shanghai games
     for (final g in await db.getShanghaiGames()) {
       final players = <Player>[];
       for (final id in g.playerIds) {
@@ -73,7 +112,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       entries.add(_HistoryEntry.shanghai(g, players));
     }
 
-    // Around the Clock games
     for (final g in await db.getAroundTheClockGames()) {
       final players = <Player>[];
       for (final id in g.playerIds) {
@@ -87,7 +125,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return entries;
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    final future = _load();
+    future.then((loaded) {
+      if (mounted) setState(() => _entries = loaded);
+    });
+    setState(() { _future = future; });
+  }
 
   Future<void> _deleteEntry(_HistoryEntry entry) async {
     final db = DbHelper.instance;
@@ -104,13 +148,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _reload();
   }
 
-  Future<void> _confirmClearAll(BuildContext context) async {
-    final l = context.l10n;
+  Future<void> _confirmDeleteVisible(BuildContext context) async {
+    final toDelete = _visibleEntries;
+    if (toDelete.isEmpty) return;
+    final l      = context.l10n;
+    final isOpen = _tabController.index == 0;
+    final adj    = isOpen ? l.openAdj : l.finishedAdj;
+    final mode   = _currentFilter == _ModeFilter.all
+        ? ''
+        : _currentFilter == _ModeFilter.x01
+            ? l.gameModeX01
+            : _currentFilter == _ModeFilter.cricket
+                ? l.gameModeCricket
+                : _currentFilter == _ModeFilter.shanghai
+                    ? l.gameModeShanghai
+                    : l.gameModeAroundTheClock;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(l.clearAllTitle),
-        content: Text(l.clearAllBody),
+        content: Text(l.deleteVisibleBody(adj, mode)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -127,11 +185,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      await DbHelper.instance.snapshotPlayerStats();
-      await DbHelper.instance.clearAllGames();
-      _reload();
+    if (confirmed != true) return;
+
+    final db = DbHelper.instance;
+    for (final e in toDelete) {
+      if (!e.isCricket && !e.isShanghai && !e.isAroundTheClock &&
+          e.finishedAt != null) {
+        await db.snapshotGameStats(e.x01Game!.id!);
+      }
     }
+    for (final e in toDelete) {
+      if (e.isCricket) {
+        await db.deleteCricketGame(e.cricketGame!.id!);
+      } else if (e.isShanghai) {
+        await db.deleteShanghaiGame(e.shanghaiGame!.id!);
+      } else if (e.isAroundTheClock) {
+        await db.deleteAroundTheClockGame(e.aroundTheClockGame!.id!);
+      } else {
+        await db.deleteGame(e.x01Game!.id!);
+      }
+    }
+
+    setState(() {
+      if (isOpen) {
+        _openFilter = _ModeFilter.all;
+      } else {
+        _finishedFilter = _ModeFilter.all;
+      }
+    });
+    _reload();
   }
 
   Future<void> _resumeX01(BuildContext context, _HistoryEntry entry) async {
@@ -140,8 +222,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await provider.resumeGame(entry.x01Game!, entry.players);
     if (context.mounted) {
       Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const GameScreen()))
-        .then((_) => _reload());
+              MaterialPageRoute(builder: (_) => const GameScreen()))
+          .then((_) => _reload());
     }
   }
 
@@ -151,8 +233,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await provider.resumeGame(entry.cricketGame!, entry.players);
     if (context.mounted) {
       Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const CricketScreen()))
-        .then((_) => _reload());
+              MaterialPageRoute(builder: (_) => const CricketScreen()))
+          .then((_) => _reload());
     }
   }
 
@@ -162,19 +244,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await provider.resumeGame(entry.shanghaiGame!, entry.players);
     if (context.mounted) {
       Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const ShanghaiScreen()))
-        .then((_) => _reload());
+              MaterialPageRoute(builder: (_) => const ShanghaiScreen()))
+          .then((_) => _reload());
     }
   }
 
-  Future<void> _resumeAroundTheClock(BuildContext context, _HistoryEntry entry) async {
+  Future<void> _resumeAroundTheClock(
+      BuildContext context, _HistoryEntry entry) async {
     if (entry.players.isEmpty) return;
     final provider = context.read<AroundTheClockProvider>();
     await provider.resumeGame(entry.aroundTheClockGame!, entry.players);
     if (context.mounted) {
       Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const AroundTheClockScreen()))
-        .then((_) => _reload());
+              MaterialPageRoute(builder: (_) => const AroundTheClockScreen()))
+          .then((_) => _reload());
     }
   }
 
@@ -184,106 +267,243 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         title: Text(context.l10n.historyTitle),
         actions: [
-          FutureBuilder<List<_HistoryEntry>>(
-            future: _future,
-            builder: (context, snap) {
-              if ((snap.data ?? []).isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                icon: const Icon(Icons.delete_sweep_outlined),
-                tooltip: context.l10n.clearAll,
-                onPressed: () => _confirmClearAll(context),
-              );
-            },
-          ),
+          if (_visibleEntries.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: context.l10n.clearAll,
+              onPressed: () => _confirmDeleteVisible(context),
+            ),
         ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-          child: FutureBuilder<List<_HistoryEntry>>(
-            future: _future,
-            builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final entries = snap.data ?? [];
-              if (entries.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.history,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.outlineVariant),
-                      const SizedBox(height: 12),
-                      Text(context.l10n.noHistory),
-                    ],
-                  ),
-                );
-              }
-
-              final open     = entries.where((e) => e.finishedAt == null).toList();
-              final finished = entries.where((e) => e.finishedAt != null).toList();
-
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                children: [
-                  if (open.isNotEmpty) ...[
-                    _SectionHeader(
-                      label: context.l10n.open,
-                      count: open.length,
-                      color: Theme.of(context).colorScheme.tertiary,
-                    ),
-                    ...open.map((e) => _GameTile(
-                          entry: e,
-                          onDelete: () => _deleteEntry(e),
-                          onResume: () => e.isCricket
-                              ? _resumeCricket(context, e)
-                              : e.isShanghai
-                                  ? _resumeShanghai(context, e)
-                                  : e.isAroundTheClock
-                                      ? _resumeAroundTheClock(context, e)
-                                      : _resumeX01(context, e),
-                        )),
-                    const SizedBox(height: 8),
-                  ],
-                  if (finished.isNotEmpty) ...[
-                    _SectionHeader(
-                        label: context.l10n.finished, count: finished.length),
-                    ...finished.map((e) => _GameTile(
-                          entry: e,
-                          onDelete: () => _deleteEntry(e),
-                          onShowSummary: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => e.isCricket
-                                  ? CricketHistorySummaryScreen(
-                                      game: e.cricketGame!,
-                                      players: e.players,
-                                    )
-                                  : e.isShanghai
-                                      ? ShanghaiHistorySummaryScreen(
-                                          game: e.shanghaiGame!,
-                                          players: e.players,
-                                        )
-                                      : e.isAroundTheClock
-                                          ? AroundTheClockHistorySummaryScreen(
-                                              game: e.aroundTheClockGame!,
-                                              players: e.players,
-                                            )
-                                          : HistoryGameSummaryScreen(
-                                              game: e.x01Game!,
-                                              players: e.players,
-                                            ),
-                            ),
-                          ),
-                        )),
-                  ],
-                ],
-              );
-            },
-          ),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(text: context.l10n.open),
+            Tab(text: context.l10n.finished),
+          ],
         ),
+      ),
+      body: FutureBuilder<List<_HistoryEntry>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final entries = snap.data ?? [];
+          final open     = entries.where((e) => e.finishedAt == null).toList();
+          final finished = entries.where((e) => e.finishedAt != null).toList();
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _TabContent(
+                entries: open,
+                isOpenTab: true,
+                filter: _openFilter,
+                onFilterChanged: (f) => setState(() => _openFilter = f),
+                onDelete: _deleteEntry,
+                onResume: (e) => e.isCricket
+                    ? _resumeCricket(context, e)
+                    : e.isShanghai
+                        ? _resumeShanghai(context, e)
+                        : e.isAroundTheClock
+                            ? _resumeAroundTheClock(context, e)
+                            : _resumeX01(context, e),
+                onShowSummary: (_) {},
+              ),
+              _TabContent(
+                entries: finished,
+                isOpenTab: false,
+                filter: _finishedFilter,
+                onFilterChanged: (f) => setState(() => _finishedFilter = f),
+                onDelete: _deleteEntry,
+                onResume: (_) {},
+                onShowSummary: (e) => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => e.isCricket
+                        ? CricketHistorySummaryScreen(
+                            game: e.cricketGame!, players: e.players)
+                        : e.isShanghai
+                            ? ShanghaiHistorySummaryScreen(
+                                game: e.shanghaiGame!, players: e.players)
+                            : e.isAroundTheClock
+                                ? AroundTheClockHistorySummaryScreen(
+                                    game: e.aroundTheClockGame!,
+                                    players: e.players)
+                                : HistoryGameSummaryScreen(
+                                    game: e.x01Game!, players: e.players),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Tab content with chip filter ─────────────────────────────────────────────
+
+class _TabContent extends StatefulWidget {
+  final List<_HistoryEntry> entries;
+  final bool isOpenTab;
+  final _ModeFilter filter;
+  final void Function(_ModeFilter) onFilterChanged;
+  final void Function(_HistoryEntry) onDelete;
+  final void Function(_HistoryEntry) onResume;
+  final void Function(_HistoryEntry) onShowSummary;
+
+  const _TabContent({
+    required this.entries,
+    required this.isOpenTab,
+    required this.filter,
+    required this.onFilterChanged,
+    required this.onDelete,
+    required this.onResume,
+    required this.onShowSummary,
+  });
+
+  @override
+  State<_TabContent> createState() => _TabContentState();
+}
+
+class _TabContentState extends State<_TabContent>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  List<_HistoryEntry> get _filtered {
+    if (widget.filter == _ModeFilter.all) return widget.entries;
+    return widget.entries
+        .where((e) => _HistoryScreenState._matchesFilter(e, widget.filter))
+        .toList();
+  }
+
+  Set<_ModeFilter> get _presentModes {
+    final modes = <_ModeFilter>{};
+    for (final e in widget.entries) {
+      if (e.isCricket) {
+        modes.add(_ModeFilter.cricket);
+      } else if (e.isShanghai) {
+        modes.add(_ModeFilter.shanghai);
+      } else if (e.isAroundTheClock) {
+        modes.add(_ModeFilter.aroundTheClock);
+      } else {
+        modes.add(_ModeFilter.x01);
+      }
+    }
+    return modes;
+  }
+
+  String _chipLabel(_ModeFilter f, AppLocalizations l) {
+    switch (f) {
+      case _ModeFilter.all:            return l.filterAll;
+      case _ModeFilter.x01:            return l.gameModeX01;
+      case _ModeFilter.cricket:        return l.gameModeCricket;
+      case _ModeFilter.shanghai:       return l.gameModeShanghai;
+      case _ModeFilter.aroundTheClock: return l.gameModeAroundTheClock;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final l        = context.l10n;
+    final cs       = Theme.of(context).colorScheme;
+    final present  = _presentModes;
+    final filtered = _filtered;
+
+    if (widget.entries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.history, size: 48, color: cs.outlineVariant),
+            const SizedBox(height: 12),
+            Text(l.noHistory),
+          ],
+        ),
+      );
+    }
+
+    final chips = [
+      _ModeFilter.all, _ModeFilter.x01, _ModeFilter.cricket,
+      _ModeFilter.shanghai, _ModeFilter.aroundTheClock,
+    ].where((f) => f == _ModeFilter.all || present.contains(f)).toList();
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: Column(
+          children: [
+            if (chips.length > 1)
+              _ChipBar(
+                filters: chips,
+                selected: widget.filter,
+                labelOf: (f) => _chipLabel(f, l),
+                onSelected: widget.onFilterChanged,
+              ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(child: Text(l.noHistory))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final e = filtered[i];
+                        return _GameTile(
+                          entry: e,
+                          onDelete: () => widget.onDelete(e),
+                          onResume: widget.isOpenTab
+                              ? () => widget.onResume(e)
+                              : null,
+                          onShowSummary: widget.isOpenTab
+                              ? null
+                              : () => widget.onShowSummary(e),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Chip filter bar ───────────────────────────────────────────────────────────
+
+class _ChipBar extends StatelessWidget {
+  final List<_ModeFilter> filters;
+  final _ModeFilter selected;
+  final String Function(_ModeFilter) labelOf;
+  final void Function(_ModeFilter) onSelected;
+
+  const _ChipBar({
+    required this.filters,
+    required this.selected,
+    required this.labelOf,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          for (int i = 0; i < filters.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            FilterChip(
+              label: Text(labelOf(filters[i])),
+              selected: filters[i] == selected,
+              onSelected: (_) => onSelected(filters[i]),
+              showCheckmark: false,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -340,9 +560,9 @@ class _HistoryEntry {
   factory _HistoryEntry.aroundTheClock(AroundTheClockGame g, List<Player> players) =>
       _HistoryEntry._(aroundTheClockGame: g, players: players);
 
-  bool      get isCricket        => cricketGame != null;
-  bool      get isShanghai       => shanghaiGame != null;
-  bool      get isAroundTheClock => aroundTheClockGame != null;
+  bool get isCricket        => cricketGame != null;
+  bool get isShanghai       => shanghaiGame != null;
+  bool get isAroundTheClock => aroundTheClockGame != null;
 
   DateTime get createdAt {
     if (isCricket) return cricketGame!.createdAt;
@@ -361,47 +581,6 @@ class _HistoryEntry {
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
 
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color? color;
-
-  const _SectionHeader({required this.label, required this.count, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: color ?? cs.onSurfaceVariant,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-            decoration: BoxDecoration(
-              color: (color ?? cs.onSurfaceVariant).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '$count',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: color ?? cs.onSurfaceVariant,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _GameTile extends StatelessWidget {
   final _HistoryEntry entry;
   final VoidCallback onDelete;
@@ -417,10 +596,10 @@ class _GameTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l          = context.l10n;
-    final fmt        = DateFormat('dd.MM.yy  HH:mm');
-    final finished   = entry.finishedAt != null;
-    final cs         = Theme.of(context).colorScheme;
+    final l           = context.l10n;
+    final fmt         = DateFormat('dd.MM.yy  HH:mm');
+    final finished    = entry.finishedAt != null;
+    final cs          = Theme.of(context).colorScheme;
     final playerNames = entry.players.map((p) => p.name).join(' vs ');
 
     final subtitle = entry.isCricket
@@ -432,7 +611,8 @@ class _GameTile extends StatelessWidget {
         : entry.isShanghai
             ? l.shanghaiGameInfo(_shanghaiVariantLabel(l, entry.shanghaiGame!.variant))
             : entry.isAroundTheClock
-                ? l.aroundClockGameInfo(_aroundClockVariantLabel(l, entry.aroundTheClockGame!.variant))
+                ? l.aroundClockGameInfo(
+                    _aroundClockVariantLabel(l, entry.aroundTheClockGame!.variant))
                 : l.gameSummaryInfo(
                     entry.x01Game!.startScore,
                     entry.x01Game!.legs,
@@ -469,7 +649,6 @@ class _GameTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                // Mode icon
                 Container(
                   width: 36,
                   height: 36,
@@ -484,7 +663,9 @@ class _GameTile extends StatelessWidget {
                             ? Icons.layers_rounded
                             : entry.isAroundTheClock
                                 ? Icons.watch_later_outlined
-                                : (finished ? Icons.check : Icons.play_arrow_rounded),
+                                : (finished
+                                    ? Icons.check
+                                    : Icons.play_arrow_rounded),
                     size: 18,
                     color: finished
                         ? cs.onPrimaryContainer
@@ -492,7 +673,6 @@ class _GameTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,7 +698,6 @@ class _GameTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Resume chip
                 if (!finished)
                   Container(
                     padding:
