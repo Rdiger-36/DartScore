@@ -7,15 +7,19 @@ import '../models/cricket_game.dart';
 import '../models/game.dart';
 import '../models/player.dart';
 import '../models/shanghai_game.dart';
+import '../models/around_the_clock_game.dart';
 import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/shanghai_provider.dart';
+import '../providers/around_the_clock_provider.dart';
 import 'cricket_history_summary_screen.dart';
 import 'cricket_screen.dart';
 import 'game_screen.dart';
 import 'history_game_summary_screen.dart';
 import 'shanghai_history_summary_screen.dart';
 import 'shanghai_screen.dart';
+import 'around_the_clock_history_summary_screen.dart';
+import 'around_the_clock_screen.dart';
 import '../utils/layout.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -69,6 +73,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
       entries.add(_HistoryEntry.shanghai(g, players));
     }
 
+    // Around the Clock games
+    for (final g in await db.getAroundTheClockGames()) {
+      final players = <Player>[];
+      for (final id in g.playerIds) {
+        final p = await db.getPlayer(id);
+        if (p != null) players.add(p);
+      }
+      entries.add(_HistoryEntry.aroundTheClock(g, players));
+    }
+
     entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return entries;
   }
@@ -81,6 +95,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       await db.deleteCricketGame(entry.cricketGame!.id!);
     } else if (entry.isShanghai) {
       await db.deleteShanghaiGame(entry.shanghaiGame!.id!);
+    } else if (entry.isAroundTheClock) {
+      await db.deleteAroundTheClockGame(entry.aroundTheClockGame!.id!);
     } else {
       await db.snapshotGameStats(entry.x01Game!.id!);
       await db.deleteGame(entry.x01Game!.id!);
@@ -151,6 +167,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _resumeAroundTheClock(BuildContext context, _HistoryEntry entry) async {
+    if (entry.players.isEmpty) return;
+    final provider = context.read<AroundTheClockProvider>();
+    await provider.resumeGame(entry.aroundTheClockGame!, entry.players);
+    if (context.mounted) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const AroundTheClockScreen()))
+        .then((_) => _reload());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,7 +241,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ? _resumeCricket(context, e)
                               : e.isShanghai
                                   ? _resumeShanghai(context, e)
-                                  : _resumeX01(context, e),
+                                  : e.isAroundTheClock
+                                      ? _resumeAroundTheClock(context, e)
+                                      : _resumeX01(context, e),
                         )),
                     const SizedBox(height: 8),
                   ],
@@ -237,10 +266,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           game: e.shanghaiGame!,
                                           players: e.players,
                                         )
-                                      : HistoryGameSummaryScreen(
-                                          game: e.x01Game!,
-                                          players: e.players,
-                                        ),
+                                      : e.isAroundTheClock
+                                          ? AroundTheClockHistorySummaryScreen(
+                                              game: e.aroundTheClockGame!,
+                                              players: e.players,
+                                            )
+                                          : HistoryGameSummaryScreen(
+                                              game: e.x01Game!,
+                                              players: e.players,
+                                            ),
                             ),
                           ),
                         )),
@@ -266,18 +300,31 @@ String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
   }
 }
 
+String _aroundClockVariantLabel(AppLocalizations l, AroundTheClockVariant variant) {
+  switch (variant) {
+    case AroundTheClockVariant.basic:
+      return l.aroundClockBasic;
+    case AroundTheClockVariant.fullSegments:
+      return l.aroundClockFullSegments;
+    case AroundTheClockVariant.skipRules:
+      return l.aroundClockSkipRules;
+  }
+}
+
 // ── Data model ────────────────────────────────────────────────────────────────
 
 class _HistoryEntry {
-  final Game?          x01Game;
-  final CricketGame?   cricketGame;
-  final ShanghaiGame?  shanghaiGame;
-  final List<Player>   players;
+  final Game?                x01Game;
+  final CricketGame?         cricketGame;
+  final ShanghaiGame?        shanghaiGame;
+  final AroundTheClockGame?  aroundTheClockGame;
+  final List<Player>         players;
 
   const _HistoryEntry._({
     this.x01Game,
     this.cricketGame,
     this.shanghaiGame,
+    this.aroundTheClockGame,
     required this.players,
   });
 
@@ -290,18 +337,24 @@ class _HistoryEntry {
   factory _HistoryEntry.shanghai(ShanghaiGame g, List<Player> players) =>
       _HistoryEntry._(shanghaiGame: g, players: players);
 
-  bool      get isCricket  => cricketGame != null;
-  bool      get isShanghai => shanghaiGame != null;
+  factory _HistoryEntry.aroundTheClock(AroundTheClockGame g, List<Player> players) =>
+      _HistoryEntry._(aroundTheClockGame: g, players: players);
+
+  bool      get isCricket        => cricketGame != null;
+  bool      get isShanghai       => shanghaiGame != null;
+  bool      get isAroundTheClock => aroundTheClockGame != null;
 
   DateTime get createdAt {
     if (isCricket) return cricketGame!.createdAt;
     if (isShanghai) return shanghaiGame!.createdAt;
+    if (isAroundTheClock) return aroundTheClockGame!.createdAt;
     return x01Game!.createdAt;
   }
 
   DateTime? get finishedAt {
     if (isCricket) return cricketGame!.finishedAt;
     if (isShanghai) return shanghaiGame!.finishedAt;
+    if (isAroundTheClock) return aroundTheClockGame!.finishedAt;
     return x01Game!.finishedAt;
   }
 }
@@ -378,14 +431,21 @@ class _GameTile extends StatelessWidget {
           )
         : entry.isShanghai
             ? l.shanghaiGameInfo(_shanghaiVariantLabel(l, entry.shanghaiGame!.variant))
-            : l.gameSummaryInfo(
-                entry.x01Game!.startScore,
-                entry.x01Game!.legs,
-                entry.x01Game!.sets,
-              );
+            : entry.isAroundTheClock
+                ? l.aroundClockGameInfo(_aroundClockVariantLabel(l, entry.aroundTheClockGame!.variant))
+                : l.gameSummaryInfo(
+                    entry.x01Game!.startScore,
+                    entry.x01Game!.legs,
+                    entry.x01Game!.sets,
+                  );
 
-    final entryId = entry.x01Game?.id ?? entry.cricketGame?.id ?? entry.shanghaiGame?.id;
-    final entryPrefix = entry.isCricket ? 'c' : (entry.isShanghai ? 's' : 'x');
+    final entryId = entry.x01Game?.id ??
+        entry.cricketGame?.id ??
+        entry.shanghaiGame?.id ??
+        entry.aroundTheClockGame?.id;
+    final entryPrefix = entry.isCricket
+        ? 'c'
+        : (entry.isShanghai ? 's' : (entry.isAroundTheClock ? 'a' : 'x'));
 
     return Dismissible(
       key: ValueKey('$entryPrefix$entryId'),
@@ -422,7 +482,9 @@ class _GameTile extends StatelessWidget {
                         ? Icons.sports_cricket_rounded
                         : entry.isShanghai
                             ? Icons.layers_rounded
-                            : (finished ? Icons.check : Icons.play_arrow_rounded),
+                            : entry.isAroundTheClock
+                                ? Icons.watch_later_outlined
+                                : (finished ? Icons.check : Icons.play_arrow_rounded),
                     size: 18,
                     color: finished
                         ? cs.onPrimaryContainer

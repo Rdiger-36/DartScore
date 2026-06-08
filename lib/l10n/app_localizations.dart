@@ -554,7 +554,7 @@ class AppLocalizations {
 
   // ── Shanghai Game ────────────────────────────────────────────────────────────
   String get shanghaiTarget       => _t('Target', 'Ziel');
-  String get shanghaiMiss         => _t('Miss', 'Fehler');
+  String get shanghaiMiss         => _t('Miss', 'Miss');
   String get shanghaiScore        => _t('Score', 'Punkte');
   String get shanghaiQuit         => _t('Quit', 'Beenden');
   String get shanghaiInstantWin   => _t('Shanghai! Instant win', 'Shanghai! Sofortsieg');
@@ -570,6 +570,44 @@ class AppLocalizations {
   String shanghaiDartsUsed(int n) => dartsN(n);
   String get shanghaiWins         => _t('wins!', 'hat gewonnen!');
   String shanghaiWinner(String name) => '🎯 $name $shanghaiWins';
+
+  // ── Around the Clock History ─────────────────────────────────────────────────
+  String aroundClockGameInfo(String variant) =>
+      _t('Around the Clock · $variant', 'Around the Clock · $variant');
+
+  // ── Around the Clock Setup ───────────────────────────────────────────────────
+  String get aroundClockSetup       => _t('Around the Clock Setup', 'Around the Clock einrichten');
+  String get aroundClockVariant     => _t('Variant', 'Variante');
+  String get aroundClockBasic       => _t('Basic', 'Standard');
+  String get aroundClockFullSegments => _t('Full Segments', 'Alle Segmente');
+  String get aroundClockSkipRules   => _t('Skip Rules', 'Überspringen');
+  String get aroundClockBasicDesc   =>
+      _t('Hit each number at least once, in clockwise order, then the Bull. First to the Bull wins.',
+         'Triff jede Zahl mindestens einmal in der Reihenfolge im Uhrzeigersinn, dann das Bull. Wer zuerst das Bull trifft, gewinnt.');
+  String get aroundClockFullSegmentsDesc =>
+      _t('Hit Single, Double and Triple of each number before advancing to the next.',
+         'Triff Single, Double und Triple jeder Zahl, bevor du zur nächsten weiterziehst.');
+  String get aroundClockSkipRulesDesc =>
+      _t('Double skips one field ahead, Triple skips two, and the Bull\'s Eye is a joker that skips the current field.',
+         'Doppel überspringt ein Feld, Triple überspringt zwei, und das Bull\'s Eye ist ein Joker, der das aktuelle Feld überspringt.');
+  String get aroundClockMinPlayers  =>
+      _t('Select at least 1 player.', 'Wähle mindestens 1 Spieler aus.');
+
+  // ── Around the Clock Game ────────────────────────────────────────────────────
+  String get aroundClockTarget      => _t('Target', 'Ziel');
+  String get aroundClockMiss        => _t('Miss', 'Miss');
+  String get aroundClockQuit        => _t('Quit', 'Beenden');
+  String get aroundClockProgress    => _t('Progress', 'Fortschritt');
+  String aroundClockProgressN(int hit, int total) =>
+      _t('$hit/$total hit', '$hit/$total getroffen');
+  String get aroundClockHintTitle   => _t('Open', 'Offen');
+  String get aroundClockJoker       => _t('Joker', 'Joker');
+
+  // ── Around the Clock Summary ─────────────────────────────────────────────────
+  String get aroundClockSummaryTitle => _t('Game Summary', 'Spielübersicht');
+  String aroundClockDartsUsed(int n) => dartsN(n);
+  String get aroundClockWins         => _t('wins!', 'hat gewonnen!');
+  String aroundClockWinner(String name) => '🎯 $name $aroundClockWins';
 }
 
 // ── Delegate ──────────────────────────────────────────────────────────────────

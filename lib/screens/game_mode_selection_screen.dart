@@ -5,6 +5,7 @@ import 'game_mode_info_screen.dart';
 import 'game_setup_screen.dart';
 import 'cricket_setup_screen.dart';
 import 'shanghai_setup_screen.dart';
+import 'around_the_clock_setup_screen.dart';
 
 class GameModeSelectionScreen extends StatelessWidget {
   const GameModeSelectionScreen({super.key});
@@ -66,7 +67,12 @@ class GameModeSelectionScreen extends StatelessWidget {
                     mode: GameModeOption.aroundTheClock,
                     name: l.modeAroundClockName,
                     tagline: l.modeAroundClockTagline,
-                    available: false,
+                    available: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AroundTheClockSetupScreen()),
+                    ),
                     onInfo: () => _openInfo(context, GameModeOption.aroundTheClock),
                   ),
                 ],
