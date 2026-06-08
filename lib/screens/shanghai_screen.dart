@@ -5,6 +5,7 @@ import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
 import '../utils/triple_color.dart';
+import '../widgets/dartboard_target_painter.dart';
 import 'shanghai_summary_screen.dart';
 
 class ShanghaiScreen extends StatelessWidget {
@@ -69,7 +70,7 @@ class _ShanghaiGameView extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // ── Fixed target card ─────────────────────────────────────────────
+          // ── Fixed target dartboard ────────────────────────────────────────
           Padding(
             padding: contentPadding(
               context,
@@ -78,7 +79,11 @@ class _ShanghaiGameView extends StatelessWidget {
               top: 8,
               innerH: 12,
             ),
-            child: SizedBox(width: double.infinity, child: _TargetCard(provider: provider)),
+            child: Column(
+              children: [
+                SizedBox(width: double.infinity, child: _TargetDartboard(provider: provider)),
+              ],
+            ),
           ),
           // ── Scrollable player list ────────────────────────────────────────
           Expanded(
@@ -91,7 +96,12 @@ class _ShanghaiGameView extends StatelessWidget {
                 bottom: 8,
                 innerH: 12,
               ),
-              child: _ShanghaiBoard(provider: provider, states: states),
+              child: _ShanghaiBoard(
+                provider:     provider,
+                states:       states,
+                currentIdx:   provider.currentPlayerIndex,
+                dartsInVisit: provider.dartsInVisit,
+              ),
             ),
           ),
           // ── Input area ────────────────────────────────────────────────────
@@ -156,41 +166,24 @@ class _ShanghaiGameView extends StatelessWidget {
   }
 }
 
-// ── Active target display ─────────────────────────────────────────────────────
+// ── Active target dartboard ───────────────────────────────────────────────────
 
-class _TargetCard extends StatelessWidget {
+class _TargetDartboard extends StatelessWidget {
   final ShanghaiProvider provider;
-  const _TargetCard({required this.provider});
+  const _TargetDartboard({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    final l     = context.l10n;
-    final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final target = provider.activeTarget;
-    final label = target == 25 ? l.bull : '$target';
 
-    return Card(
-      color: cs.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: Column(
-          children: [
-            Text(
-              l.shanghaiTarget,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: cs.onPrimaryContainer.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: theme.textTheme.displayMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: cs.onPrimaryContainer,
-              ),
-            ),
-          ],
+    return AspectRatio(
+      aspectRatio: 1,
+      child: CustomPaint(
+        painter: DartboardTargetPainter(
+          target: target,
+          highlightColor: cs.primary,
+          onSurfaceColor: cs.onSurface,
         ),
       ),
     );
@@ -199,31 +192,76 @@ class _TargetCard extends StatelessWidget {
 
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
-class _ShanghaiBoard extends StatelessWidget {
+class _ShanghaiBoard extends StatefulWidget {
   final ShanghaiProvider provider;
   final List<ShanghaiPlayerState> states;
+  final int currentIdx;
+  final int dartsInVisit;
 
-  const _ShanghaiBoard({required this.provider, required this.states});
+  const _ShanghaiBoard({
+    required this.provider,
+    required this.states,
+    required this.currentIdx,
+    required this.dartsInVisit,
+  });
+
+  @override
+  State<_ShanghaiBoard> createState() => _ShanghaiBoardState();
+}
+
+class _ShanghaiBoardState extends State<_ShanghaiBoard> {
+  late List<GlobalKey> _keys;
+
+  @override
+  void initState() {
+    super.initState();
+    _keys = List.generate(widget.states.length, (_) => GlobalKey());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
+  }
+
+  @override
+  void didUpdateWidget(covariant _ShanghaiBoard old) {
+    super.didUpdateWidget(old);
+    if (old.states.length != widget.states.length) {
+      _keys = List.generate(widget.states.length, (_) => GlobalKey());
+    }
+    if (old.currentIdx != widget.currentIdx || old.dartsInVisit != widget.dartsInVisit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
+    }
+  }
+
+  void _scrollToCurrent() {
+    final key = _keys[widget.currentIdx];
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
     final l     = context.l10n;
-    final isSequential = provider.game!.variant == ShanghaiVariant.sequential;
-    final currentIdx   = provider.currentPlayerIndex;
-    final pendingIdx   = provider.pendingShanghaiIdx;
+    final isSequential = widget.provider.game!.variant == ShanghaiVariant.sequential;
+    final currentIdx   = widget.currentIdx;
+    final pendingIdx   = widget.provider.pendingShanghaiIdx;
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
-          children: states.indexed.map((e) {
+          children: widget.states.indexed.map((e) {
             final i = e.$1;
             final s = e.$2;
             final isActive = i == currentIdx;
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              key: _keys[i],
+              padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
                 children: [
                   Expanded(
@@ -234,7 +272,7 @@ class _ShanghaiBoard extends StatelessWidget {
                             s.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                               color: isActive ? cs.primary : cs.onSurface,
                             ),
@@ -245,16 +283,16 @@ class _ShanghaiBoard extends StatelessWidget {
                           Tooltip(
                             message: l.shanghaiPending,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFB300),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                               child: const Text(
                                 'S',
                                 style: TextStyle(
                                   color: Colors.black,
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   height: 1,
                                 ),
@@ -267,19 +305,19 @@ class _ShanghaiBoard extends StatelessWidget {
                   ),
                   if (isSequential)
                     Padding(
-                      padding: const EdgeInsets.only(right: 12),
+                      padding: const EdgeInsets.only(right: 8),
                       child: Text(
-                        '${l.shanghaiTarget}: ${s.progress > 20 ? '✓' : s.progress}',
-                        style: theme.textTheme.bodySmall?.copyWith(
+                        '→ ${s.progress > 20 ? '✓' : s.progress}',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
                       ),
                     ),
                   Text(
                     '${s.score}',
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isActive ? cs.primary : null,
+                      color: isActive ? cs.primary : cs.onSurfaceVariant,
                     ),
                   ),
                 ],
