@@ -448,6 +448,24 @@ class _StatsBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
+        // ── X01-only hint ───────────────────────────────────────────────
+        Row(
+          children: [
+            Icon(Icons.info_outline,
+                size: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                context.l10n.statsX01Only,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         // ── Hero average ────────────────────────────────────────────────
         _HeroCard(stats: stats),
         const SizedBox(height: 12),

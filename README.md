@@ -10,120 +10,140 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-0.1.0-blue?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Flutter-%E2%89%A53.32-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Dart-%E2%89%A53.12-0175C2?style=flat-square&logo=dart&logoColor=white" alt="Dart" />
   <img src="https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square" alt="platform" />
+  <img src="https://img.shields.io/badge/license-GPLv3-green?style=flat-square" alt="license" />
   <img src="https://img.shields.io/badge/maintained-yes-brightgreen?style=flat-square" alt="maintained" />
-  <img src="https://img.shields.io/badge/status-active-brightgreen?style=flat-square" alt="status" />
 </p>
 
 ---
 
 ## Features
 
-### Game Mode Selection
+### Game Modes
 
-A dedicated mode selection screen greets you when starting a new game. Each mode has an info page explaining its rules. Currently available:
+A mode selection screen lets you pick from four fully playable game modes. Each mode has a built-in rules info page.
 
-- **X01** — classic countdown game (201 / 301 / 501 / 701 / 1001)
-- **Cricket** — mark-based game on fields 15–20 and Bull
+#### X01
 
-Coming soon (visible in the UI, not yet playable):
+Classic countdown game. Supported start scores: **201 / 301 / 501 / 701 / 1001**.
 
-- **Shanghai** — score on the target number each round
-- **Around the Clock** — hit each number 1–20 in order
+- **Solo game** — single player, no legs/sets, finishes on checkout
+- **Multiplayer** — 2+ players, turn-based
+- **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Legs & Sets** — configurable legs per set and sets per match
 
----
+**Check-In rules** (per player): Straight In / Double In / Master In  
+**Check-Out rules** (per player): Straight Out / Double Out / Master Out
 
-### X01 Game Modes
+- Individual in/out overrides per player within the same game
+- Check-in enforced in leg 1 / set 1 only; subsequent legs always start Straight In
+- Bust detection including the "remaining = 1" edge case for Double/Master Out
 
-- **501 / 301 / 201 / 701 / 1001** and other start scores
-- **Solo game** — single-player countdown with no legs/sets; finishes immediately on checkout
-- **Multiplayer** (2+ players, turn-based)
-- **Team game** — split players into multiple teams sharing one score per team; the current thrower's name is shown inside the team slot
-- **Legs & Sets** — configurable number of legs per set and sets per match
-- Players can be created directly from the game setup screen; setting a favourite double is required
-
-#### Check-In / Check-Out Rules (X01)
-
-- **Check-In:** Straight In / Double In / Master In per player
-- **Check-Out:** Straight Out / Double Out / Master Out per player
-- Individual handicap overrides per player within the same game
-- Check-In is enforced in leg 1 / set 1 only; subsequent legs always start Straight In
-
-#### Input (X01)
-
-- Segment-level dart input via dartboard widget (Single / Double / Triple + field 1–20, Bull, Miss)
-- Each field button shows the notation and resulting score (e.g. `T20 / 60`)
+**Input:**
+- Dartboard widget with segment-level input (Single / Double / Triple, fields 1–20, Bull, Miss)
+- Each segment shows notation and resulting score (e.g. `T20 / 60`)
+- Numpad input as alternative
 - Live score update after every dart
 - Visit-level undo and redo
-- Finish suggestion always visible — blue when the checkout is reachable, red when it is not
-- Automatic bust detection, including the "remaining = 1" edge case for Double/Master Out
+- Finish suggestion always visible — highlighted when checkout is reachable
 
 ---
 
-### Cricket Game Mode
+#### Cricket
 
-Cricket is a mark-based game played on fields **15, 16, 17, 18, 19, 20** and **Bull (25)**. Each field needs 3 marks to be "closed". Hitting a single counts as 1 mark, a double as 2, a triple as 3.
+Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks to close.
 
-#### Variants
-
-| Variant | Scoring rule |
+| Variant | Scoring |
 |---|---|
-| **Normal** | Once you close a field, extra marks score points for you. Win condition: all fields closed AND highest score. |
-| **Cut Throat** | Once you close a field, extra marks score points on every opponent who hasn't closed it yet. Win condition: all fields closed AND lowest score. |
+| **Normal** | Closing a field lets you score on it; extra marks add to your score. Highest score wins once all fields are closed. |
+| **Cut Throat** | Extra marks on a closed field add points to opponents who haven't closed it yet. Lowest score wins. |
 
-#### Scoring Modes
-
-| Mode | Description |
+| Scoring Mode | Description |
 |---|---|
-| **Standard** | Tracks which specific dart (single / double / triple) hit each field — used for accurate marks display. |
-| **Simple** | Only counts the number of marks per field; no individual dart breakdown. |
+| **Standard** | Tracks individual dart type (single/double/triple) for accurate marks display. |
+| **Simple** | Counts marks per field only; no dart-level breakdown. |
 
-- Minimum 2 players required
-- No legs/sets — always a single leg
+- Minimum 2 players
+- Dartboard-style input with mark tracking
 - Undo support (dart-by-dart)
-- History and resume support (like X01)
-- Game ends when all players have closed all fields
 
 ---
 
-### Statistics (per player)
+#### Shanghai
 
-| Section | What it shows |
+Score on the target number each round — hit it cleanly for instant win.
+
+| Variant | Rules |
+|---|---|
+| **Classic (1–9)** | 9 rounds, target advances 1→9. Each player throws 3 darts at the active number. |
+| **Clockwise** | One visit of 7 darts per player; target advances by one with every dart (1→7). |
+| **Sequential** | Throw at 1 until you hit it, then move to 2, up to 20. First to finish wins. |
+
+- Minimum 2 players
+- Dartboard input centred on the active target field
+- Shanghai (hitting Single + Double + Triple of the target) triggers an instant win
+
+---
+
+#### Around the Clock
+
+Hit every number 1–20 in order, then finish on Bull.
+
+| Variant | Rules |
+|---|---|
+| **Basic** | Hit each number at least once in clockwise order, then Bull. First to Bull wins. |
+| **Full Segments** | Must hit Single, Double, and Triple of each number before advancing. |
+| **Skip Rules** | Double skips one field ahead; Triple skips two; Bull's Eye is a joker that skips the current field. |
+
+- Solo or multiplayer (minimum 1 player)
+- Legs & Sets configurable
+- Joker mechanic (Skip Rules variant)
+
+---
+
+### Statistics
+
+All stats are shown per player on a dedicated screen.
+
+| Section | Content |
 |---|---|
 | **3-Dart Average** | Hero metric with total darts, visits, and legs |
 | **Highlights** | 180s, 140+, 100+, highest visit, highest checkout, perfect legs |
 | **Overview** | Games played/won, legs won, total visits & darts |
 | **Accuracy** | 3-dart avg, bust count, bust rate, checkout rate |
-| **Score Distribution** | Horizontal bar chart bucketed in 20-point ranges |
-| **Dartboard Heatmap** | Real dartboard rendered with `CustomPainter`; segments coloured by hit frequency per ring (single / double / triple) with a green → yellow → red scale |
-| **Consistency** | Standard deviation of visits displayed as a progress bar with label (Very Consistent -> Very Variable) |
-| **Checkout by Range** | Checkout success rate split into brackets: <=40 / 41-60 / 61-100 / 101-170 |
+| **Score Distribution** | Horizontal bar chart in 20-point ranges |
+| **Dartboard Heatmap** | Real dartboard rendered with `CustomPainter`; segments coloured by hit frequency per ring (single/double/triple) on a green → yellow → red scale |
+| **Consistency** | Standard deviation of visits as a progress bar (Very Consistent → Very Variable) |
+| **Checkout by Range** | Checkout success rate split into ≤40 / 41–60 / 61–100 / 101–170 |
 | **Week Comparison** | This week vs last week: average, visits, 180s with delta arrows |
-| **Recent Throws** | Last 20 visits with score pill, remaining, leg, darts used, timestamp |
+| **Recent Throws** | Last 20 visits with score, remaining, leg, darts used, timestamp |
 
-**All stats survive game history deletion.** Every section — heatmap, score distribution, consistency, checkout breakdown, week comparison, recent throws, perfect legs, games won — is folded into a persistent JSON snapshot on the player record before a game is removed. Deleting games (individually or via "Clear all") has no effect on displayed statistics.
-
----
-
-### Sync (device-to-device, no server needed)
-
-- **Quick QR** — encodes profile + recent throws directly into a QR code; works anywhere, no network required
-- **WiFi Sync** — local HTTP server; receiver scans QR code; both devices on the same Wi-Fi (automatically used when data is too large for a QR code)
-- Import new players or update existing ones
-- Transfers complete stats snapshot and all recorded throws
-- Deduplication: already-imported throws are never doubled
-- Synced stats snapshot shown when a remote player has no local throw data
+**Stats survive history deletion.** Before any game is removed (individually or via bulk delete), a persistent JSON snapshot is written to the player record. Deleting games never affects displayed statistics.
 
 ---
 
 ### Game History
 
-- List of finished and open (resumable) games — both X01 and Cricket
-- Per-game summary with all throws per player
-- Delete individual games or clear all history (stats are snapshotted before deletion)
+- **Open / Finished tabs** — separate views for resumable and completed games
+- **Game mode chip filter** — per tab: filter by All, X01, Cricket, Shanghai, or Around the Clock (only modes present in that tab are shown)
+- **Bulk delete** — trash icon deletes only the currently visible entries; confirmation dialog states exactly what will be removed
+- **Swipe to delete** — individual games can be swiped away
+- Per-game summary screen with full throw history for all modes
+- Resume open games directly from the history list
+
+---
+
+### Sync (device-to-device, no server)
+
+- **Quick QR** — encodes player profile + recent throws into a QR code; works offline anywhere
+- **WiFi Sync** — local HTTP server on the sender; receiver scans QR to connect; both devices on the same Wi-Fi (automatically used when data is too large for QR)
+- Import new players or update existing ones
+- Transfers full stats snapshot and all recorded throws
+- Deduplication: already-imported throws are never doubled
+- Synced stats snapshot used when a remote player has no local throw data
 
 ---
 
@@ -132,8 +152,9 @@ Cricket is a mark-based game played on fields **15, 16, 17, 18, 19, 20** and **B
 - **Onboarding** — name entry on first launch, sets the primary player
 - **Manage Players** — add, edit, delete (soft-delete preserves history), set favourite double
 - **Dark / Light / System theme**
-- **German / English** localisation (auto-detected from device locale)
-- **Responsive layout** — content width capped on tablets to phone proportions; portrait orientation locked on phones
+- **German / English localisation** — auto-detected from device locale, switchable in settings
+- **Responsive layout** — content width capped on tablets; portrait orientation locked on phones
+- **About screen** — version info, open-source licences
 
 ---
 
@@ -141,12 +162,12 @@ Cricket is a mark-based game played on fields **15, 16, 17, 18, 19, 20** and **B
 
 ### Prerequisites
 
-| Tool | Version |
+| Tool | Minimum version |
 |---|---|
-| Flutter | >= 3.32 |
-| Dart SDK | >= 3.12 |
-| Xcode (iOS) | >= 15 |
-| Android SDK | API 21+ |
+| Flutter | 3.32 |
+| Dart SDK | 3.12 |
+| Xcode (iOS builds) | 15 |
+| Android SDK | API 21 (Android 5.0) |
 
 ### Install dependencies
 
@@ -160,26 +181,43 @@ flutter pub get
 # iOS Simulator
 flutter run -d ios
 
-# Android emulator / device
+# Android emulator or device
 flutter run -d android
+```
+
+### Build
+
+```bash
+# Android APK (debug)
+flutter build apk --debug
+
+# Android APK (release)
+flutter build apk --release
+
+# iOS (release)
+flutter build ios --release
+```
+
+### Lint
+
+```bash
+flutter analyze
 ```
 
 ---
 
 ## App Icon
 
-The icon source file is at `assets/icon/app_icon.png`.  
-Generation uses [`flutter_launcher_icons`](https://pub.dev/packages/flutter_launcher_icons), which is already configured in `pubspec.yaml`.
-
-To regenerate icons after replacing `app_icon.png`:
+The source file is `assets/icon/app_icon.png`.  
+Icons are generated with [`flutter_launcher_icons`](https://pub.dev/packages/flutter_launcher_icons), configured in `pubspec.yaml`.
 
 ```bash
 dart run flutter_launcher_icons
 ```
 
-This writes the correctly-sized icons into `android/app/src/main/res/` and `ios/Runner/Assets.xcassets/AppIcon.appiconset/` automatically.
+This writes correctly-sized icons into `android/app/src/main/res/` and `ios/Runner/Assets.xcassets/AppIcon.appiconset/`.
 
-> **iOS note:** `remove_alpha_ios: true` is set in `pubspec.yaml` — the App Store requires icons without an alpha channel.
+> `remove_alpha_ios: true` is set in `pubspec.yaml` — the App Store requires icons without an alpha channel.
 
 ---
 
@@ -187,59 +225,73 @@ This writes the correctly-sized icons into `android/app/src/main/res/` and `ios/
 
 ```
 lib/
-├── main.dart
+├── main.dart                              # Entry point, provider setup, theme/locale init
 ├── database/
-│   └── db_helper.dart               # SQLite setup, migrations, all queries
+│   └── db_helper.dart                     # Singleton SQLite wrapper; all schema definitions and migrations
 ├── l10n/
-│   └── app_localizations.dart       # DE/EN strings
+│   └── app_localizations.dart             # DE/EN localisation strings
 ├── models/
-│   ├── cricket_game.dart            # CricketGame, CricketThrow, enums
-│   ├── dart_throw.dart              # X01 visit model incl. hits_json for heatmap
-│   ├── game.dart                    # X01 Game entity; GameMode/CheckoutMode enums
-│   └── player.dart
+│   ├── player.dart                        # Player entity with favourite doubles
+│   ├── game.dart                          # X01 Game entity; GameMode/CheckoutMode enums
+│   ├── dart_throw.dart                    # X01 visit record (score, multiplier, bust, hits_json)
+│   ├── cricket_game.dart                  # CricketGame, CricketThrow, variant/scoring enums
+│   ├── shanghai_game.dart                 # ShanghaiGame, ShanghaiThrow, ShanghaiVariant enum
+│   └── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
 ├── providers/
-│   ├── cricket_provider.dart        # Cricket game state machine
-│   ├── game_provider.dart           # X01 game state, submit/undo/redo logic
-│   ├── language_provider.dart
-│   ├── players_provider.dart
-│   └── theme_provider.dart
+│   ├── players_provider.dart              # Player CRUD; notifies listeners
+│   ├── game_provider.dart                 # X01 game state machine; score calc, bust detection, turn logic
+│   ├── cricket_provider.dart              # Cricket game state machine
+│   ├── shanghai_provider.dart             # Shanghai game state machine
+│   ├── around_the_clock_provider.dart     # Around the Clock game state machine
+│   ├── theme_provider.dart                # Light/dark theme toggle, persisted via shared_preferences
+│   └── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
 ├── screens/
-│   ├── cricket_history_summary_screen.dart  # Detailed view of a past Cricket game
-│   ├── cricket_screen.dart                  # Live Cricket game: board, input, undo
-│   ├── cricket_setup_screen.dart            # Configure variant, scoring mode, players
-│   ├── cricket_summary_screen.dart          # Post-Cricket game stats
-│   ├── game_mode_info_screen.dart           # Per-mode rules info page
-│   ├── game_mode_selection_screen.dart      # Entry point: pick X01, Cricket, etc.
-│   ├── game_screen.dart                     # Live X01 game: scoreboard, numpad, finish suggestions
-│   ├── game_setup_screen.dart               # Configure start score, in/out modes, legs/sets
-│   ├── game_summary_screen.dart             # Post-X01 game stats
-│   ├── history_game_summary_screen.dart     # Detailed view of a past X01 game
-│   ├── history_screen.dart                  # List of all past games (X01 + Cricket)
-│   ├── home_screen.dart
-│   ├── onboarding_screen.dart
-│   ├── player_stats_screen.dart             # All statistics + dartboard heatmap
-│   ├── players_screen.dart
-│   ├── settings_screen.dart
-│   └── sync_screen.dart
+│   ├── home_screen.dart                   # Entry screen; navigation to setup, history, players
+│   ├── onboarding_screen.dart             # First-launch walkthrough
+│   ├── about_screen.dart                  # Version info and open-source licences
+│   ├── settings_screen.dart               # Theme, language, data management
+│   ├── sync_screen.dart                   # QR/WiFi device-to-device data sync
+│   ├── players_screen.dart                # Player management list
+│   ├── player_stats_screen.dart           # Per-player lifetime statistics + dartboard heatmap
+│   ├── history_screen.dart                # Game history with Open/Finished tabs and mode filter chips
+│   ├── game_mode_selection_screen.dart    # Pick game mode (X01 / Cricket / Shanghai / Around the Clock)
+│   ├── game_mode_info_screen.dart         # Per-mode rules info page
+│   ├── game_setup_screen.dart             # Configure X01: start score, in/out modes, legs/sets, players
+│   ├── game_screen.dart                   # Live X01: scoreboard, dartboard/numpad input, finish suggestions
+│   ├── game_summary_screen.dart           # Post-X01 stats
+│   ├── history_game_summary_screen.dart   # Detailed view of a past X01 game
+│   ├── cricket_setup_screen.dart          # Configure Cricket: variant, scoring mode, players
+│   ├── cricket_screen.dart                # Live Cricket: board, dartboard input, undo
+│   ├── cricket_summary_screen.dart        # Post-Cricket stats
+│   ├── cricket_history_summary_screen.dart
+│   ├── shanghai_setup_screen.dart         # Configure Shanghai: variant, players
+│   ├── shanghai_screen.dart               # Live Shanghai: target dartboard, scoreboard
+│   ├── shanghai_summary_screen.dart       # Post-Shanghai stats
+│   ├── shanghai_history_summary_screen.dart
+│   ├── around_the_clock_setup_screen.dart # Configure Around the Clock: variant, legs/sets, players
+│   ├── around_the_clock_screen.dart       # Live Around the Clock: progress, dartboard input
+│   ├── around_the_clock_summary_screen.dart
+│   └── around_the_clock_history_summary_screen.dart
 ├── services/
-│   └── sync_service.dart            # QR / WiFi sync logic
+│   └── sync_service.dart                  # QR/WiFi sync encode/decode logic
 ├── utils/
-│   ├── finish_calculator.dart       # X01 checkout route calculation
-│   └── layout.dart                  # Responsive max-width helper
+│   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles
+│   └── layout.dart                        # Responsive max-width helper
 └── widgets/
-    ├── cricket_marks_widget.dart    # Field/marks grid for the Cricket scoreboard
-    ├── dartboard_input.dart         # Segment-level dart entry widget
-    ├── dartboard_icon.dart
-    ├── finish_suggestion_widget.dart
-    ├── numpad.dart
-    └── player_dialog.dart           # Create/edit player dialog
+    ├── numpad.dart                         # Numeric score input pad
+    ├── dartboard_input.dart                # Segment-level dartboard tap input
+    ├── dartboard_icon.dart                 # Decorative dartboard SVG widget
+    ├── dartboard_target_painter.dart       # Custom painter for Shanghai target view
+    ├── finish_suggestion_widget.dart       # X01 checkout hint display
+    ├── cricket_marks_widget.dart           # Cricket field/marks grid
+    └── player_dialog.dart                  # Create/edit player dialog
 ```
 
 ---
 
 ## Database Schema
 
-### X01
+### Players & X01
 
 ```sql
 players      (id, name, favorite_doubles, is_deleted, is_primary,
@@ -258,7 +310,7 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 ```json
 [{"f": 20, "m": 3}, {"f": 5, "m": 1}, {"f": 1, "m": 2}]
 ```
-`f` = field (1-20, 25 = bull), `m` = multiplier (1 single / 2 double / 3 triple).
+`f` = field (1–20, 25 = Bull), `m` = multiplier (1 single / 2 double / 3 triple).
 
 ### Cricket
 
@@ -270,9 +322,32 @@ cricket_throws  (id, game_id, player_id, field, multiplier,
                  leg, set_, thrown_at)
 ```
 
-`player_ids` is a JSON-encoded array of player IDs (turn order).  
-`field`: 15-20 for numbered fields, 25 for Bull, 0 for miss.  
-`multiplier`: 1 single / 2 double / 3 triple, 0 for miss.
+`player_ids` — JSON-encoded array of player IDs (turn order).  
+`field` — 15–20 for numbered fields, 25 for Bull, 0 for miss.  
+`multiplier` — 1 single / 2 double / 3 triple, 0 for miss.
+
+### Shanghai
+
+```sql
+shanghai_games   (id, variant, legs, sets, created_at, finished_at, player_ids)
+
+shanghai_throws  (id, game_id, player_id, target, multiplier,
+                  round, leg, set_, thrown_at)
+```
+
+`target` — active number (1–9 in Classic, 1–7 in Clockwise, 1–20 in Sequential).
+
+### Around the Clock
+
+```sql
+around_the_clock_games   (id, variant, legs, sets,
+                          created_at, finished_at, player_ids)
+
+around_the_clock_throws  (id, game_id, player_id, field, multiplier,
+                          leg, set_, thrown_at)
+```
+
+`field` — number just hit (1–20, 25 for Bull).
 
 ---
 
@@ -289,5 +364,14 @@ cricket_throws  (id, game_id, player_id, field, multiplier,
 | `image_picker` | Import QR from photo library |
 | `share_plus` | Share QR image |
 | `gal` | Save image to photo library |
+| `http` | Local WiFi sync HTTP server/client |
 | `path_provider` | App directories |
-| `flutter_launcher_icons` | Icon generation (dev) |
+| `package_info_plus` | App version info |
+| `url_launcher` | Open external links |
+| `flutter_launcher_icons` *(dev)* | Icon generation |
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE) for details.
