@@ -278,20 +278,30 @@ class ShanghaiProvider extends ChangeNotifier {
     // who could cancel a Shanghai, so it must be confirmed immediately.
     final isLastScheduledVisit = _isGameComplete();
 
-    if (_pendingShanghaiIdx != null) {
-      final pendingIdx = _pendingShanghaiIdx!;
-      _pendingShanghaiIdx = null;
-      if (!shanghai) {
-        await _handleWin(pendingIdx);
-        return;
-      }
-      // Both threw a Shanghai back-to-back: voided, game continues.
-    } else if (shanghai) {
-      if (isLastScheduledVisit) {
+    if (_playerStates.length >= 3) {
+      // 3+ players: Shanghai is an instant win — no response round.
+      if (shanghai) {
         await _handleWin(_currentPlayerIndex);
         return;
       }
-      _pendingShanghaiIdx = _currentPlayerIndex;
+    } else {
+      // 2 players: the opponent gets one visit to also throw a Shanghai and
+      // void the first; if they don't, the original Shanghai thrower wins.
+      if (_pendingShanghaiIdx != null) {
+        final pendingIdx = _pendingShanghaiIdx!;
+        _pendingShanghaiIdx = null;
+        if (!shanghai) {
+          await _handleWin(pendingIdx);
+          return;
+        }
+        // Both threw a Shanghai back-to-back: voided, game continues.
+      } else if (shanghai) {
+        if (isLastScheduledVisit) {
+          await _handleWin(_currentPlayerIndex);
+          return;
+        }
+        _pendingShanghaiIdx = _currentPlayerIndex;
+      }
     }
 
     // Sequential: first to complete target 20 wins outright (no pending check).
@@ -436,21 +446,29 @@ class ShanghaiProvider extends ChangeNotifier {
     final shanghai = _isShanghai(visitDarts, _currentPlayerIndex);
     final isLastScheduledVisit = _isGameComplete();
 
-    if (_pendingShanghaiIdx != null) {
-      final pendingIdx = _pendingShanghaiIdx!;
-      _pendingShanghaiIdx = null;
-      if (!shanghai) {
-        _gameOver = true;
-        _winnerId = _playerStates[pendingIdx].player.id;
-        return;
-      }
-    } else if (shanghai) {
-      if (isLastScheduledVisit) {
+    if (_playerStates.length >= 3) {
+      if (shanghai) {
         _gameOver = true;
         _winnerId = currentPlayerState.player.id;
         return;
       }
-      _pendingShanghaiIdx = _currentPlayerIndex;
+    } else {
+      if (_pendingShanghaiIdx != null) {
+        final pendingIdx = _pendingShanghaiIdx!;
+        _pendingShanghaiIdx = null;
+        if (!shanghai) {
+          _gameOver = true;
+          _winnerId = _playerStates[pendingIdx].player.id;
+          return;
+        }
+      } else if (shanghai) {
+        if (isLastScheduledVisit) {
+          _gameOver = true;
+          _winnerId = currentPlayerState.player.id;
+          return;
+        }
+        _pendingShanghaiIdx = _currentPlayerIndex;
+      }
     }
 
     if (_variant == ShanghaiVariant.sequential &&

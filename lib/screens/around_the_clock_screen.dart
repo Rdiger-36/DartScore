@@ -1,5 +1,3 @@
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -7,6 +5,7 @@ import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
 import '../utils/triple_color.dart';
+import '../widgets/dartboard_target_painter.dart';
 import 'around_the_clock_summary_screen.dart';
 
 class AroundTheClockScreen extends StatelessWidget {
@@ -167,47 +166,6 @@ class _AroundTheClockGameView extends StatelessWidget {
   }
 }
 
-// ── Active target display ─────────────────────────────────────────────────────
-
-class _TargetCard extends StatelessWidget {
-  final AroundTheClockProvider provider;
-  const _TargetCard({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final l     = context.l10n;
-    final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
-    final target = provider.activeTarget;
-    final label = target == 25 ? l.bull : '$target';
-
-    return Card(
-      color: cs.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: Column(
-          children: [
-            Text(
-              l.aroundClockTarget,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: cs.onPrimaryContainer.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: theme.textTheme.displayMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: cs.onPrimaryContainer,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Target dartboard ──────────────────────────────────────────────────────────
 
 class _TargetDartboard extends StatelessWidget {
@@ -231,7 +189,7 @@ class _TargetDartboard extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 1,
       child: CustomPaint(
-        painter: _TargetDartboardPainter(
+        painter: DartboardTargetPainter(
           target: target,
           highlightMultipliers: highlightMultipliers,
           highlightColor: cs.primary,
@@ -242,134 +200,6 @@ class _TargetDartboard extends StatelessWidget {
   }
 }
 
-class _TargetDartboardPainter extends CustomPainter {
-  final int target;
-  /// Multipliers (1=single, 2=double, 3=triple) to highlight on the target
-  /// field. Null means the entire field (all rings) should be highlighted.
-  final Set<int>? highlightMultipliers;
-  final Color highlightColor;
-  final Color onSurfaceColor;
-
-  // Standard dartboard segment order (clockwise from top)
-  static const _order = [
-    20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
-    3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
-  ];
-
-  _TargetDartboardPainter({
-    required this.target,
-    required this.highlightMultipliers,
-    required this.highlightColor,
-    required this.onSurfaceColor,
-  });
-
-  bool _highlighted(int multiplier) =>
-      highlightMultipliers == null || highlightMultipliers!.contains(multiplier);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = min(cx, cy);
-    final center = Offset(cx, cy);
-
-    // Board rings scaled to ~0.78 of canvas radius, leaving the outer ~22%
-    // for the number labels so they stay within the widget bounds.
-    final rBullInner = r * 0.050;
-    final rBull      = r * 0.110;
-    final rTriple1   = r * 0.445;
-    final rTriple2   = r * 0.505;
-    final rDouble1   = r * 0.705;
-    final rDouble2   = r * 0.780;
-
-    final segCount   = _order.length;
-    final angleStep  = (2 * pi) / segCount;
-    final halfStep   = angleStep / 2;
-    final startAngle = -pi / 2 - halfStep;
-
-    final fillPaint = Paint()..style = PaintingStyle.fill;
-    final wirePaint = Paint()
-      ..color = onSurfaceColor.withValues(alpha: 0.25)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = r * 0.01;
-
-    void drawRing(double r1, double r2, double a0, double sweep, Color fill) {
-      final path = Path();
-      path.moveTo(center.dx + r1 * cos(a0), center.dy + r1 * sin(a0));
-      path.arcTo(Rect.fromCircle(center: center, radius: r2), a0, sweep, false);
-      path.arcTo(Rect.fromCircle(center: center, radius: r1), a0 + sweep, -sweep, false);
-      path.close();
-      fillPaint.color = fill;
-      canvas.drawPath(path, fillPaint);
-      canvas.drawPath(path, wirePaint);
-    }
-
-    for (var i = 0; i < segCount; i++) {
-      final field = _order[i];
-      final a0 = startAngle + i * angleStep;
-      final isTargetField = field == target && target != 25;
-      final base = onSurfaceColor.withValues(alpha: i.isEven ? 0.08 : 0.03);
-
-      Color ringColor(int multiplier) {
-        if (!isTargetField || !_highlighted(multiplier)) return base;
-        return highlightColor.withValues(alpha: 0.55);
-      }
-
-      // Inner single (between bull and triple ring)
-      drawRing(rBull, rTriple1, a0, angleStep, ringColor(1));
-      // Triple ring
-      drawRing(rTriple1, rTriple2, a0, angleStep, ringColor(3));
-      // Outer single (between triple and double ring)
-      drawRing(rTriple2, rDouble1, a0, angleStep, ringColor(1));
-      // Double ring
-      drawRing(rDouble1, rDouble2, a0, angleStep, ringColor(2));
-    }
-
-    // Bull's eye - outer ring is Single (25), inner circle is Double (50).
-    // No Triple Bull exists on a real board.
-    final bullIsTarget = target == 25;
-    fillPaint.color = (bullIsTarget && _highlighted(1))
-        ? highlightColor.withValues(alpha: 0.55)
-        : onSurfaceColor.withValues(alpha: 0.08);
-    canvas.drawCircle(center, rBull, fillPaint);
-    canvas.drawCircle(center, rBull, wirePaint);
-    fillPaint.color = (bullIsTarget && _highlighted(2))
-        ? highlightColor.withValues(alpha: 0.8)
-        : onSurfaceColor.withValues(alpha: 0.16);
-    canvas.drawCircle(center, rBullInner, fillPaint);
-    canvas.drawCircle(center, rBullInner, wirePaint);
-
-    canvas.drawCircle(center, rDouble2, wirePaint);
-
-    // Number labels
-    final tp = TextPainter(textDirection: ui.TextDirection.ltr);
-    for (var i = 0; i < segCount; i++) {
-      final field = _order[i];
-      final isTarget = field == target;
-      final angle = startAngle + i * angleStep + halfStep;
-      final labelR = r * 0.93;
-      final lx = cx + labelR * cos(angle);
-      final ly = cy + labelR * sin(angle);
-
-      tp.text = TextSpan(
-        text: '$field',
-        style: TextStyle(
-          fontSize: r * (isTarget ? 0.135 : 0.10),
-          fontWeight: isTarget ? FontWeight.bold : FontWeight.w500,
-          color: isTarget ? highlightColor : onSurfaceColor.withValues(alpha: 0.7),
-        ),
-      );
-      tp.layout();
-      tp.paint(canvas, Offset(lx - tp.width / 2, ly - tp.height / 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _TargetDartboardPainter old) =>
-      old.target != target ||
-      old.highlightMultipliers != highlightMultipliers ||
-      old.highlightColor != highlightColor;
-}
 
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
@@ -432,7 +262,7 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           children: widget.states.indexed.map((e) {
             final i = e.$1;
@@ -442,7 +272,7 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
             final targetLabel = s.currentTarget == 25 ? l.bull : '${s.currentTarget}';
             return Padding(
               key: _keys[i],
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
                 children: [
                   Expanded(
@@ -450,26 +280,27 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
                       s.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                         color: isActive ? cs.primary : cs.onSurface,
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Text(
-                      '${l.aroundClockTarget}: ${s.isFinished ? '✓' : targetLabel}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
+                  if (!s.isFinished)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        '→ $targetLabel',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ),
-                  ),
                   Text(
                     s.isFinished ? l.aroundClockDartsUsed(s.finishedAtDart!) : '$hit/$total',
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isActive ? cs.primary : null,
+                      color: isActive ? cs.primary : cs.onSurfaceVariant,
                     ),
                   ),
                 ],
