@@ -1,0 +1,130 @@
+import 'package:flutter/material.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:provider/provider.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/donation_provider.dart';
+import '../utils/layout.dart';
+
+class DonationScreen extends StatefulWidget {
+  const DonationScreen({super.key});
+
+  @override
+  State<DonationScreen> createState() => _DonationScreenState();
+}
+
+class _DonationScreenState extends State<DonationScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final dp = context.watch<DonationProvider>();
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+
+    if (dp.thankYouPending) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        dp.clearThankYou();
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text(l.donationThankYouTitle),
+            content: Text(l.donationThankYouBody),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l.ok),
+              ),
+            ],
+          ),
+        );
+      });
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l.donationTitle)),
+      body: ListView(
+        padding: contentPadding(context, top: 24, bottom: 28, innerH: 14),
+        children: [
+          _Header(),
+          const SizedBox(height: 28),
+          if (dp.loading)
+            const Center(child: CircularProgressIndicator())
+          else if (!dp.available || dp.products.isEmpty)
+            Center(
+              child: Text(
+                l.donationUnavailable,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            )
+          else
+            ...dp.products.map((p) => _TierCard(product: p)),
+          if (dp.errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              dp.errorMessage!,
+              style: TextStyle(color: cs.error),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Icon(Icons.favorite_rounded, size: 52, color: cs.primary),
+        const SizedBox(height: 14),
+        Text(
+          l.donationSubtitle,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TierCard extends StatelessWidget {
+  final ProductDetails product;
+  const _TierCard({required this.product});
+
+  static const _emojis = {
+    'donation_coffee': '☕',
+    'donation_beer': '🍺',
+    'donation_pizza': '🍕',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final dp = context.read<DonationProvider>();
+    final emoji = _emojis[product.id] ?? '💛';
+    final title = product.title.replaceAll(RegExp(r'\s*\(.*?\)\s*$'), '');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          leading: Text(emoji, style: const TextStyle(fontSize: 32)),
+          title: Text(title,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(product.description),
+          trailing: FilledButton(
+            onPressed: () => dp.buy(product),
+            child: Text(product.price),
+          ),
+        ),
+      ),
+    );
+  }
+}

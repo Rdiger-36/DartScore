@@ -233,6 +233,21 @@ class AppLocalizations {
   String get importFromLibDesc => _t('Select a saved QR code image', 'Gespeichertes QR-Code Bild auswählen');
   String get noPlayersSettings => _t('No players added yet.', 'Noch keine Spieler angelegt.');
 
+  // ── Donation ─────────────────────────────────────────────────────────────
+  String get donationTitle      => _t('Support Developer', 'Entwickler unterstützen');
+  String get donationSectionTitle => _t('Support', 'Unterstützen');
+  String get donationSectionDesc  => _t('Buy me a coffee', 'Kauf mir einen Kaffee');
+  String get donationSubtitle   => _t(
+      'DartScore is free and has no ads. If you enjoy it, a small donation helps keep it alive and supports future development.',
+      'DartScore ist kostenlos und hat keine Werbung. Wenn dir die App gefällt, hilft eine kleine Spende dabei, sie am Leben zu erhalten und weiterzuentwickeln.');
+  String get donationUnavailable => _t(
+      'In-app purchases are not available on this device.',
+      'In-App-Käufe sind auf diesem Gerät nicht verfügbar.');
+  String get donationThankYouTitle => _t('Thank you! 🎯', 'Danke! 🎯');
+  String get donationThankYouBody  => _t(
+      'Your support means a lot and helps keep DartScore free for everyone.',
+      'Deine Unterstützung bedeutet mir viel und hilft dabei, DartScore für alle kostenlos zu halten.');
+
   // ── About ────────────────────────────────────────────────────────────────
   String get about             => _t('About', 'Info');
   String get aboutTitle        => _t('About DartScore', 'Über DartScore');
