@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
+import '../providers/donation_provider.dart';
 import '../widgets/dartboard_icon.dart';
 import 'players_screen.dart';
 import 'game_mode_selection_screen.dart';
@@ -18,6 +20,7 @@ class HomeScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final l = context.l10n;
+    final isSupporter = context.watch<DonationProvider>().isSupporter;
 
     return Scaffold(
       body: SafeArea(
@@ -40,6 +43,10 @@ class HomeScreen extends StatelessWidget {
                       color: cs.primary,
                     ),
                   ),
+                  if (isSupporter) ...[
+                    const SizedBox(height: 6),
+                    Icon(Icons.favorite_rounded, size: 16, color: cs.primary),
+                  ],
                   const SizedBox(height: 48),
                   _HomeButton(
                     icon: Icons.play_arrow_rounded,
