@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
+import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import 'about_screen.dart';
+import 'donation_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -20,6 +22,8 @@ class SettingsScreen extends StatelessWidget {
           _ThemeSection(),
           SizedBox(height: 20),
           _LanguageSection(),
+          SizedBox(height: 20),
+          _SupportSection(),
           SizedBox(height: 20),
           _AboutSection(),
         ],
@@ -189,6 +193,35 @@ class _LangTile extends StatelessWidget {
       trailing:
           selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
       onTap: onTap,
+    );
+  }
+}
+
+// ── Support ───────────────────────────────────────────────────────────────────
+
+class _SupportSection extends StatelessWidget {
+  const _SupportSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+    final isSupporter = context.watch<DonationProvider>().isSupporter;
+
+    return _Card(
+      title: l.donationSectionTitle,
+      icon: Icons.favorite_rounded,
+      child: ListTile(
+        leading: Icon(Icons.favorite_rounded, color: cs.primary),
+        title: Text(l.donationSectionDesc),
+        trailing: isSupporter
+            ? Icon(Icons.star_rounded, color: cs.primary, size: 20)
+            : const Icon(Icons.chevron_right_rounded),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DonationScreen()),
+        ),
+      ),
     );
   }
 }
