@@ -30,7 +30,7 @@ DartScore is currently in **public beta** on both platforms. Pick your device an
   </a>
   &nbsp;&nbsp;
   <a href="https://play.google.com/store/apps/details?id=com.ratka.dartscore">
-    <img src="https://img.shields.io/badge/Google%20Play-Join%20the%20Beta-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join the Android beta on Google Play" height="48" />
+    <img src="https://img.shields.io/badge/Google%20Play-Join%20the%20Beta-34A853?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join the Android beta on Google Play" height="48" />
   </a>
 </p>
 
