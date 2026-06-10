@@ -262,20 +262,6 @@ class AppLocalizations {
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
-  // ── Test build ───────────────────────────────────────────────────────────
-  String betaBadgeValidUntil(String date) => _t(
-        'Beta build — valid until $date',
-        'Beta-Version — gültig bis $date',
-      );
-  String get testBuildExpired  => _t(
-        'This test build has expired.\nPlease uninstall the app.',
-        'Diese Testversion ist abgelaufen.\nBitte deinstalliere die App.',
-      );
-  String get testBuildNetworkRequired => _t(
-        'This beta version requires an active network connection.\nPlease connect to the internet and restart the app.',
-        'Diese Beta-Version kann nur mit aktiver Netzwerkverbindung genutzt werden.\nBitte verbinde dich mit dem Internet und starte die App erneut.',
-      );
-
   // ── Sync ──────────────────────────────────────────────────────────────────
   String get syncTitle         => _t('Profile Sync', 'Profil Sync');
   String get syncSend          => _t('Send', 'Senden');
