@@ -1,4 +1,4 @@
-package com.dartscore.dartscore_app
+package com.ratka.dartscore
 
 import io.flutter.embedding.android.FlutterActivity
 
