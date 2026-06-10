@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/donation_provider.dart';
@@ -8,9 +7,7 @@ import 'players_screen.dart';
 import 'game_mode_selection_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
-import '../utils/dev_build_info.dart';
 import '../utils/layout.dart';
-import '../utils/remote_killswitch.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -88,47 +85,12 @@ class HomeScreen extends StatelessWidget {
                           builder: (_) => const SettingsScreen()),
                     ),
                   ),
-                  if (devBuildInfo != null) ...[
-                    const SizedBox(height: 24),
-                    const _BetaBadge(),
-                  ],
                 ],
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Small unobtrusive notice shown on the home screen while a dev/test build
-/// is active (see [DevBuildInfo]), so testers know they're running a beta
-/// and roughly how long it remains valid. Prefers the remote expiry — which
-/// the developer can extend without shipping a new build — and falls back to
-/// the bundled date.
-class _BetaBadge extends StatelessWidget {
-  const _BetaBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final devBuild = devBuildInfo;
-    if (devBuild == null) return const SizedBox.shrink();
-
-    // _AppGate already blocks access for "active: false" or expired remote
-    // status before this screen can ever be reached, so reaching here means
-    // the remote expiry (when known) is the relevant one to display.
-    final expiry = remoteKillswitchStatus?.expiry ?? devBuild.expiry;
-    final cs = Theme.of(context).colorScheme;
-    final date = DateFormat('dd.MM.yyyy').format(expiry);
-
-    return Text(
-      context.l10n.betaBadgeValidUntil(date),
-      textAlign: TextAlign.center,
-      style: Theme.of(context)
-          .textTheme
-          .bodySmall
-          ?.copyWith(color: cs.onSurfaceVariant),
     );
   }
 }
