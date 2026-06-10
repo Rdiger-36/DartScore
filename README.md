@@ -20,6 +20,25 @@
 
 ---
 
+## Test this App
+
+DartScore is currently in **public beta** on both platforms. Pick your device and join the test track to try the latest build:
+
+<p align="center">
+  <a href="https://testflight.apple.com/join/ddnv8dgP">
+    <img src="https://img.shields.io/badge/TestFlight-Join%20the%20Beta-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="Join the iOS beta on TestFlight" height="48" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://play.google.com/store/apps/details?id=com.ratka.dartscore">
+    <img src="https://img.shields.io/badge/Google%20Play-Join%20the%20Beta-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join the Android beta on Google Play" height="48" />
+  </a>
+</p>
+
+> **iOS:** open the TestFlight link on your iPhone, install Apple's TestFlight app if prompted, then tap *Accept* to install DartScore.  
+> **Android:** the beta is distributed via a Google Play test track. If the link shows the app as unavailable, you may need to be added as a tester first.
+
+---
+
 ## Features
 
 ### Game Modes
