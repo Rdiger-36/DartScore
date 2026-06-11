@@ -7,6 +7,8 @@ import 'cricket_setup_screen.dart';
 import 'shanghai_setup_screen.dart';
 import 'around_the_clock_setup_screen.dart';
 
+/// Lets the user pick a game mode (X01, Cricket, Shanghai, Around the Clock),
+/// opening its setup screen or an info screen explaining the rules.
 class GameModeSelectionScreen extends StatelessWidget {
   const GameModeSelectionScreen({super.key});
 
@@ -84,6 +86,7 @@ class GameModeSelectionScreen extends StatelessWidget {
     );
   }
 
+  /// Opens the rules/info screen for the given game [mode].
   void _openInfo(BuildContext context, GameModeOption mode) {
     Navigator.push(
       context,
@@ -94,6 +97,7 @@ class GameModeSelectionScreen extends StatelessWidget {
   }
 }
 
+/// A selectable game-mode card with icon, name, tagline, and an info button.
 class _ModeCard extends StatelessWidget {
   final GameModeOption mode;
   final String name;
@@ -111,6 +115,7 @@ class _ModeCard extends StatelessWidget {
     this.onTap,
   });
 
+  /// Icon representing this game mode.
   IconData get _icon {
     switch (mode) {
       case GameModeOption.x01:

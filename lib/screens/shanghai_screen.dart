@@ -8,6 +8,8 @@ import '../utils/triple_color.dart';
 import '../widgets/dartboard_target_painter.dart';
 import 'shanghai_summary_screen.dart';
 
+/// Live Shanghai game screen. Watches the provider and routes to the summary
+/// when the game ends, otherwise shows the play view.
 class ShanghaiScreen extends StatelessWidget {
   const ShanghaiScreen({super.key});
 
@@ -39,6 +41,7 @@ class ShanghaiScreen extends StatelessWidget {
 
 // ── Main game view ────────────────────────────────────────────────────────────
 
+/// The in-play layout: target dartboard, scoreboard, Shanghai hint, and input.
 class _ShanghaiGameView extends StatelessWidget {
   final ShanghaiProvider provider;
   const _ShanghaiGameView({required this.provider});
@@ -143,6 +146,7 @@ class _ShanghaiGameView extends StatelessWidget {
     );
   }
 
+  /// Asks the user to confirm leaving the game, popping back if they accept.
   void _confirmQuit(BuildContext context) {
     final l = context.l10n;
     showDialog(
@@ -168,6 +172,7 @@ class _ShanghaiGameView extends StatelessWidget {
 
 // ── Active target dartboard ───────────────────────────────────────────────────
 
+/// Dartboard highlighting the current round's target number.
 class _TargetDartboard extends StatelessWidget {
   final ShanghaiProvider provider;
   const _TargetDartboard({required this.provider});
@@ -192,6 +197,8 @@ class _TargetDartboard extends StatelessWidget {
 
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
+/// Scrollable scoreboard listing each player's score and round target,
+/// auto-scrolling to keep the active player in view.
 class _ShanghaiBoard extends StatefulWidget {
   final ShanghaiProvider provider;
   final List<ShanghaiPlayerState> states;
@@ -230,6 +237,7 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
     }
   }
 
+  /// Smoothly scrolls the active player's row to the center of the viewport.
   void _scrollToCurrent() {
     final key = _keys[widget.currentIdx];
     final ctx = key.currentContext;
@@ -332,6 +340,7 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 
+/// Dots showing how many darts of the current visit have been thrown.
 class _DartDots extends StatelessWidget {
   final int count;
   final int total;
@@ -360,6 +369,7 @@ class _DartDots extends StatelessWidget {
 
 // ── Shanghai hint ─────────────────────────────────────────────────────────────
 
+/// Hint showing what is still needed this visit to complete a Shanghai.
 class _ShanghaiHint extends StatelessWidget {
   final ShanghaiProvider provider;
   const _ShanghaiHint({required this.provider});
@@ -426,6 +436,8 @@ class _ShanghaiHint extends StatelessWidget {
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 
+/// Input row of single/double/triple and miss buttons that record a dart for
+/// the active target.
 class _ShanghaiInput extends StatelessWidget {
   final ShanghaiProvider provider;
   const _ShanghaiInput({required this.provider});
@@ -451,6 +463,7 @@ class _ShanghaiInput extends StatelessWidget {
   }
 }
 
+/// A single/double/triple input button, colored to match its multiplier.
 class _MultBtn extends StatelessWidget {
   final String label;
   final String sub;
@@ -510,6 +523,7 @@ class _MultBtn extends StatelessWidget {
   }
 }
 
+/// The miss button that records a non-scoring dart.
 class _MissBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;

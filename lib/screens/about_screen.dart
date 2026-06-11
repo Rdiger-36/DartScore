@@ -28,9 +28,13 @@ along with this program. The full license text is included in the
 repository (LICENSE) and available at gnu.org/licenses.
 ''';
 
+/// Full-screen view of the app's GPL-3.0 license notice with a link to the
+/// complete license text.
 class _LicenseTextScreen extends StatelessWidget {
   const _LicenseTextScreen();
 
+  /// Opens the full GPL-3.0 license in the browser, showing an error snackbar
+  /// if no handler is available.
   Future<void> _openFullLicense(BuildContext context) async {
     final ok = await launchUrl(Uri.parse(_licenseUrl), mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
@@ -68,6 +72,7 @@ class _LicenseTextScreen extends StatelessWidget {
   }
 }
 
+/// About screen: app name and version, project/license links, and credits.
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
@@ -86,6 +91,7 @@ class _AboutScreenState extends State<AboutScreen> {
     });
   }
 
+  /// Opens [uri] in an external app, showing an error snackbar on failure.
   Future<void> _openLink(Uri uri) async {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
@@ -180,6 +186,7 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 }
 
+/// A titled, icon-headed section card used to group content on the about screen.
 class _Card extends StatelessWidget {
   final String title;
   final IconData icon;

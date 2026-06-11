@@ -1,12 +1,21 @@
 import 'dart:convert';
 
+/// Cricket rule variant: [normal] (close fields and score) or [cutThroat]
+/// (points are added to opponents instead of yourself).
 enum CricketVariant { normal, cutThroat }
+
+/// Cricket scoring mode: [standard] awards points for hits on closed fields;
+/// [simple] is closing-only with no point scoring.
 enum CricketScoringMode { standard, simple }
 
+/// The seven Cricket fields in display order (20..15 then 25 for the Bull).
 const List<int> cricketFields = [20, 19, 18, 17, 16, 15, 25];
 
+/// Maps a Cricket field number to its label value (25 is displayed as "Bull").
 int cricketFieldLabel(int field) => field; // 25 displayed as "Bull"
 
+/// A Cricket game configuration and result. Per-dart hits are stored separately
+/// as [CricketThrow] records.
 class CricketGame {
   final int? id;
   final CricketVariant variant;
@@ -28,6 +37,7 @@ class CricketGame {
     required this.playerIds,
   });
 
+  /// Serializes this game to a row map for the SQLite `cricket_games` table.
   Map<String, dynamic> toMap() => {
         'id':           id,
         'variant':      variant.index,
@@ -39,6 +49,7 @@ class CricketGame {
         'player_ids':   jsonEncode(playerIds),
       };
 
+  /// Reconstructs a Cricket game from a SQLite row map.
   factory CricketGame.fromMap(Map<String, dynamic> map) => CricketGame(
         id:          map['id'] as int?,
         variant:     CricketVariant.values[map['variant'] as int],
@@ -52,6 +63,7 @@ class CricketGame {
         playerIds:   (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
       );
 
+  /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
   CricketGame copyWith({DateTime? finishedAt}) => CricketGame(
         id:          id,
         variant:     variant,
@@ -64,6 +76,8 @@ class CricketGame {
       );
 }
 
+/// A single dart thrown in a Cricket game (one dart, not a full visit), used to
+/// reconstruct marks and scores and to support undo.
 class CricketThrow {
   final int? id;
   final int gameId;
@@ -85,8 +99,10 @@ class CricketThrow {
     required this.thrownAt,
   });
 
+  /// Whether this dart missed all scoring fields.
   bool get isMiss => field == 0 || multiplier == 0;
 
+  /// Serializes this throw to a row map for the SQLite `cricket_throws` table.
   Map<String, dynamic> toMap() => {
         'id':         id,
         'game_id':    gameId,
@@ -98,6 +114,7 @@ class CricketThrow {
         'thrown_at':  thrownAt.millisecondsSinceEpoch,
       };
 
+  /// Reconstructs a Cricket throw from a SQLite row map.
   factory CricketThrow.fromMap(Map<String, dynamic> map) => CricketThrow(
         id:         map['id'] as int?,
         gameId:     map['game_id'] as int,

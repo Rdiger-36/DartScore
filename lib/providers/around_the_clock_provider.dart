@@ -5,6 +5,9 @@ import '../models/player.dart';
 
 // ── AroundTheClockPlayerState ─────────────────────────────────────────────────
 
+/// Immutable Around the Clock state for one player: how far they have advanced
+/// through the target order, the segments hit on the current target (full-
+/// segment variant), and when they finished.
 class AroundTheClockPlayerState {
   final String displayName;
   final Player player;
@@ -23,9 +26,13 @@ class AroundTheClockPlayerState {
     this.finishedAtDart,
   });
 
+  /// The number this player must currently hit.
   int get currentTarget => aroundTheClockOrder[progress.clamp(0, aroundTheClockOrder.length - 1)];
+
+  /// Whether this player has completed the final target (the Bull).
   bool get isFinished => finishedAtDart != null;
 
+  /// Returns a copy with progress/segments/finish replaced; identity is preserved.
   AroundTheClockPlayerState copyWith({
     int? progress,
     Set<int>? hitSegments,
@@ -42,6 +49,12 @@ class AroundTheClockPlayerState {
 
 // ── AroundTheClockProvider ────────────────────────────────────────────────────
 
+/// Active-game state machine for Around the Clock (basic, full-segments, skip).
+///
+/// Each player works through [aroundTheClockOrder] one target at a time; the
+/// first to complete the final Bull target wins instantly. Darts are recorded
+/// into a three-dart visit buffer and persisted, so undo deletes the last dart
+/// and replays the rest.
 class AroundTheClockProvider extends ChangeNotifier {
   final DbHelper _db = DbHelper.instance;
 
@@ -66,6 +79,7 @@ class AroundTheClockProvider extends ChangeNotifier {
   int                              get dartsInVisit       => _visitBuffer.length;
   bool                             get canUndo            => _throwHistory.isNotEmpty;
 
+  /// The active game's rule variant.
   AroundTheClockVariant get _variant => _game!.variant;
 
   /// The number the current player must hit next.
@@ -84,6 +98,8 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── Resume / Start ─────────────────────────────────────────────────────────
 
+  /// Restores an in-progress game and rebuilds progress/turn state by replaying
+  /// all stored darts.
   Future<void> resumeGame(AroundTheClockGame game, List<Player> players) async {
     _game = game;
     _resetPlayerStates(players);
@@ -96,6 +112,8 @@ class AroundTheClockProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts a new game: persists it, builds fresh player states, and resets the
+  /// visit buffer and history.
   Future<void> startGame(AroundTheClockGame game, List<Player> players) async {
     final gameId = await _db.insertAroundTheClockGame(game);
     _game = AroundTheClockGame(
@@ -116,6 +134,7 @@ class AroundTheClockProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces all player states with fresh starting states for [players].
   void _resetPlayerStates(List<Player> players) {
     _playerStates = players
         .map((p) => AroundTheClockPlayerState(displayName: p.name, player: p))
@@ -172,6 +191,10 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── Apply dart to state ────────────────────────────────────────────────────
 
+  /// Applies one dart to [playerIdx]'s progress per the active variant: advance
+  /// on a hit (basic), collect single/double/triple before advancing (full
+  /// segments), or skip ahead by the multiplier and via the Bull joker (skip
+  /// rules). Records the finishing dart when the final target is completed.
   void _applyDart(int playerIdx, AroundTheClockThrow t) {
     final state  = _playerStates[playerIdx];
     final target = state.currentTarget;
@@ -224,12 +247,14 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── End of visit ──────────────────────────────────────────────────────────
 
+  /// Ends the current three-dart visit and advances to the next player.
   Future<void> _endVisit() async {
     _visitBuffer.clear();
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
     notifyListeners();
   }
 
+  /// Marks the game over with [playerIdx] as the winner and persists the finish time.
   Future<void> _handleWin(int playerIdx) async {
     _gameOver = true;
     _winnerId = _playerStates[playerIdx].player.id;
@@ -239,6 +264,8 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── Undo ───────────────────────────────────────────────────────────────────
 
+  /// Undoes the last dart: deletes it from the database, un-finishes the game if
+  /// it was the winning dart, and replays the remaining darts to rebuild state.
   Future<void> undoLastDart() async {
     if (_game == null || _throwHistory.isEmpty) return;
 
@@ -268,6 +295,9 @@ class AroundTheClockProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rebuilds the full game state from the persisted darts: resets progress and
+  /// turn counters, then replays every dart, advancing turns and detecting the
+  /// winning dart along the way.
   Future<void> _replayState() async {
     if (_game == null) return;
 

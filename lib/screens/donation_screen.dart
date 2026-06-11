@@ -5,6 +5,8 @@ import '../l10n/app_localizations.dart';
 import '../providers/donation_provider.dart';
 import '../utils/layout.dart';
 
+/// Donation screen: lists the available donation tiers as in-app purchases and
+/// shows a thank-you dialog after a successful purchase.
 class DonationScreen extends StatefulWidget {
   const DonationScreen({super.key});
 
@@ -72,6 +74,7 @@ class _DonationScreenState extends State<DonationScreen> {
   }
 }
 
+/// Heart icon and subtitle introducing the donation options.
 class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -93,6 +96,8 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// A tappable card for one donation tier, showing its emoji, label, and price,
+/// that starts the purchase when tapped.
 class _TierCard extends StatelessWidget {
   final ProductDetails product;
   const _TierCard({required this.product});

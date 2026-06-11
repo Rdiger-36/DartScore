@@ -10,6 +10,8 @@ import '../widgets/player_dialog.dart';
 import '../utils/layout.dart';
 import 'around_the_clock_screen.dart';
 
+/// Setup screen for Around the Clock: pick the rule variant and the players,
+/// then start the game.
 class AroundTheClockSetupScreen extends StatefulWidget {
   const AroundTheClockSetupScreen({super.key});
 
@@ -21,6 +23,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
   AroundTheClockVariant _variant = AroundTheClockVariant.basic;
   final List<Player> _selectedPlayers = [];
 
+  /// Localized description of the currently selected rule variant.
   String _variantDesc(AppLocalizations l) {
     switch (_variant) {
       case AroundTheClockVariant.basic:
@@ -128,6 +131,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
     );
   }
 
+  /// Opens the create-player dialog and adds the new player to the selection.
   void _showAddPlayerDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -143,6 +147,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
     );
   }
 
+  /// Builds the game with a randomized player order and navigates to the play screen.
   Future<void> _startGame() async {
     final players = List.of(_selectedPlayers)..shuffle(Random());
     final game = AroundTheClockGame(
@@ -166,6 +171,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
 
 // ── Shared helper widgets (mirrors shanghai_setup_screen.dart) ────────────────
 
+/// A titled card grouping a block of setup options.
 class _Section extends StatelessWidget {
   final String title;
   final Widget child;
@@ -193,6 +199,7 @@ class _Section extends StatelessWidget {
   }
 }
 
+/// Player picker listing all players with selection toggles and an add button.
 class _PlayersSection extends StatelessWidget {
   final List<Player> allPlayers;
   final List<Player> selectedPlayers;

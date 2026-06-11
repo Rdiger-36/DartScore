@@ -8,6 +8,8 @@ import '../utils/triple_color.dart';
 import '../widgets/cricket_marks_widget.dart';
 import 'cricket_summary_screen.dart';
 
+/// Live Cricket game screen. Watches the provider and routes to the summary
+/// when the game ends, otherwise shows the play view.
 class CricketScreen extends StatelessWidget {
   const CricketScreen({super.key});
 
@@ -39,6 +41,7 @@ class CricketScreen extends StatelessWidget {
 
 // ── Main game view ────────────────────────────────────────────────────────────
 
+/// The in-play layout: the marks/score board plus the dart input area.
 class _CricketGameView extends StatelessWidget {
   final CricketProvider provider;
   const _CricketGameView({required this.provider});
@@ -126,6 +129,7 @@ class _CricketGameView extends StatelessWidget {
     );
   }
 
+  /// Asks the user to confirm leaving the game, popping back if they accept.
   void _confirmQuit(BuildContext context) {
     final l = context.l10n;
     showDialog(
@@ -155,6 +159,8 @@ const double _kLabelColumnWidth = 52;
 const double _kPlayerColumnWidth = 92;
 const double _kHeaderHeight = 52;
 
+/// Horizontally scrollable grid of Cricket fields by player, showing marks and
+/// scores and auto-scrolling to keep the active player's column in view.
 class _CricketBoard extends StatefulWidget {
   final List<CricketPlayerState> states;
   final int currentIdx;
@@ -198,6 +204,7 @@ class _CricketBoardState extends State<_CricketBoard> {
     super.dispose();
   }
 
+  /// Smoothly scrolls the active player's column to the center of the viewport.
   void _focusCurrentPlayer() {
     if (!_hController.hasClients) return;
 
@@ -347,6 +354,7 @@ class _CricketBoardState extends State<_CricketBoard> {
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 
+/// Three dots showing how many darts of the current visit have been thrown.
 class _DartDots extends StatelessWidget {
   final int count;
   const _DartDots({required this.count});
@@ -374,6 +382,9 @@ class _DartDots extends StatelessWidget {
 
 // ── Cricket Input ─────────────────────────────────────────────────────────────
 
+/// Cricket dart input: a field grid where, in standard scoring, tapping a field
+/// reveals a single/double/triple selector; simple scoring records a single hit
+/// directly. Includes a miss button.
 class _CricketInput extends StatefulWidget {
   final CricketProvider provider;
   final CricketScoringMode scoringMode;
@@ -393,6 +404,8 @@ class _CricketInputState extends State<_CricketInput> {
   bool get _isStandard =>
       widget.scoringMode == CricketScoringMode.standard;
 
+  /// Handles a field tap: records a single in simple mode, or opens the
+  /// multiplier selector in standard mode.
   Future<void> _onFieldTap(int field) async {
     if (!_isStandard) {
       // Simple mode: always single
@@ -403,6 +416,7 @@ class _CricketInputState extends State<_CricketInput> {
     }
   }
 
+  /// Records the selected field with the chosen multiplier (standard mode).
   Future<void> _onMultiplierTap(int multiplier) async {
     if (_selectedField == null) return;
     final field = _selectedField!;
@@ -410,6 +424,7 @@ class _CricketInputState extends State<_CricketInput> {
     await widget.provider.recordDart(field, multiplier);
   }
 
+  /// Records a missed dart and clears any field selection.
   Future<void> _onMiss() async {
     setState(() => _selectedField = null);
     await widget.provider.recordDart(0, 0);
@@ -457,6 +472,7 @@ class _CricketInputState extends State<_CricketInput> {
   }
 }
 
+/// A Cricket field button, disabled and dimmed once every player has closed it.
 class _FieldButton extends StatelessWidget {
   final String label;
   final bool allClosed;
@@ -499,6 +515,7 @@ class _FieldButton extends StatelessWidget {
   }
 }
 
+/// The miss button that records a non-scoring dart.
 class _MissButton extends StatelessWidget {
   final VoidCallback onTap;
   final AppLocalizations l;
@@ -531,6 +548,7 @@ class _MissButton extends StatelessWidget {
   }
 }
 
+/// Single/double/triple selector shown after a field is tapped in standard mode.
 class _MultiplierRow extends StatelessWidget {
   final int field;
   final void Function(int) onSelected;
@@ -580,6 +598,7 @@ class _MultiplierRow extends StatelessWidget {
   }
 }
 
+/// A single/double/triple input button, colored to match its multiplier.
 class _MultBtn extends StatelessWidget {
   final String label;
   final String sub;

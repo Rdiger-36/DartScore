@@ -8,6 +8,8 @@ import 'player_stats_screen.dart';
 import 'sync_screen.dart';
 import '../utils/layout.dart';
 
+/// Player management screen: the primary profile plus all other players, with
+/// add, edit, delete, stats, and sync actions.
 class PlayersScreen extends StatelessWidget {
   const PlayersScreen({super.key});
 
@@ -122,16 +124,19 @@ class PlayersScreen extends StatelessWidget {
     );
   }
 
+  /// Opens the lifetime stats screen for [player].
   void _openStats(BuildContext context, Player player) {
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => PlayerStatsScreen(player: player)));
   }
 
+  /// Opens the device-to-device sync screen for [player].
   void _openSync(BuildContext context, Player player) {
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => SyncScreen(initialPlayer: player)));
   }
 
+  /// Opens the create-player dialog, rejecting names that already exist.
   void _addPlayer(BuildContext context) {
     final existing = context
         .read<PlayersProvider>()
@@ -153,6 +158,8 @@ class PlayersScreen extends StatelessWidget {
     );
   }
 
+  /// Opens the edit dialog for [player] with options to rename, set the favorite
+  /// double, make primary, or delete.
   void _editPlayer(BuildContext context, Player player) {
     final existing = context
         .read<PlayersProvider>()
@@ -181,6 +188,7 @@ class PlayersScreen extends StatelessWidget {
     );
   }
 
+  /// Confirms and deletes [player].
   void _confirmDelete(
       BuildContext context, PlayersProvider provider, Player player) {
     showDialog(
@@ -208,6 +216,7 @@ class PlayersScreen extends StatelessWidget {
 
 // ── Primary player card ───────────────────────────────────────────────────────
 
+/// Highlighted card for the primary player with edit, stats, and sync actions.
 class _PrimaryPlayerCard extends StatelessWidget {
   final Player player;
   final VoidCallback onEdit;
@@ -326,6 +335,7 @@ class _PrimaryPlayerCard extends StatelessWidget {
 
 // ── Other player tile ─────────────────────────────────────────────────────────
 
+/// List tile for a non-primary player with edit, stats, and sync actions.
 class _OtherPlayerTile extends StatelessWidget {
   final Player player;
   final VoidCallback onEdit;

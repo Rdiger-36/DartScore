@@ -9,17 +9,25 @@ import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 
+/// Singleton SQLite wrapper and the single point of database access for the app.
+///
+/// Holds all schema definitions and migrations and exposes typed CRUD methods
+/// for players, X01 games/throws, the three extra game modes, and sync support.
+/// No widget or provider should query SQLite directly; everything goes through
+/// this class.
 class DbHelper {
   static final DbHelper instance = DbHelper._();
   static Database? _db;
 
   DbHelper._();
 
+  /// The lazily-opened database instance, created on first access.
   Future<Database> get db async {
     _db ??= await _initDb();
     return _db!;
   }
 
+  /// Opens (creating if needed) the `dartscore.db` database with foreign keys on.
   Future<Database> _initDb() async {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
@@ -33,6 +41,7 @@ class DbHelper {
     );
   }
 
+  /// Applies incremental schema migrations from [oldVersion] up to [newVersion].
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute(
@@ -153,6 +162,8 @@ class DbHelper {
     }
   }
 
+  /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
+  /// the uuid column.
   static String _generateUuid() {
     final rng = Random.secure();
     final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
@@ -165,6 +176,7 @@ class DbHelper {
         '-${hex(bytes.sublist(10, 16))}';
   }
 
+  /// Creates the full schema (all tables and indexes) for a fresh install.
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE players (
@@ -290,6 +302,8 @@ class DbHelper {
   }
 
   // Players
+
+  /// The primary (non-deleted) player, or null if none is set.
   Future<Player?> getPrimaryPlayer() async {
     final d = await db;
     final rows = await d.query('players',
@@ -308,11 +322,13 @@ class DbHelper {
     });
   }
 
+  /// Inserts a new player and returns its assigned id.
   Future<int> insertPlayer(Player p) async {
     final d = await db;
     return d.insert('players', p.toMap()..remove('id'));
   }
 
+  /// All non-deleted players ordered by name.
   Future<List<Player>> getPlayers() async {
     final d = await db;
     final rows = await d.query('players',
@@ -320,6 +336,7 @@ class DbHelper {
     return rows.map(Player.fromMap).toList();
   }
 
+  /// The player with [id] regardless of deleted status (for history/stats), or null.
   Future<Player?> getPlayer(int id) async {
     final d = await db;
     // Returns player regardless of deleted status (for history/stats)
@@ -327,11 +344,13 @@ class DbHelper {
     return rows.isEmpty ? null : Player.fromMap(rows.first);
   }
 
+  /// Updates the stored row for [p].
   Future<void> updatePlayer(Player p) async {
     final d = await db;
     await d.update('players', p.toMap(), where: 'id = ?', whereArgs: [p.id]);
   }
 
+  /// Soft-deletes the player with [id], keeping the name visible in history/stats.
   Future<void> deletePlayer(int id) async {
     final d = await db;
     // Soft delete — keeps name visible in history/stats
@@ -340,6 +359,8 @@ class DbHelper {
   }
 
   // Games
+
+  /// Inserts an X01 game and its ordered player list, returning the game id.
   Future<int> insertGame(Game g, List<int> playerIds) async {
     final d = await db;
     final map = g.toMap()..remove('id');
@@ -354,6 +375,7 @@ class DbHelper {
     return gameId;
   }
 
+  /// Permanently deletes an X01 game and its throws and player links.
   Future<void> deleteGame(int gameId) async {
     final d = await db;
     await d.delete('dart_throws', where: 'game_id = ?', whereArgs: [gameId]);
@@ -361,10 +383,11 @@ class DbHelper {
     await d.delete('games', where: 'id = ?', whereArgs: [gameId]);
   }
 
-  /// Snapshots stats for ONE game's throws into each involved player's
+  // Minimum darts to finish from a given start score (double-out).
   // Mirrors game_provider.dart — kept local to avoid circular import.
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
+  /// Counts perfect legs in [throws] (legs finished within [minDarts] darts).
   static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
     if (minDarts == null) return 0;
     int count = 0;
@@ -383,7 +406,9 @@ class DbHelper {
     return count;
   }
 
-  /// [local_stats_json]. Call this BEFORE [deleteGame].
+  /// Snapshots one game's throws into each involved player's persistent
+  /// `local_stats_json`, so lifetime stats survive deleting the game. Call this
+  /// BEFORE [deleteGame].
   Future<void> snapshotGameStats(int gameId) async {
     final d      = await db;
     final throws = await getThrowsForGame(gameId);
@@ -468,6 +493,8 @@ class DbHelper {
     }
   }
 
+  /// Computes an aggregate stats map (darts, scored, averages, highs, counts)
+  /// from a list of throws.
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
     int totalDarts = 0, totalScored = 0;
     int busts = 0, legsWon = 0;
@@ -578,6 +605,8 @@ class DbHelper {
     };
   }
 
+  /// Merges two stats maps, summing counts and recomputing maxima/averages, so
+  /// snapshots accumulate across games.
   static Map<String, dynamic> _mergeStats(
     Map<String, dynamic> a,
     Map<String, dynamic> b,
@@ -660,6 +689,7 @@ class DbHelper {
     };
   }
 
+  /// Deletes every game and throw across all modes (player records are kept).
   Future<void> clearAllGames() async {
     final d = await db;
     await d.delete('dart_throws');
@@ -673,11 +703,13 @@ class DbHelper {
     await d.delete('around_the_clock_games');
   }
 
+  /// Updates an X01 game row (e.g. to mark it finished).
   Future<void> updateGame(Game g) async {
     final d = await db;
     await d.update('games', g.toMap(), where: 'id = ?', whereArgs: [g.id]);
   }
 
+  /// All non-sync X01 games, newest first.
   Future<List<Game>> getGames() async {
     final d = await db;
     final rows = await d.query('games',
@@ -685,6 +717,7 @@ class DbHelper {
     return rows.map(Game.fromMap).toList();
   }
 
+  /// The player ids for an X01 game in turn order.
   Future<List<int>> getGamePlayerIds(int gameId) async {
     final d = await db;
     final rows = await d.query(
@@ -697,6 +730,8 @@ class DbHelper {
   }
 
   // Throws
+
+  /// Inserts an X01 throw and returns its id.
   Future<int> insertThrow(DartThrow t) async {
     final d = await db;
     final map = t.toMap()..remove('id');
@@ -704,11 +739,13 @@ class DbHelper {
     return d.insert('dart_throws', map);
   }
 
+  /// Deletes the X01 throw with [id] (used by undo).
   Future<void> deleteThrow(int id) async {
     final d = await db;
     await d.delete('dart_throws', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// All throws for an X01 game in chronological order.
   Future<List<DartThrow>> getThrowsForGame(int gameId) async {
     final d = await db;
     final rows = await d.query(
@@ -720,6 +757,7 @@ class DbHelper {
     return rows.map(_throwFromMap).toList();
   }
 
+  /// All X01 throws by a player across all games, in chronological order.
   Future<List<DartThrow>> getThrowsForPlayer(int playerId) async {
     final d = await db;
     final rows = await d.query(
@@ -752,6 +790,8 @@ class DbHelper {
     return gameRows.map((r) => r['id'] as int).toList();
   }
 
+  /// Builds a [DartThrow] from a row, translating the reserved `set_` column
+  /// back to `set`.
   DartThrow _throwFromMap(Map<String, dynamic> map) {
     final m = Map<String, dynamic>.from(map);
     m['set'] = m.remove('set_');
@@ -760,6 +800,7 @@ class DbHelper {
 
   // ── Sync helpers ────────────────────────────────────────────────────────────
 
+  /// The non-deleted player matching [uuid] (used to merge synced players), or null.
   Future<Player?> getPlayerByUuid(String uuid) async {
     final d = await db;
     final rows = await d.query('players',
@@ -804,10 +845,11 @@ class DbHelper {
       'sets': 1,
       'created_at': DateTime.now().millisecondsSinceEpoch,
       'finished_at': DateTime.now().millisecondsSinceEpoch,
-      'is_synced': 1, // hidden from Spielverlauf
+      'is_synced': 1, // hidden from history
     });
   }
 
+  /// Inserts a throw imported during sync into the hidden sync-game.
   Future<void> insertSyncedThrow(int playerId, int gameId, DartThrow t) async {
     final d = await db;
     await d.insert('dart_throws', {
@@ -823,6 +865,7 @@ class DbHelper {
     });
   }
 
+  /// Records the last sync time and optional received stats snapshot for a player.
   Future<void> updatePlayerSyncTime(int playerId, int syncedAt,
       {String? syncedStatsJson}) async {
     final d = await db;
@@ -834,29 +877,34 @@ class DbHelper {
 
   // ── Cricket ──────────────────────────────────────────────────────────────────
 
+  /// Inserts a Cricket game and returns its id.
   Future<int> insertCricketGame(CricketGame g) async {
     final d = await db;
     final map = g.toMap()..remove('id');
     return d.insert('cricket_games', map);
   }
 
+  /// Updates a Cricket game row (e.g. to mark it finished).
   Future<void> updateCricketGame(CricketGame g) async {
     final d = await db;
     await d.update('cricket_games', g.toMap(),
         where: 'id = ?', whereArgs: [g.id]);
   }
 
+  /// Inserts a Cricket dart and returns its id.
   Future<int> insertCricketThrow(CricketThrow t) async {
     final d = await db;
     final map = t.toMap()..remove('id');
     return d.insert('cricket_throws', map);
   }
 
+  /// Deletes the Cricket dart with [id] (used by undo).
   Future<void> deleteCricketThrow(int id) async {
     final d = await db;
     await d.delete('cricket_throws', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// All Cricket darts for a game in chronological order.
   Future<List<CricketThrow>> getCricketThrowsForGame(int gameId) async {
     final d = await db;
     final rows = await d.query(
@@ -868,12 +916,14 @@ class DbHelper {
     return rows.map(CricketThrow.fromMap).toList();
   }
 
+  /// All Cricket games, newest first.
   Future<List<CricketGame>> getCricketGames() async {
     final d = await db;
     final rows = await d.query('cricket_games', orderBy: 'created_at DESC');
     return rows.map(CricketGame.fromMap).toList();
   }
 
+  /// Permanently deletes a Cricket game and its darts.
   Future<void> deleteCricketGame(int gameId) async {
     final d = await db;
     await d.delete('cricket_throws', where: 'game_id = ?', whereArgs: [gameId]);
@@ -882,29 +932,34 @@ class DbHelper {
 
   // ── Shanghai ─────────────────────────────────────────────────────────────────
 
+  /// Inserts a Shanghai game and returns its id.
   Future<int> insertShanghaiGame(ShanghaiGame g) async {
     final d = await db;
     final map = g.toMap()..remove('id');
     return d.insert('shanghai_games', map);
   }
 
+  /// Updates a Shanghai game row (e.g. to mark it finished).
   Future<void> updateShanghaiGame(ShanghaiGame g) async {
     final d = await db;
     await d.update('shanghai_games', g.toMap(),
         where: 'id = ?', whereArgs: [g.id]);
   }
 
+  /// Inserts a Shanghai dart and returns its id.
   Future<int> insertShanghaiThrow(ShanghaiThrow t) async {
     final d = await db;
     final map = t.toMap()..remove('id');
     return d.insert('shanghai_throws', map);
   }
 
+  /// Deletes the Shanghai dart with [id] (used by undo).
   Future<void> deleteShanghaiThrow(int id) async {
     final d = await db;
     await d.delete('shanghai_throws', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// All Shanghai darts for a game in chronological order.
   Future<List<ShanghaiThrow>> getShanghaiThrowsForGame(int gameId) async {
     final d = await db;
     final rows = await d.query(
@@ -916,12 +971,14 @@ class DbHelper {
     return rows.map(ShanghaiThrow.fromMap).toList();
   }
 
+  /// All Shanghai games, newest first.
   Future<List<ShanghaiGame>> getShanghaiGames() async {
     final d = await db;
     final rows = await d.query('shanghai_games', orderBy: 'created_at DESC');
     return rows.map(ShanghaiGame.fromMap).toList();
   }
 
+  /// Permanently deletes a Shanghai game and its darts.
   Future<void> deleteShanghaiGame(int gameId) async {
     final d = await db;
     await d.delete('shanghai_throws', where: 'game_id = ?', whereArgs: [gameId]);
@@ -930,29 +987,34 @@ class DbHelper {
 
   // ── Around the Clock ─────────────────────────────────────────────────────────
 
+  /// Inserts an Around the Clock game and returns its id.
   Future<int> insertAroundTheClockGame(AroundTheClockGame g) async {
     final d = await db;
     final map = g.toMap()..remove('id');
     return d.insert('around_the_clock_games', map);
   }
 
+  /// Updates an Around the Clock game row (e.g. to mark it finished).
   Future<void> updateAroundTheClockGame(AroundTheClockGame g) async {
     final d = await db;
     await d.update('around_the_clock_games', g.toMap(),
         where: 'id = ?', whereArgs: [g.id]);
   }
 
+  /// Inserts an Around the Clock dart and returns its id.
   Future<int> insertAroundTheClockThrow(AroundTheClockThrow t) async {
     final d = await db;
     final map = t.toMap()..remove('id');
     return d.insert('around_the_clock_throws', map);
   }
 
+  /// Deletes the Around the Clock dart with [id] (used by undo).
   Future<void> deleteAroundTheClockThrow(int id) async {
     final d = await db;
     await d.delete('around_the_clock_throws', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// All Around the Clock darts for a game in chronological order.
   Future<List<AroundTheClockThrow>> getAroundTheClockThrowsForGame(int gameId) async {
     final d = await db;
     final rows = await d.query(
@@ -964,12 +1026,14 @@ class DbHelper {
     return rows.map(AroundTheClockThrow.fromMap).toList();
   }
 
+  /// All Around the Clock games, newest first.
   Future<List<AroundTheClockGame>> getAroundTheClockGames() async {
     final d = await db;
     final rows = await d.query('around_the_clock_games', orderBy: 'created_at DESC');
     return rows.map(AroundTheClockGame.fromMap).toList();
   }
 
+  /// Permanently deletes an Around the Clock game and its darts.
   Future<void> deleteAroundTheClockGame(int gameId) async {
     final d = await db;
     await d.delete('around_the_clock_throws', where: 'game_id = ?', whereArgs: [gameId]);
