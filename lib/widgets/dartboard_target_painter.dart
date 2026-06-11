@@ -26,6 +26,8 @@ class DartboardTargetPainter extends CustomPainter {
     this.highlightMultipliers,
   });
 
+  /// Whether the given [multiplier] ring should be highlighted (all rings when
+  /// [highlightMultipliers] is null, otherwise only the listed ones).
   bool _highlighted(int multiplier) =>
       highlightMultipliers == null || highlightMultipliers!.contains(multiplier);
 

@@ -8,6 +8,7 @@ import '../utils/layout.dart';
 import 'about_screen.dart';
 import 'donation_screen.dart';
 
+/// Settings screen grouping theme, language, support, and about sections.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -34,6 +35,7 @@ class SettingsScreen extends StatelessWidget {
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
+/// Settings section to choose the theme (light/dark/system).
 class _ThemeSection extends StatelessWidget {
   const _ThemeSection();
 
@@ -80,6 +82,7 @@ class _ThemeSection extends StatelessWidget {
   }
 }
 
+/// A selectable radio tile for one theme option.
 class _ThemeTile extends StatelessWidget {
   final String label;
   final String subtitle;
@@ -116,6 +119,7 @@ class _ThemeTile extends StatelessWidget {
 
 // ── Language ──────────────────────────────────────────────────────────────────
 
+/// Settings section to choose the app language (system/English/German).
 class _LanguageSection extends StatelessWidget {
   const _LanguageSection();
 
@@ -162,6 +166,7 @@ class _LanguageSection extends StatelessWidget {
   }
 }
 
+/// A selectable radio tile for one language option.
 class _LangTile extends StatelessWidget {
   final String label;
   final String subtitle;
@@ -199,6 +204,7 @@ class _LangTile extends StatelessWidget {
 
 // ── Support ───────────────────────────────────────────────────────────────────
 
+/// Settings section linking to the donation/support screen.
 class _SupportSection extends StatelessWidget {
   const _SupportSection();
 
@@ -228,6 +234,7 @@ class _SupportSection extends StatelessWidget {
 
 // ── About ─────────────────────────────────────────────────────────────────────
 
+/// Settings section linking to the about screen.
 class _AboutSection extends StatelessWidget {
   const _AboutSection();
 
@@ -254,6 +261,7 @@ class _AboutSection extends StatelessWidget {
 
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 
+/// A titled, icon-headed section card wrapping a settings group.
 class _Card extends StatelessWidget {
   final String title;
   final IconData icon;

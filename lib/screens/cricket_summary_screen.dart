@@ -5,6 +5,8 @@ import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
 
+/// Post-game summary for Cricket: the winner plus each player's final marks and
+/// score.
 class CricketSummaryScreen extends StatelessWidget {
   const CricketSummaryScreen({super.key});
 
@@ -213,6 +215,7 @@ class CricketSummaryScreen extends StatelessWidget {
   }
 }
 
+/// A compact open/closed indicator for one Cricket field in the summary grid.
 class _SummaryMark extends StatelessWidget {
   final bool closed;
   const _SummaryMark({required this.closed});

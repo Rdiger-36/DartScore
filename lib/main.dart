@@ -15,6 +15,8 @@ import 'providers/donation_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 
+/// App entry point: initializes the binding, enables edge-to-edge on Android,
+/// and runs the app.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Android 15+ forces edge-to-edge. Enable it explicitly so Flutter
@@ -73,6 +75,8 @@ class _OrientationLockState extends State<_OrientationLock> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Root widget: wires up all providers, the light/dark themes and locale, and
+/// hosts the [MaterialApp] gated by [_AppGate].
 class DartScoreApp extends StatelessWidget {
   const DartScoreApp({super.key});
 
@@ -159,6 +163,8 @@ class DartScoreApp extends StatelessWidget {
     surfaceTint: Colors.transparent,
   );
 
+  /// Builds the shared [ThemeData] for the given [cs] color scheme (cards,
+  /// app bar, and chips tuned to the dartboard palette).
   static ThemeData _build(ColorScheme cs) => ThemeData(
         colorScheme: cs,
         useMaterial3: true,

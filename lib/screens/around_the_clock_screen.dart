@@ -8,6 +8,8 @@ import '../utils/triple_color.dart';
 import '../widgets/dartboard_target_painter.dart';
 import 'around_the_clock_summary_screen.dart';
 
+/// Live Around the Clock game screen. Watches the provider and routes to the
+/// summary when the game ends, otherwise shows the play view.
 class AroundTheClockScreen extends StatelessWidget {
   const AroundTheClockScreen({super.key});
 
@@ -39,6 +41,7 @@ class AroundTheClockScreen extends StatelessWidget {
 
 // ── Main game view ────────────────────────────────────────────────────────────
 
+/// The in-play layout: target dartboard, scrollable scoreboard, and input area.
 class _AroundTheClockGameView extends StatelessWidget {
   final AroundTheClockProvider provider;
   const _AroundTheClockGameView({required this.provider});
@@ -143,6 +146,8 @@ class _AroundTheClockGameView extends StatelessWidget {
     );
   }
 
+  /// Asks the user to confirm leaving the game, popping back to the previous
+  /// screen if they accept.
   void _confirmQuit(BuildContext context) {
     final l = context.l10n;
     showDialog(
@@ -168,6 +173,8 @@ class _AroundTheClockGameView extends StatelessWidget {
 
 // ── Target dartboard ──────────────────────────────────────────────────────────
 
+/// Dartboard highlighting the current player's active target (and, in the
+/// full-segments variant, only the multipliers still needed).
 class _TargetDartboard extends StatelessWidget {
   final AroundTheClockProvider provider;
   const _TargetDartboard({required this.provider});
@@ -203,6 +210,8 @@ class _TargetDartboard extends StatelessWidget {
 
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
+/// Scrollable scoreboard listing each player's target and progress, auto-
+/// scrolling to keep the active player in view.
 class _AroundTheClockBoard extends StatefulWidget {
   final AroundTheClockProvider provider;
   final List<AroundTheClockPlayerState> states;
@@ -241,6 +250,7 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
     }
   }
 
+  /// Smoothly scrolls the active player's row to the center of the viewport.
   void _scrollToCurrent() {
     final key = _keys[widget.currentIdx];
     final ctx = key.currentContext;
@@ -315,6 +325,7 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 
+/// Three dots showing how many darts of the current visit have been thrown.
 class _DartDots extends StatelessWidget {
   final int count;
   const _DartDots({required this.count});
@@ -342,6 +353,8 @@ class _DartDots extends StatelessWidget {
 
 // ── Hint (full-segments variant) ──────────────────────────────────────────────
 
+/// Full-segments-only hint showing which single/double/triple of the target
+/// are still needed to advance.
 class _AroundTheClockHint extends StatelessWidget {
   final AroundTheClockProvider provider;
   const _AroundTheClockHint({required this.provider});
@@ -381,6 +394,7 @@ class _AroundTheClockHint extends StatelessWidget {
   }
 }
 
+/// A single segment hint chip, struck through once that segment has been hit.
 class _SegmentChip extends StatelessWidget {
   final String label;
   final bool done;
@@ -417,6 +431,8 @@ class _SegmentChip extends StatelessWidget {
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 
+/// Input row of single/double/triple (plus Bull joker in the skip variant and
+/// miss) buttons that record a dart for the active target.
 class _AroundTheClockInput extends StatelessWidget {
   final AroundTheClockProvider provider;
   const _AroundTheClockInput({required this.provider});
@@ -462,6 +478,7 @@ class _AroundTheClockInput extends StatelessWidget {
   }
 }
 
+/// A single/double/triple input button, colored to match its multiplier.
 class _MultBtn extends StatelessWidget {
   final String label;
   final String sub;
@@ -525,6 +542,7 @@ class _MultBtn extends StatelessWidget {
   }
 }
 
+/// The Bull joker button (skip-rules variant) that advances past the current target.
 class _JokerBtn extends StatelessWidget {
   final String label;
   final String sub;
@@ -575,6 +593,7 @@ class _JokerBtn extends StatelessWidget {
   }
 }
 
+/// The miss button that records a non-scoring dart.
 class _MissBtn extends StatelessWidget {
   final String label;
   final double width;

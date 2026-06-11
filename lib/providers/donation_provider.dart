@@ -3,9 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Manages in-app donation purchases and the resulting "supporter" status.
+///
+/// Wraps the `in_app_purchase` plugin: loads the consumable donation products,
+/// starts purchases, listens to the purchase stream, and persists whether the
+/// user has ever donated. Donations are consumables but supporter status is
+/// sticky once granted.
 class DonationProvider extends ChangeNotifier {
   static const _supporterKey = 'is_supporter';
 
+  /// Store product ids for the available donation tiers.
   static const Set<String> productIds = {
     'donation_coffee',
     'donation_beer',
@@ -20,17 +27,31 @@ class DonationProvider extends ChangeNotifier {
   String? _errorMessage;
   StreamSubscription<List<PurchaseDetails>>? _sub;
 
+  /// Whether the user has donated at least once (persisted).
   bool get isSupporter => _isSupporter;
+
+  /// Whether a thank-you message should be shown after a successful purchase.
   bool get thankYouPending => _thankYouPending;
+
+  /// Whether product details are currently being loaded from the store.
   bool get loading => _loading;
+
+  /// Whether in-app purchases are available on this device/store.
   bool get available => _available;
+
+  /// The loaded donation products, sorted cheapest-first.
   List<ProductDetails> get products => _products;
+
+  /// The last purchase error message, or null if none.
   String? get errorMessage => _errorMessage;
 
+  /// Creates the provider and asynchronously initializes the purchase flow.
   DonationProvider() {
     _init();
   }
 
+  /// Loads persisted supporter status, checks store availability, subscribes to
+  /// the purchase stream, and fetches product details.
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _isSupporter = prefs.getBool(_supporterKey) ?? false;
@@ -50,6 +71,7 @@ class DonationProvider extends ChangeNotifier {
     await _loadProducts();
   }
 
+  /// Queries the store for the donation [productIds] and sorts them by price.
   Future<void> _loadProducts() async {
     _loading = true;
     _errorMessage = null;
@@ -63,6 +85,7 @@ class DonationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts a consumable purchase for the given donation [product].
   Future<void> buy(ProductDetails product) async {
     _errorMessage = null;
     notifyListeners();
@@ -71,6 +94,8 @@ class DonationProvider extends ChangeNotifier {
     );
   }
 
+  /// Handles purchase-stream updates: completes pending purchases, grants
+  /// supporter status on success/restore, and surfaces errors.
   void _onPurchases(List<PurchaseDetails> purchases) async {
     for (final p in purchases) {
       if (p.pendingCompletePurchase) {
@@ -90,6 +115,7 @@ class DonationProvider extends ChangeNotifier {
     }
   }
 
+  /// Marks the user as a supporter, flags a pending thank-you, and persists it.
   Future<void> _markSupporter() async {
     _isSupporter = true;
     _thankYouPending = true;
@@ -98,11 +124,13 @@ class DonationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears the pending thank-you flag after the message has been shown.
   void clearThankYou() {
     _thankYouPending = false;
     notifyListeners();
   }
 
+  /// Cancels the purchase-stream subscription.
   @override
   void dispose() {
     _sub?.cancel();

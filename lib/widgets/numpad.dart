@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 
+/// Numeric score entry for X01: a keypad to type a visit total (0-180), a
+/// darts-used selector (1-3), and quick-score chips for common scores. Reports
+/// the entered score and darts via [onSubmit].
 class NumPad extends StatefulWidget {
   final int maxScore;
   final void Function(int score, int darts) onSubmit;
@@ -15,16 +18,20 @@ class _NumPadState extends State<NumPad> {
   String _input = '';
   int _darts = 3;
 
+  /// Appends digit [v] to the input, capped at three characters.
   void _tap(String v) {
     if (_input.length >= 3) return;
     setState(() => _input += v);
   }
 
+  /// Removes the last entered digit.
   void _backspace() {
     if (_input.isEmpty) return;
     setState(() => _input = _input.substring(0, _input.length - 1));
   }
 
+  /// Validates the typed score (0-180) and submits it with the selected darts,
+  /// then resets the input.
   void _submit() {
     final score = int.tryParse(_input) ?? 0;
     if (score < 0 || score > 180) return;
@@ -142,6 +149,7 @@ class _NumPadState extends State<NumPad> {
   }
 }
 
+/// A single keypad key (digit, Miss or OK) with optional accent colors.
 class _NumKey extends StatelessWidget {
   final String label;
   final VoidCallback onTap;

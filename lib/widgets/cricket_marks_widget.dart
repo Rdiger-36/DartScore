@@ -28,6 +28,7 @@ class CricketMarksWidget extends StatelessWidget {
   }
 }
 
+/// Paints 1-2 Cricket marks as a slash (1) and a crossing slash forming an X (2).
 class _MarksPainter extends CustomPainter {
   final int marks;
   final Color color;
@@ -55,6 +56,7 @@ class _MarksPainter extends CustomPainter {
       old.marks != marks || old.color != color;
 }
 
+/// Paints a closed Cricket field (3+ marks) as a circled X.
 class _ClosedPainter extends CustomPainter {
   final Color color;
   const _ClosedPainter({required this.color});

@@ -24,6 +24,8 @@ import '../utils/layout.dart';
 
 enum _ModeFilter { all, x01, cricket, shanghai, aroundTheClock }
 
+/// Lists all past games across every mode, split into Open and Finished tabs
+/// with per-mode filters. Supports resuming, opening details, and deleting.
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
@@ -51,6 +53,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     return tabEntries.where((e) => _matchesFilter(e, f)).toList();
   }
 
+  /// Whether history entry [e] belongs to the selected mode filter [f].
   static bool _matchesFilter(_HistoryEntry e, _ModeFilter f) {
     switch (f) {
       case _ModeFilter.all:           return true;
@@ -69,6 +72,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     _reload();
   }
 
+  /// Rebuilds when the Open/Finished tab settles so the action bar updates.
   void _onTabChanged() {
     if (!_tabController.indexIsChanging) setState(() {});
   }
@@ -80,6 +84,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     super.dispose();
   }
 
+  /// Loads all games of every mode with their players and returns them as a
+  /// single list sorted newest-first.
   Future<List<_HistoryEntry>> _load() async {
     final db      = DbHelper.instance;
     final entries = <_HistoryEntry>[];
@@ -125,6 +131,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     return entries;
   }
 
+  /// Reloads the history list and refreshes the UI.
   void _reload() {
     final future = _load();
     future.then((loaded) {
@@ -133,6 +140,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     setState(() { _future = future; });
   }
 
+  /// Deletes a single game (snapshotting X01 stats first so lifetime totals are
+  /// preserved) and reloads.
   Future<void> _deleteEntry(_HistoryEntry entry) async {
     final db = DbHelper.instance;
     if (entry.isCricket) {
@@ -148,6 +157,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     _reload();
   }
 
+  /// Confirms and deletes all currently visible entries (current tab + filter),
+  /// snapshotting finished X01 stats first, then reloads.
   Future<void> _confirmDeleteVisible(BuildContext context) async {
     final toDelete = _visibleEntries;
     if (toDelete.isEmpty) return;
@@ -216,6 +227,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     _reload();
   }
 
+  /// Resumes an X01 game and opens its play screen, reloading on return.
   Future<void> _resumeX01(BuildContext context, _HistoryEntry entry) async {
     if (entry.players.isEmpty) return;
     final provider = context.read<GameProvider>();
@@ -227,6 +239,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
+  /// Resumes a Cricket game and opens its play screen, reloading on return.
   Future<void> _resumeCricket(BuildContext context, _HistoryEntry entry) async {
     if (entry.players.isEmpty) return;
     final provider = context.read<CricketProvider>();
@@ -238,6 +251,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
+  /// Resumes a Shanghai game and opens its play screen, reloading on return.
   Future<void> _resumeShanghai(BuildContext context, _HistoryEntry entry) async {
     if (entry.players.isEmpty) return;
     final provider = context.read<ShanghaiProvider>();
@@ -249,6 +263,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
+  /// Resumes an Around the Clock game and opens its play screen, reloading on return.
   Future<void> _resumeAroundTheClock(
       BuildContext context, _HistoryEntry entry) async {
     if (entry.players.isEmpty) return;
@@ -345,6 +360,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
 // ── Tab content with chip filter ─────────────────────────────────────────────
 
+/// One history tab (Open or Finished): a per-mode chip filter over a scrollable
+/// list of game tiles. Kept alive so its scroll position survives tab switches.
 class _TabContent extends StatefulWidget {
   final List<_HistoryEntry> entries;
   final bool isOpenTab;
@@ -373,6 +390,7 @@ class _TabContentState extends State<_TabContent>
   @override
   bool get wantKeepAlive => true;
 
+  /// The entries matching the active mode filter.
   List<_HistoryEntry> get _filtered {
     if (widget.filter == _ModeFilter.all) return widget.entries;
     return widget.entries
@@ -380,6 +398,8 @@ class _TabContentState extends State<_TabContent>
         .toList();
   }
 
+  /// The set of game modes actually present in this tab's entries (used to hide
+  /// chips for modes with no games).
   Set<_ModeFilter> get _presentModes {
     final modes = <_ModeFilter>{};
     for (final e in widget.entries) {
@@ -396,6 +416,7 @@ class _TabContentState extends State<_TabContent>
     return modes;
   }
 
+  /// Localized label for a mode-filter chip.
   String _chipLabel(_ModeFilter f, AppLocalizations l) {
     switch (f) {
       case _ModeFilter.all:            return l.filterAll;
@@ -474,6 +495,7 @@ class _TabContentState extends State<_TabContent>
 
 // ── Chip filter bar ───────────────────────────────────────────────────────────
 
+/// A horizontal row of single-select mode filter chips.
 class _ChipBar extends StatelessWidget {
   final List<_ModeFilter> filters;
   final _ModeFilter selected;
@@ -509,6 +531,7 @@ class _ChipBar extends StatelessWidget {
   }
 }
 
+/// Localized display name for a Shanghai [variant].
 String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
   switch (variant) {
     case ShanghaiVariant.classic:
@@ -520,6 +543,7 @@ String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
   }
 }
 
+/// Localized display name for an Around the Clock [variant].
 String _aroundClockVariantLabel(AppLocalizations l, AroundTheClockVariant variant) {
   switch (variant) {
     case AroundTheClockVariant.basic:
@@ -533,6 +557,8 @@ String _aroundClockVariantLabel(AppLocalizations l, AroundTheClockVariant varian
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
+/// A single history list item wrapping a game of any mode (exactly one of the
+/// game fields is non-null) together with its players.
 class _HistoryEntry {
   final Game?                x01Game;
   final CricketGame?         cricketGame;
@@ -564,6 +590,7 @@ class _HistoryEntry {
   bool get isShanghai       => shanghaiGame != null;
   bool get isAroundTheClock => aroundTheClockGame != null;
 
+  /// The wrapped game's creation time, regardless of mode.
   DateTime get createdAt {
     if (isCricket) return cricketGame!.createdAt;
     if (isShanghai) return shanghaiGame!.createdAt;
@@ -571,6 +598,7 @@ class _HistoryEntry {
     return x01Game!.createdAt;
   }
 
+  /// The wrapped game's finish time (null if still open), regardless of mode.
   DateTime? get finishedAt {
     if (isCricket) return cricketGame!.finishedAt;
     if (isShanghai) return shanghaiGame!.finishedAt;
@@ -581,6 +609,8 @@ class _HistoryEntry {
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
 
+/// A list tile for one history entry, showing mode, date, players, and result,
+/// with resume (open games) or details (finished games) and delete actions.
 class _GameTile extends StatelessWidget {
   final _HistoryEntry entry;
   final VoidCallback onDelete;

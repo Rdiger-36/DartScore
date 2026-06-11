@@ -7,6 +7,8 @@ import '../models/player.dart';
 import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
 
+/// Detailed view of a finished Cricket game from history, with final marks and
+/// scores reconstructed from its stored throws.
 class CricketHistorySummaryScreen extends StatelessWidget {
   final CricketGame game;
   final List<Player> players;
@@ -44,6 +46,8 @@ class CricketHistorySummaryScreen extends StatelessWidget {
     );
   }
 
+  /// Loads the game's throws and reconstructs each player's final marks, scores,
+  /// and the winner.
   Future<_CricketHistoryData> _load() async {
     final throws = await DbHelper.instance.getCricketThrowsForGame(game.id!);
 
@@ -113,6 +117,8 @@ class CricketHistorySummaryScreen extends StatelessWidget {
   }
 }
 
+/// Reconstructed final state of a historical Cricket game: per-player marks
+/// (by field), scores, and the winner.
 class _CricketHistoryData {
   final Map<int, Map<int, int>> marks;
   final Map<int, int> scores;
@@ -124,6 +130,7 @@ class _CricketHistoryData {
   });
 }
 
+/// Renders the reconstructed game details: variant, marks grid, and scores.
 class _Body extends StatelessWidget {
   final CricketGame game;
   final List<Player> players;
@@ -305,6 +312,7 @@ class _Body extends StatelessWidget {
   }
 }
 
+/// A label/value row used in the game-info section.
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;

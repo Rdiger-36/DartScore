@@ -8,6 +8,8 @@ import '../models/game.dart';
 import 'game_summary_screen.dart';
 import '../utils/layout.dart';
 
+/// Live X01 game screen: scoreboard with live running score, dartboard/numpad
+/// input, finish suggestions, and undo. Routes to the summary when the game ends.
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
@@ -210,6 +212,8 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Asks the user to confirm leaving the game, returning to the home screen if
+  /// they accept.
   void _confirmQuit(BuildContext context) {
     showDialog(
       context: context,
@@ -239,6 +243,8 @@ class _GameScreenState extends State<GameScreen> {
 
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
+/// The X01 scoreboard: one card per player/team showing remaining score (live
+/// for the active player), legs/sets, average, and check-in/out badges.
 class _Scoreboard extends StatelessWidget {
   final List<PlayerState> states;
   final int currentIdx;
@@ -531,6 +537,8 @@ class _Scoreboard extends StatelessWidget {
 // • "D-Out / M-Out / S-Out" (subtle) — when in checkout range (remaining ≤ 170)
 // • Nothing  — normal scoring range, already checked in, no special action needed
 
+/// Small status badge under a player's name showing a required check-in or the
+/// active checkout rule, or nothing during normal scoring.
 class _ModeBadge extends StatelessWidget {
   final int remaining;
   final GameMode checkIn;

@@ -14,6 +14,10 @@ import '../utils/layout.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
+/// Aggregated lifetime statistics for one player, computed by [_loadStats] from
+/// stored games, throws, and any persisted historical stats snapshot. Covers
+/// totals, averages, score distribution, segment hits, weekly comparison, and
+/// checkout breakdown by remaining bracket.
 class _PlayerStats {
   final int gamesPlayed;
   final int gamesFinished;
@@ -83,13 +87,17 @@ class _PlayerStats {
     this.coAttemptSub170 = 0, this.coSuccessSub170 = 0,
   });
 
+  /// Lifetime three-dart average (busts excluded from scored points).
   double get average3Dart =>
       totalDarts == 0 ? 0 : (totalScored / totalDarts) * 3;
 
+  /// Percentage of visits that busted.
   double get bustRate =>
       totalVisits == 0 ? 0 : (busts / totalVisits) * 100;
 }
 
+/// Loads and aggregates a player's lifetime statistics from the database,
+/// merging live game data with any persisted historical snapshot.
 Future<_PlayerStats> _loadStats(Player player) async {
   final playerId = player.id!;
   final db = DbHelper.instance;
@@ -381,6 +389,8 @@ Future<_PlayerStats> _loadStats(Player player) async {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
+/// Per-player lifetime statistics screen: loads aggregated stats and renders
+/// the hero summary, charts, breakdowns, and (if available) synced stats.
 class PlayerStatsScreen extends StatelessWidget {
   final Player player;
 
@@ -437,6 +447,7 @@ class PlayerStatsScreen extends StatelessWidget {
 
 // ── Body ──────────────────────────────────────────────────────────────────────
 
+/// Assembles the full stats layout from the loaded [_PlayerStats] sections.
 class _StatsBody extends StatelessWidget {
   final Player player;
   final _PlayerStats stats;
@@ -620,6 +631,7 @@ class _StatsBody extends StatelessWidget {
 
 // ── Hero card (big average) ───────────────────────────────────────────────────
 
+/// Hero summary card showing the player's headline stats (average, games, etc.).
 class _HeroCard extends StatelessWidget {
   final _PlayerStats stats;
   const _HeroCard({required this.stats});
@@ -675,6 +687,7 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
+/// A single labeled value within the hero card.
 class _HeroStat extends StatelessWidget {
   final String label;
   final String value;
@@ -706,6 +719,7 @@ class _HeroStat extends StatelessWidget {
 
 // ── Score distribution bar chart ──────────────────────────────────────────────
 
+/// Bar chart of the player's score distribution across visit-score buckets.
 class _ScoreChart extends StatelessWidget {
   final Map<int, int> distribution;
   const _ScoreChart({required this.distribution});
@@ -791,6 +805,7 @@ class _ScoreChart extends StatelessWidget {
 
 // ── Reusable building blocks ──────────────────────────────────────────────────
 
+/// A section heading within the stats body.
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
@@ -807,6 +822,7 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+/// A card grouping a list of label/value stat rows.
 class _StatCard extends StatelessWidget {
   final List<Widget> children;
   final EdgeInsets? padding;
@@ -837,6 +853,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// A label/value row inside a [_StatCard].
 class _StatRow extends StatelessWidget {
   final String label;
   final String value;
@@ -862,6 +879,7 @@ class _StatRow extends StatelessWidget {
   }
 }
 
+/// A highlighted metric tile (e.g. highest checkout, 180s) with icon and value.
 class _HighlightTile extends StatelessWidget {
   final String label;
   final String value;
@@ -915,6 +933,7 @@ class _HighlightTile extends StatelessWidget {
   }
 }
 
+/// A row in the recent-throws list showing a visit's score and remaining.
 class _ThrowRow extends StatelessWidget {
   final DartThrow t;
   const _ThrowRow({required this.t});
@@ -992,6 +1011,7 @@ class _ThrowRow extends StatelessWidget {
 
 // ── Dartboard Heatmap ─────────────────────────────────────────────────────────
 
+/// Dartboard heatmap visualizing how often the player hit each segment.
 class _DartboardHeatmap extends StatelessWidget {
   final Map<int, Map<int, int>> segmentHits;
   const _DartboardHeatmap({required this.segmentHits});
@@ -1099,6 +1119,7 @@ class _DartboardHeatmap extends StatelessWidget {
 }
 
 // Horizontal gradient bar: gray → green → yellow → red
+/// Paints the color gradient legend for the heatmap (low to high hit count).
 class _HeatScalePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1143,6 +1164,8 @@ Color _heatColor(double intensity) {
   }
 }
 
+/// Paints the dartboard heatmap itself, coloring each segment ring by how
+/// frequently the player hit it relative to the busiest segment.
 class _DartboardPainter extends CustomPainter {
   final Map<int, Map<int, int>> segmentHits;
   final int globalMax;
@@ -1162,6 +1185,8 @@ class _DartboardPainter extends CustomPainter {
     required this.onSurfaceColor,
   });
 
+  /// Heat color for a single segment ring, scaled by its hit count relative to
+  /// the busiest segment.
   Color _color(int field, int multiplier) {
     final hits = segmentHits[field]?[multiplier] ?? 0;
     final intensity = hits == 0 ? 0.0 : (hits / globalMax).clamp(0.05, 1.0);
@@ -1265,6 +1290,7 @@ class _DartboardPainter extends CustomPainter {
 
 // ── Stability Card ────────────────────────────────────────────────────────────
 
+/// Card showing scoring consistency (standard deviation of visit scores).
 class _StabilityCard extends StatelessWidget {
   final _PlayerStats stats;
   const _StabilityCard({required this.stats});
@@ -1328,6 +1354,7 @@ class _StabilityCard extends StatelessWidget {
 
 // ── Checkout Breakdown Card ───────────────────────────────────────────────────
 
+/// Card breaking down checkout success rate by remaining-score bracket.
 class _CheckoutBreakdownCard extends StatelessWidget {
   final _PlayerStats stats;
   const _CheckoutBreakdownCard({required this.stats});
@@ -1365,6 +1392,7 @@ class _CheckoutBreakdownCard extends StatelessWidget {
   }
 }
 
+/// A single bracket row in the checkout breakdown (attempts, successes, rate).
 class _CheckoutBracketRow extends StatelessWidget {
   final String label;
   final int attempts;
@@ -1428,6 +1456,7 @@ class _CheckoutBracketRow extends StatelessWidget {
 
 // ── Week Comparison Card ──────────────────────────────────────────────────────
 
+/// Card comparing this week's performance to last week's (average, visits, 180s).
 class _WeekComparisonCard extends StatelessWidget {
   final _PlayerStats stats;
   const _WeekComparisonCard({required this.stats});
@@ -1578,6 +1607,7 @@ class _WeekComparisonCard extends StatelessWidget {
 
 // ── Synced stats view (no local data, shows snapshot from sender) ─────────────
 
+/// Read-only view of stats received from another device via sync.
 class _SyncedStatsView extends StatelessWidget {
   final Player player;
   const _SyncedStatsView({required this.player});
@@ -1687,6 +1717,7 @@ class _SyncedStatsView extends StatelessWidget {
   }
 }
 
+/// A single labeled value within the synced-stats hero card.
 class _SyncHeroStat extends StatelessWidget {
   final String label;
   final String value;
@@ -1707,6 +1738,7 @@ class _SyncHeroStat extends StatelessWidget {
   }
 }
 
+/// Highlight tiles (e.g. 180s, highest visit) for synced stats.
 class _SyncHighlights extends StatelessWidget {
   final SyncStats s;
   const _SyncHighlights({required this.s});
@@ -1729,6 +1761,7 @@ class _SyncHighlights extends StatelessWidget {
   }
 }
 
+/// A single highlight tile within the synced stats view.
 class _SyncTile extends StatelessWidget {
   final String label, value;
   final IconData icon;
@@ -1764,6 +1797,7 @@ class _SyncTile extends StatelessWidget {
   }
 }
 
+/// A label/value row in the synced stats view.
 class _SRow extends StatelessWidget {
   final String l, v;
   const _SRow(this.l, this.v);

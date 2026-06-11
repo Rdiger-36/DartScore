@@ -6,6 +6,8 @@ import '../models/player.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
 
+/// Detailed view of a finished Shanghai game from history, rebuilt by replaying
+/// its stored throws through a fresh provider.
 class ShanghaiHistorySummaryScreen extends StatelessWidget {
   final ShanghaiGame game;
   final List<Player> players;
@@ -52,6 +54,7 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
   }
 }
 
+/// Renders the replayed game details: variant, players, and final scores.
 class _Body extends StatelessWidget {
   final ShanghaiGame game;
   final ShanghaiProvider provider;
@@ -179,6 +182,7 @@ class _Body extends StatelessWidget {
   }
 }
 
+/// Localized display name for a Shanghai [variant].
 String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
   switch (variant) {
     case ShanghaiVariant.classic:
@@ -190,6 +194,7 @@ String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
   }
 }
 
+/// A label/value row used in the game-info section.
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
