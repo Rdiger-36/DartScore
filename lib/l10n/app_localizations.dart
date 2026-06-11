@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/match_format.dart';
+
 /// Convenience access to [AppLocalizations] from any [BuildContext] via
 /// `context.l10n` (e.g. `context.l10n.newGame`).
 extension AppLocalizationsX on BuildContext {
@@ -67,9 +69,15 @@ class AppLocalizations {
   String get straightOut       => _t('Straight Out', 'Straight Out');
   String get doubleOut         => _t('Double Out', 'Double Out');
   String get masterOut         => _t('Master Out', 'Master Out');
-  String get legsSets          => _t('Legs & Sets', 'Legs & Sets');
   String get legs              => _t('Legs', 'Legs');
   String get sets              => _t('Sets', 'Sets');
+  /// One-line "Sets: x  Legs: y" tally for a summary card header.
+  String setsLegsWon(int setsWon, int legsWon) =>
+      '$sets: $setsWon  $legs: $legsWon';
+  /// Compact, singular-aware "x Legs · y Sets" tally for inline display.
+  String legsSetsShort(int legsCount, int setsCount) =>
+      '$legsCount ${legsCount == 1 ? 'Leg' : 'Legs'} · '
+      '$setsCount ${setsCount == 1 ? 'Set' : 'Sets'}';
   String get players           => _t('Players', 'Spieler');
   String get noPlayersAvail    => _t('No players available.', 'Keine Spieler vorhanden.');
   String get addPlayerLink     => _t('Add player', 'Spieler anlegen');
@@ -79,6 +87,32 @@ class AppLocalizations {
   String get openPlayHint      => _t('1 player = Solo Game (no opponent)', '1 Spieler = Solo Spiel (kein Gegner)');
   String get soloLegsHint      => _t('Solo game plays 1 leg · 1 set', 'Solo Spiel: 1 Leg · 1 Set');
   String playerN(int n)        => _t('Player $n', 'Spieler $n');
+
+  // ── Match format presets ─────────────────────────────────────────────────
+  String get matchFormat       => _t('Match Format', 'Match-Format');
+  String get formatBo3         => _t('Best of 3', 'Best of 3');
+  String get formatBo5         => _t('Best of 5', 'Best of 5');
+  String get formatBo7         => _t('Best of 7', 'Best of 7');
+  String get formatBo9         => _t('Best of 9', 'Best of 9');
+  String get formatPdcSets     => _t('PDC Sets', 'PDC Sets');
+  String get formatPremier     => _t('Premier League', 'Premier League');
+  String get formatCustom      => _t('Custom', 'Eigene');
+  // Short rule per preset, shown under the chips.
+  String get formatBo3Rule     => _t('First to 2 Legs.', 'First to 2 Legs.');
+  String get formatBo5Rule     => _t('First to 3 Legs.', 'First to 3 Legs.');
+  String get formatBo7Rule     => _t('First to 4 Legs.', 'First to 4 Legs.');
+  String get formatBo9Rule     => _t('First to 5 Legs.', 'First to 5 Legs.');
+  String get formatPdcSetsRule => _t(
+      'First to 3 Sets, each Set First to 3 Legs.',
+      'First to 3 Sets - pro Set First to 3 Legs.');
+  String get formatPremierRule => _t(
+      'Pure leg race: First to 6 Legs, no Sets.',
+      'Reines Leg-Race: First to 6 Legs, keine Sets.');
+  String get formatCustomRule  => _t(
+      'Choose Legs and Sets yourself.', 'Legs und Sets selbst festlegen.');
+  String get firstToHint       => _t(
+      'First to means: whoever reaches the chosen number of Legs or Sets first wins.',
+      'First to heißt: Wer die gewählte Anzahl an Legs bzw. Sets zuerst erreicht, gewinnt.');
 
   // ── Game Screen ──────────────────────────────────────────────────────────
   String get openPlay          => _t('Solo Game', 'Solo Spiel');
@@ -207,8 +241,33 @@ class AppLocalizations {
       : _t('Permanently delete all $adj $mode games?',
            'Alle $adj $mode Spiele unwiderruflich löschen?');
   String get points            => _t('Points', 'Punkte');
+
+  /// The chip label for a match format preset (e.g. "Best of 5", "PDC Sets").
+  String matchFormatLabel(MatchFormat f) => switch (f) {
+        MatchFormat.bo3 => formatBo3,
+        MatchFormat.bo5 => formatBo5,
+        MatchFormat.bo7 => formatBo7,
+        MatchFormat.bo9 => formatBo9,
+        MatchFormat.pdcSets => formatPdcSets,
+        MatchFormat.premierLeague => formatPremier,
+        MatchFormat.custom => formatCustom,
+      };
+
+  /// Match format label for a past game derived from its stored legs/sets:
+  /// the named preset (e.g. "Best of 5") when one matches, otherwise the custom
+  /// label with the concrete counts (e.g. "Eigene 6 Legs - 7 Sets").
+  String matchFormatDesc(int legs, int sets) {
+    final f = MatchFormatLookup.fromValues(legs, sets);
+    if (f != MatchFormat.custom) return matchFormatLabel(f);
+    final legLabel = legs == 1 ? 'Leg' : 'Legs';
+    final setLabel = sets == 1 ? 'Set' : 'Sets';
+    return _t('Custom $legs $legLabel - $sets $setLabel',
+              'Eigene $legs $legLabel - $sets $setLabel');
+  }
+
   String gameSummaryInfo(int score, int l, int s) =>
-      _t('$score pts · $l Legs · $s Sets', '$score Punkte · $l Legs · $s Sets');
+      _t('$score pts · ${matchFormatDesc(l, s)}',
+         '$score Punkte · ${matchFormatDesc(l, s)}');
 
   // ── Game setup / Team / Handicap ─────────────────────────────────────────
   String get handicap            => _t('Handicap', 'Handicap');
