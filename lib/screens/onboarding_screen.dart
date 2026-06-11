@@ -5,6 +5,8 @@ import '../providers/players_provider.dart';
 import '../widgets/dartboard_icon.dart';
 import '../utils/layout.dart';
 
+/// First-launch walkthrough that creates the primary player (name and favorite
+/// double) before entering the app.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -30,6 +32,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  /// Creates the primary player from the entered name and double, then finishes
+  /// onboarding.
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;

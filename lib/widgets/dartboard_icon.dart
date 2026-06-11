@@ -17,6 +17,8 @@ class DartboardIcon extends StatelessWidget {
   }
 }
 
+/// Paints a full dartboard: 20 alternating segments with double/triple scoring
+/// rings, the green outer bull and red bullseye, and subtle segment/ring wires.
 class DartboardPainter extends CustomPainter {
   // Segment colours: alternating black / cream, red / green for scoring rings
   static const _black  = Color(0xFF1A1A1A);
@@ -122,6 +124,8 @@ class DartboardPainter extends CustomPainter {
     canvas.drawCircle(Offset(cx, cy), rBull, wirePaint);
   }
 
+  /// Fills one annular sector (a single ring slice of one segment) spanning the
+  /// radii [innerR]..[outerR] over the angular range [startAngle]..+[sweep].
   void _drawSector(
     Canvas canvas,
     double cx, double cy,

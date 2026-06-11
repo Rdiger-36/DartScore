@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 
+/// The four selectable game modes, used by the mode selection and info screens.
 enum GameModeOption { x01, cricket, shanghai, aroundTheClock }
 
+/// Explains the rules of a single game [mode] (title, description, variants).
 class GameModeInfoScreen extends StatelessWidget {
   final GameModeOption mode;
 

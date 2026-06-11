@@ -13,6 +13,11 @@ const Map<int, int> minimumDartsForScore = {
 
 // ── PlayerState ───────────────────────────────────────────────────────────────
 
+/// Immutable scoreboard state for one slot in an X01 game.
+///
+/// A slot is either a single player or a whole team. For teams, [players] holds
+/// every member and [currentPlayerIdx] tracks whose turn it is within the team;
+/// [displayName] is the team or player name shown on the scoreboard.
 class PlayerState {
   /// Human-readable name for the scoreboard: team name or player name.
   final String displayName;
@@ -43,17 +48,25 @@ class PlayerState {
 
   /// The player who throws next (backward-compatible accessor).
   Player get player => players[currentPlayerIdx];
+
+  /// Whether this slot represents a team rather than a single player.
   bool get isTeam   => players.length > 1;
 
+  /// Total number of darts thrown by this slot across the game.
   int get totalDarts  => throws.fold(0, (s, t) => s + t.dartsUsed);
+
+  /// Total number of visits (turns) taken by this slot.
   int get totalVisits => throws.length;
 
+  /// Three-dart average for this slot; busts count as zero scored.
   double get average {
     if (totalDarts == 0) return 0;
     final scored = throws.fold(0, (s, t) => s + (t.bust ? 0 : t.score));
     return (scored / totalDarts) * 3;
   }
 
+  /// Returns a copy with the given mutable fields replaced; identity fields
+  /// ([displayName], [players], [isTeamSlot]) are preserved.
   PlayerState copyWith({
     int?              currentPlayerIdx,
     int?              legsWon,
@@ -77,6 +90,12 @@ class PlayerState {
 
 // ── GameProvider ──────────────────────────────────────────────────────────────
 
+/// Active-game state machine for X01 games (individual and team).
+///
+/// Owns the per-slot [PlayerState]s, the current leg/set/turn, win detection,
+/// and undo/redo. Every throw is persisted immediately via [DbHelper]; resuming
+/// rebuilds the full state by replaying stored throws, which is also how undo
+/// and redo recompute the board.
 class GameProvider extends ChangeNotifier {
   final DbHelper _db = DbHelper.instance;
 
@@ -103,16 +122,20 @@ class GameProvider extends ChangeNotifier {
   bool               get canUndo            => _undoStack.isNotEmpty;
   bool               get canRedo            => _redoStack.isNotEmpty;
 
+  /// Per-player check-in/check-out handicap for the player about to throw, if any.
   PlayerHandicap? get currentPlayerHandicap {
     if (_playerStates.isEmpty) return null;
     final pid = _playerStates[_currentPlayerIndex].player.id;
     return pid != null ? _handicaps[pid] : null;
   }
 
+  /// Read-only view of all per-player handicaps keyed by player id.
   Map<int, PlayerHandicap> get handicaps => Map.unmodifiable(_handicaps);
 
   // ── Resume ────────────────────────────────────────────────────────────────
 
+  /// Restores a previously started game from the database by replaying all
+  /// stored throws, rebuilding per-slot state and the current leg/set/turn.
   Future<void> resumeGame(Game game, List<Player> players) async {
     final allThrowsRaw = await _db.getThrowsForGame(game.id!);
 
@@ -139,6 +162,9 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rebuilds team-game state: tallies legs/sets won per team across completed
+  /// legs, reconstructs each team's remaining score and player rotation for the
+  /// current leg, and picks the team that throws next (fewest visits).
   Future<void> _resumeTeamGame(
     Game game,
     List<Player> players,
@@ -225,6 +251,8 @@ class GameProvider extends ChangeNotifier {
     _currentSet = maxSet;
   }
 
+  /// Whether any member of [team] checked out (reached exactly zero) in the
+  /// given [leg] and [set].
   bool _teamCheckedOutLeg(
     TeamConfig team,
     Map<int, List<DartThrow>> throwsByPlayer,
@@ -245,6 +273,9 @@ class GameProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Rebuilds individual-game state: tallies legs/sets won per player across
+  /// completed legs, reconstructs each player's remaining score for the current
+  /// leg, and picks the player who throws next (fewest visits).
   Future<void> _resumeIndividualGame(
     Game game,
     List<Player> players,
@@ -313,6 +344,8 @@ class GameProvider extends ChangeNotifier {
 
   // ── Start ─────────────────────────────────────────────────────────────────
 
+  /// Starts a brand-new game: persists it, builds fresh per-slot state for the
+  /// players or teams, resets leg/set/turn counters, and clears undo/redo.
   Future<void> startGame(
     Game game,
     List<Player> players, {
@@ -373,6 +406,10 @@ class GameProvider extends ChangeNotifier {
 
   // ── Submit score ──────────────────────────────────────────────────────────
 
+  /// Records the current slot's visit: persists the throw (optionally with
+  /// per-dart [hits]), updates the remaining score, pushes onto the undo stack,
+  /// and either handles a checkout or advances to the next slot. Busts keep the
+  /// remaining score unchanged.
   Future<void> submitScore(int score, int dartsUsed,
       {bool bust = false, List<DartEntry>? hits}) async {
     if (_game == null || _gameOver) return;
@@ -425,6 +462,9 @@ class GameProvider extends ChangeNotifier {
 
   // ── Checkout ──────────────────────────────────────────────────────────────
 
+  /// Resolves a successful checkout: awards the leg, tracks perfect legs, and
+  /// promotes to set/game win as needed. Solo games end immediately; otherwise
+  /// scores reset and play advances to the next slot.
   Future<void> _handleCheckout(int dartsUsed) async {
     final state = _playerStates[_currentPlayerIndex];
     int legsWon = state.legsWon + 1;
@@ -487,6 +527,8 @@ class GameProvider extends ChangeNotifier {
     _advancePlayer();
   }
 
+  /// Resets every slot's remaining score back to the start score for a new leg,
+  /// preserving legs/sets won, throw history, and player rotation.
   void _resetScores() {
     _playerStates = _playerStates
         .map((s) => PlayerState(
@@ -517,6 +559,8 @@ class GameProvider extends ChangeNotifier {
 
   // ── Undo / Redo ───────────────────────────────────────────────────────────
 
+  /// Undoes the last throw: deletes it from the database, moves it to the redo
+  /// stack, and rebuilds the game state by replaying the remaining throws.
   Future<void> undoLastThrow() async {
     if (_game == null || _undoStack.isEmpty) return;
 
@@ -529,6 +573,8 @@ class GameProvider extends ChangeNotifier {
     await resumeGame(_game!, players);
   }
 
+  /// Redoes the last undone throw: re-inserts it into the database, pushes it
+  /// back onto the undo stack, and rebuilds the game state.
   Future<void> redoLastThrow() async {
     if (_game == null || _redoStack.isEmpty) return;
 
@@ -552,6 +598,7 @@ class GameProvider extends ChangeNotifier {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  /// All throws across every slot, sorted chronologically.
   List<DartThrow> allThrows() {
     return _playerStates.expand((s) => s.throws).toList()
       ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));

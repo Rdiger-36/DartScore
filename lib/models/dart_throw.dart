@@ -1,3 +1,8 @@
+/// A single recorded visit (turn) in an X01 game: the points scored, how many
+/// darts were used, where in the leg/set it happened, and whether it busted.
+///
+/// One row corresponds to up to three darts thrown in one turn, not a single
+/// dart. Individual dart hits are optionally captured in [hitsJson].
 class DartThrow {
   final int? id;
   final int gameId;
@@ -27,8 +32,10 @@ class DartThrow {
     this.hitsJson,
   });
 
+  /// Remaining score after this visit; unchanged from [remainingBefore] on a bust.
   int get remainingAfter => bust ? remainingBefore : remainingBefore - score;
 
+  /// Serializes this throw to a row map for the SQLite `throws` table.
   Map<String, dynamic> toMap() => {
         'id': id,
         'game_id': gameId,
@@ -43,6 +50,7 @@ class DartThrow {
         'hits_json': hitsJson,
       };
 
+  /// Reconstructs a throw from a SQLite row map.
   factory DartThrow.fromMap(Map<String, dynamic> map) => DartThrow(
         id: map['id'] as int?,
         gameId: map['game_id'] as int,

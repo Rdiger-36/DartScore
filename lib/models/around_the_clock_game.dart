@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+/// Around the Clock rule variant: [basic] (single hit advances), [fullSegments]
+/// (single, double and triple of a number must all be hit) or [skipRules]
+/// (doubles/triples let the player skip ahead).
 enum AroundTheClockVariant { basic, fullSegments, skipRules }
 
 /// Clockwise target order, ending at the Bull's Eye (25). Hitting the final
@@ -8,6 +11,8 @@ const List<int> aroundTheClockOrder = [
   1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5, 20, 25,
 ];
 
+/// An Around the Clock game configuration and result. Per-dart hits are stored
+/// separately as [AroundTheClockThrow] records.
 class AroundTheClockGame {
   final int? id;
   final AroundTheClockVariant variant;
@@ -27,6 +32,7 @@ class AroundTheClockGame {
     required this.playerIds,
   });
 
+  /// Serializes this game to a row map for the SQLite `around_the_clock_games` table.
   Map<String, dynamic> toMap() => {
         'id':          id,
         'variant':     variant.index,
@@ -37,6 +43,7 @@ class AroundTheClockGame {
         'player_ids':  jsonEncode(playerIds),
       };
 
+  /// Reconstructs an Around the Clock game from a SQLite row map.
   factory AroundTheClockGame.fromMap(Map<String, dynamic> map) => AroundTheClockGame(
         id:         map['id'] as int?,
         variant:    AroundTheClockVariant.values[map['variant'] as int],
@@ -49,6 +56,7 @@ class AroundTheClockGame {
         playerIds:  (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
       );
 
+  /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
   AroundTheClockGame copyWith({DateTime? finishedAt}) => AroundTheClockGame(
         id:         id,
         variant:    variant,
@@ -60,6 +68,8 @@ class AroundTheClockGame {
       );
 }
 
+/// A single dart thrown in an Around the Clock game (one dart, not a full
+/// visit), used to reconstruct progress and to support undo.
 class AroundTheClockThrow {
   final int? id;
   final int gameId;
@@ -81,8 +91,10 @@ class AroundTheClockThrow {
     required this.thrownAt,
   });
 
+  /// Whether this dart missed all scoring fields.
   bool get isMiss => field == 0 || multiplier == 0;
 
+  /// Serializes this throw to a row map for the SQLite `around_the_clock_throws` table.
   Map<String, dynamic> toMap() => {
         'id':         id,
         'game_id':    gameId,
@@ -94,6 +106,7 @@ class AroundTheClockThrow {
         'thrown_at':  thrownAt.millisecondsSinceEpoch,
       };
 
+  /// Reconstructs an Around the Clock throw from a SQLite row map.
   factory AroundTheClockThrow.fromMap(Map<String, dynamic> map) => AroundTheClockThrow(
         id:         map['id'] as int?,
         gameId:     map['game_id'] as int,

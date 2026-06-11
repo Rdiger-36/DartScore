@@ -6,6 +6,8 @@ import '../models/player.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
 
+/// Detailed view of a finished Around the Clock game from history, rebuilt by
+/// replaying its stored throws through a fresh provider.
 class AroundTheClockHistorySummaryScreen extends StatelessWidget {
   final AroundTheClockGame game;
   final List<Player> players;
@@ -52,6 +54,7 @@ class AroundTheClockHistorySummaryScreen extends StatelessWidget {
   }
 }
 
+/// Renders the replayed game details: variant, players, and per-player progress.
 class _Body extends StatelessWidget {
   final AroundTheClockGame game;
   final AroundTheClockProvider provider;
@@ -174,6 +177,7 @@ class _Body extends StatelessWidget {
   }
 }
 
+/// Localized display name for an Around the Clock [variant].
 String _variantLabel(AppLocalizations l, AroundTheClockVariant variant) {
   switch (variant) {
     case AroundTheClockVariant.basic:
@@ -185,6 +189,7 @@ String _variantLabel(AppLocalizations l, AroundTheClockVariant variant) {
   }
 }
 
+/// A label/value row used in the game-info section.
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;

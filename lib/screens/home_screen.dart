@@ -9,6 +9,7 @@ import 'history_screen.dart';
 import 'settings_screen.dart';
 import '../utils/layout.dart';
 
+/// App home screen with navigation to game setup, history, players, and settings.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -95,6 +96,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+/// A large labeled icon button on the home screen.
 class _HomeButton extends StatelessWidget {
   final IconData icon;
   final String label;

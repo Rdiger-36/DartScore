@@ -1,7 +1,11 @@
 import 'dart:convert';
 
+/// Shanghai target progression: [classic] (numbers 1-7), [clockwise] (full
+/// board order) or [sequential] (advance only after hitting the current target).
 enum ShanghaiVariant { classic, clockwise, sequential }
 
+/// A Shanghai game configuration and result. Per-dart hits are stored separately
+/// as [ShanghaiThrow] records.
 class ShanghaiGame {
   final int? id;
   final ShanghaiVariant variant;
@@ -21,6 +25,7 @@ class ShanghaiGame {
     required this.playerIds,
   });
 
+  /// Serializes this game to a row map for the SQLite `shanghai_games` table.
   Map<String, dynamic> toMap() => {
         'id':          id,
         'variant':     variant.index,
@@ -31,6 +36,7 @@ class ShanghaiGame {
         'player_ids':  jsonEncode(playerIds),
       };
 
+  /// Reconstructs a Shanghai game from a SQLite row map.
   factory ShanghaiGame.fromMap(Map<String, dynamic> map) => ShanghaiGame(
         id:         map['id'] as int?,
         variant:    ShanghaiVariant.values[map['variant'] as int],
@@ -43,6 +49,7 @@ class ShanghaiGame {
         playerIds:  (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
       );
 
+  /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
   ShanghaiGame copyWith({DateTime? finishedAt}) => ShanghaiGame(
         id:         id,
         variant:    variant,
@@ -54,6 +61,8 @@ class ShanghaiGame {
       );
 }
 
+/// A single dart thrown in a Shanghai game (one dart, not a full visit), used to
+/// reconstruct scores and to support undo.
 class ShanghaiThrow {
   final int? id;
   final int gameId;
@@ -77,8 +86,10 @@ class ShanghaiThrow {
     required this.thrownAt,
   });
 
+  /// Whether this dart missed its target.
   bool get isMiss => multiplier == 0;
 
+  /// Serializes this throw to a row map for the SQLite `shanghai_throws` table.
   Map<String, dynamic> toMap() => {
         'id':         id,
         'game_id':    gameId,
@@ -91,6 +102,7 @@ class ShanghaiThrow {
         'thrown_at':  thrownAt.millisecondsSinceEpoch,
       };
 
+  /// Reconstructs a Shanghai throw from a SQLite row map.
   factory ShanghaiThrow.fromMap(Map<String, dynamic> map) => ShanghaiThrow(
         id:         map['id'] as int?,
         gameId:     map['game_id'] as int,

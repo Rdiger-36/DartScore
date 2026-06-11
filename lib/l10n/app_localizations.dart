@@ -1,21 +1,31 @@
 import 'package:flutter/material.dart';
 
-// Usage: context.l10n.newGame
+/// Convenience access to [AppLocalizations] from any [BuildContext] via
+/// `context.l10n` (e.g. `context.l10n.newGame`).
 extension AppLocalizationsX on BuildContext {
+  /// The active localizations for this context.
   AppLocalizations get l10n => AppLocalizations.of(this);
 }
 
+/// App-wide localized strings for English and German.
+///
+/// Each user-visible string is exposed as a getter that returns the English or
+/// German variant based on the active [locale]. New strings are added as getters
+/// using [_t]; the string values themselves serve as their own documentation.
 class AppLocalizations {
   final Locale locale;
   const AppLocalizations(this.locale);
 
+  /// The nearest [AppLocalizations] for [context], defaulting to English.
   static AppLocalizations of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations)
         ?? const AppLocalizations(Locale('en'));
   }
 
+  /// Whether the active locale is German.
   bool get _de => locale.languageCode == 'de';
 
+  /// Returns [de] when the locale is German, otherwise [en].
   String _t(String en, String de) => _de ? de : en;
 
   // ── General ──────────────────────────────────────────────────────────────
@@ -626,6 +636,8 @@ class AppLocalizations {
 
 // ── Delegate ──────────────────────────────────────────────────────────────────
 
+/// Localizations delegate that supplies [AppLocalizations] for the supported
+/// English and German locales.
 class AppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
   const AppLocalizationsDelegate();

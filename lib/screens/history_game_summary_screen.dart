@@ -7,6 +7,8 @@ import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../utils/layout.dart';
 
+/// Detailed view of a finished X01 game from history: per-player stats and the
+/// full throw log, loaded from the stored throws.
 class HistoryGameSummaryScreen extends StatelessWidget {
   final Game game;
   final List<Player> players;
@@ -44,6 +46,7 @@ class HistoryGameSummaryScreen extends StatelessWidget {
     );
   }
 
+  /// Loads the game's throws and groups them by player.
   Future<_GameData> _load() async {
     final db = DbHelper.instance;
     final allThrows = await db.getThrowsForGame(game.id!);
@@ -55,12 +58,14 @@ class HistoryGameSummaryScreen extends StatelessWidget {
   }
 }
 
+/// Loaded throws for a historical game: grouped by player and as a flat list.
 class _GameData {
   final Map<int, List<DartThrow>> playerThrows;
   final List<DartThrow> allThrows;
   const _GameData({required this.playerThrows, required this.allThrows});
 }
 
+/// Renders the game info, per-player stat cards, and the combined throw log.
 class _SummaryBody extends StatelessWidget {
   final Game game;
   final _GameData data;
@@ -153,6 +158,7 @@ class _SummaryBody extends StatelessWidget {
   }
 }
 
+/// A label/value row used in the game-info section.
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -175,6 +181,8 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+/// Per-player stat card for a historical game, computing average, legs won,
+/// darts, highest visit, and busts from the player's throws.
 class _PlayerCard extends StatelessWidget {
   final Player player;
   final List<DartThrow> throws;
@@ -225,6 +233,7 @@ class _PlayerCard extends StatelessWidget {
   }
 }
 
+/// A compact label/value stat row in a player card.
 class _Row extends StatelessWidget {
   final String l, v;
   const _Row(this.l, this.v);
@@ -244,6 +253,7 @@ class _Row extends StatelessWidget {
   }
 }
 
+/// A single row in the combined throw log: player, visit score, and remaining.
 class _ThrowLogRow extends StatelessWidget {
   final DartThrow t;
   final String playerName;
