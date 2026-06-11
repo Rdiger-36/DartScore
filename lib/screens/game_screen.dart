@@ -7,6 +7,7 @@ import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
 import 'game_summary_screen.dart';
 import '../utils/layout.dart';
+import '../utils/match_format.dart';
 
 /// Live X01 game screen: scoreboard with live running score, dartboard/numpad
 /// input, finish suggestions, and undo. Routes to the summary when the game ends.
@@ -84,12 +85,33 @@ class _GameScreenState extends State<GameScreen> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             toolbarHeight: 44,
             automaticallyImplyLeading: false,
-            title: Text(
-              isSolo
-                  ? '${context.l10n.openPlay} · ${game.startScore}'
-                  : '${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)} · ${context.l10n.setLabel(provider.currentSet)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
+            title: isSolo
+                ? Text(
+                    '${context.l10n.openPlay} · ${game.startScore}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)} · ${context.l10n.setLabel(provider.currentSet)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      Text(
+                        '${context.l10n.matchFormatLabel(MatchFormatLookup.fromValues(game.legs, game.sets))}'
+                        ' (${context.l10n.legsSetsShort(game.legs, game.sets)})',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
             actions: [
               // Visit-level undo (no dialog)
               IconButton(
