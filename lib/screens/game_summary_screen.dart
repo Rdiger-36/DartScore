@@ -253,6 +253,9 @@ class _TeamSummaryCard extends StatelessWidget {
     final throws  = state.throws;
     final busts   = throws.where((t) => t.bust).length;
     final highScore = throws.isEmpty ? 0 : throws.map((t) => t.score).reduce((a, b) => a > b ? a : b);
+    // Total legs won across the whole match (every checkout), not just the
+    // current set; sets are already a running total in state.setsWon.
+    final legsWon = throws.where((t) => !t.bust && t.remainingBefore - t.score == 0).length;
 
     // Per-player breakdown
     final byPlayer = <int, List<DartThrow>>{};
@@ -283,7 +286,7 @@ class _TeamSummaryCard extends StatelessWidget {
                       Text(state.displayName,
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold)),
-                      Text('${context.l10n.sets}: ${state.setsWon}  ${context.l10n.legs}: ${state.legsWon}',
+                      Text(l.setsLegsWon(state.setsWon, legsWon),
                           style: theme.textTheme.bodySmall),
                     ],
                   ),
@@ -371,6 +374,9 @@ class _PlayerSummaryCard extends StatelessWidget {
     final busts = throws.where((t) => t.bust).length;
     final highScore =
         throws.isEmpty ? 0 : throws.map((t) => t.score).reduce((a, b) => a > b ? a : b);
+    // Total legs won across the whole match (every checkout); sets are already
+    // a running total in state.setsWon.
+    final legsWon = throws.where((t) => !t.bust && t.remainingBefore - t.score == 0).length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -393,7 +399,7 @@ class _PlayerSummaryCard extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        'Sets: ${state.setsWon}  Legs: ${state.legsWon}',
+                        context.l10n.setsLegsWon(state.setsWon, legsWon),
                         style: theme.textTheme.bodySmall,
                       ),
                     ],

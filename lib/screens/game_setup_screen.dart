@@ -9,6 +9,7 @@ import '../providers/game_provider.dart';
 import '../widgets/player_dialog.dart';
 import 'game_screen.dart';
 import '../utils/layout.dart';
+import '../utils/match_format.dart';
 
 /// Setup screen for an X01 game: start score, in/out modes, legs/sets, player
 /// selection, and optional per-player handicaps or team configuration.
@@ -25,6 +26,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   CheckoutMode _checkoutMode = CheckoutMode.doubleOut;
   int _legs = 3;
   int _sets = 1;
+  // Default matches the previous standard of 3 legs / 1 set (best of 5).
+  MatchFormat _format = MatchFormat.bo5;
   final List<Player> _selectedPlayers = [];
 
   // ── Handicap ─────────────────────────────────────────────────────────────
@@ -39,6 +42,29 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     TextEditingController(text: 'Team 1'),
     TextEditingController(text: 'Team 2'),
   ];
+
+  /// Applies a match format preset: a non-custom preset fills [_legs]/[_sets],
+  /// while [MatchFormat.custom] keeps the current values for manual editing.
+  void _selectFormat(MatchFormat f) {
+    setState(() {
+      _format = f;
+      if (f != MatchFormat.custom) {
+        _legs = f.legs!;
+        _sets = f.sets!;
+      }
+    });
+  }
+
+  /// Short, plain rule description for the selected match format preset.
+  String _formatRule(AppLocalizations l, MatchFormat f) => switch (f) {
+        MatchFormat.bo3 => l.formatBo3Rule,
+        MatchFormat.bo5 => l.formatBo5Rule,
+        MatchFormat.bo7 => l.formatBo7Rule,
+        MatchFormat.bo9 => l.formatBo9Rule,
+        MatchFormat.pdcSets => l.formatPdcSetsRule,
+        MatchFormat.premierLeague => l.formatPremierRule,
+        MatchFormat.custom => l.formatCustomRule,
+      };
 
   /// Adds a new, default-named team.
   void _addTeam() {
@@ -141,30 +167,66 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             },
             onAddPlayer: () => _showAddPlayerDialog(context),
           ),
-          // ── Legs & Sets (only with >=2 players) ─────────────────────────
+          // ── Match format (only with >=2 players) ────────────────────────
           if (_selectedPlayers.length >= 2) ...[
             const SizedBox(height: 16),
             _Section(
-              title: l.legsSets,
-              child: Row(
+              title: l.matchFormat,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _Stepper(
-                      label: l.legs,
-                      value: _legs,
-                      min: 1,
-                      max: 9,
-                      onChanged: (v) => setState(() => _legs = v),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: MatchFormat.values
+                        .map((f) => ChoiceChip(
+                              label: Text(l.matchFormatLabel(f)),
+                              selected: _format == f,
+                              onSelected: (_) => _selectFormat(f),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatRule(l, _format),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _Stepper(
-                      label: l.sets,
-                      value: _sets,
-                      min: 1,
-                      max: 9,
-                      onChanged: (v) => setState(() => _sets = v),
+                  const SizedBox(height: 12),
+                  // Legs/sets stay visible for every format; only editable for
+                  // the custom preset so the first-to hint always makes sense.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Stepper(
+                          label: l.legs,
+                          value: _legs,
+                          min: 1,
+                          max: kMaxLegs,
+                          enabled: _format == MatchFormat.custom,
+                          onChanged: (v) => setState(() => _legs = v),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _Stepper(
+                          label: l.sets,
+                          value: _sets,
+                          min: 1,
+                          max: kMaxSets,
+                          enabled: _format == MatchFormat.custom,
+                          onChanged: (v) => setState(() => _sets = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l.firstToHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -470,11 +532,15 @@ class _PlayersSection extends StatelessWidget {
 }
 
 /// A labeled +/- stepper for an integer value clamped to [min]..[max].
+///
+/// When [enabled] is false the value stays visible but the buttons are
+/// disabled, used to display a preset's legs/sets without allowing edits.
 class _Stepper extends StatelessWidget {
   final String label;
   final int value;
   final int min;
   final int max;
+  final bool enabled;
   final void Function(int) onChanged;
 
   const _Stepper({
@@ -483,28 +549,35 @@ class _Stepper extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final valueColor = enabled
+        ? theme.textTheme.headlineSmall?.color
+        : theme.disabledColor;
     return Column(
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        Text(label, style: theme.textTheme.labelMedium),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
               icon: const Icon(Icons.remove),
-              onPressed: value > min ? () => onChanged(value - 1) : null,
+              onPressed:
+                  enabled && value > min ? () => onChanged(value - 1) : null,
             ),
             Text(
               '$value',
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: theme.textTheme.headlineSmall?.copyWith(color: valueColor),
             ),
             IconButton(
               icon: const Icon(Icons.add),
-              onPressed: value < max ? () => onChanged(value + 1) : null,
+              onPressed:
+                  enabled && value < max ? () => onChanged(value + 1) : null,
             ),
           ],
         ),
