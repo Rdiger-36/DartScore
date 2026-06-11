@@ -22,7 +22,7 @@
 
 ## Test this App
 
-DartScore is currently in **public beta** on both platforms. Pick your device and join the test track to try the latest build:
+DartScore is currently in **public beta** on iOS and **closed Beta** on Android. Pick your device and join the test track to try the latest build:
 
 <p align="center">
   <a href="https://testflight.apple.com/join/ddnv8dgP">
@@ -34,8 +34,9 @@ DartScore is currently in **public beta** on both platforms. Pick your device an
   </a>
 </p>
 
-> **iOS:** open the TestFlight link on your iPhone, install Apple's TestFlight app if prompted, then tap *Accept* to install DartScore.  
-> **Android:** the beta is distributed via a Google Play test track. If the link shows the app as unavailable, you may need to be added as a tester first.
+> **iOS:** open the TestFlight link on your iPhone, install Apple's TestFlight app if prompted, then tap *Accept* to install DartScore.
+>   
+> **Android:** the beta is distributed via a Google Play test track. Please contact me, you need to be added as a tester first.
 
 ---
 
