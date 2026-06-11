@@ -100,7 +100,7 @@ class _SyncScreenState extends State<SyncScreen>
   @override
   void initState() {
     super.initState();
-    // Start on Senden (index 1) when a player was passed, otherwise Empfangen (index 0).
+    // Start on Send (index 1) when a player was passed, otherwise Receive (index 0).
     _tab = TabController(
       length: 2,
       initialIndex: widget.initialPlayer != null ? 1 : 0,

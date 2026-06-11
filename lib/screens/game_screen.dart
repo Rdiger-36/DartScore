@@ -134,7 +134,7 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Scoreboard + reservierter Checkout-Bereich ───────────
+              // ── Scoreboard + reserved checkout area ───────────
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 500),
@@ -157,7 +157,7 @@ class _GameScreenState extends State<GameScreen> {
                     playerCheckedIn: playerCheckedIn,
                   ),
                   const SizedBox(height: 6),
-                  // Fester Bereich für Checkout-Hinweis — Buttons verschieben sich nie
+                  // Fixed-height area for the checkout hint so buttons never shift
                   SizedBox(
                     height: 62,
                     child: AnimatedSwitcher(
