@@ -141,7 +141,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             },
             onAddPlayer: () => _showAddPlayerDialog(context),
           ),
-          // ── Legs & Sets (nur bei ≥2 Spielern) ─────────────────────────
+          // ── Legs & Sets (only with >=2 players) ─────────────────────────
           if (_selectedPlayers.length >= 2) ...[
             const SizedBox(height: 16),
             _Section(

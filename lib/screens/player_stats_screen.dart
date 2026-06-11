@@ -593,7 +593,7 @@ class _StatsBody extends StatelessWidget {
           _DartboardHeatmap(segmentHits: stats.segmentHits),
           const SizedBox(height: 14),
         ],
-        // ── Stabilität ───────────────────────────────────────────────────
+        // ── Stability ───────────────────────────────────────────────────
         if (stats.scoreStdDev > 0) ...[
           _SectionTitle(context.l10n.stability),
           const SizedBox(height: 6),

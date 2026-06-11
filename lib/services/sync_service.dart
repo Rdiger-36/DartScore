@@ -283,7 +283,7 @@ class SyncClient {
       final req = await client.getUrl(Uri.parse('http://$ip:$port/'));
       final res = await req.close().timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
-        throw Exception('Server antwortete mit ${res.statusCode}');
+        throw Exception('Server responded with ${res.statusCode}');
       }
       final body = await res.transform(utf8.decoder).join();
       return SyncPacket.fromJson(jsonDecode(body) as Map<String, dynamic>);
