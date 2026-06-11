@@ -4,6 +4,11 @@ import '../models/dart_throw.dart';
 
 // ── Sync throw ────────────────────────────────────────────────────────────────
 
+/// A single throw in the wire format exchanged during device-to-device sync.
+///
+/// This is a transport-only mirror of [DartThrow] without DB ids; [thrownAt]
+/// (ms since epoch) doubles as the deduplication key when merging on the
+/// receiving device.
 class SyncThrow {
   final int score;
   final int dartsUsed;
@@ -23,6 +28,7 @@ class SyncThrow {
     required this.set,
   });
 
+  /// Builds a transport throw from a stored [DartThrow].
   factory SyncThrow.fromDartThrow(DartThrow t) => SyncThrow(
         score: t.score,
         dartsUsed: t.dartsUsed,
@@ -33,6 +39,7 @@ class SyncThrow {
         set: t.set,
       );
 
+  /// Converts back to a storable [DartThrow] under the given game and player.
   DartThrow toDartThrow({required int gameId, required int playerId}) =>
       DartThrow(
         gameId: gameId,
@@ -46,6 +53,7 @@ class SyncThrow {
         set: set,
       );
 
+  /// Serializes this throw to its JSON wire representation.
   Map<String, dynamic> toJson() => {
         'score': score,
         'darts_used': dartsUsed,
@@ -56,6 +64,8 @@ class SyncThrow {
         'set': set,
       };
 
+  /// Parses a throw from JSON, tolerating bool-or-int `bust` encodings and
+  /// rejecting out-of-range values to guard against corrupt or malicious data.
   factory SyncThrow.fromJson(Map<String, dynamic> j) {
     final score          = j['score'] as int;
     final dartsUsed      = j['darts_used'] as int;
@@ -97,6 +107,8 @@ class SyncThrow {
 
 // ── Sync stats snapshot ───────────────────────────────────────────────────────
 
+/// Aggregate per-player statistics carried alongside the throws in a sync,
+/// so the receiver can display totals without recomputing from raw history.
 class SyncStats {
   final int totalDarts;
   final int totalVisits;
@@ -116,6 +128,7 @@ class SyncStats {
     required this.count180,
   });
 
+  /// Serializes these stats to their JSON wire representation.
   Map<String, dynamic> toJson() => {
         'total_darts': totalDarts,
         'total_visits': totalVisits,
@@ -126,6 +139,7 @@ class SyncStats {
         'count_180': count180,
       };
 
+  /// Parses stats from JSON, defaulting any missing field to zero.
   factory SyncStats.fromJson(Map<String, dynamic> j) => SyncStats(
         totalDarts: j['total_darts'] as int? ?? 0,
         totalVisits: j['total_visits'] as int? ?? 0,
@@ -139,6 +153,9 @@ class SyncStats {
 
 // ── Sync packet ───────────────────────────────────────────────────────────────
 
+/// The full payload transferred for one player during a sync: identity,
+/// favorite doubles, aggregate [stats], the list of [throws], and an optional
+/// full historical stats snapshot. [version] guards the wire format.
 class SyncPacket {
   final int version;
   final String senderDevice;
@@ -161,6 +178,7 @@ class SyncPacket {
     this.localStatsJson,
   });
 
+  /// Serializes this packet to its JSON wire representation.
   Map<String, dynamic> toJson() => {
         'version': version,
         'sender_device': senderDevice,
@@ -172,6 +190,7 @@ class SyncPacket {
         if (localStatsJson != null) 'local_stats_json': localStatsJson,
       };
 
+  /// Parses a packet from JSON, applying defaults for optional fields.
   factory SyncPacket.fromJson(Map<String, dynamic> j) => SyncPacket(
         version: j['version'] as int,
         senderDevice: j['sender_device'] as String? ?? 'Unknown',
@@ -189,12 +208,18 @@ class SyncPacket {
 
 // ── Server ────────────────────────────────────────────────────────────────────
 
+/// Hosts a one-shot local HTTP server that serves a [SyncPacket] as JSON to the
+/// peer device over the local network. The sender shows its IP/port (e.g. via
+/// QR) and the [SyncClient] on the other device fetches the payload.
 class SyncServer {
   HttpServer? _server;
   String? _payload;
 
+  /// Whether the server is currently bound and listening.
   bool get isRunning => _server != null;
 
+  /// Binds the server on a free port, serving [packet] as JSON, and returns the
+  /// local IP and chosen port for the peer to connect to.
   Future<(String ip, int port)> start(SyncPacket packet) async {
     _payload = jsonEncode(packet.toJson());
     _server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
@@ -203,6 +228,7 @@ class SyncServer {
     return (ip, _server!.port);
   }
 
+  /// Responds to every request with the stored JSON payload and permissive CORS.
   void _handle(HttpRequest req) {
     req.response
       ..statusCode = 200
@@ -212,12 +238,15 @@ class SyncServer {
       ..close();
   }
 
+  /// Stops the server and clears the cached payload.
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
     _payload = null;
   }
 
+  /// Best-effort lookup of the device's LAN IPv4 address, preferring `en*`
+  /// interfaces and falling back to loopback when none is found.
   static Future<String> _localIp() async {
     try {
       final interfaces = await NetworkInterface.list(
@@ -241,7 +270,11 @@ class SyncServer {
 
 // ── Client ────────────────────────────────────────────────────────────────────
 
+/// Fetches a [SyncPacket] from a peer device's [SyncServer] over the local network.
 class SyncClient {
+  /// Performs an HTTP GET against the peer at [ip]:[port] and decodes the
+  /// returned [SyncPacket]. Times out after 10 seconds and always closes the
+  /// underlying client.
   Future<SyncPacket> fetch(String ip, int port) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10)

@@ -5,6 +5,8 @@ import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
 
+/// Post-game summary for Shanghai: the winner and each player's final score,
+/// ranked.
 class ShanghaiSummaryScreen extends StatelessWidget {
   const ShanghaiSummaryScreen({super.key});
 

@@ -5,6 +5,8 @@ import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
 
+/// Post-game summary for Around the Clock: the winner plus each player's final
+/// progress and darts used, ranked by finish order.
 class AroundTheClockSummaryScreen extends StatelessWidget {
   const AroundTheClockSummaryScreen({super.key});
 

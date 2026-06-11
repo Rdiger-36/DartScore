@@ -1,5 +1,10 @@
 import 'dart:math';
 
+/// A dart player and the metadata needed for stats and cross-device sync.
+///
+/// Players are soft-deleted (see [isDeleted]) so historical games keep a valid
+/// reference. Each player carries a stable [uuid] used to match the same person
+/// across devices during QR sync, plus optional JSON stat snapshots.
 class Player {
   final int? id;
   final String name;
@@ -27,9 +32,11 @@ class Player {
   String? get favoriteDouble =>
       favoriteDoubles.isEmpty ? null : favoriteDoubles.split(',').first;
 
+  /// The favorite double as a single-element list, or empty when none is set.
   List<String> get favoriteDoublesList =>
       favoriteDouble != null ? [favoriteDouble!] : [];
 
+  /// Returns a copy with the given fields replaced; [uuid] is always preserved.
   Player copyWith({
     int? id,
     String? name,
@@ -52,6 +59,7 @@ class Player {
         localStatsJson: localStatsJson ?? this.localStatsJson,
       );
 
+  /// Serializes this player to a row map for the SQLite `players` table.
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
@@ -64,6 +72,8 @@ class Player {
         'local_stats_json': localStatsJson,
       };
 
+  /// Reconstructs a player from a SQLite row map, applying defaults for any
+  /// columns added in later schema migrations.
   factory Player.fromMap(Map<String, dynamic> map) => Player(
         id: map['id'] as int?,
         name: map['name'] as String,
@@ -76,6 +86,7 @@ class Player {
         localStatsJson: map['local_stats_json'] as String?,
       );
 
+  /// Generates a random RFC 4122 version-4 UUID using a secure RNG.
   static String _newUuid() {
     final rng = Random.secure();
     final bytes = List<int>.generate(16, (_) => rng.nextInt(256));

@@ -5,6 +5,8 @@ import '../models/player.dart';
 
 // ── ShanghaiPlayerState ───────────────────────────────────────────────────────
 
+/// Immutable Shanghai state for one player: their score plus, in the sequential
+/// variant, the target they are working toward and when they completed it.
 class ShanghaiPlayerState {
   final String displayName;
   final Player player;
@@ -22,6 +24,7 @@ class ShanghaiPlayerState {
     this.finishedAtDart,
   });
 
+  /// Returns a copy with score/progress/finish replaced; identity is preserved.
   ShanghaiPlayerState copyWith({
     int? score,
     int? progress,
@@ -44,6 +47,13 @@ const int _sequentialMaxTarget = 20;
 
 // ── ShanghaiProvider ──────────────────────────────────────────────────────────
 
+/// Active-game state machine for Shanghai (classic, clockwise, sequential).
+///
+/// Records darts into a per-visit buffer, scores `multiplier x target`, and
+/// detects both score-based wins and the instant-win "Shanghai" (single + double
+/// + triple, or three consecutive targets). With two players a Shanghai can be
+/// voided by the opponent matching it on the next visit, hence
+/// [pendingShanghaiIdx]. Every dart is persisted; undo replays the rest.
 class ShanghaiProvider extends ChangeNotifier {
   final DbHelper _db = DbHelper.instance;
 
@@ -78,6 +88,7 @@ class ShanghaiProvider extends ChangeNotifier {
   /// next player also throws a Shanghai), or null if none is pending.
   int? get pendingShanghaiIdx => _pendingShanghaiIdx;
 
+  /// The active game's rule variant.
   ShanghaiVariant get _variant => _game!.variant;
 
   /// The number the next dart in the current visit aims at.
@@ -92,6 +103,7 @@ class ShanghaiProvider extends ChangeNotifier {
     }
   }
 
+  /// The highest target number reached in the active variant.
   int get maxTarget {
     switch (_variant) {
       case ShanghaiVariant.classic:
@@ -103,6 +115,7 @@ class ShanghaiProvider extends ChangeNotifier {
     }
   }
 
+  /// Maximum darts in a single visit (7 for clockwise, otherwise 3).
   int get visitDartLimit => _variant == ShanghaiVariant.clockwise ? _clockwiseMaxTarget : 3;
 
   // ── Shanghai hint ──────────────────────────────────────────────────────────
@@ -150,6 +163,8 @@ class ShanghaiProvider extends ChangeNotifier {
 
   // ── Resume / Start ─────────────────────────────────────────────────────────
 
+  /// Restores an in-progress Shanghai game and rebuilds scores/turn state by
+  /// replaying all stored darts.
   Future<void> resumeGame(ShanghaiGame game, List<Player> players) async {
     _game = game;
     _resetPlayerStates(players);
@@ -164,6 +179,8 @@ class ShanghaiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Starts a new Shanghai game: persists it, builds fresh zeroed player states,
+  /// and resets the visit buffer and history.
   Future<void> startGame(ShanghaiGame game, List<Player> players) async {
     final gameId = await _db.insertShanghaiGame(game);
     _game = ShanghaiGame(
@@ -186,6 +203,7 @@ class ShanghaiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces all player states with fresh zero-score states for [players].
   void _resetPlayerStates(List<Player> players) {
     _playerStates = players
         .map((p) => ShanghaiPlayerState(displayName: p.name, player: p, score: 0))
@@ -234,6 +252,9 @@ class ShanghaiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Applies one scoring dart to [playerIdx]: adds its points and, in the
+  /// sequential variant, advances progress and records the finishing dart when
+  /// the final target is completed.
   void _applyDart(int playerIdx, ShanghaiThrow t) {
     final state = _playerStates[playerIdx];
     final points = t.multiplier * t.target;
@@ -253,12 +274,15 @@ class ShanghaiProvider extends ChangeNotifier {
 
   // ── Visit completion ───────────────────────────────────────────────────────
 
+  /// Ends the visit if it is complete; otherwise does nothing.
   Future<void> _maybeEndVisit() async {
     final visitComplete = _isVisitComplete();
     if (!visitComplete) return;
     await _endVisit();
   }
 
+  /// Whether the current visit is over (dart limit reached, or the sequential
+  /// player has completed the final target).
   bool _isVisitComplete() {
     if (_visitBuffer.length >= visitDartLimit) return true;
     if (_variant == ShanghaiVariant.sequential &&
@@ -268,6 +292,9 @@ class ShanghaiProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Resolves the completed visit: handles instant Shanghai wins (with the
+  /// two-player void/confirm rule), sequential outright wins, and end-of-game
+  /// score decisions, then advances the turn.
   Future<void> _endVisit() async {
     final visitDarts = List<ShanghaiThrow>.of(_visitBuffer);
     _visitBuffer.clear();
@@ -325,6 +352,8 @@ class ShanghaiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether [visitDarts] form a Shanghai: same target hit as single+double+
+  /// triple (classic) or three consecutive targets hit (clockwise/sequential).
   bool _isShanghai(List<ShanghaiThrow> visitDarts, int playerIdx) {
     final hits = visitDarts.where((d) => !d.isMiss).toList();
     switch (_variant) {
@@ -355,6 +384,8 @@ class ShanghaiProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Whether the final scheduled visit of the game has just been played (after
+  /// which the winner is decided by score). Sequential never ends this way.
   bool _isGameComplete() {
     switch (_variant) {
       case ShanghaiVariant.classic:
@@ -368,6 +399,8 @@ class ShanghaiProvider extends ChangeNotifier {
     }
   }
 
+  /// Advances to the next player, incrementing the round after the last player
+  /// in the classic variant.
   void _advanceTurn() {
     final isLastPlayer = _currentPlayerIndex == _playerStates.length - 1;
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
@@ -385,6 +418,7 @@ class ShanghaiProvider extends ChangeNotifier {
     return leaders.length == 1 ? leaders.first.$1 : null;
   }
 
+  /// Marks the game over with [playerIdx] as the winner and persists the finish time.
   Future<void> _handleWin(int playerIdx) async {
     _gameOver = true;
     _winnerId = _playerStates[playerIdx].player.id;
@@ -394,6 +428,8 @@ class ShanghaiProvider extends ChangeNotifier {
 
   // ── Undo ───────────────────────────────────────────────────────────────────
 
+  /// Undoes the last dart: deletes it from the database and replays the
+  /// remaining darts to rebuild scores and turn state.
   Future<void> undoLastDart() async {
     if (_game == null || _throwHistory.isEmpty) return;
 
@@ -408,6 +444,8 @@ class ShanghaiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rebuilds the full game state from the persisted darts: zeroes scores and
+  /// turn counters, then replays every dart, ending visits via [_replayEndVisit].
   Future<void> _replayState() async {
     if (_game == null) return;
 

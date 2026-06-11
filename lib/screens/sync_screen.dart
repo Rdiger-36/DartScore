@@ -11,6 +11,8 @@ import '../models/player.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
 
+/// How to resolve a name clash when importing a synced player: reuse the
+/// existing local player.
 enum _NameResolution { useExisting }
 
 /// Builds a [SyncPacket] for [player] using all live throws plus the
@@ -81,6 +83,8 @@ Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
 // Prefix that marks a QR code as containing embedded data (not IP:port).
 const _kQrPrefix = 'QR1:';
 
+/// QR/Wi-Fi device-to-device sync screen with Send and Receive tabs for
+/// transferring a player's stats between devices.
 class SyncScreen extends StatefulWidget {
   final Player? initialPlayer;
   const SyncScreen({super.key, this.initialPlayer});
@@ -150,8 +154,11 @@ class _SyncScreenState extends State<SyncScreen>
 
 // ── Sender ────────────────────────────────────────────────────────────────────
 
+/// Transfer method on the sender side: a single quick QR code, or a Wi-Fi
+/// HTTP transfer for larger payloads.
 enum _SenderMode { quickQr, wifi }
 
+/// Send tab: pick a player and share their stats as a QR code or over Wi-Fi.
 class _SenderTab extends StatefulWidget {
   final Player? initialPlayer;
   const _SenderTab({this.initialPlayer});
@@ -196,6 +203,8 @@ class _SenderTabState extends State<_SenderTab> {
 
   // ── Quick QR ──────────────────────────────────────────────────────────────
 
+  /// Builds the selected player's sync packet and encodes it as a QR code,
+  /// flagging when the payload is too large for a single QR.
   Future<void> _generateQuickQr() async {
     if (_selectedPlayer == null) return;
     setState(() {
@@ -225,6 +234,8 @@ class _SenderTabState extends State<_SenderTab> {
 
   // ── WiFi Sync ─────────────────────────────────────────────────────────────
 
+  /// Starts the local HTTP server serving the player's packet and shows its
+  /// IP/port (as a connection QR) for the receiver.
   Future<void> _startWifi() async {
     if (_selectedPlayer == null) return;
     setState(() => _wifiStarting = true);
@@ -241,6 +252,7 @@ class _SenderTabState extends State<_SenderTab> {
     setState(() { _ip = ip; _port = port; _wifiStarting = false; });
   }
 
+  /// Stops the Wi-Fi transfer server and clears its connection details.
   Future<void> _stopWifi() async {
     await _server.stop();
     setState(() { _ip = null; _port = null; });
@@ -248,6 +260,8 @@ class _SenderTabState extends State<_SenderTab> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  /// Handles selecting a different player to send: stops any running server,
+  /// resets to quick-QR mode, and regenerates the QR.
   void _onPlayerChanged(Player? p) async {
     if (_server.isRunning) await _server.stop();
     setState(() {
@@ -261,6 +275,7 @@ class _SenderTabState extends State<_SenderTab> {
     if (p != null) _generateQuickQr();
   }
 
+  /// Switches between quick-QR and Wi-Fi transfer modes, preparing the new mode.
   void _onModeChanged(_SenderMode mode) {
     if (mode == _mode) return;
     setState(() {
@@ -345,6 +360,7 @@ class _SenderTabState extends State<_SenderTab> {
     );
   }
 
+  /// Builds the quick-QR mode UI (the QR code or a too-large fallback message).
   Widget _buildQuickQrContent(AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (_selectedPlayer == null) return const SizedBox.shrink();
 
@@ -469,6 +485,7 @@ class _SenderTabState extends State<_SenderTab> {
     );
   }
 
+  /// Builds the Wi-Fi mode UI (start/stop server and the connection QR).
   Widget _buildWifiContent(AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (!_server.isRunning) {
       return FilledButton.icon(
@@ -543,6 +560,8 @@ class _SenderTabState extends State<_SenderTab> {
 
 // ── Receiver ──────────────────────────────────────────────────────────────────
 
+/// Receive tab: scans a QR code (or connects over Wi-Fi) to import a player's
+/// synced stats, resolving name conflicts and confirming before importing.
 class _ReceiverTab extends StatefulWidget {
   const _ReceiverTab();
 
@@ -605,6 +624,8 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     );
   }
 
+  /// Handles a scanned QR payload: decodes an embedded quick-QR packet directly,
+  /// or connects over Wi-Fi to fetch the packet, then hands it to [_handlePacket].
   void _onScanned(String raw) async {
     setState(() { _scanning = false; _fetching = true; _error = null; });
 
@@ -686,6 +707,8 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         throws: p.throws,
       );
 
+  /// Prompts the user to resolve a same-name conflict (merge into the existing
+  /// player or import under a different name), returning their choice.
   Future<Object?> _showNameConflictDialog(
       SyncPacket packet, Player sameNamePlayer) async {
     final nameCtrl =
@@ -738,6 +761,8 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     );
   }
 
+  /// Shows a confirmation dialog summarizing the incoming stats; returns whether
+  /// the user approved the import.
   Future<bool> _showConfirmDialog(
       SyncPacket packet, Player? existing) async {
     final result = await showDialog<bool>(
@@ -747,6 +772,8 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     return result == true;
   }
 
+  /// Persists the incoming packet: updates the existing player or creates a new
+  /// one, storing the received stats snapshot, and shows a result message.
   Future<void> _doImport(SyncPacket packet, Player? existing) async {
     final provider  = context.read<PlayersProvider>();
     final messenger = ScaffoldMessenger.of(context);
@@ -832,6 +859,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
 
 // ── Confirmation dialog ───────────────────────────────────────────────────────
 
+/// Dialog summarizing an incoming sync packet's stats and asking to confirm import.
 class _ConfirmDialog extends StatelessWidget {
   final SyncPacket packet;
   final Player? existing;
@@ -922,6 +950,7 @@ class _ConfirmDialog extends StatelessWidget {
   }
 }
 
+/// A label/value line in the import confirmation dialog.
 class _StatLine extends StatelessWidget {
   final String label;
   final String value;
@@ -948,6 +977,7 @@ class _StatLine extends StatelessWidget {
 
 // ── QR Scanner ────────────────────────────────────────────────────────────────
 
+/// Camera QR scanner that reports the first decoded payload via a callback.
 class _QrScanner extends StatefulWidget {
   final void Function(String) onScanned;
   const _QrScanner({required this.onScanned});

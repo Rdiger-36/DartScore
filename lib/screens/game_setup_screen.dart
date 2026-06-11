@@ -10,6 +10,8 @@ import '../widgets/player_dialog.dart';
 import 'game_screen.dart';
 import '../utils/layout.dart';
 
+/// Setup screen for an X01 game: start score, in/out modes, legs/sets, player
+/// selection, and optional per-player handicaps or team configuration.
 class GameSetupScreen extends StatefulWidget {
   const GameSetupScreen({super.key});
 
@@ -38,6 +40,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     TextEditingController(text: 'Team 2'),
   ];
 
+  /// Adds a new, default-named team.
   void _addTeam() {
     setState(() {
       final idx = _teamNames.length + 1;
@@ -46,6 +49,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     });
   }
 
+  /// Removes team [ti] (minimum two teams kept) and reassigns its players,
+  /// shifting higher team indices down.
   void _removeTeam(int ti) {
     if (_teamNames.length <= 2) return;
     setState(() {
@@ -282,6 +287,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     );
   }
 
+  /// Opens the create-player dialog and adds the new player to the selection.
   void _showAddPlayerDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -297,6 +303,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     );
   }
 
+  /// Builds the game from the chosen settings (including team and handicap
+  /// config), shuffles the player order, starts it, and opens the play screen.
   Future<void> _startGame() async {
     final isSolo = _selectedPlayers.length == 1;
     final game = Game(
@@ -354,6 +362,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   }
 }
 
+/// A titled card grouping a block of setup options.
 class _Section extends StatelessWidget {
   final String title;
   final Widget child;
@@ -385,6 +394,7 @@ class _Section extends StatelessWidget {
 
 // ── Players section ───────────────────────────────────────────────────────────
 
+/// Player picker listing all players with selection toggles and an add button.
 class _PlayersSection extends StatelessWidget {
   final List<Player> allPlayers;
   final List<Player> selectedPlayers;
@@ -459,6 +469,7 @@ class _PlayersSection extends StatelessWidget {
   }
 }
 
+/// A labeled +/- stepper for an integer value clamped to [min]..[max].
 class _Stepper extends StatelessWidget {
   final String label;
   final int value;
@@ -504,6 +515,8 @@ class _Stepper extends StatelessWidget {
 
 // ── Handicap section ──────────────────────────────────────────────────────────
 
+/// Optional section to set per-player check-in/check-out handicaps that override
+/// the game-wide modes.
 class _HandicapSection extends StatelessWidget {
   final bool enabled;
   final List<Player> players;
@@ -632,6 +645,7 @@ class _HandicapSection extends StatelessWidget {
   }
 }
 
+/// A labeled dropdown over [(value, label)] pairs, used for the in/out modes.
 class _ModeDropdown<T> extends StatelessWidget {
   final String label;
   final T value;
@@ -679,6 +693,8 @@ class _ModeDropdown<T> extends StatelessWidget {
 
 // ── Team section ──────────────────────────────────────────────────────────────
 
+/// Optional section to enable team play, name teams, add/remove them, and assign
+/// each selected player to a team.
 class _TeamSection extends StatelessWidget {
   final bool enabled;
   final List<Player> players;
@@ -713,6 +729,7 @@ class _TeamSection extends StatelessWidget {
     Color(0xFF00695C), // teal
   ];
 
+  /// The accent color for team [ti], cycling through the palette.
   Color _teamColor(int ti) => _teamColors[ti % _teamColors.length];
 
   @override

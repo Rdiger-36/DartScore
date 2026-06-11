@@ -10,6 +10,8 @@ import '../widgets/player_dialog.dart';
 import '../utils/layout.dart';
 import 'cricket_screen.dart';
 
+/// Setup screen for Cricket: pick the variant and scoring mode and the players,
+/// then start the game.
 class CricketSetupScreen extends StatefulWidget {
   const CricketSetupScreen({super.key});
 
@@ -150,6 +152,7 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
     );
   }
 
+  /// Opens the create-player dialog and adds the new player to the selection.
   void _showAddPlayerDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -165,6 +168,7 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
     );
   }
 
+  /// Builds the game with a randomized player order and navigates to the play screen.
   Future<void> _startGame() async {
     final players = List.of(_selectedPlayers)..shuffle(Random());
     final game = CricketGame(
@@ -189,6 +193,7 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
 
 // ── Shared helper widgets (mirrors game_setup_screen.dart) ────────────────────
 
+/// A titled card grouping a block of setup options.
 class _Section extends StatelessWidget {
   final String title;
   final Widget child;
@@ -216,6 +221,7 @@ class _Section extends StatelessWidget {
   }
 }
 
+/// Player picker listing all players with selection toggles and an add button.
 class _PlayersSection extends StatelessWidget {
   final List<Player> allPlayers;
   final List<Player> selectedPlayers;

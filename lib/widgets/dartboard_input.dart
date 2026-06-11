@@ -3,6 +3,8 @@ import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../utils/triple_color.dart';
 
+/// A single dart entered on the board input: which [field] was hit, the
+/// [modifier] (single/double/triple) and the resulting [score].
 class DartEntry {
   final int field;    // 1-20, 25=bull, 0=miss
   final int modifier; // 1=single, 2=double, 3=triple
@@ -10,6 +12,7 @@ class DartEntry {
 
   const DartEntry({required this.field, required this.modifier, required this.score});
 
+  /// Short notation for this dart, e.g. `T20`, `D16`, `Bull`, `25` or `Miss`.
   String get label {
     if (field == 0) return 'Miss';
     if (field == 25) return modifier == 2 ? 'Bull' : '25';
@@ -18,6 +21,11 @@ class DartEntry {
   }
 }
 
+/// Dartboard-style score entry for X01: a number grid plus single/double/triple
+/// modifier, miss and bull. Manages a per-visit buffer of up to three darts with
+/// intra-visit undo/redo, enforces check-in/check-out rules, and detects busts.
+/// Reports live updates via [onScoreUpdate] and the finished visit via
+/// [onVisitComplete].
 class DartboardInput extends StatefulWidget {
   final int remaining;
   final CheckoutMode checkoutMode;
@@ -68,6 +76,8 @@ class _DartboardInputState extends State<DartboardInput> {
   bool get _requiresCheckIn => _isDoubleIn || _isMasterIn;
   bool get _isCheckedIn => widget.hasCheckedIn || _checkedInThisVisit;
 
+  /// Reports the current running remaining and bust state to the parent after
+  /// each dart, undo, or redo.
   void _notify() {
     // Remaining 1 is unfinishable in double/master-out (no D/T = 1).
     // Only valid if the player is actually in scoring state (checked in).
@@ -79,6 +89,9 @@ class _DartboardInputState extends State<DartboardInput> {
         bust ? widget.remaining : _runningRemaining, bust, _darts.length, _checkedInThisVisit);
   }
 
+  /// Registers a tap on [field] (0=miss, 25=bull) with the active modifier:
+  /// computes the score, enforces check-in, detects checkout/bust, and ends the
+  /// visit when three darts are thrown or the leg is decided.
   void _tapField(int field) {
     if (_darts.length >= 3) return;
     final mod = _modifier;
@@ -175,6 +188,7 @@ class _DartboardInputState extends State<DartboardInput> {
     });
   }
 
+  /// Removes the last dart of the current visit and updates check-in state.
   void _undo() {
     if (_darts.isEmpty) return;
     setState(() {
@@ -184,6 +198,7 @@ class _DartboardInputState extends State<DartboardInput> {
     _notify();
   }
 
+  /// Re-adds the most recently undone dart and updates check-in state.
   void _redo() {
     if (_redoStack.isEmpty) return;
     setState(() {
@@ -193,6 +208,7 @@ class _DartboardInputState extends State<DartboardInput> {
     _notify();
   }
 
+  /// Ends the visit early (before three darts) with the score thrown so far.
   void _finishEarly() {
     if (_darts.isEmpty) return;
     final dartsUsed = _darts.length;
@@ -347,6 +363,7 @@ class _DartboardInputState extends State<DartboardInput> {
 
 // ── Dart progress row ────────────────────────────────────────────────────────
 
+/// The three-dart progress strip with undo/redo buttons shown above the grid.
 class _DartProgressRow extends StatelessWidget {
   final List<DartEntry> darts;
   final bool isNegative;
@@ -414,6 +431,7 @@ class _DartProgressRow extends StatelessWidget {
   }
 }
 
+/// A small undo or redo icon button, dimmed when disabled.
 class _UndoRedoBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
@@ -450,6 +468,8 @@ class _UndoRedoBtn extends StatelessWidget {
 
 // ── Dart slot ────────────────────────────────────────────────────────────────
 
+/// One of the three dart slots in the progress strip, showing the thrown dart's
+/// label and points or a placeholder for the active/empty slot.
 class _DartSlot extends StatelessWidget {
   final int index;
   final DartEntry? entry;
@@ -502,6 +522,8 @@ class _DartSlot extends StatelessWidget {
 
 // ── Field button ─────────────────────────────────────────────────────────────
 
+/// A single number button (1-20) in the grid, colored by the active modifier
+/// and showing the resulting score for doubles/triples.
 class _FieldButton extends StatelessWidget {
   final int field;
   final int modifier;
@@ -517,6 +539,7 @@ class _FieldButton extends StatelessWidget {
     required this.onTap,
   });
 
+  /// Background color for the current modifier and disabled state.
   Color _bg(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (disabled) return cs.surfaceContainerLow;
@@ -527,6 +550,7 @@ class _FieldButton extends StatelessWidget {
     };
   }
 
+  /// Foreground color for the current modifier and disabled state.
   Color _fg(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (disabled) return cs.onSurface.withValues(alpha: 0.35);
@@ -590,6 +614,7 @@ class _FieldButton extends StatelessWidget {
 
 // ── Action button ─────────────────────────────────────────────────────────────
 
+/// A labeled icon button used for the Miss / Bull / Done row below the grid.
 class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;

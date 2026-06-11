@@ -11,6 +11,8 @@ import '../models/dart_throw.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 
+/// Post-game summary for X01: winner, per-player/team stats and throw history,
+/// with options to save or share the result card as an image.
 class GameSummaryScreen extends StatefulWidget {
   const GameSummaryScreen({super.key});
 
@@ -22,6 +24,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
   final _cardKey = GlobalKey();
   bool _saving = false;
 
+  /// Rasterizes the result card widget to a high-resolution image.
   Future<ui.Image> _renderCard() async {
     final ctx = _cardKey.currentContext;
     if (ctx == null) throw StateError('Card widget is not mounted');
@@ -29,6 +32,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     return boundary.toImage(pixelRatio: 3.0);
   }
 
+  /// Renders the result card and saves it to the device photo gallery.
   Future<void> _saveToPhotos() async {
     setState(() => _saving = true);
     try {
@@ -50,6 +54,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     }
   }
 
+  /// Renders the result card to a temporary PNG and opens the share sheet.
   Future<void> _shareCard() async {
     setState(() => _saving = true);
     final shareSubject = context.l10n.shareSubject;
@@ -235,6 +240,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
 
 // ── Team summary card ─────────────────────────────────────────────────────────
 
+/// Summary card for one team: members, legs/sets won, and combined stats.
 class _TeamSummaryCard extends StatelessWidget {
   final PlayerState state;
   const _TeamSummaryCard({required this.state});
@@ -351,6 +357,8 @@ class _TeamSummaryCard extends StatelessWidget {
 
 // ── Individual summary card ───────────────────────────────────────────────────
 
+/// Summary card for one player: legs/sets won and key stats (darts, visits,
+/// average, highest visit, busts).
 class _PlayerSummaryCard extends StatelessWidget {
   final PlayerState state;
 
@@ -408,6 +416,7 @@ class _PlayerSummaryCard extends StatelessWidget {
   }
 }
 
+/// A label/value row in a summary card's stats list.
 class _StatRow extends StatelessWidget {
   final String label;
   final String value;
@@ -435,6 +444,7 @@ class _StatRow extends StatelessWidget {
   }
 }
 
+/// A single row in the throw history: the visit's score and resulting remaining.
 class _ThrowRow extends StatelessWidget {
   final DartThrow t;
   final String playerName;

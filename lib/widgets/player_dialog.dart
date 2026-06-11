@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 
+/// Modal dialog to create or edit a player: name, favorite double, and (when
+/// editing) the option to make them the primary profile or delete them.
+/// Validates that the name is non-empty, unique, and a favorite double is set.
 class PlayerDialog extends StatefulWidget {
   final String? initialName;
   final String? initialDouble;
@@ -194,10 +197,14 @@ class _PlayerDialogState extends State<PlayerDialog> {
     );
   }
 
+  /// Handles a save tap while the form is invalid by surfacing the missing-
+  /// favorite-double error.
   void _onSaveAttempt() {
     setState(() => _showDoubleError = _selectedDouble == null);
   }
 
+  /// Validates the input and, if valid, invokes [onSave] (and [onSetPrimary]
+  /// when newly promoted) and closes the dialog; otherwise shows field errors.
   void _save() {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty || _selectedDouble == null) {

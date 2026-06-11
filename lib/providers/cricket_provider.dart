@@ -5,6 +5,7 @@ import '../models/player.dart';
 
 // ── CricketPlayerState ────────────────────────────────────────────────────────
 
+/// Immutable Cricket state for one player: their marks per field and total score.
 class CricketPlayerState {
   final String displayName;
   final Player player;
@@ -19,10 +20,13 @@ class CricketPlayerState {
     required this.score,
   });
 
+  /// Whether this player has closed [field] (three or more marks).
   bool hasClosedField(int field) => (marks[field] ?? 0) >= 3;
 
+  /// Whether this player has closed every Cricket field.
   bool get hasClosedAll => cricketFields.every(hasClosedField);
 
+  /// Returns a copy with marks and/or score replaced; identity is preserved.
   CricketPlayerState copyWith({
     Map<int, int>? marks,
     int? score,
@@ -37,6 +41,12 @@ class CricketPlayerState {
 
 // ── CricketProvider ────────────────────────────────────────────────────────────
 
+/// Active-game state machine for Cricket (normal and cut-throat).
+///
+/// Records darts one at a time into a three-dart visit buffer, applies marks and
+/// scoring, and detects a win as soon as a player closes their last field while
+/// ahead (or via score once all fields are closed). Every dart is persisted, so
+/// undo simply deletes the last throw and replays the remaining ones.
 class CricketProvider extends ChangeNotifier {
   final DbHelper _db = DbHelper.instance;
 
@@ -64,6 +74,8 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Resume ────────────────────────────────────────────────────────────────
 
+  /// Restores an in-progress Cricket game and rebuilds marks/scores by
+  /// replaying all stored darts.
   Future<void> resumeGame(CricketGame game, List<Player> players) async {
     _game = game;
     _playerStates = players.map((p) => CricketPlayerState(
@@ -83,6 +95,8 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Start ──────────────────────────────────────────────────────────────────
 
+  /// Starts a new Cricket game: persists it, builds fresh zeroed player states,
+  /// and resets the visit buffer and history.
   Future<void> startGame(CricketGame game, List<Player> players) async {
     final gameId = await _db.insertCricketGame(game);
     _game = game.copyWith(); // captures the inserted ID via fromMap below
@@ -164,6 +178,9 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Apply dart to state ────────────────────────────────────────────────────
 
+  /// Applies one scoring dart to [playerIdx]: adds marks toward closing [field]
+  /// and awards points for any marks beyond closing, routing points to the
+  /// player (normal) or to opponents who have not closed the field (cut-throat).
   void _applyDart(int playerIdx, int field, int multiplier) {
     final state  = _playerStates[playerIdx];
     final isCutThroat = _game!.variant == CricketVariant.cutThroat;
@@ -215,6 +232,8 @@ class CricketProvider extends ChangeNotifier {
 
   // ── End of visit ──────────────────────────────────────────────────────────
 
+  /// Ends the current three-dart visit: resolves a score-based win if everyone
+  /// has closed all fields, otherwise advances to the next player.
   Future<void> _endVisit() async {
     _visitBuffer.clear();
 
@@ -232,6 +251,8 @@ class CricketProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether [playerIdx] has won: all fields closed and a non-losing score
+  /// (highest in normal, lowest in cut-throat).
   bool _checkWin(int playerIdx) {
     final state = _playerStates[playerIdx];
     if (!state.hasClosedAll) return false;
@@ -262,6 +283,7 @@ class CricketProvider extends ChangeNotifier {
     return best;
   }
 
+  /// Marks the game over with [playerIdx] as the winner and persists the finish time.
   Future<void> _handleWin(int playerIdx) async {
     _gameOver = true;
     _winnerId = _playerStates[playerIdx].player.id;
@@ -271,6 +293,8 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Undo ───────────────────────────────────────────────────────────────────
 
+  /// Undoes the last dart: deletes it from the database, un-finishes the game if
+  /// it was the winning dart, and replays the remaining darts to rebuild state.
   Future<void> undoLastDart() async {
     if (_game == null || _throwHistory.isEmpty) return;
 
@@ -307,6 +331,9 @@ class CricketProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rebuilds all player states from the persisted darts: zeroes marks/scores,
+  /// replays every dart chronologically, then restores the current player and
+  /// the in-progress visit buffer.
   Future<void> _replayState() async {
     if (_game == null) return;
 
