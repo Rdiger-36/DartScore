@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'team_config.dart';
+
+export 'team_config.dart';
 
 /// Cricket rule variant: [normal] (close fields and score) or [cutThroat]
 /// (points are added to opponents instead of yourself).
@@ -25,6 +28,8 @@ class CricketGame {
   final DateTime createdAt;
   final DateTime? finishedAt;
   final List<int> playerIds;
+  /// Non-null when this is a team game.
+  final List<TeamConfig>? teams;
 
   const CricketGame({
     this.id,
@@ -35,7 +40,11 @@ class CricketGame {
     required this.createdAt,
     this.finishedAt,
     required this.playerIds,
+    this.teams,
   });
+
+  /// Whether this game is played in teams rather than individually.
+  bool get isTeamGame => teams != null && teams!.isNotEmpty;
 
   /// Serializes this game to a row map for the SQLite `cricket_games` table.
   Map<String, dynamic> toMap() => {
@@ -47,6 +56,7 @@ class CricketGame {
         'created_at':   createdAt.millisecondsSinceEpoch,
         'finished_at':  finishedAt?.millisecondsSinceEpoch,
         'player_ids':   jsonEncode(playerIds),
+        'team_config_json': encodeTeamConfigs(teams),
       };
 
   /// Reconstructs a Cricket game from a SQLite row map.
@@ -61,6 +71,7 @@ class CricketGame {
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
             : null,
         playerIds:   (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
+        teams:       decodeTeamConfigs(map['team_config_json'] as String?),
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -73,6 +84,7 @@ class CricketGame {
         createdAt:   createdAt,
         finishedAt:  finishedAt ?? this.finishedAt,
         playerIds:   playerIds,
+        teams:       teams,
       );
 }
 
