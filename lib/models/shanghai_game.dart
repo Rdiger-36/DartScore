@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'team_config.dart';
+
+export 'team_config.dart';
 
 /// Shanghai target progression: [classic] (numbers 1-7), [clockwise] (full
 /// board order) or [sequential] (advance only after hitting the current target).
@@ -14,6 +17,8 @@ class ShanghaiGame {
   final DateTime createdAt;
   final DateTime? finishedAt;
   final List<int> playerIds;
+  /// Non-null when this is a team game.
+  final List<TeamConfig>? teams;
 
   const ShanghaiGame({
     this.id,
@@ -23,7 +28,11 @@ class ShanghaiGame {
     required this.createdAt,
     this.finishedAt,
     required this.playerIds,
+    this.teams,
   });
+
+  /// Whether this game is played in teams rather than individually.
+  bool get isTeamGame => teams != null && teams!.isNotEmpty;
 
   /// Serializes this game to a row map for the SQLite `shanghai_games` table.
   Map<String, dynamic> toMap() => {
@@ -34,6 +43,7 @@ class ShanghaiGame {
         'created_at':  createdAt.millisecondsSinceEpoch,
         'finished_at': finishedAt?.millisecondsSinceEpoch,
         'player_ids':  jsonEncode(playerIds),
+        'team_config_json': encodeTeamConfigs(teams),
       };
 
   /// Reconstructs a Shanghai game from a SQLite row map.
@@ -47,6 +57,7 @@ class ShanghaiGame {
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
             : null,
         playerIds:  (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
+        teams:      decodeTeamConfigs(map['team_config_json'] as String?),
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -58,6 +69,7 @@ class ShanghaiGame {
         createdAt:  createdAt,
         finishedAt: finishedAt ?? this.finishedAt,
         playerIds:  playerIds,
+        teams:      teams,
       );
 }
 
