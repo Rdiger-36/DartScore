@@ -5,34 +5,55 @@ import '../models/player.dart';
 
 // ── ShanghaiPlayerState ───────────────────────────────────────────────────────
 
-/// Immutable Shanghai state for one player: their score plus, in the sequential
-/// variant, the target they are working toward and when they completed it.
+/// Immutable Shanghai state for one scoreboard slot: their score plus, in the
+/// sequential variant, the target they are working toward and when they
+/// completed it.
+///
+/// A slot is either a single player or a whole team. For teams, [players]
+/// holds every member and [currentPlayerIdx] tracks whose turn it is within
+/// the team; score and (in the sequential variant) progress are shared by the
+/// whole team, relay-style. [displayName] is the team or player name shown on
+/// the scoreboard.
 class ShanghaiPlayerState {
   final String displayName;
-  final Player player;
+  /// All players in this slot — 1 for individual, N for team.
+  final List<Player> players;
+  /// Which player in [players] throws NEXT (rotates after each team visit).
+  final int currentPlayerIdx;
+  /// Whether this slot represents a team rather than a single player.
+  final bool isTeamSlot;
   final int score;
-  /// Sequential variant only: the number this player is currently aiming for (1-20).
+  /// Sequential variant only: the number this slot is currently aiming for (1-20).
   final int progress;
-  /// Sequential variant only: total darts thrown once the player completed target 20.
+  /// Sequential variant only: total darts thrown once the slot completed target 20.
   final int? finishedAtDart;
 
   const ShanghaiPlayerState({
     required this.displayName,
-    required this.player,
+    required this.players,
+    this.currentPlayerIdx = 0,
+    this.isTeamSlot = false,
     required this.score,
     this.progress = 1,
     this.finishedAtDart,
   });
 
-  /// Returns a copy with score/progress/finish replaced; identity is preserved.
+  /// The player who throws next (backward-compatible accessor).
+  Player get player => players[currentPlayerIdx];
+
+  /// Returns a copy with score/progress/finish/active player replaced;
+  /// identity is preserved.
   ShanghaiPlayerState copyWith({
     int? score,
     int? progress,
     int? finishedAtDart,
+    int? currentPlayerIdx,
   }) =>
       ShanghaiPlayerState(
         displayName: displayName,
-        player: player,
+        players: players,
+        currentPlayerIdx: currentPlayerIdx ?? this.currentPlayerIdx,
+        isTeamSlot: isTeamSlot,
         score: score ?? this.score,
         progress: progress ?? this.progress,
         finishedAtDart: finishedAtDart ?? this.finishedAtDart,
@@ -161,13 +182,38 @@ class ShanghaiProvider extends ChangeNotifier {
     return needed <= remaining ? needed : null;
   }
 
+  // ── Slot construction ────────────────────────────────────────────────────
+
+  /// Builds one scoreboard slot per team (if [teams] is set) or one slot per
+  /// player (individual game), each with zero score and fresh progress.
+  List<ShanghaiPlayerState> _buildSlots(List<Player> players, List<TeamConfig>? teams) {
+    if (teams != null && teams.isNotEmpty) {
+      return teams.map((team) {
+        final teamPlayers = team.playerIds
+            .map((id) => players.firstWhere((p) => p.id == id))
+            .toList();
+        return ShanghaiPlayerState(
+          displayName: team.name,
+          players:     teamPlayers,
+          isTeamSlot:  true,
+          score:       0,
+        );
+      }).toList();
+    }
+    return players.map((p) => ShanghaiPlayerState(
+      displayName: p.name,
+      players:     [p],
+      score:       0,
+    )).toList();
+  }
+
   // ── Resume / Start ─────────────────────────────────────────────────────────
 
   /// Restores an in-progress Shanghai game and rebuilds scores/turn state by
   /// replaying all stored darts.
   Future<void> resumeGame(ShanghaiGame game, List<Player> players) async {
     _game = game;
-    _resetPlayerStates(players);
+    _playerStates = _buildSlots(players, game.teams);
     _currentPlayerIndex = 0;
     _currentRound = 1;
     _gameOver = false;
@@ -190,9 +236,10 @@ class ShanghaiProvider extends ChangeNotifier {
       sets: game.sets,
       createdAt: game.createdAt,
       playerIds: game.playerIds,
+      teams: game.teams,
     );
 
-    _resetPlayerStates(players);
+    _playerStates = _buildSlots(players, game.teams);
     _currentPlayerIndex = 0;
     _currentRound = 1;
     _gameOver = false;
@@ -201,13 +248,6 @@ class ShanghaiProvider extends ChangeNotifier {
     _visitBuffer.clear();
     _throwHistory.clear();
     notifyListeners();
-  }
-
-  /// Replaces all player states with fresh zero-score states for [players].
-  void _resetPlayerStates(List<Player> players) {
-    _playerStates = players
-        .map((p) => ShanghaiPlayerState(displayName: p.name, player: p, score: 0))
-        .toList();
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
@@ -264,7 +304,8 @@ class ShanghaiProvider extends ChangeNotifier {
       final nextProgress = updated.progress + 1;
       updated = updated.copyWith(progress: nextProgress);
       if (updated.progress > _sequentialMaxTarget) {
-        final dartsThrown = _throwHistory.where((h) => h.playerId == state.player.id).length;
+        final slotPlayerIds = state.players.map((p) => p.id).toSet();
+        final dartsThrown = _throwHistory.where((h) => slotPlayerIds.contains(h.playerId)).length;
         updated = updated.copyWith(finishedAtDart: dartsThrown);
       }
     }
@@ -399,10 +440,18 @@ class ShanghaiProvider extends ChangeNotifier {
     }
   }
 
-  /// Advances to the next player, incrementing the round after the last player
-  /// in the classic variant.
+  /// Advances to the next slot, incrementing the round after the last slot in
+  /// the classic variant. In team mode, also rotates the player within the
+  /// slot that just threw, so its next visit is taken by the next member.
   void _advanceTurn() {
     final isLastPlayer = _currentPlayerIndex == _playerStates.length - 1;
+
+    final s = _playerStates[_currentPlayerIndex];
+    if (s.isTeamSlot) {
+      final nextIdx = (s.currentPlayerIdx + 1) % s.players.length;
+      _playerStates[_currentPlayerIndex] = s.copyWith(currentPlayerIdx: nextIdx);
+    }
+
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
 
     if (_variant == ShanghaiVariant.classic && isLastPlayer) {
@@ -452,7 +501,12 @@ class ShanghaiProvider extends ChangeNotifier {
     final allThrows = await _db.getShanghaiThrowsForGame(_game!.id!);
 
     _playerStates = _playerStates
-        .map((s) => ShanghaiPlayerState(displayName: s.displayName, player: s.player, score: 0))
+        .map((s) => ShanghaiPlayerState(
+              displayName: s.displayName,
+              players:     s.players,
+              isTeamSlot:  s.isTeamSlot,
+              score:       0,
+            ))
         .toList();
 
     _gameOver = false;

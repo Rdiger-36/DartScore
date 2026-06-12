@@ -105,6 +105,13 @@ class ShanghaiSummaryScreen extends StatelessWidget {
                                     color: isWinner ? cs.primary : null,
                                   ),
                                 ),
+                                if (s.isTeamSlot)
+                                  Text(
+                                    s.players.map((p) => p.name).join(' & '),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
                                 if (isSequential)
                                   Text(
                                     s.finishedAtDart != null
