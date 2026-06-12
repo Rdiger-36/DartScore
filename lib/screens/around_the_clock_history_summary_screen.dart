@@ -152,6 +152,12 @@ class _Body extends StatelessWidget {
                                         : FontWeight.normal,
                                     color: isWinner ? cs.primary : null,
                                   )),
+                              if (s.isTeamSlot)
+                                Text(
+                                  s.players.map((p) => p.name).join(' & '),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant),
+                                ),
                               Text(l.aroundClockProgressN(hit, total),
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: cs.onSurfaceVariant)),

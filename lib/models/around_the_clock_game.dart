@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'team_config.dart';
+
+export 'team_config.dart';
 
 /// Around the Clock rule variant: [basic] (single hit advances), [fullSegments]
 /// (single, double and triple of a number must all be hit) or [skipRules]
@@ -21,6 +24,8 @@ class AroundTheClockGame {
   final DateTime createdAt;
   final DateTime? finishedAt;
   final List<int> playerIds;
+  /// Non-null when this is a team game.
+  final List<TeamConfig>? teams;
 
   const AroundTheClockGame({
     this.id,
@@ -30,7 +35,11 @@ class AroundTheClockGame {
     required this.createdAt,
     this.finishedAt,
     required this.playerIds,
+    this.teams,
   });
+
+  /// Whether this game is played in teams rather than individually.
+  bool get isTeamGame => teams != null && teams!.isNotEmpty;
 
   /// Serializes this game to a row map for the SQLite `around_the_clock_games` table.
   Map<String, dynamic> toMap() => {
@@ -41,6 +50,7 @@ class AroundTheClockGame {
         'created_at':  createdAt.millisecondsSinceEpoch,
         'finished_at': finishedAt?.millisecondsSinceEpoch,
         'player_ids':  jsonEncode(playerIds),
+        'team_config_json': encodeTeamConfigs(teams),
       };
 
   /// Reconstructs an Around the Clock game from a SQLite row map.
@@ -54,6 +64,7 @@ class AroundTheClockGame {
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
             : null,
         playerIds:  (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
+        teams:      decodeTeamConfigs(map['team_config_json'] as String?),
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -65,6 +76,7 @@ class AroundTheClockGame {
         createdAt:  createdAt,
         finishedAt: finishedAt ?? this.finishedAt,
         playerIds:  playerIds,
+        teams:      teams,
       );
 }
 
