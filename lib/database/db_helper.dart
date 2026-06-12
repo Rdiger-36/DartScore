@@ -32,7 +32,7 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -164,6 +164,10 @@ class DbHelper {
       await db.execute(
           'ALTER TABLE cricket_games ADD COLUMN team_config_json TEXT');
     }
+    if (oldVersion < 14) {
+      await db.execute(
+          'ALTER TABLE shanghai_games ADD COLUMN team_config_json TEXT');
+    }
   }
 
   /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
@@ -265,7 +269,8 @@ class DbHelper {
         sets INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
-        player_ids TEXT NOT NULL
+        player_ids TEXT NOT NULL,
+        team_config_json TEXT
       )
     ''');
     await db.execute('''

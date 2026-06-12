@@ -7,6 +7,7 @@ import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/shanghai_provider.dart';
 import '../widgets/player_dialog.dart';
+import '../widgets/team_section.dart';
 import '../utils/layout.dart';
 import 'shanghai_screen.dart';
 
@@ -22,6 +23,43 @@ class ShanghaiSetupScreen extends StatefulWidget {
 class _ShanghaiSetupScreenState extends State<ShanghaiSetupScreen> {
   ShanghaiVariant _variant = ShanghaiVariant.classic;
   final List<Player> _selectedPlayers = [];
+
+  // ── Team game ─────────────────────────────────────────────────────────────
+  bool _teamGameEnabled = false;
+  final Map<Player, int> _teamAssignment = {}; // player → team index
+  final List<String> _teamNames = ['Team 1', 'Team 2'];
+  final List<TextEditingController> _teamNameCtrl = [
+    TextEditingController(text: 'Team 1'),
+    TextEditingController(text: 'Team 2'),
+  ];
+
+  /// Adds a new, default-named team.
+  void _addTeam() {
+    setState(() {
+      final idx = _teamNames.length + 1;
+      _teamNames.add('Team $idx');
+      _teamNameCtrl.add(TextEditingController(text: 'Team $idx'));
+    });
+  }
+
+  /// Removes team [ti] (minimum two teams kept) and reassigns its players,
+  /// shifting higher team indices down.
+  void _removeTeam(int ti) {
+    if (_teamNames.length <= 2) return;
+    setState(() {
+      _teamNames.removeAt(ti);
+      _teamNameCtrl.removeAt(ti);
+      // Reassign players that were in removed team or have out-of-range index
+      for (final p in _selectedPlayers) {
+        final current = _teamAssignment[p] ?? 0;
+        if (current == ti) {
+          _teamAssignment[p] = 0;
+        } else if (current > ti) {
+          _teamAssignment[p] = current - 1;
+        }
+      }
+    });
+  }
 
   /// Localized description of the currently selected rule variant.
   String _variantDesc(AppLocalizations l) {
@@ -104,6 +142,32 @@ class _ShanghaiSetupScreenState extends State<ShanghaiSetupScreen> {
             onAddPlayer: () => _showAddPlayerDialog(context),
           ),
 
+          // ── Team game ────────────────────────────────────────────────────
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
+            TeamSection(
+              enabled: _teamGameEnabled,
+              players: _selectedPlayers,
+              teamAssignment: _teamAssignment,
+              teamNames: _teamNames,
+              teamNameCtrl: _teamNameCtrl,
+              onToggle: (v) => setState(() {
+                _teamGameEnabled = v;
+                if (v) {
+                  for (var i = 0; i < _selectedPlayers.length; i++) {
+                    _teamAssignment[_selectedPlayers[i]] = i % _teamNames.length;
+                  }
+                }
+              }),
+              onAssignmentChanged: (p, t) =>
+                  setState(() => _teamAssignment[p] = t),
+              onNameChanged: (i, name) =>
+                  setState(() => _teamNames[i] = name),
+              onAddTeam: _addTeam,
+              onRemoveTeam: _removeTeam,
+            ),
+          ],
+
           const SizedBox(height: 24),
           if (_selectedPlayers.length < 2)
             Padding(
@@ -150,12 +214,28 @@ class _ShanghaiSetupScreenState extends State<ShanghaiSetupScreen> {
   /// Builds the game with a randomized player order and navigates to the play screen.
   Future<void> _startGame() async {
     final players = List.of(_selectedPlayers)..shuffle(Random());
+
+    // Build team config if team game is enabled
+    List<TeamConfig>? teamConfigs;
+    if (_teamGameEnabled) {
+      teamConfigs = List.generate(_teamNames.length, (ti) {
+        final teamPlayers = players
+            .where((p) => (_teamAssignment[p] ?? 0) == ti)
+            .toList();
+        return TeamConfig(
+          name:      _teamNames[ti],
+          playerIds: teamPlayers.map((p) => p.id!).toList(),
+        );
+      }).where((t) => t.playerIds.isNotEmpty).toList();
+    }
+
     final game = ShanghaiGame(
       variant:   _variant,
       legs:      1,
       sets:      1,
       createdAt: DateTime.now(),
       playerIds: players.map((p) => p.id!).toList(),
+      teams:     teamConfigs,
     );
 
     await context.read<ShanghaiProvider>().startGame(game, players);
