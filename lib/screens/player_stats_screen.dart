@@ -1206,7 +1206,6 @@ class _DartboardPainter extends CustomPainter {
     final rTriple2    = r * 0.60;
     final rDouble1    = r * 0.84;
     final rDouble2    = r * 0.93;
-    final rBoard      = r * 1.0;
 
     final outlinePaint = Paint()
       ..color = outlineColor
@@ -1258,7 +1257,6 @@ class _DartboardPainter extends CustomPainter {
     canvas.drawCircle(center, rBullInner, outlinePaint);
 
     // Wire outer board boundary
-    canvas.drawCircle(center, rBoard, outlinePaint);
     canvas.drawCircle(center, rDouble2, outlinePaint);
 
     // Number labels
@@ -1266,7 +1264,7 @@ class _DartboardPainter extends CustomPainter {
     for (var i = 0; i < segCount; i++) {
       final field  = _order[i];
       final angle  = startAngle + i * angleStep + halfStep;
-      final labelR = r * 0.975;
+      final labelR = r * 0.975 + 4;
       final lx = cx + labelR * cos(angle);
       final ly = cy + labelR * sin(angle);
 
@@ -1475,6 +1473,7 @@ class _WeekComparisonCard extends StatelessWidget {
       final down = diff != null && diff < 0;
       return Expanded(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title,
                 style: theme.textTheme.labelSmall
@@ -1555,27 +1554,6 @@ class _WeekComparisonCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: SizedBox()),
-                SizedBox(
-                  width: 90,
-                  child: Text(l10n.thisWeek,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: cs.onPrimaryContainer)),
-                ),
-                SizedBox(
-                  width: 90,
-                  child: Text(l10n.lastWeek,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: cs.onSurfaceVariant)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
                 col(
                   l10n.threeDartAvg,
                   stats.thisWeekAvg.toStringAsFixed(2),
@@ -1598,9 +1576,47 @@ class _WeekComparisonCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _WeekLegendItem(color: cs.primaryContainer, label: l10n.thisWeek),
+                const SizedBox(width: 16),
+                _WeekLegendItem(color: cs.surfaceContainerHighest, label: l10n.lastWeek),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A single legend entry for the week comparison card: a colored dot matching
+/// a chip's background color, followed by its label.
+class _WeekLegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _WeekLegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+      ],
     );
   }
 }
