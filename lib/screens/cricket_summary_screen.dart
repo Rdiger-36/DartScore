@@ -107,6 +107,13 @@ class CricketSummaryScreen extends StatelessWidget {
                                     color: isWinner ? cs.primary : null,
                                   ),
                                 ),
+                                if (s.isTeamSlot)
+                                  Text(
+                                    s.players.map((p) => p.name).join(' & '),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
                                 Text(
                                   '$fieldsClosed/7 ${l.cricketFieldsClosed}',
                                   style: theme.textTheme.bodySmall?.copyWith(
@@ -160,11 +167,25 @@ class CricketSummaryScreen extends StatelessWidget {
                     children: [
                       const SizedBox(width: 52),
                       ...sorted.map((s) => Expanded(
-                            child: Text(s.displayName,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelSmall),
+                            child: Column(
+                              children: [
+                                Text(s.displayName,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall),
+                                if (s.isTeamSlot)
+                                  Text(
+                                    s.players.map((p) => p.name).join(' & '),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           )),
                     ],
                   ),

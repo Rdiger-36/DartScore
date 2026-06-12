@@ -5,37 +5,58 @@ import '../models/player.dart';
 
 // ── CricketPlayerState ────────────────────────────────────────────────────────
 
-/// Immutable Cricket state for one player: their marks per field and total score.
+/// Immutable Cricket state for one scoreboard slot: their marks per field and
+/// total score.
+///
+/// A slot is either a single player or a whole team. For teams, [players]
+/// holds every member and [currentPlayerIdx] tracks whose turn it is within
+/// the team; marks and score are shared by the whole team (real cricket
+/// doubles rules). [displayName] is the team or player name shown on the
+/// scoreboard.
 class CricketPlayerState {
   final String displayName;
-  final Player player;
+  /// All players in this slot — 1 for individual, N for team.
+  final List<Player> players;
+  /// Which player in [players] throws NEXT (rotates after each team visit).
+  final int currentPlayerIdx;
+  /// Whether this slot represents a team rather than a single player.
+  final bool isTeamSlot;
   /// Total marks per field (never decremented; 3 = closed, >3 possible via Double/Triple).
   final Map<int, int> marks;
   final int score;
 
   const CricketPlayerState({
     required this.displayName,
-    required this.player,
+    required this.players,
+    this.currentPlayerIdx = 0,
+    this.isTeamSlot = false,
     required this.marks,
     required this.score,
   });
 
-  /// Whether this player has closed [field] (three or more marks).
+  /// The player who throws next (backward-compatible accessor).
+  Player get player => players[currentPlayerIdx];
+
+  /// Whether this slot has closed [field] (three or more marks).
   bool hasClosedField(int field) => (marks[field] ?? 0) >= 3;
 
-  /// Whether this player has closed every Cricket field.
+  /// Whether this slot has closed every Cricket field.
   bool get hasClosedAll => cricketFields.every(hasClosedField);
 
-  /// Returns a copy with marks and/or score replaced; identity is preserved.
+  /// Returns a copy with marks, score, and/or the active player index
+  /// replaced; identity is preserved.
   CricketPlayerState copyWith({
     Map<int, int>? marks,
     int? score,
+    int? currentPlayerIdx,
   }) =>
       CricketPlayerState(
-        displayName: displayName,
-        player:      player,
-        marks:       marks ?? Map.of(this.marks),
-        score:       score ?? this.score,
+        displayName:      displayName,
+        players:          players,
+        currentPlayerIdx: currentPlayerIdx ?? this.currentPlayerIdx,
+        isTeamSlot:       isTeamSlot,
+        marks:            marks ?? Map.of(this.marks),
+        score:            score ?? this.score,
       );
 }
 
@@ -72,18 +93,40 @@ class CricketProvider extends ChangeNotifier {
   int                      get throwCount         => _throwHistory.length;
   bool                     get canUndo            => _throwHistory.isNotEmpty;
 
+  // ── Slot construction ────────────────────────────────────────────────────
+
+  /// Builds one scoreboard slot per team (if [teams] is set) or one slot per
+  /// player (individual game), each with empty marks and zero score.
+  List<CricketPlayerState> _buildSlots(List<Player> players, List<TeamConfig>? teams) {
+    if (teams != null && teams.isNotEmpty) {
+      return teams.map((team) {
+        final teamPlayers = team.playerIds
+            .map((id) => players.firstWhere((p) => p.id == id))
+            .toList();
+        return CricketPlayerState(
+          displayName: team.name,
+          players:     teamPlayers,
+          isTeamSlot:  true,
+          marks:       {},
+          score:       0,
+        );
+      }).toList();
+    }
+    return players.map((p) => CricketPlayerState(
+      displayName: p.name,
+      players:     [p],
+      marks:       {},
+      score:       0,
+    )).toList();
+  }
+
   // ── Resume ────────────────────────────────────────────────────────────────
 
   /// Restores an in-progress Cricket game and rebuilds marks/scores by
   /// replaying all stored darts.
   Future<void> resumeGame(CricketGame game, List<Player> players) async {
     _game = game;
-    _playerStates = players.map((p) => CricketPlayerState(
-      displayName: p.name,
-      player:      p,
-      marks:       {},
-      score:       0,
-    )).toList();
+    _playerStates = _buildSlots(players, game.teams);
     _currentPlayerIndex = 0;
     _gameOver           = false;
     _winnerId           = null;
@@ -99,7 +142,6 @@ class CricketProvider extends ChangeNotifier {
   /// and resets the visit buffer and history.
   Future<void> startGame(CricketGame game, List<Player> players) async {
     final gameId = await _db.insertCricketGame(game);
-    _game = game.copyWith(); // captures the inserted ID via fromMap below
     // Re-read to get the auto-generated id
     _game = CricketGame(
       id:          gameId,
@@ -109,14 +151,10 @@ class CricketProvider extends ChangeNotifier {
       sets:        game.sets,
       createdAt:   game.createdAt,
       playerIds:   game.playerIds,
+      teams:       game.teams,
     );
 
-    _playerStates = players.map((p) => CricketPlayerState(
-      displayName: p.name,
-      player:      p,
-      marks:       {},
-      score:       0,
-    )).toList();
+    _playerStates = _buildSlots(players, game.teams);
 
     _currentPlayerIndex = 0;
     _gameOver           = false;
@@ -178,11 +216,12 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Apply dart to state ────────────────────────────────────────────────────
 
-  /// Applies one scoring dart to [playerIdx]: adds marks toward closing [field]
+  /// Applies one scoring dart to [slotIdx]: adds marks toward closing [field]
   /// and awards points for any marks beyond closing, routing points to the
-  /// player (normal) or to opponents who have not closed the field (cut-throat).
-  void _applyDart(int playerIdx, int field, int multiplier) {
-    final state  = _playerStates[playerIdx];
+  /// slot (normal) or to opponent slots who have not closed the field
+  /// (cut-throat).
+  void _applyDart(int slotIdx, int field, int multiplier) {
+    final state  = _playerStates[slotIdx];
     final isCutThroat = _game!.variant == CricketVariant.cutThroat;
     final isSimple    = _game!.scoringMode == CricketScoringMode.simple;
 
@@ -194,11 +233,11 @@ class CricketProvider extends ChangeNotifier {
     final marksToClose  = (3 - currentMarks).clamp(0, effectiveMarks);
     final scoringMarks  = effectiveMarks - marksToClose;
 
-    // Update marks for this player (cap at 3 for display, but track excess via score)
+    // Update marks for this slot (cap at 3 for display, but track excess via score)
     final updatedMarks = Map<int, int>.of(state.marks);
     updatedMarks[field] = newTotalMarks.clamp(0, 3); // visual: max 3
 
-    _playerStates[playerIdx] = state.copyWith(marks: updatedMarks);
+    _playerStates[slotIdx] = state.copyWith(marks: updatedMarks);
 
     if (scoringMarks <= 0) return;
 
@@ -207,9 +246,9 @@ class CricketProvider extends ChangeNotifier {
     final points     = scoringMarks * fieldValue;
 
     if (isCutThroat) {
-      // Distribute points to opponents who haven't closed this field
+      // Distribute points to opponent slots who haven't closed this field
       for (var i = 0; i < _playerStates.length; i++) {
-        if (i == playerIdx) continue;
+        if (i == slotIdx) continue;
         if (!_playerStates[i].hasClosedField(field)) {
           _playerStates[i] = _playerStates[i].copyWith(
             score: _playerStates[i].score + points,
@@ -217,14 +256,13 @@ class CricketProvider extends ChangeNotifier {
         }
       }
     } else {
-      // Score for current player — only if at least one opponent hasn't closed it
+      // Score for current slot — only if at least one opponent hasn't closed it
       final fieldAlive = _playerStates
-          .where((_, ) => true)
           .indexed
-          .any((e) => e.$1 != playerIdx && !e.$2.hasClosedField(field));
+          .any((e) => e.$1 != slotIdx && !e.$2.hasClosedField(field));
       if (fieldAlive) {
-        _playerStates[playerIdx] = _playerStates[playerIdx].copyWith(
-          score: _playerStates[playerIdx].score + points,
+        _playerStates[slotIdx] = _playerStates[slotIdx].copyWith(
+          score: _playerStates[slotIdx].score + points,
         );
       }
     }
@@ -233,43 +271,52 @@ class CricketProvider extends ChangeNotifier {
   // ── End of visit ──────────────────────────────────────────────────────────
 
   /// Ends the current three-dart visit: resolves a score-based win if everyone
-  /// has closed all fields, otherwise advances to the next player.
+  /// has closed all fields, otherwise advances to the next slot.
   Future<void> _endVisit() async {
     _visitBuffer.clear();
 
-    // A win for the current player is already handled right after the dart
+    // A win for the current slot is already handled right after the dart
     // that closes their last field (see recordDart), so only the "stalemate"
     // case remains here.
 
-    // All players have closed all fields — nobody can score anymore, decide by score
+    // All slots have closed all fields — nobody can score anymore, decide by score
     if (_playerStates.every((s) => s.hasClosedAll)) {
       await _handleWin(_scoreWinnerIndex());
       return;
     }
 
-    _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+    _advanceSlot();
     notifyListeners();
   }
 
-  /// Whether [playerIdx] has won: all fields closed and a non-losing score
-  /// (highest in normal, lowest in cut-throat).
-  bool _checkWin(int playerIdx) {
-    final state = _playerStates[playerIdx];
+  /// Advances to the next slot. In team mode, also rotates the player within
+  /// the team that just threw, so its next visit is taken by the next member.
+  void _advanceSlot() {
+    final s = _playerStates[_currentPlayerIndex];
+    if (s.isTeamSlot) {
+      final nextIdx = (s.currentPlayerIdx + 1) % s.players.length;
+      _playerStates[_currentPlayerIndex] = s.copyWith(currentPlayerIdx: nextIdx);
+    }
+    _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+  }
+
+  /// Whether [slotIdx] has won: all fields closed and a non-losing score
+  /// (highest in normal, lowest in cut-throat) compared to every other slot.
+  bool _checkWin(int slotIdx) {
+    final state = _playerStates[slotIdx];
     if (!state.hasClosedAll) return false;
 
     final isCutThroat = _game!.variant == CricketVariant.cutThroat;
-    if (isCutThroat) {
-      return _playerStates
-          .where((s) => s.player.id != state.player.id)
-          .every((s) => state.score <= s.score);
-    } else {
-      return _playerStates
-          .where((s) => s.player.id != state.player.id)
-          .every((s) => state.score >= s.score);
+    for (var i = 0; i < _playerStates.length; i++) {
+      if (i == slotIdx) continue;
+      final other = _playerStates[i];
+      final ahead = isCutThroat ? state.score <= other.score : state.score >= other.score;
+      if (!ahead) return false;
     }
+    return true;
   }
 
-  /// Returns the index of the player who wins when all fields are closed.
+  /// Returns the index of the slot that wins when all fields are closed.
   int _scoreWinnerIndex() {
     final isCutThroat = _game!.variant == CricketVariant.cutThroat;
     int best = 0;
@@ -283,10 +330,10 @@ class CricketProvider extends ChangeNotifier {
     return best;
   }
 
-  /// Marks the game over with [playerIdx] as the winner and persists the finish time.
-  Future<void> _handleWin(int playerIdx) async {
+  /// Marks the game over with [slotIdx] as the winner and persists the finish time.
+  Future<void> _handleWin(int slotIdx) async {
     _gameOver = true;
-    _winnerId = _playerStates[playerIdx].player.id;
+    _winnerId = _playerStates[slotIdx].player.id;
     await _db.updateCricketGame(_game!.copyWith(finishedAt: DateTime.now()));
     notifyListeners();
   }
@@ -322,6 +369,7 @@ class CricketProvider extends ChangeNotifier {
         createdAt:    _game!.createdAt,
         finishedAt:   null,
         playerIds:    _game!.playerIds,
+        teams:        _game!.teams,
       );
       await _db.updateCricketGame(_game!);
     }
@@ -331,54 +379,62 @@ class CricketProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Rebuilds all player states from the persisted darts: zeroes marks/scores,
-  /// replays every dart chronologically, then restores the current player and
-  /// the in-progress visit buffer.
+  /// Rebuilds all slot states from the persisted darts: zeroes marks/scores,
+  /// replays every dart chronologically, then restores the current slot, its
+  /// active player (for teams), and the in-progress visit buffer.
   Future<void> _replayState() async {
     if (_game == null) return;
 
     final allThrows = await _db.getCricketThrowsForGame(_game!.id!);
 
-    // Reset marks and scores to zero, keep player identity
+    // Reset marks and scores to zero, keep slot identity
     _playerStates = _playerStates
         .map((s) => CricketPlayerState(
               displayName: s.displayName,
-              player:      s.player,
+              players:     s.players,
+              isTeamSlot:  s.isTeamSlot,
               marks:       {},
               score:       0,
             ))
         .toList();
 
-    // Replay all darts in chronological order
+    // Replay all darts in chronological order, routing each to its slot
     for (final t in allThrows) {
       if (t.isMiss) continue;
-      final playerIdx =
-          _playerStates.indexWhere((s) => s.player.id == t.playerId);
-      if (playerIdx < 0) continue;
-      _applyDart(playerIdx, t.field, t.multiplier);
+      final slotIdx = _playerStates
+          .indexWhere((s) => s.players.any((p) => p.id == t.playerId));
+      if (slotIdx < 0) continue;
+      _applyDart(slotIdx, t.field, t.multiplier);
     }
 
-    // Determine current player: fewest completed visits (groups of 3)
-    final visitsPerPlayer = <int, int>{
-      for (final s in _playerStates) s.player.id!: 0
-    };
-    for (final s in _playerStates) {
-      visitsPerPlayer[s.player.id!] =
-          allThrows.where((t) => t.playerId == s.player.id).length ~/ 3;
-    }
-    final minVisits =
-        visitsPerPlayer.values.fold(999, (a, b) => a < b ? a : b);
-    _currentPlayerIndex = _playerStates
-        .indexWhere((s) => (visitsPerPlayer[s.player.id] ?? 0) == minVisits);
+    // Throws per slot, chronological, used to determine turn order
+    final slotThrows = _playerStates.map((s) {
+      final ids = s.players.map((p) => p.id).toSet();
+      return allThrows.where((t) => ids.contains(t.playerId)).toList()
+        ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
+    }).toList();
+
+    // Determine current slot: fewest completed visits (groups of 3)
+    final visitsPerSlot = slotThrows.map((t) => t.length ~/ 3).toList();
+    final minVisits = visitsPerSlot.fold(999, (a, b) => a < b ? a : b);
+    _currentPlayerIndex = visitsPerSlot.indexWhere((v) => v == minVisits);
     if (_currentPlayerIndex < 0) _currentPlayerIndex = 0;
 
-    // Rebuild visit buffer for current player
-    final pid = currentPlayerState.player.id!;
-    final myThrows = allThrows.where((t) => t.playerId == pid).toList();
-    final dartsInCurrentVisit = myThrows.length % 3;
+    // Restore the active player within the current slot (team rotation)
+    final currentSlot   = _playerStates[_currentPlayerIndex];
+    final currentThrows = slotThrows[_currentPlayerIndex];
+    if (currentSlot.isTeamSlot) {
+      final visits = visitsPerSlot[_currentPlayerIndex];
+      _playerStates[_currentPlayerIndex] = currentSlot.copyWith(
+        currentPlayerIdx: visits % currentSlot.players.length,
+      );
+    }
+
+    // Rebuild visit buffer for the current slot
+    final dartsInCurrentVisit = currentThrows.length % 3;
     _visitBuffer
       ..clear()
-      ..addAll(myThrows.reversed
+      ..addAll(currentThrows.reversed
           .take(dartsInCurrentVisit)
           .toList()
           .reversed);

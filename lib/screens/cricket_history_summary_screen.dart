@@ -46,87 +46,121 @@ class CricketHistorySummaryScreen extends StatelessWidget {
     );
   }
 
-  /// Loads the game's throws and reconstructs each player's final marks, scores,
-  /// and the winner.
+  /// Loads the game's throws and reconstructs each slot's final marks, score,
+  /// and the winning slot. A slot is one team (if [game.isTeamGame]) or one
+  /// player, mirroring `CricketProvider._buildSlots`.
   Future<_CricketHistoryData> _load() async {
     final throws = await DbHelper.instance.getCricketThrowsForGame(game.id!);
 
-    // Reconstruct final marks and scores for each player
-    final marks  = <int, Map<int, int>>{for (final p in players) p.id!: {}};
-    final scores = <int, int>{for (final p in players) p.id!: 0};
+    final slots = game.isTeamGame
+        ? game.teams!
+            .map((team) => team.playerIds
+                .map((id) => players.firstWhere((p) => p.id == id))
+                .toList())
+            .toList()
+        : players.map((p) => [p]).toList();
+    final slotNames = game.isTeamGame
+        ? game.teams!.map((t) => t.name).toList()
+        : players.map((p) => p.name).toList();
+
+    final marks  = List.generate(slots.length, (_) => <int, int>{});
+    final scores = List.filled(slots.length, 0);
 
     final isCT     = game.variant == CricketVariant.cutThroat;
     final isSimple = game.scoringMode == CricketScoringMode.simple;
 
     for (final t in throws) {
       if (t.isMiss) continue;
-      final pid = t.playerId;
-      if (!marks.containsKey(pid)) continue;
+      final slotIdx =
+          slots.indexWhere((ps) => ps.any((p) => p.id == t.playerId));
+      if (slotIdx < 0) continue;
 
-      final eff     = isSimple ? 1 : t.multiplier;
-      final cur     = marks[pid]![t.field] ?? 0;
-      final newM    = cur + eff;
-      marks[pid]![t.field] = newM.clamp(0, 3);
+      final eff  = isSimple ? 1 : t.multiplier;
+      final cur  = marks[slotIdx][t.field] ?? 0;
+      final newM = cur + eff;
+      marks[slotIdx][t.field] = newM.clamp(0, 3);
 
       final scoring = (newM - 3).clamp(0, eff);
       if (scoring <= 0) continue;
-      final fv     = t.field == 25 ? 25 : t.field;
-      final pts    = scoring * fv;
+      final fv  = t.field == 25 ? 25 : t.field;
+      final pts = scoring * fv;
 
       if (isCT) {
-        for (final p in players) {
-          if (p.id == pid) continue;
-          if ((marks[p.id!]?[t.field] ?? 0) < 3) {
-            scores[p.id!] = (scores[p.id!] ?? 0) + pts;
+        for (var i = 0; i < slots.length; i++) {
+          if (i == slotIdx) continue;
+          if ((marks[i][t.field] ?? 0) < 3) {
+            scores[i] += pts;
           }
         }
       } else {
-        final alive = players.any(
-            (p) => p.id != pid && (marks[p.id!]?[t.field] ?? 0) < 3);
-        if (alive) scores[pid] = (scores[pid] ?? 0) + pts;
+        final alive = Iterable<int>.generate(slots.length)
+            .any((i) => i != slotIdx && (marks[i][t.field] ?? 0) < 3);
+        if (alive) scores[slotIdx] += pts;
       }
     }
 
     // Determine winner from DB (finished_at set + score condition)
-    int? winnerId;
+    int? winnerSlotIndex;
     if (game.finishedAt != null) {
       if (isCT) {
-        final minScore = scores.values.fold(999999, (a, b) => a < b ? a : b);
-        winnerId = scores.entries
-            .firstWhere((e) => e.value == minScore, orElse: () => scores.entries.first)
-            .key;
+        final minScore = scores.fold(999999, (a, b) => a < b ? a : b);
+        winnerSlotIndex = scores.indexOf(minScore);
       } else {
-        final maxScore = scores.values.fold(-1, (a, b) => a > b ? a : b);
-        winnerId = scores.entries
-            .firstWhere((e) => e.value == maxScore, orElse: () => scores.entries.first)
-            .key;
+        final maxScore = scores.fold(-1, (a, b) => a > b ? a : b);
+        winnerSlotIndex = scores.indexOf(maxScore);
       }
-      // If a player closed all fields, prefer them as winner
-      for (final p in players) {
-        final closedAll = cricketFields.every((f) => (marks[p.id!]?[f] ?? 0) >= 3);
+      // If a slot closed all fields, prefer it as winner
+      for (var i = 0; i < slots.length; i++) {
+        final closedAll = cricketFields.every((f) => (marks[i][f] ?? 0) >= 3);
         if (closedAll) {
-          final score = scores[p.id!] ?? 0;
-          final beats = players.where((o) => o.id != p.id).every((o) =>
-              isCT ? score <= (scores[o.id!] ?? 0) : score >= (scores[o.id!] ?? 0));
-          if (beats) { winnerId = p.id; break; }
+          final score = scores[i];
+          final beats = Iterable<int>.generate(slots.length)
+              .where((j) => j != i)
+              .every((j) => isCT ? score <= scores[j] : score >= scores[j]);
+          if (beats) { winnerSlotIndex = i; break; }
         }
       }
     }
 
-    return _CricketHistoryData(marks: marks, scores: scores, winnerId: winnerId);
+    return _CricketHistoryData(
+      slots: List.generate(slots.length, (i) => _CricketSlot(
+            displayName: slotNames[i],
+            players:     slots[i],
+            isTeamSlot:  game.isTeamGame,
+            marks:       marks[i],
+            score:       scores[i],
+          )),
+      winnerSlotIndex: winnerSlotIndex,
+    );
   }
 }
 
-/// Reconstructed final state of a historical Cricket game: per-player marks
-/// (by field), scores, and the winner.
-class _CricketHistoryData {
-  final Map<int, Map<int, int>> marks;
-  final Map<int, int> scores;
-  final int? winnerId;
-  const _CricketHistoryData({
+/// Reconstructed final state of one scoreboard slot (a team or a single
+/// player) in a historical Cricket game: its members, final marks, and score.
+class _CricketSlot {
+  final String displayName;
+  final List<Player> players;
+  final bool isTeamSlot;
+  final Map<int, int> marks;
+  final int score;
+
+  const _CricketSlot({
+    required this.displayName,
+    required this.players,
+    required this.isTeamSlot,
     required this.marks,
-    required this.scores,
-    required this.winnerId,
+    required this.score,
+  });
+}
+
+/// Reconstructed final state of a historical Cricket game: per-slot marks and
+/// scores, and the index of the winning slot.
+class _CricketHistoryData {
+  final List<_CricketSlot> slots;
+  final int? winnerSlotIndex;
+  const _CricketHistoryData({
+    required this.slots,
+    required this.winnerSlotIndex,
   });
 }
 
@@ -149,20 +183,21 @@ class _Body extends StatelessWidget {
     final l       = context.l10n;
     final isCT    = game.variant == CricketVariant.cutThroat;
 
-    final sorted = List.of(players)
+    final sortedSlots = List.of(data.slots.indexed)
       ..sort((a, b) {
-        if (a.id == data.winnerId) return -1;
-        if (b.id == data.winnerId) return 1;
-        final sa = data.scores[a.id] ?? 0;
-        final sb = data.scores[b.id] ?? 0;
-        return isCT ? sa.compareTo(sb) : sb.compareTo(sa);
+        if (a.$1 == data.winnerSlotIndex) return -1;
+        if (b.$1 == data.winnerSlotIndex) return 1;
+        return isCT
+            ? a.$2.score.compareTo(b.$2.score)
+            : b.$2.score.compareTo(a.$2.score);
       });
+    final sorted = sortedSlots.map((e) => e.$2).toList();
 
     return ListView(
       padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
       children: [
         // Winner banner
-        if (data.winnerId != null) ...[
+        if (data.winnerSlotIndex != null) ...[
           Center(
             child: Column(
               children: [
@@ -177,7 +212,7 @@ class _Body extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   l.cricketWinner(
-                      players.firstWhere((p) => p.id == data.winnerId).name),
+                      data.slots[data.winnerSlotIndex!].displayName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -207,11 +242,11 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                ...sorted.map((p) {
-                  final isWinner = p.id == data.winnerId;
-                  final score    = data.scores[p.id] ?? 0;
+                ...sortedSlots.map((e) {
+                  final slot     = e.$2;
+                  final isWinner = e.$1 == data.winnerSlotIndex;
                   final closed   = cricketFields
-                      .where((f) => (data.marks[p.id]?[f] ?? 0) >= 3)
+                      .where((f) => (slot.marks[f] ?? 0) >= 3)
                       .length;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -228,20 +263,26 @@ class _Body extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(p.name,
+                              Text(slot.displayName,
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: isWinner
                                         ? FontWeight.bold
                                         : FontWeight.normal,
                                     color: isWinner ? cs.primary : null,
                                   )),
+                              if (slot.isTeamSlot)
+                                Text(
+                                  slot.players.map((p) => p.name).join(' & '),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant),
+                                ),
                               Text('$closed/7 ${l.cricketFieldsClosed}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: cs.onSurfaceVariant)),
                             ],
                           ),
                         ),
-                        Text('$score',
+                        Text('${slot.score}',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: isWinner ? cs.primary : null,
@@ -271,12 +312,26 @@ class _Body extends StatelessWidget {
                 Row(
                   children: [
                     const SizedBox(width: 52),
-                    ...sorted.map((p) => Expanded(
-                          child: Text(p.name,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall),
+                    ...sorted.map((slot) => Expanded(
+                          child: Column(
+                            children: [
+                              Text(slot.displayName,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall),
+                              if (slot.isTeamSlot)
+                                Text(
+                                  slot.players.map((p) => p.name).join(' & '),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
                         )),
                   ],
                 ),
@@ -294,8 +349,8 @@ class _Body extends StatelessWidget {
                               style: theme.textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.bold)),
                         ),
-                        ...sorted.map((p) {
-                          final m = data.marks[p.id]?[field] ?? 0;
+                        ...sorted.map((slot) {
+                          final m = slot.marks[field] ?? 0;
                           return Expanded(
                               child: Center(child: CricketMarksWidget(marks: m)));
                         }),

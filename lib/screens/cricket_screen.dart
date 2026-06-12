@@ -19,7 +19,8 @@ class CricketScreen extends StatelessWidget {
       builder: (context, provider, _) {
         if (provider.game == null) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (provider.gameOver) {
@@ -30,7 +31,8 @@ class CricketScreen extends StatelessWidget {
             );
           });
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         return _CricketGameView(provider: provider);
@@ -48,13 +50,13 @@ class _CricketGameView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l          = context.l10n;
-    final theme      = Theme.of(context);
-    final cs         = theme.colorScheme;
-    final game       = provider.game!;
-    final states     = provider.playerStates;
+    final l = context.l10n;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final game = provider.game!;
+    final states = provider.playerStates;
     final currentIdx = provider.currentPlayerIndex;
-    final current    = provider.currentPlayerState;
+    final current = provider.currentPlayerState;
 
     return Scaffold(
       appBar: AppBar(
@@ -80,10 +82,10 @@ class _CricketGameView extends StatelessWidget {
             child: SingleChildScrollView(
               padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
               child: _CricketBoard(
-                states:     states,
+                states: states,
                 currentIdx: currentIdx,
                 throwCount: provider.throwCount,
-                game:       game,
+                game: game,
               ),
             ),
           ),
@@ -96,19 +98,36 @@ class _CricketGameView extends StatelessWidget {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Current player + dart counter
+                    // Current player/team + dart counter
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          current.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: cs.primary,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              current.displayName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: cs.primary,
+                              ),
+                            ),
+                            if (current.isTeamSlot)
+                              Text(
+                                current.player.name,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
                         ),
                         const Spacer(),
                         _DartDots(count: provider.dartsInVisit),
@@ -116,7 +135,7 @@ class _CricketGameView extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     _CricketInput(
-                      provider:    provider,
+                      provider: provider,
                       scoringMode: game.scoringMode,
                     ),
                   ],
@@ -139,7 +158,9 @@ class _CricketGameView extends StatelessWidget {
         content: Text(l.quitBody),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
+            onPressed: () => Navigator.pop(context),
+            child: Text(l.cancel),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
@@ -194,7 +215,9 @@ class _CricketBoardState extends State<_CricketBoard> {
     // so the active player's column is always scrolled into view.
     if (oldWidget.currentIdx != widget.currentIdx ||
         oldWidget.throwCount != widget.throwCount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _focusCurrentPlayer());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _focusCurrentPlayer(),
+      );
     }
   }
 
@@ -208,25 +231,30 @@ class _CricketBoardState extends State<_CricketBoard> {
   void _focusCurrentPlayer() {
     if (!_hController.hasClients) return;
 
-    final viewport   = _hController.position.viewportDimension;
+    final viewport = _hController.position.viewportDimension;
     final columnLeft = widget.currentIdx * _kPlayerColumnWidth;
-    final target = (columnLeft - (viewport - _kPlayerColumnWidth) / 2)
-        .clamp(0.0, _hController.position.maxScrollExtent);
+    final target = (columnLeft - (viewport - _kPlayerColumnWidth) / 2).clamp(
+      0.0,
+      _hController.position.maxScrollExtent,
+    );
 
     _hController.animateTo(
       target,
       duration: const Duration(milliseconds: 300),
-      curve:    Curves.easeInOut,
+      curve: Curves.easeInOut,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
-    final l     = context.l10n;
-    final states     = widget.states;
+    final cs = theme.colorScheme;
+    final l = context.l10n;
+    final states = widget.states;
     final currentIdx = widget.currentIdx;
+    final headerHeight = widget.game.isTeamGame
+        ? _kHeaderHeight + 14
+        : _kHeaderHeight;
 
     return Card(
       child: Padding(
@@ -239,13 +267,14 @@ class _CricketBoardState extends State<_CricketBoard> {
               width: _kLabelColumnWidth,
               child: Column(
                 children: [
-                  const SizedBox(height: _kHeaderHeight), // header spacer
+                  SizedBox(height: headerHeight), // header spacer
                   const SizedBox(height: 8),
                   const Divider(height: 1),
                   const SizedBox(height: 4),
                   ...cricketFields.map((field) {
-                    final allClosed =
-                        states.every((s) => s.hasClosedField(field));
+                    final allClosed = states.every(
+                      (s) => s.hasClosedField(field),
+                    );
                     final label = field == 25 ? l.bull : '$field';
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -271,76 +300,102 @@ class _CricketBoardState extends State<_CricketBoard> {
             ),
             // ── Scrollable player columns (focused on the active player) ────
             Expanded(
-              child: SingleChildScrollView(
-                controller:     _hController,
-                scrollDirection: Axis.horizontal,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header: player names + scores
-                    Row(
-                      children: states.indexed.map((e) {
-                        final i = e.$1;
-                        final s = e.$2;
-                        final isActive = i == currentIdx;
-                        return SizedBox(
-                          width:  _kPlayerColumnWidth,
-                          height: _kHeaderHeight,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                s.displayName,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  fontWeight: isActive
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: isActive ? cs.primary : cs.onSurface,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${s.score}',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: isActive ? cs.primary : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: _kPlayerColumnWidth * states.length,
-                      child: const Divider(height: 1),
-                    ),
-                    const SizedBox(height: 4),
-                    // Field rows
-                    ...cricketFields.map((field) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          children: states.map((s) {
-                            final marks = s.marks[field] ?? 0;
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final gridWidth = (_kPlayerColumnWidth * states.length).clamp(
+                    constraints.maxWidth,
+                    double.infinity,
+                  );
+                  return SingleChildScrollView(
+                    controller: _hController,
+                    scrollDirection: Axis.horizontal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header: player names + scores
+                        Row(
+                          children: states.indexed.map((e) {
+                            final i = e.$1;
+                            final s = e.$2;
+                            final isActive = i == currentIdx;
                             return SizedBox(
-                              width:  _kPlayerColumnWidth,
-                              height: 40,
-                              child: Center(
-                                child: CricketMarksWidget(marks: marks),
+                              width: _kPlayerColumnWidth,
+                              height: headerHeight,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    s.displayName,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          fontWeight: isActive
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: isActive
+                                              ? cs.primary
+                                              : cs.onSurface,
+                                        ),
+                                  ),
+                                  if (s.isTeamSlot)
+                                    Text(
+                                      s.player.name,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: isActive
+                                                ? cs.primary.withValues(
+                                                    alpha: 0.75,
+                                                  )
+                                                : cs.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${s.score}',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: isActive ? cs.primary : null,
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           }).toList(),
                         ),
-                      );
-                    }),
-                  ],
-                ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: gridWidth,
+                          child: const Divider(height: 1),
+                        ),
+                        const SizedBox(height: 4),
+                        // Field rows
+                        ...cricketFields.map((field) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: states.map((s) {
+                                final marks = s.marks[field] ?? 0;
+                                return SizedBox(
+                                  width: _kPlayerColumnWidth,
+                                  height: 40,
+                                  child: Center(
+                                    child: CricketMarksWidget(marks: marks),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -389,10 +444,7 @@ class _CricketInput extends StatefulWidget {
   final CricketProvider provider;
   final CricketScoringMode scoringMode;
 
-  const _CricketInput({
-    required this.provider,
-    required this.scoringMode,
-  });
+  const _CricketInput({required this.provider, required this.scoringMode});
 
   @override
   State<_CricketInput> createState() => _CricketInputState();
@@ -401,8 +453,7 @@ class _CricketInput extends StatefulWidget {
 class _CricketInputState extends State<_CricketInput> {
   int? _selectedField;
 
-  bool get _isStandard =>
-      widget.scoringMode == CricketScoringMode.standard;
+  bool get _isStandard => widget.scoringMode == CricketScoringMode.standard;
 
   /// Handles a field tap: records a single in simple mode, or opens the
   /// multiplier selector in standard mode.
@@ -433,15 +484,15 @@ class _CricketInputState extends State<_CricketInput> {
   @override
   Widget build(BuildContext context) {
     final states = widget.provider.playerStates;
-    final l      = context.l10n;
+    final l = context.l10n;
 
     if (_selectedField != null && _isStandard) {
       // Show multiplier selector
       return _MultiplierRow(
-        field:      _selectedField!,
+        field: _selectedField!,
         onSelected: _onMultiplierTap,
-        onCancel:   () => setState(() => _selectedField = null),
-        l:          l,
+        onCancel: () => setState(() => _selectedField = null),
+        l: l,
       );
     }
 
@@ -450,18 +501,17 @@ class _CricketInputState extends State<_CricketInput> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Wrap(
-          spacing:     8,
-          runSpacing:  8,
-          alignment:   WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
           children: [
             ...cricketFields.map((field) {
-              final allClosed =
-                  states.every((s) => s.hasClosedField(field));
+              final allClosed = states.every((s) => s.hasClosedField(field));
               final label = field == 25 ? l.bull : '$field';
               return _FieldButton(
-                label:      label,
-                allClosed:  allClosed,
-                onTap:      allClosed ? null : () => _onFieldTap(field),
+                label: label,
+                allClosed: allClosed,
+                onTap: allClosed ? null : () => _onFieldTap(field),
               );
             }),
             _MissButton(onTap: _onMiss, l: l),
@@ -502,11 +552,11 @@ class _FieldButton extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: allClosed
-                        ? cs.onSurface.withValues(alpha: 0.3)
-                        : cs.onSecondaryContainer,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: allClosed
+                    ? cs.onSurface.withValues(alpha: 0.3)
+                    : cs.onSecondaryContainer,
+              ),
             ),
           ),
         ),
@@ -537,9 +587,9 @@ class _MissButton extends StatelessWidget {
             child: Text(
               l.cricketMiss,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: cs.onErrorContainer,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: cs.onErrorContainer,
+              ),
             ),
           ),
         ),
@@ -565,7 +615,7 @@ class _MultiplierRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs    = theme.colorScheme;
+    final cs = theme.colorScheme;
     final label = field == 25 ? l.bull : '$field';
 
     return Column(
@@ -573,26 +623,40 @@ class _MultiplierRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.bold, color: cs.primary),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: cs.primary,
+          ),
         ),
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => onSelected(1)),
+            _MultBtn(
+              label: l.single,
+              sub: '×1',
+              multiplier: 1,
+              onTap: () => onSelected(1),
+            ),
             const SizedBox(width: 10),
-            _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => onSelected(2)),
+            _MultBtn(
+              label: l.double_,
+              sub: '×2',
+              multiplier: 2,
+              onTap: () => onSelected(2),
+            ),
             const SizedBox(width: 10),
             if (field != 25) // Bull has no triple
-              _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => onSelected(3)),
+              _MultBtn(
+                label: l.triple,
+                sub: '×3',
+                multiplier: 3,
+                onTap: () => onSelected(3),
+              ),
           ],
         ),
         const SizedBox(height: 6),
-        TextButton(
-          onPressed: onCancel,
-          child: Text(l.cancel),
-        ),
+        TextButton(onPressed: onCancel, child: Text(l.cancel)),
       ],
     );
   }
@@ -641,15 +705,19 @@ class _MultBtn extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(label,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: fg,
-                      )),
-              Text(sub,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: fg.withValues(alpha: 0.7),
-                      )),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: fg,
+                ),
+              ),
+              Text(
+                sub,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: fg.withValues(alpha: 0.7),
+                ),
+              ),
             ],
           ),
         ),
