@@ -121,13 +121,27 @@ class _AroundTheClockGameView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          current.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: cs.primary,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              current.displayName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: cs.primary,
+                              ),
+                            ),
+                            if (current.isTeamSlot)
+                              Text(
+                                current.player.name,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
                         ),
                         const Spacer(),
                         _DartDots(count: provider.dartsInVisit),
@@ -286,14 +300,31 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      s.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                        color: isActive ? cs.primary : cs.onSurface,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          s.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                            color: isActive ? cs.primary : cs.onSurface,
+                          ),
+                        ),
+                        if (s.isTeamSlot)
+                          Text(
+                            s.player.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: isActive
+                                  ? cs.primary.withValues(alpha: 0.75)
+                                  : cs.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   if (!s.isFinished)
