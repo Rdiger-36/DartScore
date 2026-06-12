@@ -158,6 +158,9 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
                 } else {
                   _selectedPlayers.removeWhere((s) => s.id == p.id);
                 }
+                if (_selectedPlayers.length < 2) {
+                  _teamGameEnabled = false;
+                }
               });
             },
             onAddPlayer: () => _showAddPlayerDialog(context),
