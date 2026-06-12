@@ -5,42 +5,62 @@ import '../models/player.dart';
 
 // ── AroundTheClockPlayerState ─────────────────────────────────────────────────
 
-/// Immutable Around the Clock state for one player: how far they have advanced
-/// through the target order, the segments hit on the current target (full-
-/// segment variant), and when they finished.
+/// Immutable Around the Clock state for one scoreboard slot: how far it has
+/// advanced through the target order, the segments hit on the current target
+/// (full-segment variant), and when it finished.
+///
+/// A slot is either a single player or a whole team. For teams, [players]
+/// holds every member and [currentPlayerIdx] tracks whose turn it is within
+/// the team; progress and hit segments are shared by the whole team,
+/// relay-style. [displayName] is the team or player name shown on the
+/// scoreboard.
 class AroundTheClockPlayerState {
   final String displayName;
-  final Player player;
-  /// Index into [aroundTheClockOrder] of the number this player must hit next.
+  /// All players in this slot - 1 for individual, N for team.
+  final List<Player> players;
+  /// Which player in [players] throws NEXT (rotates after each team visit).
+  final int currentPlayerIdx;
+  /// Whether this slot represents a team rather than a single player.
+  final bool isTeamSlot;
+  /// Index into [aroundTheClockOrder] of the number this slot must hit next.
   final int progress;
   /// Full-segment variant only: multipliers (1/2/3) already hit on the current target.
   final Set<int> hitSegments;
-  /// Total darts thrown once the player completed the Bull's Eye.
+  /// Total darts thrown once the slot completed the Bull's Eye.
   final int? finishedAtDart;
 
   const AroundTheClockPlayerState({
     required this.displayName,
-    required this.player,
+    required this.players,
+    this.currentPlayerIdx = 0,
+    this.isTeamSlot = false,
     this.progress = 0,
     this.hitSegments = const {},
     this.finishedAtDart,
   });
 
-  /// The number this player must currently hit.
+  /// The player who throws next (backward-compatible accessor).
+  Player get player => players[currentPlayerIdx];
+
+  /// The number this slot must currently hit.
   int get currentTarget => aroundTheClockOrder[progress.clamp(0, aroundTheClockOrder.length - 1)];
 
-  /// Whether this player has completed the final target (the Bull).
+  /// Whether this slot has completed the final target (the Bull).
   bool get isFinished => finishedAtDart != null;
 
-  /// Returns a copy with progress/segments/finish replaced; identity is preserved.
+  /// Returns a copy with progress/segments/finish/active player replaced;
+  /// identity is preserved.
   AroundTheClockPlayerState copyWith({
     int? progress,
     Set<int>? hitSegments,
     int? finishedAtDart,
+    int? currentPlayerIdx,
   }) =>
       AroundTheClockPlayerState(
         displayName: displayName,
-        player: player,
+        players: players,
+        currentPlayerIdx: currentPlayerIdx ?? this.currentPlayerIdx,
+        isTeamSlot: isTeamSlot,
         progress: progress ?? this.progress,
         hitSegments: hitSegments ?? this.hitSegments,
         finishedAtDart: finishedAtDart ?? this.finishedAtDart,
@@ -96,13 +116,35 @@ class AroundTheClockProvider extends ChangeNotifier {
     return segments.where((m) => !hit.contains(m)).toList();
   }
 
+  // ── Slot construction ────────────────────────────────────────────────────
+
+  /// Builds one scoreboard slot per team (if [teams] is set) or one slot per
+  /// player (individual game), each with fresh progress.
+  List<AroundTheClockPlayerState> _buildSlots(List<Player> players, List<TeamConfig>? teams) {
+    if (teams != null && teams.isNotEmpty) {
+      return teams.map((team) {
+        final teamPlayers = team.playerIds
+            .map((id) => players.firstWhere((p) => p.id == id))
+            .toList();
+        return AroundTheClockPlayerState(
+          displayName: team.name,
+          players:     teamPlayers,
+          isTeamSlot:  true,
+        );
+      }).toList();
+    }
+    return players
+        .map((p) => AroundTheClockPlayerState(displayName: p.name, players: [p]))
+        .toList();
+  }
+
   // ── Resume / Start ─────────────────────────────────────────────────────────
 
   /// Restores an in-progress game and rebuilds progress/turn state by replaying
   /// all stored darts.
   Future<void> resumeGame(AroundTheClockGame game, List<Player> players) async {
     _game = game;
-    _resetPlayerStates(players);
+    _playerStates = _buildSlots(players, game.teams);
     _currentPlayerIndex = 0;
     _gameOver = false;
     _winnerId = null;
@@ -123,22 +165,16 @@ class AroundTheClockProvider extends ChangeNotifier {
       sets:      game.sets,
       createdAt: game.createdAt,
       playerIds: game.playerIds,
+      teams:     game.teams,
     );
 
-    _resetPlayerStates(players);
+    _playerStates = _buildSlots(players, game.teams);
     _currentPlayerIndex = 0;
     _gameOver = false;
     _winnerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
     notifyListeners();
-  }
-
-  /// Replaces all player states with fresh starting states for [players].
-  void _resetPlayerStates(List<Player> players) {
-    _playerStates = players
-        .map((p) => AroundTheClockPlayerState(displayName: p.name, player: p))
-        .toList();
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
@@ -238,7 +274,8 @@ class AroundTheClockProvider extends ChangeNotifier {
 
     var updated = state.copyWith(progress: newProgress, hitSegments: newHitSegments);
     if (newProgress >= aroundTheClockOrder.length) {
-      final dartsThrown = _throwHistory.where((h) => h.playerId == state.player.id).length;
+      final slotPlayerIds = state.players.map((p) => p.id).toSet();
+      final dartsThrown = _throwHistory.where((h) => slotPlayerIds.contains(h.playerId)).length;
       updated = updated.copyWith(finishedAtDart: dartsThrown);
     }
 
@@ -247,11 +284,23 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── End of visit ──────────────────────────────────────────────────────────
 
-  /// Ends the current three-dart visit and advances to the next player.
+  /// Ends the current three-dart visit and advances to the next slot, rotating
+  /// the active player within a team slot first.
   Future<void> _endVisit() async {
     _visitBuffer.clear();
-    _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+    _advanceSlot();
     notifyListeners();
+  }
+
+  /// Advances to the next slot. In team mode, also rotates the player within
+  /// the slot that just threw, so its next visit is taken by the next member.
+  void _advanceSlot() {
+    final s = _playerStates[_currentPlayerIndex];
+    if (s.isTeamSlot) {
+      final nextIdx = (s.currentPlayerIdx + 1) % s.players.length;
+      _playerStates[_currentPlayerIndex] = s.copyWith(currentPlayerIdx: nextIdx);
+    }
+    _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
   }
 
   /// Marks the game over with [playerIdx] as the winner and persists the finish time.
@@ -287,6 +336,7 @@ class AroundTheClockProvider extends ChangeNotifier {
         createdAt:  _game!.createdAt,
         finishedAt: null,
         playerIds:  _game!.playerIds,
+        teams:      _game!.teams,
       );
       await _db.updateAroundTheClockGame(_game!);
     }
@@ -304,7 +354,11 @@ class AroundTheClockProvider extends ChangeNotifier {
     final allThrows = await _db.getAroundTheClockThrowsForGame(_game!.id!);
 
     _playerStates = _playerStates
-        .map((s) => AroundTheClockPlayerState(displayName: s.displayName, player: s.player))
+        .map((s) => AroundTheClockPlayerState(
+              displayName: s.displayName,
+              players:     s.players,
+              isTeamSlot:  s.isTeamSlot,
+            ))
         .toList();
     _currentPlayerIndex = 0;
     _gameOver = false;
@@ -328,7 +382,7 @@ class AroundTheClockProvider extends ChangeNotifier {
 
       if (_visitBuffer.length == 3) {
         _visitBuffer.clear();
-        _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+        _advanceSlot();
       }
     }
   }
