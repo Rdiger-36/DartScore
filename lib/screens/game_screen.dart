@@ -19,11 +19,6 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  int? _liveRemaining;
-  bool _liveBust = false;
-  int _liveDartsInVisit = 0;
-  bool _liveCheckedInThisVisit = false;
-
   @override
   Widget build(BuildContext context) {
     return Consumer<GameProvider>(
@@ -47,7 +42,9 @@ class _GameScreenState extends State<GameScreen> {
         final currentIdx = provider.currentPlayerIndex;
         final current    = provider.currentPlayerState;
         final isSolo     = states.length == 1;
-        final displayRemaining = _liveRemaining ?? current.remaining;
+        final displayRemaining = provider.liveDisplayRemaining;
+        final liveBust   = provider.liveBust;
+        final liveDartsInVisit = provider.dartsInVisit;
         final handicaps  = provider.handicaps;
 
         // Check-In only applies in the very first leg of the game (leg 1, set 1).
@@ -67,24 +64,18 @@ class _GameScreenState extends State<GameScreen> {
           final alreadyIn = playerCheckIns[e.key] == GameMode.straightIn ||
               e.value.remaining < game.startScore;
           // Live override: if the qualifying dart was thrown this visit, show as checked in immediately
-          if (e.key == currentIdx) return alreadyIn || _liveCheckedInThisVisit;
+          if (e.key == currentIdx) return alreadyIn || provider.checkedInThisVisit;
           return alreadyIn;
         }).toList();
 
         final currentCheckOut = playerCheckOuts[currentIdx];
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
-        // Committed check-in only (no live component) — passed to DartboardInput
-        // so its scoring gate is stable and doesn't create a feedback loop.
-        final currentHasCheckedInCommitted =
-            playerCheckIns[currentIdx] == GameMode.straightIn ||
-            current.remaining < game.startScore;
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
           appBar: AppBar(
             backgroundColor: Theme.of(context).colorScheme.surface,
             toolbarHeight: 44,
-            automaticallyImplyLeading: false,
             title: isSolo
                 ? Text(
                     '${context.l10n.openPlay} · ${game.startScore}',
@@ -113,36 +104,6 @@ class _GameScreenState extends State<GameScreen> {
                     ],
                   ),
             actions: [
-              // Visit-level undo (no dialog)
-              IconButton(
-                icon: Icon(Icons.undo_rounded,
-                    size: 22,
-                    color: provider.canUndo
-                        ? null
-                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-                tooltip: context.l10n.undoVisit,
-                onPressed: provider.canUndo
-                    ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
-                        provider.undoLastThrow();
-                      }
-                    : null,
-              ),
-              // Visit-level redo (no dialog)
-              IconButton(
-                icon: Icon(Icons.redo_rounded,
-                    size: 22,
-                    color: provider.canRedo
-                        ? null
-                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-                tooltip: context.l10n.redoVisit,
-                onPressed: provider.canRedo
-                    ? () {
-                        setState(() { _liveRemaining = null; _liveBust = false; _liveCheckedInThisVisit = false; });
-                        provider.redoLastThrow();
-                      }
-                    : null,
-              ),
               IconButton(
                 icon: const Icon(Icons.close, size: 22),
                 tooltip: context.l10n.quitGame,
@@ -170,10 +131,10 @@ class _GameScreenState extends State<GameScreen> {
                     game: game,
                     isSolo: isSolo,
                     liveRemaining: displayRemaining,
-                    liveBust: _liveBust,
+                    liveBust: liveBust,
                     currentLeg: provider.currentLeg,
                     currentSet: provider.currentSet,
-                    liveDartsInVisit: _liveDartsInVisit,
+                    liveDartsInVisit: liveDartsInVisit,
                     playerCheckIns: playerCheckIns,
                     playerCheckOuts: playerCheckOuts,
                     playerCheckedIn: playerCheckedIn,
@@ -186,11 +147,11 @@ class _GameScreenState extends State<GameScreen> {
                       duration: const Duration(milliseconds: 200),
                       child: FinishSuggestionWidget(
                         key: ValueKey(
-                          '${_liveBust ? current.remaining : displayRemaining}_$_liveDartsInVisit',
+                          '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
                         ),
-                        remaining: _liveBust ? current.remaining : displayRemaining,
+                        remaining: liveBust ? current.remaining : displayRemaining,
                         favoriteDouble: current.player.favoriteDouble,
-                        dartsThrown: _liveDartsInVisit,
+                        dartsThrown: liveDartsInVisit,
                         checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
                       ),
                     ),
@@ -200,31 +161,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
               // ── Dartboard input ─────────────────────────────────────────
-              Expanded(
-                child: DartboardInput(
-                  key: ValueKey(
-                      'player_${current.player.id}_leg_${provider.currentLeg}_set_${provider.currentSet}'),
-                  remaining: current.remaining,
-                  checkoutMode: currentCheckOut,
-                  gameMode: playerCheckIns[currentIdx],
-                  hasCheckedIn: currentHasCheckedInCommitted,
-                  onScoreUpdate: (live, bust, dartsInVisit, checkedInThisVisit) => setState(() {
-                    _liveRemaining = live;
-                    _liveBust = bust;
-                    _liveDartsInVisit = dartsInVisit;
-                    _liveCheckedInThisVisit = checkedInThisVisit;
-                  }),
-                  onVisitComplete: (score, darts, bust, hits) {
-                    setState(() {
-                      _liveRemaining = null;
-                      _liveBust = false;
-                      _liveDartsInVisit = 0;
-                      _liveCheckedInThisVisit = false;
-                    });
-                    provider.submitScore(score, darts, bust: bust, hits: hits);
-                  },
-                ),
-              ),
+              const Expanded(child: DartboardInput()),
             ],
           ),
             ),
