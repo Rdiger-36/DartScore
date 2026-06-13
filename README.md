@@ -67,7 +67,7 @@ Classic countdown game. Supported start scores: **201 / 301 / 501 / 701 / 1001**
 - Each segment shows notation and resulting score (e.g. `T20 / 60`)
 - Numpad input as alternative
 - Live score update after every dart
-- Visit-level undo and redo
+- Dart-level undo and redo, working across visit and player boundaries
 - Finish suggestion always visible — highlighted when checkout is reachable
 
 ---
@@ -87,6 +87,7 @@ Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks 
 | **Simple** | Counts marks per field only; no dart-level breakdown. |
 
 - Minimum 2 players
+- **Team game** — players split into teams sharing one score; active thrower shown per team slot
 - Dartboard-style input with mark tracking
 - Undo support (dart-by-dart)
 
@@ -103,6 +104,7 @@ Score on the target number each round — hit it cleanly for instant win.
 | **Sequential** | Throw at 1 until you hit it, then move to 2, up to 20. First to finish wins. |
 
 - Minimum 2 players
+- **Team game** — players split into teams sharing one score; active thrower shown per team slot
 - Dartboard input centred on the active target field
 - Shanghai (hitting Single + Double + Triple of the target) triggers an instant win
 
@@ -119,6 +121,7 @@ Hit every number 1–20 in order, then finish on Bull.
 | **Skip Rules** | Double skips one field ahead; Triple skips two; Bull's Eye is a joker that skips the current field. |
 
 - Solo or multiplayer (minimum 1 player)
+- **Team game** — players split into teams sharing one score; active thrower shown per team slot
 - Legs & Sets configurable
 - Joker mechanic (Skip Rules variant)
 
@@ -175,6 +178,7 @@ All stats are shown per player on a dedicated screen.
 - **German / English localisation** — auto-detected from device locale, switchable in settings
 - **Responsive layout** — content width capped on tablets; portrait orientation locked on phones
 - **About screen** — version info, open-source licences
+- **Support the developer** — optional one-time donations via in-app purchase
 
 ---
 
@@ -263,6 +267,7 @@ lib/
 │   ├── cricket_provider.dart              # Cricket game state machine
 │   ├── shanghai_provider.dart             # Shanghai game state machine
 │   ├── around_the_clock_provider.dart     # Around the Clock game state machine
+│   ├── donation_provider.dart             # In-app purchase / supporter state
 │   ├── theme_provider.dart                # Light/dark theme toggle, persisted via shared_preferences
 │   └── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
 ├── screens/
@@ -270,6 +275,7 @@ lib/
 │   ├── onboarding_screen.dart             # First-launch walkthrough
 │   ├── about_screen.dart                  # Version info and open-source licences
 │   ├── settings_screen.dart               # Theme, language, data management
+│   ├── donation_screen.dart               # Support the developer via in-app purchases
 │   ├── sync_screen.dart                   # QR/WiFi device-to-device data sync
 │   ├── players_screen.dart                # Player management list
 │   ├── player_stats_screen.dart           # Per-player lifetime statistics + dartboard heatmap
@@ -304,6 +310,7 @@ lib/
     ├── dartboard_target_painter.dart       # Custom painter for Shanghai target view
     ├── finish_suggestion_widget.dart       # X01 checkout hint display
     ├── cricket_marks_widget.dart           # Cricket field/marks grid
+    ├── team_section.dart                   # Shared team assignment UI for setup screens
     └── player_dialog.dart                  # Create/edit player dialog
 ```
 
@@ -336,7 +343,7 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 
 ```sql
 cricket_games   (id, variant, scoring_mode, legs, sets,
-                 created_at, finished_at, player_ids)
+                 created_at, finished_at, player_ids, team_config_json)
 
 cricket_throws  (id, game_id, player_id, field, multiplier,
                  leg, set_, thrown_at)
@@ -349,7 +356,8 @@ cricket_throws  (id, game_id, player_id, field, multiplier,
 ### Shanghai
 
 ```sql
-shanghai_games   (id, variant, legs, sets, created_at, finished_at, player_ids)
+shanghai_games   (id, variant, legs, sets, created_at, finished_at,
+                  player_ids, team_config_json)
 
 shanghai_throws  (id, game_id, player_id, target, multiplier,
                   round, leg, set_, thrown_at)
@@ -361,7 +369,7 @@ shanghai_throws  (id, game_id, player_id, target, multiplier,
 
 ```sql
 around_the_clock_games   (id, variant, legs, sets,
-                          created_at, finished_at, player_ids)
+                          created_at, finished_at, player_ids, team_config_json)
 
 around_the_clock_throws  (id, game_id, player_id, field, multiplier,
                           leg, set_, thrown_at)
@@ -376,6 +384,7 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
 | Package | Purpose |
 |---|---|
 | `sqflite` | SQLite database |
+| `path` | Filesystem path manipulation |
 | `provider` | State management |
 | `intl` | Date formatting, localisation |
 | `shared_preferences` | Theme / language persistence |
@@ -384,10 +393,10 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
 | `image_picker` | Import QR from photo library |
 | `share_plus` | Share QR image |
 | `gal` | Save image to photo library |
-| `http` | Local WiFi sync HTTP server/client |
 | `path_provider` | App directories |
 | `package_info_plus` | App version info |
 | `url_launcher` | Open external links |
+| `in_app_purchase` | Donation / supporter purchases |
 | `flutter_launcher_icons` *(dev)* | Icon generation |
 
 ---
