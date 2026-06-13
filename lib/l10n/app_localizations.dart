@@ -131,8 +131,6 @@ class AppLocalizations {
   String get checkoutHint      => _t('Check-Out:', 'Check-Out:');
   String get noCheckoutPossible => _t('No Check-Out possible', 'Kein Check-Out möglich');
   String dart(int n)           => _t('Dart $n', 'Dart $n');
-  String get undoVisit         => _t('Undo last visit', 'Letzte Aufnahme rückgängig');
-  String get redoVisit         => _t('Redo', 'Wiederherstellen');
   String bullLabel(bool d)     => d ? _t('Bull (50)', 'Bull (50)') : _t('Bull (25)', 'Bull (25)');
   String get average           => _t('Average', 'Average');
   String get remaining         => _t('remaining', 'übrig');
