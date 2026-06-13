@@ -11,6 +11,33 @@ const Map<int, int> minimumDartsForScore = {
   101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17,
 };
 
+/// Decodes a [DartThrow.hitsJson] string back into individual dart entries,
+/// or null if no per-dart hits were recorded for that visit.
+List<DartEntry>? _parseHits(String? hitsJson) {
+  if (hitsJson == null) return null;
+  final list = jsonDecode(hitsJson) as List;
+  return list.map((e) {
+    final m = e as Map<String, dynamic>;
+    final field = m['f'] as int;
+    final modifier = m['m'] as int;
+    final score = field == 0
+        ? 0
+        : (field == 25 ? (modifier == 2 ? 50 : 25) : field * modifier);
+    return DartEntry(field: field, modifier: modifier, score: score);
+  }).toList();
+}
+
+/// A unit of redo state for [GameProvider.redoLastDart]: either a single dart
+/// to re-add to the in-progress visit, or - for legacy throws recorded before
+/// per-dart [DartThrow.hitsJson] was captured - a whole visit to re-insert verbatim.
+class _RedoEntry {
+  final DartEntry? dart;
+  final DartThrow? legacyVisit;
+
+  const _RedoEntry.dart(DartEntry entry) : dart = entry, legacyVisit = null;
+  const _RedoEntry.legacyVisit(DartThrow visit) : dart = null, legacyVisit = visit;
+}
+
 // ── PlayerState ───────────────────────────────────────────────────────────────
 
 /// Immutable scoreboard state for one slot in an X01 game.
@@ -108,8 +135,17 @@ class GameProvider extends ChangeNotifier {
   int?               _winnerId;
   Map<int, PlayerHandicap> _handicaps = {};
 
-  final List<DartThrow> _undoStack = [];
-  final List<DartThrow> _redoStack = [];
+  /// Darts entered so far for the current player's in-progress (not yet
+  /// committed) visit, in throw order. Cleared whenever the visit is
+  /// committed or the turn moves on.
+  List<DartEntry> _currentVisitDarts = [];
+
+  /// Tracks if a check-in double/triple was hit within [_currentVisitDarts].
+  bool _checkedInThisVisit = false;
+
+  /// Darts (or, for legacy throws without per-dart hits, whole visits)
+  /// removed by [undoLastDart], in undo order, restorable via [redoLastDart].
+  final List<_RedoEntry> _redoStack = [];
 
   Game?              get game               => _game;
   List<PlayerState>  get playerStates       => _playerStates;
@@ -119,8 +155,65 @@ class GameProvider extends ChangeNotifier {
   int                get currentSet         => _currentSet;
   bool               get gameOver           => _gameOver;
   int?               get winnerId           => _winnerId;
-  bool               get canUndo            => _undoStack.isNotEmpty;
-  bool               get canRedo            => _redoStack.isNotEmpty;
+
+  /// Darts entered so far for the current player's in-progress visit.
+  List<DartEntry>    get currentVisitDarts  => List.unmodifiable(_currentVisitDarts);
+
+  /// Number of darts entered so far in the current in-progress visit.
+  int                get dartsInVisit       => _currentVisitDarts.length;
+
+  /// Whether a qualifying check-in dart was thrown this visit (live).
+  bool               get checkedInThisVisit => _checkedInThisVisit;
+
+  /// Whether there is any dart left to undo: either in the in-progress visit
+  /// or in a previously recorded visit (possibly a previous player's turn).
+  bool               get canUndoDart        => _currentVisitDarts.isNotEmpty || allThrows().isNotEmpty;
+
+  /// Whether a previously undone dart (or legacy visit) can be restored.
+  bool               get canRedoDart        => _redoStack.isNotEmpty;
+
+  /// Whether check-in rules apply: only in the very first leg of the game.
+  bool get _checkInActive => _currentLeg == 1 && _currentSet == 1;
+
+  /// Check-in rule for the player about to throw (handicap overrides game default).
+  GameMode get currentGameMode {
+    if (!_checkInActive) return GameMode.straightIn;
+    final pid = currentPlayerState.player.id;
+    return _handicaps[pid]?.checkIn ?? _game!.gameMode;
+  }
+
+  /// Checkout rule for the player about to throw (handicap overrides game default).
+  CheckoutMode get currentCheckoutMode {
+    final pid = currentPlayerState.player.id;
+    return _handicaps[pid]?.checkOut ?? _game!.checkoutMode;
+  }
+
+  /// Whether the player about to throw already checked in earlier this leg
+  /// (i.e. before the in-progress visit).
+  bool get currentHasCheckedIn =>
+      currentGameMode == GameMode.straightIn ||
+      currentPlayerState.remaining < _game!.startScore;
+
+  /// Sum of dart scores entered so far in the in-progress visit.
+  int get _visitScoreSoFar => _currentVisitDarts.fold(0, (s, d) => s + d.score);
+
+  /// Remaining score if the in-progress visit ended right now.
+  int get liveRunningRemaining => currentPlayerState.remaining - _visitScoreSoFar;
+
+  /// Whether the in-progress visit would currently bust (negative remaining,
+  /// or stuck on 1 with double/master-out while checked in).
+  bool get liveBust {
+    final running = liveRunningRemaining;
+    final stuck = running == 1 &&
+        currentCheckoutMode != CheckoutMode.straightOut &&
+        (currentHasCheckedIn || _checkedInThisVisit);
+    return running < 0 || stuck;
+  }
+
+  /// Remaining score to display for the current player: the live running
+  /// remaining, or the pre-visit remaining if the in-progress visit busts.
+  int get liveDisplayRemaining =>
+      liveBust ? currentPlayerState.remaining : liveRunningRemaining;
 
   /// Per-player check-in/check-out handicap for the player about to throw, if any.
   PlayerHandicap? get currentPlayerHandicap {
@@ -137,6 +230,14 @@ class GameProvider extends ChangeNotifier {
   /// Restores a previously started game from the database by replaying all
   /// stored throws, rebuilding per-slot state and the current leg/set/turn.
   Future<void> resumeGame(Game game, List<Player> players) async {
+    // In-progress visit and undo/redo state is only valid for the GameScreen
+    // that produced it; drop it on every full rebuild of the board. Callers
+    // that need to preserve it across a rebuild (undo/redo) restore it
+    // afterwards.
+    _currentVisitDarts = [];
+    _checkedInThisVisit = false;
+    _redoStack.clear();
+
     final allThrowsRaw = await _db.getThrowsForGame(game.id!);
 
     final throwsByPlayer = <int, List<DartThrow>>{};
@@ -399,18 +500,19 @@ class GameProvider extends ChangeNotifier {
     _currentSet         = 1;
     _gameOver           = false;
     _winnerId           = null;
-    _undoStack.clear();
+    _currentVisitDarts  = [];
+    _checkedInThisVisit = false;
     _redoStack.clear();
     notifyListeners();
   }
 
-  // ── Submit score ──────────────────────────────────────────────────────────
+  // ── Submit visit ──────────────────────────────────────────────────────────
 
   /// Records the current slot's visit: persists the throw (optionally with
-  /// per-dart [hits]), updates the remaining score, pushes onto the undo stack,
-  /// and either handles a checkout or advances to the next slot. Busts keep the
-  /// remaining score unchanged.
-  Future<void> submitScore(int score, int dartsUsed,
+  /// per-dart [hits]), updates the remaining score, and either handles a
+  /// checkout or advances to the next slot. Busts keep the remaining score
+  /// unchanged.
+  Future<void> _submitVisit(int score, int dartsUsed,
       {bool bust = false, List<DartEntry>? hits}) async {
     if (_game == null || _gameOver) return;
     final state     = _playerStates[_currentPlayerIndex];
@@ -448,9 +550,6 @@ class GameProvider extends ChangeNotifier {
       remaining: bust ? remaining : newRemaining,
       throws: [...state.throws, saved],
     );
-
-    _undoStack.add(saved);
-    _redoStack.clear();
 
     if (checkout) {
       await _handleCheckout(dartsUsed);
@@ -557,43 +656,210 @@ class GameProvider extends ChangeNotifier {
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
   }
 
+  // ── Dart input ────────────────────────────────────────────────────────────
+
+  /// Re-evaluates [_checkedInThisVisit] from [_currentVisitDarts] under the
+  /// current player's check-in rule, e.g. after a dart that triggered
+  /// check-in was undone.
+  void _recomputeCheckedInThisVisit() {
+    final gameMode = currentGameMode;
+    if (gameMode == GameMode.straightIn || currentHasCheckedIn) {
+      _checkedInThisVisit = false;
+      return;
+    }
+    _checkedInThisVisit = _currentVisitDarts.any((d) {
+      if (d.field == 0) return false;
+      final isDouble = d.modifier == 2;
+      final isTriple = d.modifier == 3 && d.field != 25;
+      return gameMode == GameMode.doubleIn
+          ? isDouble
+          : (isDouble || isTriple);
+    });
+  }
+
+  /// Registers [field] (0=miss, 1-20, 25=bull)/[modifier] (1/2/3) as the next
+  /// dart of the current player's in-progress visit: computes its score under
+  /// the active check-in rule, detects a bust or completed checkout, and
+  /// commits the visit once three darts are thrown or it ends early.
+  Future<void> _addDart(int field, int modifier) async {
+    int score;
+    if (field == 0) {
+      score = 0;
+    } else if (field == 25) {
+      score = modifier == 2 ? 50 : 25;
+    } else {
+      score = field * modifier;
+    }
+
+    final gameMode     = currentGameMode;
+    final checkoutMode = currentCheckoutMode;
+    final requiresCheckIn =
+        gameMode == GameMode.doubleIn || gameMode == GameMode.masterIn;
+
+    final isDouble = field != 0 && modifier == 2;
+    final isTriple = field != 0 && modifier == 3 && field != 25;
+    final qualifiesForCheckIn = gameMode == GameMode.doubleIn
+        ? isDouble
+        : (gameMode == GameMode.masterIn ? (isDouble || isTriple) : false);
+
+    bool dartScores = true;
+    if (requiresCheckIn && !(currentHasCheckedIn || _checkedInThisVisit)) {
+      if (qualifiesForCheckIn) {
+        _checkedInThisVisit = true;
+      } else {
+        dartScores = false;
+        score = 0;
+      }
+    }
+    final isCheckedIn = currentHasCheckedIn || _checkedInThisVisit;
+
+    final entry =
+        DartEntry(field: field, modifier: field == 0 ? 1 : modifier, score: score);
+    _currentVisitDarts.add(entry);
+
+    final newVisitTotal = _visitScoreSoFar;
+    final newRemaining  = currentPlayerState.remaining - newVisitTotal;
+
+    bool bust     = false;
+    bool endVisit = false;
+
+    if (!dartScores) {
+      if (_currentVisitDarts.length == 3) endVisit = true;
+    } else if (newRemaining < 0) {
+      bust     = true;
+      endVisit = true;
+    } else if (newRemaining == 0) {
+      bool valid = true;
+      if (checkoutMode == CheckoutMode.doubleOut) {
+        valid = modifier == 2;
+      } else if (checkoutMode == CheckoutMode.masterOut) {
+        valid = field == 25 ? modifier != 3 : (modifier == 2 || modifier == 3);
+      }
+      bust     = !valid;
+      endVisit = true;
+    } else if (newRemaining == 1 &&
+        checkoutMode != CheckoutMode.straightOut &&
+        isCheckedIn) {
+      bust     = true;
+      endVisit = true;
+    } else if (_currentVisitDarts.length == 3) {
+      endVisit = true;
+    }
+
+    if (endVisit) {
+      final dartsUsed  = _currentVisitDarts.length;
+      final finalScore = bust ? 0 : newVisitTotal;
+      final hits       = List<DartEntry>.from(_currentVisitDarts);
+      _currentVisitDarts  = [];
+      _checkedInThisVisit = false;
+      await _submitVisit(finalScore, dartsUsed, bust: bust, hits: hits);
+    }
+  }
+
+  /// Handles a tap on [field] (0=miss, 1-20, 25=bull) with the given
+  /// [modifier] (1=single, 2=double, 3=triple) for the current player's
+  /// in-progress visit. Any new dart invalidates the redo stack.
+  Future<void> tapField(int field, int modifier) async {
+    if (_game == null || _gameOver || _currentVisitDarts.length >= 3) return;
+    _redoStack.clear();
+    await _addDart(field, modifier);
+    notifyListeners();
+  }
+
+  /// Ends the current player's in-progress visit early, scoring the darts
+  /// entered so far. No-op if no darts have been entered yet.
+  Future<void> finishVisitEarly() async {
+    if (_game == null || _gameOver || _currentVisitDarts.isEmpty) return;
+    _redoStack.clear();
+    final dartsUsed = _currentVisitDarts.length;
+    final score     = _visitScoreSoFar;
+    final hits      = List<DartEntry>.from(_currentVisitDarts);
+    _currentVisitDarts  = [];
+    _checkedInThisVisit = false;
+    await _submitVisit(score, dartsUsed, bust: false, hits: hits);
+    notifyListeners();
+  }
+
   // ── Undo / Redo ───────────────────────────────────────────────────────────
 
-  /// Undoes the last throw: deletes it from the database, moves it to the redo
-  /// stack, and rebuilds the game state by replaying the remaining throws.
-  Future<void> undoLastThrow() async {
-    if (_game == null || _undoStack.isEmpty) return;
+  /// Undoes the last individual dart, even across visit and player boundaries.
+  ///
+  /// If the current player still has darts entered for their in-progress
+  /// visit, the most recent one is simply removed. Otherwise, the most
+  /// recently recorded visit is deleted from the database and the game state
+  /// is rebuilt, which naturally returns the turn to whoever threw it (and
+  /// reverts any leg/set it had completed). If that visit had more than one
+  /// dart, the darts before the removed one become the new in-progress visit
+  /// so the UI shows them pre-filled.
+  Future<void> undoLastDart() async {
+    if (_game == null) return;
 
-    final lastThrow = _undoStack.removeLast();
-    _redoStack.add(lastThrow);
+    if (_currentVisitDarts.isNotEmpty) {
+      _redoStack.add(_RedoEntry.dart(_currentVisitDarts.removeLast()));
+      _recomputeCheckedInThisVisit();
+      notifyListeners();
+      return;
+    }
 
-    await _db.deleteThrow(lastThrow.id!);
+    final all = allThrows();
+    if (all.isEmpty) return;
+
+    final lastVisit = all.last;
+    final hits = _parseHits(lastVisit.hitsJson);
+
+    await _db.deleteThrow(lastVisit.id!);
+
+    final preservedRedo = List<_RedoEntry>.from(_redoStack);
+    List<DartEntry> prefill;
+    if (hits != null && hits.isNotEmpty) {
+      preservedRedo.add(_RedoEntry.dart(hits.removeLast()));
+      prefill = hits;
+    } else {
+      preservedRedo.add(_RedoEntry.legacyVisit(lastVisit));
+      prefill = const [];
+    }
 
     final players = _playerStates.expand((s) => s.players).toList();
     await resumeGame(_game!, players);
+
+    _currentVisitDarts = prefill;
+    _redoStack
+      ..clear()
+      ..addAll(preservedRedo);
+    _recomputeCheckedInThisVisit();
+    notifyListeners();
   }
 
-  /// Redoes the last undone throw: re-inserts it into the database, pushes it
-  /// back onto the undo stack, and rebuilds the game state.
-  Future<void> redoLastThrow() async {
+  /// Redoes the last undone dart: restores it to the in-progress visit
+  /// (committing the visit again if that completes it), or - for a legacy
+  /// whole-visit redo - re-inserts the previously removed visit verbatim.
+  Future<void> redoLastDart() async {
     if (_game == null || _redoStack.isEmpty) return;
 
-    final t = _redoStack.removeLast();
+    final entry = _redoStack.removeLast();
 
-    final id = await _db.insertThrow(DartThrow(
+    if (entry.dart != null) {
+      await _addDart(entry.dart!.field, entry.dart!.modifier);
+      notifyListeners();
+      return;
+    }
+
+    final t = entry.legacyVisit!;
+    await _db.insertThrow(DartThrow(
       gameId: t.gameId, playerId: t.playerId, score: t.score,
       dartsUsed: t.dartsUsed, leg: t.leg, set: t.set,
       remainingBefore: t.remainingBefore, thrownAt: t.thrownAt, bust: t.bust,
+      hitsJson: t.hitsJson,
     ));
-    final saved = DartThrow(
-      id: id, gameId: t.gameId, playerId: t.playerId, score: t.score,
-      dartsUsed: t.dartsUsed, leg: t.leg, set: t.set,
-      remainingBefore: t.remainingBefore, thrownAt: t.thrownAt, bust: t.bust,
-    );
-    _undoStack.add(saved);
 
+    final preservedRedo = List<_RedoEntry>.from(_redoStack);
     final players = _playerStates.expand((s) => s.players).toList();
     await resumeGame(_game!, players);
+
+    _redoStack
+      ..clear()
+      ..addAll(preservedRedo);
+    notifyListeners();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

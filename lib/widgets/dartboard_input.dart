@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
-import '../models/game.dart';
+import '../providers/game_provider.dart';
 import '../utils/triple_color.dart';
 
 /// A single dart entered on the board input: which [field] was hit, the
@@ -22,35 +23,11 @@ class DartEntry {
 }
 
 /// Dartboard-style score entry for X01: a number grid plus single/double/triple
-/// modifier, miss and bull. Manages a per-visit buffer of up to three darts with
-/// intra-visit undo/redo, enforces check-in/check-out rules, and detects busts.
-/// Reports live updates via [onScoreUpdate] and the finished visit via
-/// [onVisitComplete].
+/// modifier, miss and bull. Reads the current player's in-progress visit and
+/// undo/redo state from [GameProvider], which also enforces check-in/check-out
+/// rules and detects busts. Only the active modifier is local UI state.
 class DartboardInput extends StatefulWidget {
-  final int remaining;
-  final CheckoutMode checkoutMode;
-  /// Check-in rule for the current player. In [GameMode.doubleIn] the player
-  /// must hit a double before any score is registered this leg.
-  final GameMode gameMode;
-  /// True once the player has already scored at least one point this leg.
-  /// When false and [gameMode] is doubleIn, only doubles count.
-  final bool hasCheckedIn;
-  /// Fired after every dart / undo / redo so scoreboard + checkout update live.
-  /// [dartsInVisit] = darts thrown so far in current visit (1–3).
-  /// [checkedInThisVisit] = true once a qualifying check-in dart was thrown this visit.
-  final void Function(int runningRemaining, bool isBust, int dartsInVisit, bool checkedInThisVisit) onScoreUpdate;
-  /// Fired when the visit (≤3 darts) is complete.
-  final void Function(int visitScore, int dartsUsed, bool bust, List<DartEntry> hits) onVisitComplete;
-
-  const DartboardInput({
-    super.key,
-    required this.remaining,
-    required this.checkoutMode,
-    this.gameMode = GameMode.straightIn,
-    this.hasCheckedIn = true,
-    required this.onScoreUpdate,
-    required this.onVisitComplete,
-  });
+  const DartboardInput({super.key});
 
   @override
   State<DartboardInput> createState() => _DartboardInputState();
@@ -58,185 +35,25 @@ class DartboardInput extends StatefulWidget {
 
 class _DartboardInputState extends State<DartboardInput> {
   int _modifier = 1;
-  final List<DartEntry> _darts = [];
-  final List<DartEntry> _redoStack = [];
-  /// Tracks if a check-in double was hit within the current visit.
-  bool _checkedInThisVisit = false;
 
   static const _fields = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
   ];
 
-  int get _visitScoreSoFar => _darts.fold(0, (s, d) => s + d.score);
-  int get _runningRemaining => widget.remaining - _visitScoreSoFar;
-  bool get _isNegative => _runningRemaining < 0;
-  bool get _isDoubleIn => widget.gameMode == GameMode.doubleIn;
-  bool get _isMasterIn => widget.gameMode == GameMode.masterIn;
-  bool get _requiresCheckIn => _isDoubleIn || _isMasterIn;
-  bool get _isCheckedIn => widget.hasCheckedIn || _checkedInThisVisit;
-
-  /// Reports the current running remaining and bust state to the parent after
-  /// each dart, undo, or redo.
-  void _notify() {
-    // Remaining 1 is unfinishable in double/master-out (no D/T = 1).
-    // Only valid if the player is actually in scoring state (checked in).
-    final stuck = _runningRemaining == 1 &&
-        widget.checkoutMode != CheckoutMode.straightOut &&
-        _isCheckedIn;
-    final bust = _isNegative || stuck;
-    widget.onScoreUpdate(
-        bust ? widget.remaining : _runningRemaining, bust, _darts.length, _checkedInThisVisit);
-  }
-
-  /// Registers a tap on [field] (0=miss, 25=bull) with the active modifier:
-  /// computes the score, enforces check-in, detects checkout/bust, and ends the
-  /// visit when three darts are thrown or the leg is decided.
+  /// Registers a tap on [field] (0=miss, 25=bull) with the active modifier.
   void _tapField(int field) {
-    if (_darts.length >= 3) return;
-    final mod = _modifier;
-
-    int score;
-    if (field == 0) {
-      score = 0;
-    } else if (field == 25) {
-      score = mod == 2 ? 50 : 25;
-    } else {
-      score = field * mod;
-    }
-
-    // ── Check-In enforcement (Double-In / Master-In) ─────────────────────
-    // Non-qualifying darts before check-in count as thrown but score 0.
-    final bool isDouble = field != 0 && mod == 2;
-    final bool isTriple = field != 0 && mod == 3 && field != 25; // no triple bull
-    final bool qualifiesForCheckIn = _isDoubleIn
-        ? isDouble
-        : (_isMasterIn ? (isDouble || isTriple) : false);
-    bool dartScores = true;
-    if (_requiresCheckIn && !_isCheckedIn) {
-      if (qualifiesForCheckIn) {
-        _checkedInThisVisit = true; // check-in achieved with this dart
-      } else {
-        dartScores = false;
-        score = 0;
-      }
-    }
-
-    final entry          = DartEntry(field: field, modifier: field == 0 ? 1 : mod, score: score);
-    final newVisitTotal  = _visitScoreSoFar + score;
-    final newRemaining   = widget.remaining - newVisitTotal;
-
-    setState(() {
-      _darts.add(entry);
-      _redoStack.clear();
-      _modifier = 1;
-    });
-    _notify();
-
-    bool bust     = false;
-    bool endVisit = false;
-
-    if (!dartScores) {
-      // Wasted pre-check-in dart — just count the throw, no score impact.
-      if (_darts.length == 3) endVisit = true;
-    } else if (newRemaining < 0) {
-      bust     = true;
-      endVisit = true;
-    } else if (newRemaining == 0) {
-      bool valid = true;
-      if (widget.checkoutMode == CheckoutMode.doubleOut) {
-        valid = mod == 2 || (field == 25 && mod == 2);
-      } else if (widget.checkoutMode == CheckoutMode.masterOut) {
-        valid = mod == 2 || mod == 3 || (field == 25 && mod != 3);
-      }
-      bust     = !valid;
-      endVisit = true;
-    } else if (newRemaining == 1 &&
-               widget.checkoutMode != CheckoutMode.straightOut &&
-               _isCheckedIn) {
-      bust     = true;
-      endVisit = true;
-    } else if (_darts.length == 3) {
-      endVisit = true;
-    }
-
-    if (endVisit) {
-      final dartsUsed  = _darts.length;
-      final finalScore = bust ? 0 : newVisitTotal;
-      final hits = List<DartEntry>.from(_darts);
-      setState(() {
-        _darts.clear();
-        _redoStack.clear();
-        _checkedInThisVisit = false; // reset for next visit
-      });
-      widget.onVisitComplete(finalScore, dartsUsed, bust, hits);
-    }
-  }
-
-  /// Recompute _checkedInThisVisit by scanning current darts.
-  /// Called after intra-visit undo/redo so check-in state stays consistent.
-  void _recomputeCheckedInThisVisit() {
-    if (!_requiresCheckIn || widget.hasCheckedIn) {
-      _checkedInThisVisit = false;
-      return;
-    }
-    _checkedInThisVisit = _darts.any((d) {
-      if (d.field == 0) return false;
-      if (_isDoubleIn) return d.modifier == 2;
-      if (_isMasterIn) return d.modifier == 2 || (d.modifier == 3 && d.field != 25);
-      return false;
-    });
-  }
-
-  /// Removes the last dart of the current visit and updates check-in state.
-  void _undo() {
-    if (_darts.isEmpty) return;
-    setState(() {
-      _redoStack.add(_darts.removeLast());
-      _recomputeCheckedInThisVisit();
-    });
-    _notify();
-  }
-
-  /// Re-adds the most recently undone dart and updates check-in state.
-  void _redo() {
-    if (_redoStack.isEmpty) return;
-    setState(() {
-      _darts.add(_redoStack.removeLast());
-      _recomputeCheckedInThisVisit();
-    });
-    _notify();
-  }
-
-  /// Ends the visit early (before three darts) with the score thrown so far.
-  void _finishEarly() {
-    if (_darts.isEmpty) return;
-    final dartsUsed = _darts.length;
-    final score = _visitScoreSoFar;
-    final hits = List<DartEntry>.from(_darts);
-    setState(() {
-      _darts.clear();
-      _redoStack.clear();
-    });
-    widget.onVisitComplete(score, dartsUsed, false, hits);
-  }
-
-  @override
-  void didUpdateWidget(DartboardInput old) {
-    super.didUpdateWidget(old);
-    if (old.remaining != widget.remaining && _darts.isNotEmpty) {
-      setState(() {
-        _darts.clear();
-        _redoStack.clear();
-      });
-    }
+    context.read<GameProvider>().tapField(field, _modifier);
+    setState(() => _modifier = 1);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final dartCount = _darts.length;
+    final provider = context.watch<GameProvider>();
+    final darts = provider.currentVisitDarts;
+    final dartCount = darts.length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -260,12 +77,12 @@ class _DartboardInputState extends State<DartboardInput> {
             children: [
           // Dart progress row with undo/redo
           _DartProgressRow(
-            darts: _darts,
-            isNegative: _isNegative,
-            canUndo: _darts.isNotEmpty,
-            canRedo: _redoStack.isNotEmpty,
-            onUndo: _undo,
-            onRedo: _redo,
+            darts: darts,
+            isNegative: provider.liveBust,
+            canUndo: provider.canUndoDart,
+            canRedo: provider.canRedoDart,
+            onUndo: provider.undoLastDart,
+            onRedo: provider.redoLastDart,
           ),
           SizedBox(height: gapAfterProgress),
           // Modifier
@@ -345,7 +162,7 @@ class _DartboardInputState extends State<DartboardInput> {
                     textColor: Colors.black,
                     disabled: dartCount == 0,
                     verticalPadding: actionVPadding,
-                    onTap: _finishEarly,
+                    onTap: provider.finishVisitEarly,
                   ),
                 ),
               ],
