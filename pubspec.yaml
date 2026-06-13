@@ -2,7 +2,7 @@ name: dartscore_app
 description: "Dart Score Tracker App"
 publish_to: 'none'
 
-version: 1.0.0+202600001
+version: 1.0.0+202600002
 
 environment:
   sdk: ^3.12.0
