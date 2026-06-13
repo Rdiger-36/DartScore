@@ -64,10 +64,8 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
       final tmp = await getTemporaryDirectory();
       final file = File('${tmp.path}/dartscore_ergebnis.png');
       await file.writeAsBytes(bytes!.buffer.asUint8List());
-      // ignore: deprecated_member_use
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject: shareSubject,
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: shareSubject),
       );
     } catch (e) {
       if (mounted) {
