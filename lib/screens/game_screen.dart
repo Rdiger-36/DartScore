@@ -178,22 +178,27 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (_) {
         final l = context.l10n;
-        return AlertDialog(
-          title: Text(l.quitTitle),
-          content: Text(l.quitBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l.cancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.popUntil(context, (route) => route.isFirst);
-              },
-              child: Text(l.leave),
-            ),
-          ],
+        return Center(
+          child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: AlertDialog(
+            title: Text(l.quitTitle),
+            content: Text(l.quitBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l.cancel),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.popUntil(context, (route) => route.isFirst);
+                },
+                child: Text(l.leave),
+              ),
+            ],
+          ),
+          ),
         );
       },
     );

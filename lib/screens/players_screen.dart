@@ -16,9 +16,6 @@ class PlayersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final wideScreen = screenWidth >= 500;
-
     final cs = Theme.of(context).colorScheme;
     final syncFab = FloatingActionButton.extended(
       heroTag: 'sync',
@@ -38,6 +35,19 @@ class PlayersScreen extends StatelessWidget {
       label: Text(l.addPlayer),
     );
 
+    // Reserve enough bottom space so the floating action button(s) never
+    // overlap the last list items: button height + spacing between stacked
+    // buttons + the FAB's own bottom margin + the device's safe area inset.
+    const fabHeight = 48.0;
+    // Matches _OtherPlayerTile's Card bottom margin, so the gap between the
+    // FABs and between the last player card and the FABs is consistent with
+    // the gap between player cards.
+    const fabSpacing = 6.0;
+    const fabMargin = 16.0;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final fabReservedHeight =
+        (fabHeight * 2) + fabSpacing + fabMargin + bottomInset;
+
     final listContent = Consumer<PlayersProvider>(
       builder: (context, provider, _) {
         if (provider.players.isEmpty) {
@@ -49,7 +59,15 @@ class PlayersScreen extends StatelessWidget {
             provider.players.where((p) => !p.isPrimary).toList();
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            12,
+            12,
+            // The last card's own bottom margin (_OtherPlayerTile's Card) is
+            // consumed by the FAB's reserved height, so add it back once
+            // more to leave the same gap above the FAB as between cards.
+            fabReservedHeight + (fabSpacing * 2) + 4,
+          ),
           children: [
             // ── Primary user card ──────────────────────────────────────
             if (primary != null) ...[
@@ -96,31 +114,16 @@ class PlayersScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l.playersTitle),
       ),
-      // On wide screens the sync FAB stays bottom-left via Positioned.
-      body: wideScreen
-          ? Stack(children: [
-              Center(child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-                child: listContent,
-              )),
-              Positioned(
-                left: 16,
-                bottom: 16 + MediaQuery.of(context).padding.bottom,
-                child: syncFab,
-              ),
-            ])
-          : Center(child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-              child: listContent,
-            )),
+      body: Center(child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: listContent,
+      )),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: wideScreen
-          ? addFab
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [addFab, const SizedBox(height: 12), syncFab],
-            ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [addFab, const SizedBox(height: fabSpacing), syncFab],
+      ),
     );
   }
 
@@ -193,22 +196,27 @@ class PlayersScreen extends StatelessWidget {
       BuildContext context, PlayersProvider provider, Player player) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(context.l10n.deletePlayerTitle),
-        content: Text(context.l10n.deletePlayerConfirm(player.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              provider.deletePlayer(player.id!);
-              Navigator.pop(context);
-            },
-            child: Text(context.l10n.delete),
-          ),
-        ],
+      builder: (_) => Center(
+        child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: AlertDialog(
+          title: Text(context.l10n.deletePlayerTitle),
+          content: Text(context.l10n.deletePlayerConfirm(player.name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                provider.deletePlayer(player.id!);
+                Navigator.pop(context);
+              },
+              child: Text(context.l10n.delete),
+            ),
+          ],
+        ),
+        ),
       ),
     );
   }

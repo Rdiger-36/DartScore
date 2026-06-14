@@ -27,15 +27,20 @@ class _DonationScreenState extends State<DonationScreen> {
         dp.clearThankYou();
         showDialog<void>(
           context: context,
-          builder: (_) => AlertDialog(
-            title: Text(l.donationThankYouTitle),
-            content: Text(l.donationThankYouBody),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(l.ok),
-              ),
-            ],
+          builder: (_) => Center(
+            child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+            child: AlertDialog(
+              title: Text(l.donationThankYouTitle),
+              content: Text(l.donationThankYouBody),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l.ok),
+                ),
+              ],
+            ),
+            ),
           ),
         );
       });
