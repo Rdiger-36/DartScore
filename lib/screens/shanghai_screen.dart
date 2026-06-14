@@ -165,20 +165,25 @@ class _ShanghaiGameView extends StatelessWidget {
     final l = context.l10n;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l.quitTitle),
-        content: Text(l.quitBody),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: Text(l.leave),
-          ),
-        ],
+      builder: (_) => Center(
+        child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: AlertDialog(
+          title: Text(l.quitTitle),
+          content: Text(l.quitBody),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: Text(l.leave),
+            ),
+          ],
+        ),
+        ),
       ),
     );
   }

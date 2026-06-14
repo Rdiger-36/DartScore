@@ -177,23 +177,28 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(l.clearAllTitle),
-        content: Text(l.deleteVisibleBody(adj, mode)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
+      builder: (_) => Center(
+        child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: AlertDialog(
+          title: Text(l.clearAllTitle),
+          content: Text(l.deleteVisibleBody(adj, mode)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l.cancel),
             ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l.clearAll),
-          ),
-        ],
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l.clearAll),
+            ),
+          ],
+        ),
+        ),
       ),
     );
     if (confirmed != true) return;

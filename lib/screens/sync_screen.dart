@@ -719,42 +719,47 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setState) {
           final l = ctx.l10n;
-          return AlertDialog(
-            title: Text(l.nameConflictTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l.nameConflictBody(packet.playerName),
-                    style: Theme.of(ctx).textTheme.bodyMedium),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(
-                    labelText: l.alternativeName,
-                    border: const OutlineInputBorder(),
+          return Center(
+            child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(ctx)),
+            child: AlertDialog(
+              title: Text(l.nameConflictTitle),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l.nameConflictBody(packet.playerName),
+                      style: Theme.of(ctx).textTheme.bodyMedium),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                      labelText: l.alternativeName,
+                      border: const OutlineInputBorder(),
+                    ),
                   ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: Text(l.cancel),
+                ),
+                OutlinedButton(
+                  onPressed: () =>
+                      Navigator.pop(ctx, _NameResolution.useExisting),
+                  child: Text(l.importAs(sameNamePlayer.name)),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final name = nameCtrl.text.trim();
+                    if (name.isNotEmpty) Navigator.pop(ctx, name);
+                  },
+                  child: Text(l.renameAndImport),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, null),
-                child: Text(l.cancel),
-              ),
-              OutlinedButton(
-                onPressed: () =>
-                    Navigator.pop(ctx, _NameResolution.useExisting),
-                child: Text(l.importAs(sameNamePlayer.name)),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final name = nameCtrl.text.trim();
-                  if (name.isNotEmpty) Navigator.pop(ctx, name);
-                },
-                child: Text(l.renameAndImport),
-              ),
-            ],
+            ),
           );
         },
       ),
@@ -874,7 +879,10 @@ class _ConfirmDialog extends StatelessWidget {
     final s     = packet.stats;
     final l     = context.l10n;
 
-    return AlertDialog(
+    return Center(
+      child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+      child: AlertDialog(
       title: Text(isNew ? l.importNewPlayer : l.updatePlayer),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -946,6 +954,8 @@ class _ConfirmDialog extends StatelessWidget {
           child: Text(isNew ? l.import_ : l.update),
         ),
       ],
+      ),
+      ),
     );
   }
 }
