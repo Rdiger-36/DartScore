@@ -235,6 +235,60 @@ class FinishCalculator {
     60: [['T20']],
   };
 
+  // ── Favorite-double-oriented routes ─────────────────────────────────────────
+
+  /// Maps a favorite-double label (`D1`-`D20` or `Bull`) to its point value
+  /// (2-40, or 50 for `Bull`). Returns null for any other label.
+  static int? _doubleValue(String label) {
+    if (label == 'Bull') return 50;
+    if (label.startsWith('D')) {
+      final n = int.tryParse(label.substring(1));
+      if (n != null && n >= 1 && n <= 20) return n * 2;
+    }
+    return null;
+  }
+
+  /// Returns the dart notation for a single dart scoring exactly [value]
+  /// points (1-60), preferring a single, then bull, then triple, then
+  /// double. Returns null if no single dart can score [value].
+  static String? _singleDartLabel(int value) {
+    if (value >= 1 && value <= 20) return 'S$value';
+    if (value == 25) return '25';
+    if (value == 50) return 'Bull';
+    if (value % 3 == 0 && value <= 60) return 'T${value ~/ 3}';
+    if (value % 2 == 0 && value <= 40) return 'D${value ~/ 2}';
+    return null;
+  }
+
+  /// Finds a 1- or 2-dart combination scoring exactly [value] points,
+  /// trying the largest first dart first. Returns null if [value] cannot be
+  /// reached with at most 2 darts.
+  static List<String>? _leadRoute(int value) {
+    if (value <= 0 || value > 120) return null;
+    final single = _singleDartLabel(value);
+    if (single != null) return [single];
+    for (var first = 60; first >= 1; first--) {
+      final firstLabel = _singleDartLabel(first);
+      if (firstLabel == null) continue;
+      final secondLabel = _singleDartLabel(value - first);
+      if (secondLabel != null) return [firstLabel, secondLabel];
+    }
+    return null;
+  }
+
+  /// Returns a route to [remaining] that finishes on [favoriteDouble], using
+  /// at most 3 darts in total, or null if no such route exists.
+  static List<String>? _favoriteDoubleRoute(
+    int remaining,
+    String favoriteDouble,
+  ) {
+    final favVal = _doubleValue(favoriteDouble);
+    if (favVal == null) return null;
+    final lead = _leadRoute(remaining - favVal);
+    if (lead == null) return null;
+    return [...lead, favoriteDouble];
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /// Returns [primary, alternative?] checkout routes for [remaining], filtered
@@ -283,7 +337,14 @@ class FinishCalculator {
     }
     all.sort((a, b) => a.length.compareTo(b.length));
 
-    if (all.isEmpty) return (primary: null, alternative: null);
+    if (all.isEmpty) {
+      // No route fits within maxDarts this turn. Still offer a route toward
+      // the favorite double (up to 3 darts) as a hint for the next visit.
+      final favRoute = (favoriteDouble != null && favoriteDouble.isNotEmpty)
+          ? _favoriteDoubleRoute(remaining, favoriteDouble)
+          : null;
+      return (primary: null, alternative: favRoute);
+    }
 
     // Select primary (preferred) and alternative routes.
     List<String>? primary;
@@ -305,6 +366,13 @@ class FinishCalculator {
       if (primary == null) {
         primary     = all.first;
         alternative = all.length > 1 ? all[1] : null;
+
+        // Primary doesn't finish on the favorite double - offer a dedicated
+        // route there instead of the next-best alternative.
+        final favRoute = _favoriteDoubleRoute(remaining, favoriteDouble);
+        if (favRoute != null && favRoute.join('|') != primary.join('|')) {
+          alternative = favRoute;
+        }
       }
     } else {
       primary     = all.first;
