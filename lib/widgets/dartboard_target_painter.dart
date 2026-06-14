@@ -3,10 +3,29 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 // Standard dartboard segment order (clockwise from top)
-const _order = [
+const dartboardSegmentOrder = [
   20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
   3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
 ];
+
+/// Radius of the inner (double) bullseye, as a fraction of the board radius.
+const dartboardBullInnerRadius = 0.050;
+
+/// Outer radius of the single bull (the "25" ring), as a fraction of the
+/// board radius. Shared with the favorite-double picker, which treats any tap
+/// within this radius as the bull.
+const dartboardBullOuterRadius = 0.110;
+
+/// Inner radius of the outer single ring (i.e. the outer edge of the triple
+/// ring), as a fraction of the board radius. Shared with the favorite-double
+/// picker, which treats taps in the outer single ring as hitting the double
+/// of that segment for a larger hitbox.
+const dartboardOuterSingleRingInner = 0.505;
+
+/// Inner and outer radius of the double ring, as a fraction of the board
+/// radius. Shared with the favorite-double picker for hit testing.
+const dartboardDoubleRingInner = 0.705;
+const dartboardDoubleRingOuter = 0.780;
 
 /// Paints a dartboard with the given [target] segment highlighted.
 ///
@@ -38,14 +57,14 @@ class DartboardTargetPainter extends CustomPainter {
     final r  = min(cx, cy);
     final center = Offset(cx, cy);
 
-    final rBullInner = r * 0.050;
-    final rBull      = r * 0.110;
+    final rBullInner = r * dartboardBullInnerRadius;
+    final rBull      = r * dartboardBullOuterRadius;
     final rTriple1   = r * 0.445;
-    final rTriple2   = r * 0.505;
-    final rDouble1   = r * 0.705;
-    final rDouble2   = r * 0.780;
+    final rTriple2   = r * dartboardOuterSingleRingInner;
+    final rDouble1   = r * dartboardDoubleRingInner;
+    final rDouble2   = r * dartboardDoubleRingOuter;
 
-    final segCount   = _order.length;
+    final segCount   = dartboardSegmentOrder.length;
     final angleStep  = (2 * pi) / segCount;
     final halfStep   = angleStep / 2;
     final startAngle = -pi / 2 - halfStep;
@@ -68,7 +87,7 @@ class DartboardTargetPainter extends CustomPainter {
     }
 
     for (var i = 0; i < segCount; i++) {
-      final field = _order[i];
+      final field = dartboardSegmentOrder[i];
       final a0 = startAngle + i * angleStep;
       final isTargetField = field == target && target != 25;
       final base = onSurfaceColor.withValues(alpha: i.isEven ? 0.08 : 0.03);
@@ -100,7 +119,7 @@ class DartboardTargetPainter extends CustomPainter {
 
     final tp = TextPainter(textDirection: ui.TextDirection.ltr);
     for (var i = 0; i < segCount; i++) {
-      final field = _order[i];
+      final field = dartboardSegmentOrder[i];
       final isTargetNum = field == target;
       final angle = startAngle + i * angleStep + halfStep;
       final labelR = r * 0.93;

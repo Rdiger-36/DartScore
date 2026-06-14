@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
+import 'favorite_double_picker.dart';
 
 /// Modal dialog to create or edit a player: name, favorite double, and (when
 /// editing) the option to make them the primary profile or delete them.
@@ -35,12 +36,6 @@ class _PlayerDialogState extends State<PlayerDialog> {
   bool _showDoubleError = false;
   bool _showNameError = false;
   late bool _isPrimary;
-
-  static const _allDoubles = [
-    'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10',
-    'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20',
-    'Bull',
-  ];
 
   @override
   void initState() {
@@ -96,7 +91,7 @@ class _PlayerDialogState extends State<PlayerDialog> {
               Flexible(
                 child: SingleChildScrollView(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(top: 6, right: 12),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -116,23 +111,60 @@ class _PlayerDialogState extends State<PlayerDialog> {
                           onSubmitted: (_) => FocusScope.of(context).unfocus(),
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedDouble,
-                          decoration: InputDecoration(
-                            labelText: l.favDoublesTitle,
-                            border: const OutlineInputBorder(),
-                            errorText:
-                                _showDoubleError ? l.favDoublesRequired : null,
+                        Row(
+                          children: [
+                            Text(l.favDoublesTitle, style: theme.textTheme.titleSmall),
+                            if (_selectedDouble != null) ...[
+                              Text(': ', style: theme.textTheme.titleSmall),
+                              Text(
+                                _selectedDouble!,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.primary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            child: FavoriteDoublePicker(
+                              value: _selectedDouble,
+                              onChanged: (val) => setState(() {
+                                _selectedDouble = val;
+                                _showDoubleError = false;
+                              }),
+                            ),
                           ),
-                          hint: Text(l.favDoublesTitle),
-                          items: _allDoubles
-                              .map((d) =>
-                                  DropdownMenuItem(value: d, child: Text(d)))
-                              .toList(),
-                          onChanged: (val) => setState(() {
-                            _selectedDouble = val;
-                            _showDoubleError = false;
-                          }),
+                        ),
+                        if (_showDoubleError)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Center(
+                              child: Text(
+                                l.favDoublesRequired,
+                                style: theme.textTheme.labelSmall
+                                    ?.copyWith(color: cs.error),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline,
+                                size: 14, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                l.favDoubleHint,
+                                style: theme.textTheme.labelSmall
+                                    ?.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                            ),
+                          ],
                         ),
                         if (isEditing && widget.onSetPrimary != null) ...[
                           const SizedBox(height: 8),
