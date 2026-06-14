@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
 import '../widgets/dartboard_icon.dart';
+import '../widgets/favorite_double_picker.dart';
 import '../utils/layout.dart';
 
 /// First-launch walkthrough that creates the primary player (name and favorite
@@ -19,12 +20,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _selectedDouble;
   bool _saving = false;
   bool _showDoubleError = false;
-
-  static const _allDoubles = [
-    'D1','D2','D3','D4','D5','D6','D7','D8','D9','D10',
-    'D11','D12','D13','D14','D15','D16','D17','D18','D19','D20',
-    'Bull',
-  ];
 
   @override
   void dispose() {
@@ -104,23 +99,62 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const SizedBox(height: 24),
 
                   // ── Favorite double (required) ────────────────────────────
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedDouble,
-                    decoration: InputDecoration(
-                      labelText: l.favDoublesTitle,
-                      border: const OutlineInputBorder(),
-                      errorText: _showDoubleError ? l.favDoublesRequired : null,
-                    ),
-                    hint: Text(l.favDoublesTitle),
-                    items: _allDoubles
-                        .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                        .toList(),
-                    onChanged: (val) => setState(() {
-                      _selectedDouble = val;
-                      _showDoubleError = false;
-                    }),
+                  Row(
+                    children: [
+                      Text(l.favDoublesTitle, style: theme.textTheme.titleSmall),
+                      if (_selectedDouble != null) ...[
+                        Text(': ', style: theme.textTheme.titleSmall),
+                        Text(
+                          _selectedDouble!,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: FavoriteDoublePicker(
+                        value: _selectedDouble,
+                        onChanged: (val) => setState(() {
+                          _selectedDouble = val;
+                          _showDoubleError = false;
+                        }),
+                      ),
+                    ),
+                  ),
+                  if (_showDoubleError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Center(
+                        child: Text(
+                          l.favDoublesRequired,
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: cs.error),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 14, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          l.favDoubleHint,
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
                   // ── CTA ──────────────────────────────────────────────────
                   FilledButton.icon(
