@@ -59,9 +59,10 @@ class _PlayerDialogState extends State<PlayerDialog> {
     final canSave = _nameCtrl.text.trim().isNotEmpty && _selectedDouble != null && !_showNameError;
     final isEditing = widget.initialName != null;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-      child: Dialog(
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 12, 12, 16),
@@ -224,6 +225,7 @@ class _PlayerDialogState extends State<PlayerDialog> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
