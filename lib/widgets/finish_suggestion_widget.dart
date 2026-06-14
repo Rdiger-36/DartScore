@@ -76,6 +76,36 @@ class FinishSuggestionWidget extends StatelessWidget {
           ),
         );
       }
+
+      // No checkout possible with the remaining darts this turn, but a route
+      // toward the favorite double exists for the next visit.
+      if (routes.alternative != null) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: cs.tertiaryContainer,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.noCheckoutPossible,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 4),
+              _RouteRow(
+                route: routes.alternative!,
+                color: cs.onTertiaryContainer.withValues(alpha: 0.75),
+                bold: false,
+              ),
+            ],
+          ),
+        );
+      }
     }
 
     // No checkout possible — same red container as checkout hint, same sizing behaviour
