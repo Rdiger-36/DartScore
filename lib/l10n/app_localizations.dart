@@ -162,6 +162,9 @@ class AppLocalizations {
   String get nameLabel         => _t('Name', 'Name');
   String get favDoublesTitle      => _t('Favorite Double', 'Lieblings-Double');
   String get favDoublesRequired   => _t('Please select a favorite double', 'Bitte ein Lieblings-Double auswählen');
+  String get favDoubleHint        => _t(
+      'If multiple checkout routes are possible, the suggested finish prefers one ending on this double.',
+      'Sind mehrere Finish-Wege möglich, wird bevorzugt ein Weg vorgeschlagen, der mit diesem Double endet');
   String get nameAlreadyExists => _t('This name is already taken', 'Dieser Name ist bereits vergeben');
   String get deletePlayerTitle => _t('Delete Player', 'Spieler löschen');
   String deletePlayerConfirm(String name) =>
