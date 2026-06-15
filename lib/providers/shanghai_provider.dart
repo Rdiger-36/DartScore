@@ -478,10 +478,12 @@ class ShanghaiProvider extends ChangeNotifier {
   // ── Undo ───────────────────────────────────────────────────────────────────
 
   /// Undoes the last dart: deletes it from the database and replays the
-  /// remaining darts to rebuild scores and turn state.
+  /// remaining darts to rebuild scores and turn state. Undoing the winning
+  /// dart un-finishes the game and clears its persisted finish time.
   Future<void> undoLastDart() async {
     if (_game == null || _throwHistory.isEmpty) return;
 
+    final wasGameOver = _gameOver;
     final last = _throwHistory.removeLast();
     await _db.deleteShanghaiThrow(last.id!);
 
@@ -490,6 +492,11 @@ class ShanghaiProvider extends ChangeNotifier {
     }
 
     await _replayState();
+
+    if (wasGameOver) {
+      await _db.updateShanghaiGame(_game!);
+    }
+
     notifyListeners();
   }
 
