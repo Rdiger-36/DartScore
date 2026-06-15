@@ -76,6 +76,7 @@ class _GameScreenState extends State<GameScreen> {
           appBar: AppBar(
             backgroundColor: Theme.of(context).colorScheme.surface,
             toolbarHeight: 44,
+            centerTitle: true,
             title: isSolo
                 ? Text(
                     '${context.l10n.openPlay} · ${game.startScore}',
@@ -270,10 +271,6 @@ class _Scoreboard extends StatelessWidget {
         checkRemaining > 0 &&
         checkRemaining <= maxAchievable;
 
-    // Placement mode: this slot already checked out this leg and is waiting
-    // for the others to finish, so dim the card and show its finishing place.
-    final finishedThisLeg = game.placementMode && s.legPlacement != null;
-
     final cardColor = showBust
         ? cs.errorContainer
         : isCurrent
@@ -294,132 +291,105 @@ class _Scoreboard extends StatelessWidget {
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Stack(
-          children: [
-            Opacity(
-              opacity: finishedThisLeg ? 0.55 : 1.0,
-              child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Name: team name (big) + current player (small) for teams
-                  Text(
-                    s.displayName,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: onCard,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (s.isTeamSlot)
-                    Text(
-                      s.player.name,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: onCard.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  // Mode badge (check-in required OR in checkout range)
-                  Center(
-                    child: _ModeBadge(
-                      remaining: displayValue,
-                      checkIn: playerCheckIns[i],
-                      checkOut: playerCheckOuts[i],
-                      checkedIn: playerCheckedIn[i],
-                      onCard: onCard,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  // Big score
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 110),
-                    child: Text(
-                      showBust ? 'BUST' : '$displayValue',
-                      key: ValueKey('$i-$displayValue-$showBust'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 52,
-                        fontWeight: FontWeight.bold,
-                        color: onCard,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Stats + perfect-game badge
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          if (!isSolo)
-                            Text(
-                              game.sets > 1
-                                  ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
-                                  : '${context.l10n.legs}: ${s.legsWon}',
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: onCardMuted),
-                            ),
-                          Text(
-                            'Ø ${s.average.toStringAsFixed(1)}',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: onCardMuted),
-                          ),
-                        ],
-                      ),
-                      if (perfectStillPossible)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFB300),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '$minDarts',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Name: team name (big) + current player (small) for teams
+              Text(
+                s.displayName,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: onCard,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              ),
-            ),
-            if (finishedThisLeg)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: cs.secondaryContainer,
-                    borderRadius: BorderRadius.circular(6),
+              if (s.isTeamSlot)
+                Text(
+                  s.player.name,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: onCard.withValues(alpha: 0.75),
                   ),
-                  child: Text(
-                    context.l10n.placementBadge(s.legPlacement!),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+              // Mode badge (check-in required OR in checkout range)
+              Center(
+                child: _ModeBadge(
+                  remaining: displayValue,
+                  checkIn: playerCheckIns[i],
+                  checkOut: playerCheckOuts[i],
+                  checkedIn: playerCheckedIn[i],
+                  onCard: onCard,
+                ),
+              ),
+              const SizedBox(height: 2),
+              // Big score
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 110),
+                child: Text(
+                  showBust ? 'BUST' : '$displayValue',
+                  key: ValueKey('$i-$displayValue-$showBust'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 52,
+                    fontWeight: FontWeight.bold,
+                    color: onCard,
+                    height: 1,
                   ),
                 ),
               ),
-          ],
+              const SizedBox(height: 6),
+              // Stats + perfect-game badge
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (!isSolo)
+                        Text(
+                          game.sets > 1
+                              ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
+                              : '${context.l10n.legs}: ${s.legsWon}',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: onCardMuted),
+                        ),
+                      Text(
+                        'Ø ${s.average.toStringAsFixed(1)}',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: onCardMuted),
+                      ),
+                    ],
+                  ),
+                  if (perfectStillPossible)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB300),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '$minDarts',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -430,17 +400,28 @@ class _Scoreboard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
 
-    // With 3+ players: show only current + next.  ≤2: show all.
-    final nextIdx = (currentIdx + 1) % states.length;
-    final showAll = states.length <= 2;
-    final mainIndices = showAll
-        ? List.generate(states.length, (i) => i)
-        : [currentIdx, nextIdx];
-    final otherIndices = showAll
-        ? <int>[]
-        : List.generate(states.length, (i) => i)
-            .where((i) => i != currentIdx && i != nextIdx)
-            .toList();
+    // Placement mode: slots that already checked out this leg are shown only
+    // as a small chip (with their finishing place) and never as a big card.
+    final allIndices = List.generate(states.length, (i) => i);
+    final finishedIndices = game.placementMode
+        ? allIndices.where((i) => states[i].legPlacement != null).toList()
+        : <int>[];
+    final activeIndices =
+        allIndices.where((i) => !finishedIndices.contains(i)).toList();
+
+    // With 3+ active players: show only current + next.  ≤2: show all.
+    final showAll = activeIndices.length <= 2;
+    int nextIdx = currentIdx;
+    if (activeIndices.length > 1) {
+      final pos = activeIndices.indexOf(currentIdx);
+      nextIdx = activeIndices[(pos + 1) % activeIndices.length];
+    }
+    final mainIndices = showAll ? activeIndices : [currentIdx, nextIdx];
+    final otherIndices = [
+      if (!showAll)
+        ...activeIndices.where((i) => i != currentIdx && i != nextIdx),
+      ...finishedIndices,
+    ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
@@ -470,12 +451,18 @@ class _Scoreboard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: otherIndices.map((i) {
                   final s = states[i];
+                  final finished =
+                      game.placementMode && s.legPlacement != null;
+                  final chipBg =
+                      finished ? cs.secondaryContainer : cs.surfaceContainerHigh;
+                  final chipFg =
+                      finished ? cs.onSecondaryContainer : cs.onSurface;
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: cs.surfaceContainerHigh,
+                      color: chipBg,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -499,16 +486,20 @@ class _Scoreboard extends StatelessWidget {
                         Text(
                           s.displayName.split(' ').first,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: cs.onSurfaceVariant,
+                            color: finished
+                                ? chipFg.withValues(alpha: 0.85)
+                                : cs.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${s.remaining}',
+                          finished
+                              ? context.l10n.placementBadge(s.legPlacement!)
+                              : '${s.remaining}',
                           style: theme.textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: cs.onSurface,
+                            color: chipFg,
                           ),
                         ),
                       ],
