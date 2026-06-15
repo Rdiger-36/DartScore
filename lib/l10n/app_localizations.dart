@@ -232,6 +232,7 @@ class AppLocalizations {
       _t('Standard deviation of visits: $s pts — lower = more consistent.',
          'Standardabweichung der Aufnahmen: $s Punkte — niedriger = gleichmäßiger.');
   String get checkoutBreakdown  => _t('Check-Out by Range', 'Check-Out nach Restpunkten');
+  String get topDoubles         => _t('Top Doubles', 'Beste Doppelfelder');
   String get weekComparison     => _t('Week Comparison', 'Wochenvergleich');
   String get thisWeek           => _t('This week', 'Diese Woche');
   String get lastWeek           => _t('Last week', 'Letzte Woche');
