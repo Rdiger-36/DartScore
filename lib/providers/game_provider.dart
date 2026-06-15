@@ -780,8 +780,9 @@ class GameProvider extends ChangeNotifier {
   // ── Checkout ──────────────────────────────────────────────────────────────
 
   /// Resolves a successful checkout: awards the leg, tracks perfect legs, and
-  /// promotes to set/game win as needed. Solo games end immediately; otherwise
-  /// scores reset and play advances to the next slot.
+  /// promotes to set/game win as needed. Scores reset and play advances to
+  /// the next slot, including solo games, which simply continue to the next
+  /// leg until [Game.legs] is reached.
   Future<void> _handleCheckout(int dartsUsed) async {
     final state = _playerStates[_currentPlayerIndex];
     int legsWon = state.legsWon + 1;
@@ -799,16 +800,6 @@ class GameProvider extends ChangeNotifier {
         dartsUsed;
     final isPerfect  = minDarts != null && legDarts <= minDarts;
     final perfectLegs = state.perfectLegs + (isPerfect ? 1 : 0);
-
-    // Solo game: no legs/sets — finish immediately on checkout
-    if (_playerStates.length == 1) {
-      _playerStates[_currentPlayerIndex] = state.copyWith(
-          legsWon: 0, setsWon: 0, perfectLegs: perfectLegs);
-      _gameOver = true;
-      _winnerId = state.player.id;
-      await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
-      return;
-    }
 
     // Placement mode: award the leg, but keep playing until every slot has
     // checked out, producing a 1st/2nd/3rd/... finishing order for this leg.

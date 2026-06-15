@@ -85,7 +85,6 @@ class AppLocalizations {
   String get startOpenPlay     => _t('Start Solo Game', 'Solo Spiel starten');
   String get minOnePlayer      => _t('Select at least 1 player', 'Mindestens 1 Spieler auswählen');
   String get openPlayHint      => _t('1 player = Solo Game (no opponent)', '1 Spieler = Solo Spiel (kein Gegner)');
-  String get soloLegsHint      => _t('Solo game plays 1 leg · 1 set', 'Solo Spiel: 1 Leg · 1 Set');
   String playerN(int n)        => _t('Player $n', 'Spieler $n');
 
   // ── Match format presets ─────────────────────────────────────────────────
