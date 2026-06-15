@@ -407,6 +407,17 @@ class DbHelper {
   // Mirrors game_provider.dart — kept local to avoid circular import.
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
+  /// Computes the classic three-dart average (non-bust score divided by darts
+  /// thrown, times three) for a set of throws.
+  static double _gameAverage(List<DartThrow> throws) {
+    int darts = 0, scored = 0;
+    for (final t in throws) {
+      darts += t.dartsUsed;
+      if (!t.bust) scored += t.score;
+    }
+    return darts == 0 ? 0 : (scored / darts) * 3;
+  }
+
   /// Counts perfect legs in [throws] (legs finished within [minDarts] darts).
   static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
     if (minDarts == null) return 0;
@@ -483,13 +494,17 @@ class DbHelper {
       final throws = await getThrowsForPlayer(player.id!);
       if (throws.isEmpty) continue;
 
-      // Perfect legs: compute per game since each game has its own minDarts
+      // Perfect legs and highest single-game average: compute per game, since
+      // each game has its own minDarts and its own average.
       int totalPerfect = 0;
+      double highestGameAvg = 0;
       final gameIds = throws.map((t) => t.gameId).toSet();
       for (final gid in gameIds) {
         final gThrows  = throws.where((t) => t.gameId == gid).toList();
         final minDarts = _kMinDarts[startScores[gid]];
         totalPerfect  += _perfectLegsFor(gThrows, minDarts);
+        final avg = _gameAverage(gThrows);
+        if (avg > highestGameAvg) highestGameAvg = avg;
       }
 
       // Count finished games for this player
@@ -500,8 +515,9 @@ class DbHelper {
 
       final stats = <String, dynamic>{
         ..._computeStatsFromThrows(throws),
-        'perfect_legs':   totalPerfect,
-        'games_finished': finishedCount,
+        'perfect_legs':     totalPerfect,
+        'games_finished':   finishedCount,
+        'highest_game_avg': highestGameAvg,
       };
       final existing = player.localStatsJson;
       final merged   = (existing != null && existing.isNotEmpty)
@@ -614,6 +630,7 @@ class DbHelper {
       'checkout_successes': checkoutSuccesses,
       'games_played':       gameIds.length,
       'score_sum_squares':  scoreSumSquares,
+      'highest_game_avg':   _gameAverage(throws),
       'co_at_sub40':  coAtSub40,  'co_ok_sub40':  coOkSub40,
       'co_at_sub60':  coAtSub60,  'co_ok_sub60':  coOkSub60,
       'co_at_sub100': coAtSub100, 'co_ok_sub100': coOkSub100,
@@ -633,6 +650,8 @@ class DbHelper {
   ) {
     int add(String k) => (a[k] as int? ?? 0) + (b[k] as int? ?? 0);
     int mx(String k)  => max(a[k] as int? ?? 0, b[k] as int? ?? 0);
+    double mxd(String k) =>
+        max((a[k] as num? ?? 0).toDouble(), (b[k] as num? ?? 0).toDouble());
 
     // segment_hits: field → multiplier → count
     final aHits = (a['segment_hits'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -689,6 +708,7 @@ class DbHelper {
       'busts':              add('busts'),
       'highest_visit':      mx('highest_visit'),
       'highest_checkout':   mx('highest_checkout'),
+      'highest_game_avg':   mxd('highest_game_avg'),
       'count_180':          add('count_180'),
       'count_140_plus':     add('count_140_plus'),
       'count_100_plus':     add('count_100_plus'),

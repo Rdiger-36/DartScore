@@ -28,6 +28,7 @@ class _PlayerStats {
   final int legsWon;
   final int highestVisit;
   final int highestCheckout;      // highest score that reached 0
+  final double highestGameAverage; // best three-dart average in a single game
   final int count180;
   final int count140plus;
   final int count100plus;
@@ -65,6 +66,7 @@ class _PlayerStats {
     required this.legsWon,
     required this.highestVisit,
     required this.highestCheckout,
+    this.highestGameAverage = 0,
     required this.count180,
     required this.count140plus,
     required this.count100plus,
@@ -195,6 +197,20 @@ Future<_PlayerStats> _loadStats(Player player) async {
   int liveTotalVisits    = throws.length;
   int liveNonBustVisits  = liveTotalVisits - busts;
 
+  // ── Highest single-game average (live throws, grouped by game) ───────────
+  final gameDarts  = <int, int>{};
+  final gameScored = <int, int>{};
+  for (final t in throws) {
+    gameDarts[t.gameId] = (gameDarts[t.gameId] ?? 0) + t.dartsUsed;
+    if (!t.bust) gameScored[t.gameId] = (gameScored[t.gameId] ?? 0) + t.score;
+  }
+  double highestGameAvg = 0;
+  for (final entry in gameDarts.entries) {
+    if (entry.value == 0) continue;
+    final avg = (gameScored[entry.key] ?? 0) / entry.value * 3;
+    if (avg > highestGameAvg) highestGameAvg = avg;
+  }
+
   // ── Merge persistent snapshot (deleted games) ─────────────────────────────
   int persistentTotalDarts  = 0;
   int persistentTotalVisits = 0;
@@ -207,6 +223,9 @@ Future<_PlayerStats> _loadStats(Player player) async {
     try {
       final p   = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
       int pi(String k) => p[k] as int? ?? 0;
+      double pd(String k) => (p[k] as num?)?.toDouble() ?? 0;
+
+      highestGameAvg = max(highestGameAvg, pd('highest_game_avg'));
 
       persistentTotalDarts  = pi('total_darts');
       persistentTotalVisits = pi('total_visits');
@@ -363,6 +382,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
     legsWon:        legsWon,
     highestVisit:   highestVisit,
     highestCheckout: highestCheckout,
+    highestGameAverage: highestGameAvg,
     count180:       count180,
     count140plus:   count140plus,
     count100plus:   count100plus,
@@ -483,6 +503,31 @@ class _StatsBody extends StatelessWidget {
         // ── Highlights row ──────────────────────────────────────────────
         _SectionTitle(context.l10n.highlights),
         const SizedBox(height: 6),
+        // Perfect games + highest average row
+        Row(
+          children: [
+            Expanded(
+              child: _HighlightTile(
+                label: context.l10n.perfectGames,
+                value: '${stats.perfectLegs}',
+                icon: Icons.emoji_events_rounded,
+                highlight: stats.perfectLegs > 0,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _HighlightTile(
+                label: context.l10n.highestAverage,
+                value: stats.highestGameAverage == 0
+                    ? '—'
+                    : stats.highestGameAverage.toStringAsFixed(2),
+                icon: Icons.speed_rounded,
+                highlight: stats.highestGameAverage >= 100,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
@@ -512,22 +557,6 @@ class _StatsBody extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 6),
-        // Perfect games row
-        if (stats.perfectLegs > 0) ...[
-          Row(
-            children: [
-              Expanded(
-                child: _HighlightTile(
-                  label: context.l10n.perfectGames,
-                  value: '${stats.perfectLegs}',
-                  icon: Icons.emoji_events_rounded,
-                  highlight: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-        ],
         Row(
           children: [
             Expanded(
