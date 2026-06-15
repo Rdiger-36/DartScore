@@ -804,6 +804,7 @@ class GameProvider extends ChangeNotifier {
     final all = allThrows();
     if (all.isEmpty) return;
 
+    final wasGameOver = _gameOver;
     final lastVisit = all.last;
     final hits = _parseHits(lastVisit.hitsJson);
 
@@ -821,6 +822,12 @@ class GameProvider extends ChangeNotifier {
 
     final players = _playerStates.expand((s) => s.players).toList();
     await resumeGame(_game!, players);
+
+    // Undoing the winning dart un-finishes the game; resumeGame already reset
+    // _gameOver/_winnerId in-memory, so persist that the game is open again.
+    if (wasGameOver) {
+      await _db.updateGame(_game!);
+    }
 
     _currentVisitDarts = prefill;
     _redoStack
