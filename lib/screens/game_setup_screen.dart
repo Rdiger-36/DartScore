@@ -44,6 +44,17 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     TextEditingController(text: 'Team 2'),
   ];
 
+  // ── Placement mode ───────────────────────────────────────────────────────
+  bool _placementMode = false;
+
+  /// Whether placement mode can be offered: at least 3 players, or at least
+  /// 3 teams in team mode.
+  bool get _placementEligible =>
+      _teamGameEnabled ? _teamNames.length >= 3 : _selectedPlayers.length >= 3;
+
+  /// Whether placement mode is enabled and currently selectable.
+  bool get _placementActive => _placementMode && _placementEligible;
+
   /// Applies a match format preset: a non-custom preset fills [_legs]/[_sets],
   /// while [MatchFormat.custom] keeps the current values for manual editing.
   void _selectFormat(MatchFormat f) {
@@ -176,60 +187,108 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: MatchFormat.values
-                        .map((f) => ChoiceChip(
-                              label: Text(l.matchFormatLabel(f)),
-                              selected: _format == f,
-                              onSelected: (_) => _selectFormat(f),
-                            ))
-                        .toList(),
+                  // Mode toggle: standard match formats vs. placement mode.
+                  SegmentedButton<bool>(
+                    segments: [
+                      ButtonSegment(
+                        value: false,
+                        label: Text(l.standardMode),
+                      ),
+                      ButtonSegment(
+                        value: true,
+                        label: Text(l.placementMode),
+                        enabled: _placementEligible,
+                      ),
+                    ],
+                    selected: {_placementActive},
+                    onSelectionChanged: (s) => setState(() {
+                      _placementMode = s.first;
+                      if (_placementMode) {
+                        _legs = 3;
+                      } else {
+                        _format = MatchFormat.bo5;
+                        _legs = MatchFormat.bo5.legs!;
+                        _sets = MatchFormat.bo5.sets!;
+                      }
+                    }),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _formatRule(l, _format),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Legs/sets stay visible for every format; only editable for
-                  // the custom preset so the first-to hint always makes sense.
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _Stepper(
-                          label: l.legs,
-                          value: _legs,
-                          min: 1,
-                          max: kMaxLegs,
-                          enabled: _format == MatchFormat.custom,
-                          onChanged: (v) => setState(() => _legs = v),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _Stepper(
-                          label: l.sets,
-                          value: _sets,
-                          min: 1,
-                          max: kMaxSets,
-                          enabled: _format == MatchFormat.custom,
-                          onChanged: (v) => setState(() => _sets = v),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l.firstToHint,
+                    _placementActive
+                        ? l.placementModeHint
+                        : l.placementEligibilityHint,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  if (!_placementActive) ...[
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: MatchFormat.values
+                          .map((f) => ChoiceChip(
+                                label: Text(l.matchFormatLabel(f)),
+                                selected: _format == f,
+                                onSelected: (_) => _selectFormat(f),
+                              ))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _formatRule(l, _format),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Legs/sets stay visible for every format; only editable
+                    // for the custom preset so the first-to hint always
+                    // makes sense.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _Stepper(
+                            label: l.legs,
+                            value: _legs,
+                            min: 1,
+                            max: kMaxLegs,
+                            enabled: _format == MatchFormat.custom,
+                            onChanged: (v) => setState(() => _legs = v),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _Stepper(
+                            label: l.sets,
+                            value: _sets,
+                            min: 1,
+                            max: kMaxSets,
+                            enabled: _format == MatchFormat.custom,
+                            onChanged: (v) => setState(() => _sets = v),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l.firstToHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ] else
+                    // Placement mode: only the number of legs is configurable,
+                    // sets are fixed to 1.
+                    _Stepper(
+                      label: l.legs,
+                      value: _legs,
+                      min: 1,
+                      max: kMaxLegs,
+                      enabled: true,
+                      onChanged: (v) => setState(() => _legs = v),
+                    ),
                 ],
               ),
             ),
@@ -375,8 +434,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       gameMode: _gameMode,
       checkoutMode: _checkoutMode,
       legs: isSolo ? 1 : _legs,
-      sets: isSolo ? 1 : _sets,
+      sets: isSolo ? 1 : (_placementActive ? 1 : _sets),
       createdAt: DateTime.now(),
+      placementMode: !isSolo && _placementActive,
     );
     final players = List.of(_selectedPlayers)..shuffle(Random());
 
@@ -411,6 +471,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       sets:         game.sets,
       createdAt:    game.createdAt,
       teams:        teamConfigs,
+      placementMode: game.placementMode,
     );
 
     final provider = context.read<GameProvider>();

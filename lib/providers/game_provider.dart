@@ -4,6 +4,7 @@ import '../database/db_helper.dart';
 import '../models/player.dart';
 import '../models/game.dart';
 import '../models/dart_throw.dart';
+import '../utils/placement.dart';
 import '../widgets/dartboard_input.dart' show DartEntry;
 
 /// Minimum darts to finish a game from a given start score (double-out).
@@ -61,6 +62,13 @@ class PlayerState {
 
   final bool isTeamSlot;
 
+  /// In placement-mode games: this slot's 1-based finishing position for the
+  /// current leg, or null if it hasn't checked out yet this leg.
+  final int? legPlacement;
+  /// In placement-mode games: cumulative sum of [legPlacement] across all
+  /// completed legs, used as a tie-breaker for the final ranking.
+  final int placementSum;
+
   const PlayerState({
     required this.displayName,
     required this.players,
@@ -71,6 +79,8 @@ class PlayerState {
     required this.throws,
     this.perfectLegs = 0,
     this.isTeamSlot = false,
+    this.legPlacement,
+    this.placementSum = 0,
   });
 
   /// The player who throws next (backward-compatible accessor).
@@ -94,6 +104,10 @@ class PlayerState {
 
   /// Returns a copy with the given mutable fields replaced; identity fields
   /// ([displayName], [players], [isTeamSlot]) are preserved.
+  /// Returns a copy with the given mutable fields replaced. [legPlacement] is
+  /// only overridden when [resetLegPlacement] is true (so a normal copyWith
+  /// call doesn't accidentally clear it), in which case [legPlacement] itself
+  /// supplies the new value (including null).
   PlayerState copyWith({
     int?              currentPlayerIdx,
     int?              legsWon,
@@ -101,6 +115,9 @@ class PlayerState {
     int?              remaining,
     List<DartThrow>?  throws,
     int?              perfectLegs,
+    int?              legPlacement,
+    bool              resetLegPlacement = false,
+    int?              placementSum,
   }) =>
       PlayerState(
         displayName:      displayName,
@@ -112,6 +129,8 @@ class PlayerState {
         throws:           throws           ?? this.throws,
         perfectLegs:      perfectLegs      ?? this.perfectLegs,
         isTeamSlot:       isTeamSlot,
+        legPlacement:     resetLegPlacement ? legPlacement : (legPlacement ?? this.legPlacement),
+        placementSum:     placementSum     ?? this.placementSum,
       );
 }
 
@@ -273,6 +292,11 @@ class GameProvider extends ChangeNotifier {
     int maxLeg,
     int maxSet,
   ) async {
+    if (game.placementMode) {
+      _resumeTeamPlacementGame(game, players, throwsByPlayer, maxLeg);
+      return;
+    }
+
     final teams       = game.teams!;
     final legsToWin   = game.legs;
 
@@ -352,6 +376,75 @@ class GameProvider extends ChangeNotifier {
     _currentSet = maxSet;
   }
 
+  /// Rebuilds team placement-mode state: every leg is played to the end by all
+  /// teams, so [legsWon]/[PlayerState.placementSum] and [PlayerState.legPlacement]
+  /// for the current leg come from [_placementResumeState] (keyed by team index).
+  void _resumeTeamPlacementGame(
+    Game game,
+    List<Player> players,
+    Map<int, List<DartThrow>> throwsByPlayer,
+    int maxLeg,
+  ) {
+    final teams = game.teams!;
+
+    final throwsByTeam = <int, List<DartThrow>>{
+      for (var ti = 0; ti < teams.length; ti++)
+        ti: teams[ti]
+            .playerIds
+            .expand((id) => throwsByPlayer[id] ?? <DartThrow>[])
+            .toList()
+          ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt)),
+    };
+
+    final r = _placementResumeState(throwsByTeam, maxLeg);
+
+    _playerStates = teams.asMap().entries.map((entry) {
+      final ti   = entry.key;
+      final team = entry.value;
+      final teamPlayers = team.playerIds
+          .map((id) => players.firstWhere((p) => p.id == id))
+          .toList();
+
+      final allTeamThrows  = throwsByTeam[ti]!;
+      final currentLegThrows =
+          allTeamThrows.where((t) => t.leg == maxLeg && t.set == 1).toList();
+      final currentIdx = currentLegThrows.length % teamPlayers.length;
+
+      final placement = r.legPlacement[ti];
+      int remaining = game.startScore;
+      if (!r.legComplete) {
+        if (placement == null) {
+          for (final t in currentLegThrows) {
+            if (!t.bust) remaining -= t.score;
+          }
+        } else {
+          remaining = 0;
+        }
+      }
+
+      return PlayerState(
+        displayName:      team.name,
+        players:          teamPlayers,
+        currentPlayerIdx: currentIdx,
+        legsWon:          r.legsWon[ti] ?? 0,
+        setsWon:          0,
+        remaining:        remaining,
+        throws:           allTeamThrows,
+        isTeamSlot:       true,
+        legPlacement:     placement,
+        placementSum:     r.placementSum[ti] ?? 0,
+      );
+    }).toList();
+
+    if (r.legComplete) {
+      _currentLeg = maxLeg + 1;
+      _currentPlayerIndex = 0;
+      _currentSet = 1;
+    } else {
+      _resumePickNextSlot(maxLeg);
+    }
+  }
+
   /// Whether any member of [team] checked out (reached exactly zero) in the
   /// given [leg] and [set].
   bool _teamCheckedOutLeg(
@@ -384,6 +477,11 @@ class GameProvider extends ChangeNotifier {
     int maxLeg,
     int maxSet,
   ) async {
+    if (game.placementMode) {
+      _resumeIndividualPlacementGame(game, players, throwsByPlayer, maxLeg);
+      return;
+    }
+
     final legsWon     = <int, int>{for (final p in players) p.id!: 0};
     final setsWon     = <int, int>{for (final p in players) p.id!: 0};
     final legsToWinSet = game.legs;
@@ -443,6 +541,125 @@ class GameProvider extends ChangeNotifier {
     _currentSet = maxSet;
   }
 
+  /// Computes the placement-mode ranking for a resume. [maxLeg] is treated as
+  /// fully complete (and its results folded into [legsWon]/[placementSum])
+  /// either when every id already has a checkout in [maxLeg], or when all but
+  /// one do -- the last remaining id then automatically takes last place, per
+  /// [_handlePlacementCheckout]'s "second-to-last checkout ends the leg" rule.
+  /// [legPlacement] gives each id's finishing position in [maxLeg], or `null`
+  /// if [maxLeg] is still in progress for that id.
+  ({
+    Map<int, int> legsWon,
+    Map<int, int> placementSum,
+    Map<int, int?> legPlacement,
+    bool legComplete,
+  }) _placementResumeState(
+    Map<int, List<DartThrow>> throwsById,
+    int maxLeg,
+  ) {
+    final ids = throwsById.keys.toList();
+    final currentPlacements = legPlacements(throwsById, maxLeg, 1);
+
+    final completePlacements = Map<int, int>.of(currentPlacements);
+    if (currentPlacements.length == ids.length - 1) {
+      final missingId =
+          ids.firstWhere((id) => !currentPlacements.containsKey(id));
+      completePlacements[missingId] = ids.length;
+    }
+    final legComplete = completePlacements.length == ids.length;
+
+    final ranking = placementRanking(throwsById, maxLeg - 1, 1);
+    final legsWon = Map<int, int>.of(ranking.legsWon);
+    final placementSum = Map<int, int>.of(ranking.placementSum);
+
+    final placementsForMaxLeg =
+        legComplete ? completePlacements : currentPlacements;
+    for (final entry in placementsForMaxLeg.entries) {
+      placementSum[entry.key] = (placementSum[entry.key] ?? 0) + entry.value;
+      if (entry.value == 1) legsWon[entry.key] = (legsWon[entry.key] ?? 0) + 1;
+    }
+
+    return (
+      legsWon: legsWon,
+      placementSum: placementSum,
+      legPlacement: {
+        for (final id in ids) id: legComplete ? null : currentPlacements[id],
+      },
+      legComplete: legComplete,
+    );
+  }
+
+  /// Rebuilds individual placement-mode state: every leg is played to the end
+  /// by all players, so [legsWon]/[PlayerState.placementSum] come from
+  /// [_placementResumeState], and [PlayerState.legPlacement] for the current
+  /// leg comes from the same.
+  void _resumeIndividualPlacementGame(
+    Game game,
+    List<Player> players,
+    Map<int, List<DartThrow>> throwsByPlayer,
+    int maxLeg,
+  ) {
+    final throwsById = {
+      for (final p in players) p.id!: throwsByPlayer[p.id!] ?? <DartThrow>[],
+    };
+
+    final r = _placementResumeState(throwsById, maxLeg);
+
+    _playerStates = players.map((p) {
+      final placement = r.legPlacement[p.id!];
+      int remaining = game.startScore;
+      if (!r.legComplete) {
+        if (placement == null) {
+          final currentLegThrows = (throwsById[p.id!] ?? [])
+              .where((t) => t.leg == maxLeg && t.set == 1)
+              .toList();
+          for (final t in currentLegThrows) {
+            if (!t.bust) remaining -= t.score;
+          }
+        } else {
+          remaining = 0;
+        }
+      }
+
+      return PlayerState(
+        displayName:  p.name,
+        players:      [p],
+        legsWon:      r.legsWon[p.id!] ?? 0,
+        setsWon:      0,
+        remaining:    remaining,
+        throws:       throwsByPlayer[p.id!] ?? [],
+        legPlacement: placement,
+        placementSum: r.placementSum[p.id!] ?? 0,
+      );
+    }).toList();
+
+    if (r.legComplete) {
+      _currentLeg = maxLeg + 1;
+      _currentPlayerIndex = 0;
+      _currentSet = 1;
+    } else {
+      _resumePickNextSlot(maxLeg);
+    }
+  }
+
+  /// Picks the next slot to throw for a placement-mode resume, among the
+  /// slots not yet finished with [maxLeg]: the one with the fewest visits.
+  void _resumePickNextSlot(int maxLeg) {
+    final candidates = [
+      for (var i = 0; i < _playerStates.length; i++)
+        if (_playerStates[i].legPlacement == null) i,
+    ];
+    final visits = candidates
+        .map((i) => _playerStates[i].throws
+            .where((t) => t.leg == maxLeg && t.set == 1)
+            .length)
+        .toList();
+    final minVisits = visits.reduce((a, b) => a < b ? a : b);
+    _currentPlayerIndex = candidates[visits.indexOf(minVisits)];
+    _currentLeg = maxLeg;
+    _currentSet = 1;
+  }
+
   // ── Start ─────────────────────────────────────────────────────────────────
 
   /// Starts a brand-new game: persists it, builds fresh per-slot state for the
@@ -465,6 +682,7 @@ class GameProvider extends ChangeNotifier {
       sets:         game.sets,
       createdAt:    game.createdAt,
       teams:        game.teams,
+      placementMode: game.placementMode,
     );
 
     if (game.isTeamGame) {
@@ -592,6 +810,13 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
+    // Placement mode: award the leg, but keep playing until every slot has
+    // checked out, producing a 1st/2nd/3rd/... finishing order for this leg.
+    if (_game!.placementMode) {
+      await _handlePlacementCheckout(perfectLegs);
+      return;
+    }
+
     final legsToWinSet = _game!.legs;
     if (legsWon >= legsToWinSet) {
       // Set won
@@ -626,8 +851,67 @@ class GameProvider extends ChangeNotifier {
     _advancePlayer();
   }
 
+  /// Resolves a checkout in a placement-mode game: records this slot's
+  /// finishing position for the current leg, and awards a leg win
+  /// ([PlayerState.legsWon]) only to whoever finishes 1st. If this was the
+  /// second-to-last slot to check out, the one remaining slot automatically
+  /// takes last place without having to finish its visit. Once every slot
+  /// has a placement, either ends the game (if the 1st-place slot's
+  /// [PlayerState.legsWon] reached [Game.legs]) or starts the next leg with
+  /// everyone active again.
+  Future<void> _handlePlacementCheckout(int perfectLegs) async {
+    final state = _playerStates[_currentPlayerIndex];
+    final placement =
+        _playerStates.where((s) => s.legPlacement != null).length + 1;
+    final legsWon = placement == 1 ? state.legsWon + 1 : state.legsWon;
+
+    _playerStates[_currentPlayerIndex] = state.copyWith(
+      legsWon:          legsWon,
+      perfectLegs:      perfectLegs,
+      legPlacement:     placement,
+      resetLegPlacement: true,
+      placementSum:     state.placementSum + placement,
+    );
+
+    // If only one slot is left without a placement, it automatically takes
+    // last place -- the leg ends without that slot finishing its throws.
+    final stillPlaying =
+        _playerStates.where((s) => s.legPlacement == null).toList();
+    if (stillPlaying.length == 1) {
+      final lastIdx   = _playerStates.indexOf(stillPlaying.first);
+      final lastState = _playerStates[lastIdx];
+      final lastPlacement = placement + 1;
+      _playerStates[lastIdx] = lastState.copyWith(
+        legPlacement:      lastPlacement,
+        resetLegPlacement: true,
+        placementSum:      lastState.placementSum + lastPlacement,
+      );
+    }
+
+    final legComplete =
+        _playerStates.every((s) => s.legPlacement != null);
+    if (!legComplete) {
+      _advancePlayer();
+      return;
+    }
+
+    final winner = _playerStates.firstWhere((s) => s.legPlacement == 1);
+    if (winner.legsWon >= _game!.legs) {
+      _gameOver = true;
+      _winnerId = winner.isTeam ? winner.players.first.id : winner.player.id;
+      await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
+      return;
+    }
+
+    _currentLeg += 1;
+    _resetScores();
+    _advancePlayer();
+  }
+
   /// Resets every slot's remaining score back to the start score for a new leg,
-  /// preserving legs/sets won, throw history, and player rotation.
+  /// preserving legs/sets won, throw history, and player rotation. In
+  /// placement-mode games this also clears [PlayerState.legPlacement] so
+  /// everyone is active again.
   void _resetScores() {
     _playerStates = _playerStates
         .map((s) => PlayerState(
@@ -640,12 +924,15 @@ class GameProvider extends ChangeNotifier {
               throws:           s.throws,
               perfectLegs:      s.perfectLegs,
               isTeamSlot:       s.isTeamSlot,
+              legPlacement:     null,
+              placementSum:     s.placementSum,
             ))
         .toList();
   }
 
   /// Advance to the next team/player. In team mode, also rotate the player
-  /// within the team that just threw.
+  /// within the team that just threw. In placement-mode games, slots that
+  /// already checked out this leg ([PlayerState.legPlacement] set) are skipped.
   void _advancePlayer() {
     // Rotate player within current team BEFORE advancing to next slot
     if (_playerStates[_currentPlayerIndex].isTeam) {
@@ -654,6 +941,12 @@ class GameProvider extends ChangeNotifier {
       _playerStates[_currentPlayerIndex] = s.copyWith(currentPlayerIdx: nextIdx);
     }
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+
+    if (_game!.placementMode) {
+      while (_playerStates[_currentPlayerIndex].legPlacement != null) {
+        _currentPlayerIndex = (_currentPlayerIndex + 1) % _playerStates.length;
+      }
+    }
   }
 
   // ── Dart input ────────────────────────────────────────────────────────────

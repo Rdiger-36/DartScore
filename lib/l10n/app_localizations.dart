@@ -114,6 +114,25 @@ class AppLocalizations {
       'First to means: whoever reaches the chosen number of Legs or Sets first wins.',
       'First to heißt: Wer die gewählte Anzahl an Legs bzw. Sets zuerst erreicht, gewinnt.');
 
+  // ── Placement mode ───────────────────────────────────────────────────────
+  String get standardMode      => _t('Standard', 'Standard');
+  String get placementMode     => _t('Placement', 'Platzierung');
+  String get placementModeHint => _t(
+      'Everyone plays each leg to the end to determine a final ranking. Played with 1 set; the match is still won by whoever reaches the chosen number of Legs first.',
+      'Jeder spielt jedes Leg bis zum Ende, um eine Endplatzierung zu ermitteln. Es wird mit 1 Set gespielt; das Spiel gewinnt weiterhin, wer die gewählte Anzahl an Legs zuerst erreicht.');
+  String get placementEligibilityHint => _t(
+      'Placement mode is available with 3+ players or 3+ teams: everyone plays each leg to the end to determine a final ranking.',
+      'Platzierung ist ab 3 Spielern oder 3 Teams verfügbar: Jeder spielt jedes Leg bis zum Ende, um eine Endplatzierung zu ermitteln.');
+  /// Small badge showing a slot's finishing place for a placement-mode leg.
+  String placementBadge(int place) => _t('#$place', 'Platz $place');
+  String get finalRanking      => _t('Final Ranking', 'Endplatzierung');
+  String get legByLegPlacements => _t('Placements per leg', 'Platzierungen pro Leg');
+  /// Short column header for a leg, e.g. "L1".
+  String legAbbr(int leg) => 'L$leg';
+  String get placementPointsHint => _t(
+      'Each leg awards points by finishing position (last place = 1 point, up to the number of players for 1st place), plus a +1 bonus for winning the leg.',
+      'Jedes Leg vergibt Punkte nach Platzierung (letzter Platz = 1 Punkt, bis zur Spieleranzahl für Platz 1), zusätzlich gibt es +1 Bonuspunkt für den Leg-Sieg.');
+
   // ── Game Screen ──────────────────────────────────────────────────────────
   String get openPlay          => _t('Solo Game', 'Solo Spiel');
   String get leg               => _t('Leg', 'Leg');
@@ -266,9 +285,16 @@ class AppLocalizations {
               'Eigene $legs $legLabel - $sets $setLabel');
   }
 
-  String gameSummaryInfo(int score, int l, int s) =>
-      _t('$score pts · ${matchFormatDesc(l, s)}',
-         '$score Punkte · ${matchFormatDesc(l, s)}');
+  String gameSummaryInfo(int score, int l, int s, {bool placementMode = false}) =>
+      placementMode
+          ? _t('$score pts · ${placementFormatLabel(l)}',
+               '$score Punkte · ${placementFormatLabel(l)}')
+          : _t('$score pts · ${matchFormatDesc(l, s)}',
+               '$score Punkte · ${matchFormatDesc(l, s)}');
+
+  /// Label for placement-mode games, showing just the configured leg count
+  /// (e.g. "Legs: 3") instead of a "Best of"/PDC match format.
+  String placementFormatLabel(int legsCount) => '$legs: $legsCount';
 
   // ── Game setup / Team / Handicap ─────────────────────────────────────────
   String get handicap            => _t('Handicap', 'Handicap');

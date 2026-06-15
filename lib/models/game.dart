@@ -42,6 +42,9 @@ class Game {
   final DateTime? finishedAt;
   /// Non-null when this is a team game.
   final List<TeamConfig>? teams;
+  /// Whether every leg is played to the end (everyone finishes, producing a
+  /// 1st/2nd/3rd/... ranking) instead of ending as soon as one slot checks out.
+  final bool placementMode;
 
   const Game({
     this.id,
@@ -53,6 +56,7 @@ class Game {
     required this.createdAt,
     this.finishedAt,
     this.teams,
+    this.placementMode = false,
   });
 
   /// Whether this game is played in teams rather than individually.
@@ -69,6 +73,7 @@ class Game {
         'created_at': createdAt.millisecondsSinceEpoch,
         'finished_at': finishedAt?.millisecondsSinceEpoch,
         'team_config_json': encodeTeamConfigs(teams),
+        'placement_mode': placementMode ? 1 : 0,
       };
 
   /// Reconstructs a game from a SQLite row map.
@@ -84,6 +89,7 @@ class Game {
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
             : null,
         teams:        decodeTeamConfigs(map['team_config_json'] as String?),
+        placementMode: (map['placement_mode'] as int? ?? 0) == 1,
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -97,5 +103,6 @@ class Game {
         createdAt:    createdAt,
         finishedAt:   finishedAt ?? this.finishedAt,
         teams:        teams,
+        placementMode: placementMode,
       );
 }
