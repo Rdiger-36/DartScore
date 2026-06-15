@@ -652,6 +652,7 @@ class _GameTile extends StatelessWidget {
                     entry.x01Game!.startScore,
                     entry.x01Game!.legs,
                     entry.x01Game!.sets,
+                    placementMode: entry.x01Game!.placementMode,
                   );
 
     final entryId = entry.x01Game?.id ??

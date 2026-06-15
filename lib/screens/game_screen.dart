@@ -92,8 +92,10 @@ class _GameScreenState extends State<GameScreen> {
                             fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       Text(
-                        '${context.l10n.matchFormatLabel(MatchFormatLookup.fromValues(game.legs, game.sets))}'
-                        ' (${context.l10n.legsSetsShort(game.legs, game.sets)})',
+                        game.placementMode
+                            ? context.l10n.placementFormatLabel(game.legs)
+                            : '${context.l10n.matchFormatLabel(MatchFormatLookup.fromValues(game.legs, game.sets))}'
+                              ' (${context.l10n.legsSetsShort(game.legs, game.sets)})',
                         style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context)
@@ -268,6 +270,10 @@ class _Scoreboard extends StatelessWidget {
         checkRemaining > 0 &&
         checkRemaining <= maxAchievable;
 
+    // Placement mode: this slot already checked out this leg and is waiting
+    // for the others to finish, so dim the card and show its finishing place.
+    final finishedThisLeg = game.placementMode && s.legPlacement != null;
+
     final cardColor = showBust
         ? cs.errorContainer
         : isCurrent
@@ -290,7 +296,9 @@ class _Scoreboard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            Padding(
+            Opacity(
+              opacity: finishedThisLeg ? 0.55 : 1.0,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -389,7 +397,28 @@ class _Scoreboard extends StatelessWidget {
                   ),
                 ],
               ),
+              ),
             ),
+            if (finishedThisLeg)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    context.l10n.placementBadge(s.legPlacement!),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.onSecondaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
