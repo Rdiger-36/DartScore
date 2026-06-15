@@ -593,6 +593,13 @@ class _StatsBody extends StatelessWidget {
           _DartboardHeatmap(segmentHits: stats.segmentHits),
           const SizedBox(height: 14),
         ],
+        // ── Top Doubles ───────────────────────────────────────────────────
+        if (stats.segmentHits.values.any((m) => (m[2] ?? 0) > 0)) ...[
+          _SectionTitle(context.l10n.topDoubles),
+          const SizedBox(height: 6),
+          _TopDoublesCard(stats: stats),
+          const SizedBox(height: 14),
+        ],
         // ── Stability ───────────────────────────────────────────────────
         if (stats.scoreStdDev > 0) ...[
           _SectionTitle(context.l10n.stability),
@@ -1284,6 +1291,34 @@ class _DartboardPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DartboardPainter old) =>
       old.segmentHits != segmentHits || old.globalMax != globalMax;
+}
+
+// ── Top Doubles Card ──────────────────────────────────────────────────────────
+
+/// Card listing the doubles hit most often, ranked by hit count (top 3).
+class _TopDoublesCard extends StatelessWidget {
+  final _PlayerStats stats;
+  const _TopDoublesCard({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final doubleHits = <int, int>{};
+    for (final entry in stats.segmentHits.entries) {
+      final hits = entry.value[2] ?? 0;
+      if (hits > 0) doubleHits[entry.key] = hits;
+    }
+    final top = doubleHits.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return _StatCard(
+      children: top.take(3).map((e) {
+        final label = e.key == 25
+            ? context.l10n.bullLabel(true)
+            : '${context.l10n.double_} ${e.key}';
+        return _StatRow(label, '${e.value}×');
+      }).toList(),
+    );
+  }
 }
 
 // ── Stability Card ────────────────────────────────────────────────────────────
