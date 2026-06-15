@@ -27,6 +27,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   CheckoutMode _checkoutMode = CheckoutMode.doubleOut;
   int _legs = 3;
   int _sets = 1;
+  // Default for solo games: first to 1 leg, 1 set.
+  int _soloLegs = 1;
   // Default matches the previous standard of 3 legs / 1 set (best of 5).
   MatchFormat _format = MatchFormat.bo5;
   final List<Player> _selectedPlayers = [];
@@ -307,24 +309,71 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                       size: 18, color: theme.colorScheme.onSecondaryContainer),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l.openPlayHint,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSecondaryContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    child: Text(
+                      l.openPlayHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _Section(
+              title: l.matchFormat,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: Text(l.formatCustom),
+                        selected: true,
+                        onSelected: (_) {},
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l.formatCustomRule,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Stepper(
+                          label: l.legs,
+                          value: _soloLegs,
+                          min: 1,
+                          max: kMaxLegs,
+                          onChanged: (v) => setState(() => _soloLegs = v),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          l.soloLegsHint,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSecondaryContainer,
-                          ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _Stepper(
+                          label: l.sets,
+                          value: 1,
+                          min: 1,
+                          max: 1,
+                          enabled: false,
+                          onChanged: (_) {},
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l.firstToHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -433,7 +482,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       startScore: _startScore,
       gameMode: _gameMode,
       checkoutMode: _checkoutMode,
-      legs: isSolo ? 1 : _legs,
+      legs: isSolo ? _soloLegs : _legs,
       sets: isSolo ? 1 : (_placementActive ? 1 : _sets),
       createdAt: DateTime.now(),
       placementMode: !isSolo && _placementActive,
