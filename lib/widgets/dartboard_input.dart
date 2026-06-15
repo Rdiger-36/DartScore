@@ -60,20 +60,27 @@ class _DartboardInputState extends State<DartboardInput> {
         // Compact mode for small screens (e.g. iPhone SE): reduce spacing and
         // increase childAspectRatio so the grid takes less vertical space.
         final compact = constraints.maxHeight < 420;
+        // Android reports less available height than iOS for the same visual
+        // space, which pushes it into compact mode more often. Keep the
+        // gap before the action row generous on Android even when compact.
+        final isAndroid = Theme.of(context).platform == TargetPlatform.android;
         final gridSpacing = compact ? 4.0 : 6.0;
         final gridAspectRatio = compact ? 1.7 : 1.4;
         final segmentVPadding = compact ? 4.0 : 8.0;
         final gapAfterProgress = compact ? 6.0 : 10.0;
         final gapAfterSegment = compact ? 6.0 : 12.0;
-        final gapBeforeActions = compact ? 4.0 : 6.0;
+        final gapBeforeActions = compact ? (isAndroid ? 16.0 : 10.0) : 16.0;
         final actionVPadding = compact ? 7.0 : 11.0;
         final bottomPad = compact ? 8.0 : 14.0;
 
     return SingleChildScrollView(
-      child: Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 500),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
           // Dart progress row with undo/redo
           _DartProgressRow(
@@ -170,6 +177,7 @@ class _DartboardInputState extends State<DartboardInput> {
           ),
             ],
           ),
+        ),
         ),
       ),
     );

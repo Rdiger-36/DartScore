@@ -252,6 +252,7 @@ class FinishCalculator {
   /// points (1-60), preferring a single, then bull, then triple, then
   /// double. Returns null if no single dart can score [value].
   static String? _singleDartLabel(int value) {
+    if (value <= 0) return null;
     if (value >= 1 && value <= 20) return 'S$value';
     if (value == 25) return '25';
     if (value == 50) return 'Bull';
