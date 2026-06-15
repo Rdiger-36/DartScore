@@ -203,6 +203,7 @@ class AppLocalizations {
   String get count100plus      => _t('100+', '100+');
   String get highestCheckout   => _t('Highest Check-Out', 'Höchster Check-Out');
   String get highestVisit      => _t('Highest Visit', 'Höchste Aufnahme');
+  String get highestAverage    => _t('Highest Average', 'Höchster Average');
   String get overview          => _t('Overview', 'Übersicht');
   String get gamesPlayed       => _t('Games Played', 'Spiele gespielt');
   String get gamesWon          => _t('Games Won', 'Spiele gewonnen');
