@@ -78,10 +78,28 @@ class _GameScreenState extends State<GameScreen> {
             toolbarHeight: 44,
             centerTitle: true,
             title: isSolo
-                ? Text(
-                    '${context.l10n.openPlay} · ${game.startScore}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        game.legs > 1
+                            ? '${context.l10n.openPlay} · ${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)}'
+                            : '${context.l10n.openPlay} · ${game.startScore}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      if (game.legs > 1)
+                        Text(
+                          context.l10n.legsSetsShort(game.legs, game.sets),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   )
                 : Column(
                     mainAxisSize: MainAxisSize.min,
@@ -350,7 +368,7 @@ class _Scoreboard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      if (!isSolo)
+                      if (!isSolo || game.legs > 1)
                         Text(
                           game.sets > 1
                               ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
