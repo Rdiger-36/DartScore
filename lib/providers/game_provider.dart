@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/player.dart';
@@ -722,6 +723,30 @@ class GameProvider extends ChangeNotifier {
     _checkedInThisVisit = false;
     _redoStack.clear();
     notifyListeners();
+  }
+
+  /// Starts a fresh game that reuses [template]'s settings (start score, check
+  /// in/out, legs/sets, placement mode, teams), the given [players] and their
+  /// [handicaps]. The template's id and timestamps are not carried over, so a
+  /// new game row is persisted and the finished one stays untouched. The
+  /// throwing order is reshuffled, mirroring how a game is set up normally.
+  Future<void> startRematch(
+    Game template,
+    List<Player> players, {
+    Map<int, PlayerHandicap>? handicaps,
+  }) async {
+    final shuffled = List.of(players)..shuffle(Random());
+    final game = Game(
+      startScore:    template.startScore,
+      gameMode:      template.gameMode,
+      checkoutMode:  template.checkoutMode,
+      legs:          template.legs,
+      sets:          template.sets,
+      createdAt:     DateTime.now(),
+      teams:         template.teams,
+      placementMode: template.placementMode,
+    );
+    await startGame(game, shuffled, handicaps: handicaps);
   }
 
   // ── Submit visit ──────────────────────────────────────────────────────────

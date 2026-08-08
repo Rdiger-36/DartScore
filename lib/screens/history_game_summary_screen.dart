@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../database/db_helper.dart';
 import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
+import '../providers/game_provider.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
+import '../widgets/rematch_button.dart';
+import 'game_screen.dart';
 
 /// Detailed view of a finished X01 game from history: per-player stats and the
 /// full throw log, loaded from the stored throws.
@@ -126,7 +130,15 @@ class _SummaryBody extends StatelessWidget {
         _InfoRow(context.l10n.gameLabel, context.l10n.modeX01Name),
         const SizedBox(height: 6),
         _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets, placementMode: game.placementMode)),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        // Rematch. Handicaps are not persisted, so a replay from history
+        // always starts without them.
+        RematchButton(
+          onRematch: () =>
+              context.read<GameProvider>().startRematch(game, players),
+          destination: (_) => const GameScreen(),
+        ),
+        const SizedBox(height: 16),
         // Final ranking (placement mode only)
         if (game.placementMode) ...[
           _FinalRankingCard(game: game, data: data, players: players),

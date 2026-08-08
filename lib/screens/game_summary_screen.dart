@@ -11,6 +11,8 @@ import '../models/dart_throw.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
+import '../widgets/rematch_button.dart';
+import 'game_screen.dart';
 
 /// Post-game summary for X01: winner, per-player/team stats and throw history,
 /// with options to save or share the result card as an image.
@@ -26,9 +28,16 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
   bool _saving = false;
 
   /// Rasterizes the result card widget to a high-resolution image.
+  ///
+  /// Waits for the pending frame first: callers set [_saving] before rendering,
+  /// which hides the rematch button inside the captured area, and that frame
+  /// must be laid out and painted before the boundary is grabbed.
   Future<ui.Image> _renderCard() async {
+    await WidgetsBinding.instance.endOfFrame;
     final ctx = _cardKey.currentContext;
-    if (ctx == null) throw StateError('Card widget is not mounted');
+    if (ctx == null || !ctx.mounted) {
+      throw StateError('Card widget is not mounted');
+    }
     final boundary = ctx.findRenderObject() as RenderRepaintBoundary;
     return boundary.toImage(pixelRatio: 3.0);
   }
@@ -190,6 +199,24 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                       ),
                     );
                   }),
+                  // Rematch: hidden while the card is captured so it never
+                  // shows up in the saved/shared result image.
+                  if (!_saving) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: RematchButton(
+                        onRematch: () => provider.startRematch(
+                          provider.game!,
+                          provider.playerStates
+                              .expand((s) => s.players)
+                              .toList(),
+                          handicaps: Map.of(provider.handicaps),
+                        ),
+                        destination: (_) => const GameScreen(),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Final ranking (placement mode only)
                   if (provider.game!.placementMode) ...[

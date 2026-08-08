@@ -4,6 +4,8 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
+import '../widgets/rematch_button.dart';
+import 'around_the_clock_screen.dart';
 
 /// Post-game summary for Around the Clock: the winner plus each player's final
 /// progress and darts used, ranked by finish order.
@@ -61,8 +63,18 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
           ],
+
+          // ── Rematch ──────────────────────────────────────────────────────
+          RematchButton(
+            onRematch: () => provider.startRematch(
+              provider.game!,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const AroundTheClockScreen(),
+          ),
+          const SizedBox(height: 20),
 
           Card(
             child: Padding(
