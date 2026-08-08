@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/rematch_button.dart';
 import 'shanghai_screen.dart';
@@ -72,6 +73,11 @@ class ShanghaiSummaryScreen extends StatelessWidget {
 
           // ── Rematch ──────────────────────────────────────────────────────
           RematchButton(
+            modeName: l.modeShanghaiName,
+            details: [
+              (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+            ],
+            playerNames: states.map((s) => s.displayName).toList(),
             onRematch: () => provider.startRematch(
               game,
               states.expand((s) => s.players).toList(),

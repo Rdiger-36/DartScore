@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/rematch_button.dart';
 import 'around_the_clock_screen.dart';
@@ -68,6 +69,14 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
 
           // ── Rematch ──────────────────────────────────────────────────────
           RematchButton(
+            modeName: l.modeAroundClockName,
+            details: [
+              (
+                l.aroundClockVariant,
+                aroundTheClockVariantLabel(l, provider.game!.variant)
+              ),
+            ],
+            playerNames: states.map((s) => s.displayName).toList(),
             onRematch: () => provider.startRematch(
               provider.game!,
               states.expand((s) => s.players).toList(),

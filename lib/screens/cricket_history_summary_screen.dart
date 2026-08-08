@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../models/player.dart';
 import '../providers/cricket_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
 import '../widgets/rematch_button.dart';
@@ -237,6 +238,12 @@ class _Body extends StatelessWidget {
 
         // ── Rematch ────────────────────────────────────────────────────────
         RematchButton(
+          modeName: l.modeCricketName,
+          details: [
+            (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+            (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+          ],
+          playerNames: data.slots.map((s) => s.displayName).toList(),
           onRematch: () =>
               context.read<CricketProvider>().startRematch(game, players),
           destination: (_) => const CricketScreen(),
