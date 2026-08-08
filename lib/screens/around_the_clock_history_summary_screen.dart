@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/player.dart';
 import '../providers/around_the_clock_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/rematch_button.dart';
 import 'around_the_clock_screen.dart';
@@ -122,11 +123,16 @@ class _Body extends StatelessWidget {
         // Game info
         _InfoRow(l.gameLabel, l.modeAroundClockName),
         const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, _variantLabel(l, game.variant)),
+        _InfoRow(l.gameMode_, aroundTheClockVariantLabel(l, game.variant)),
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
         RematchButton(
+          modeName: l.modeAroundClockName,
+          details: [
+            (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+          ],
+          playerNames: states.map((s) => s.displayName).toList(),
           onRematch: () => context
               .read<AroundTheClockProvider>()
               .startRematch(game, players),
@@ -197,18 +203,6 @@ class _Body extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-/// Localized display name for an Around the Clock [variant].
-String _variantLabel(AppLocalizations l, AroundTheClockVariant variant) {
-  switch (variant) {
-    case AroundTheClockVariant.basic:
-      return l.aroundClockBasic;
-    case AroundTheClockVariant.fullSegments:
-      return l.aroundClockFullSegments;
-    case AroundTheClockVariant.skipRules:
-      return l.aroundClockSkipRules;
   }
 }
 

@@ -7,6 +7,7 @@ import '../models/game.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../providers/game_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
 import '../widgets/rematch_button.dart';
@@ -134,6 +135,22 @@ class _SummaryBody extends StatelessWidget {
         // Rematch. Handicaps are not persisted, so a replay from history
         // always starts without them.
         RematchButton(
+          modeName: context.l10n.modeX01Name,
+          details: [
+            (
+              context.l10n.gameMode_,
+              context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+                  placementMode: game.placementMode)
+            ),
+            (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
+            (
+              context.l10n.checkOut,
+              checkOutLabel(context.l10n, game.checkoutMode)
+            ),
+          ],
+          playerNames: game.isTeamGame
+              ? game.teams!.map((t) => t.name).toList()
+              : players.map((p) => p.name).toList(),
           onRematch: () =>
               context.read<GameProvider>().startRematch(game, players),
           destination: (_) => const GameScreen(),

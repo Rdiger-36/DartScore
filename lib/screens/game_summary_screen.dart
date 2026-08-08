@@ -9,6 +9,7 @@ import 'dart:io';
 import '../providers/game_provider.dart';
 import '../models/dart_throw.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
 import '../widgets/rematch_button.dart';
@@ -206,6 +207,25 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: RematchButton(
+                        modeName: l.modeX01Name,
+                        details: [
+                          (
+                            l.gameMode_,
+                            l.gameSummaryInfo(
+                              provider.game!.startScore,
+                              provider.game!.legs,
+                              provider.game!.sets,
+                              placementMode: provider.game!.placementMode,
+                            )
+                          ),
+                          (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
+                          (
+                            l.checkOut,
+                            checkOutLabel(l, provider.game!.checkoutMode)
+                          ),
+                        ],
+                        playerNames:
+                            states.map((s) => s.displayName).toList(),
                         onRematch: () => provider.startRematch(
                           provider.game!,
                           provider.playerStates

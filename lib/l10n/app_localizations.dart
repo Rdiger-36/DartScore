@@ -159,6 +159,10 @@ class AppLocalizations {
   String get allThrows         => _t('All Throws', 'Alle Würfe');
   String get backToHome        => _t('Back to Main Menu', 'Zurück zum Hauptmenü');
   String get playAgain         => _t('Play Again', 'Spiel wiederholen');
+  String get playAgainTitle    => _t('Play again?', 'Spiel wiederholen?');
+  String get playAgainQuestion =>
+      _t('Start a new game with these settings and players?',
+         'Ein neues Spiel mit diesen Einstellungen und Spielern starten?');
   String get saveToPhotos      => _t('Save to Photos', 'In Fotos speichern');
   String get share             => _t('Share', 'Teilen');
   String get savedToPhotos     => _t('Image saved to Photos.', 'Bild in Fotos gespeichert.');

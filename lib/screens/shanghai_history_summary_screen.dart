@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../models/player.dart';
 import '../providers/shanghai_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/rematch_button.dart';
 import 'shanghai_screen.dart';
@@ -124,11 +125,16 @@ class _Body extends StatelessWidget {
         // Game info
         _InfoRow(l.gameLabel, l.modeShanghaiName),
         const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, _shanghaiVariantLabel(l, game.variant)),
+        _InfoRow(l.gameMode_, shanghaiVariantLabel(l, game.variant)),
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
         RematchButton(
+          modeName: l.modeShanghaiName,
+          details: [
+            (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+          ],
+          playerNames: states.map((s) => s.displayName).toList(),
           onRematch: () =>
               context.read<ShanghaiProvider>().startRematch(game, players),
           destination: (_) => const ShanghaiScreen(),
@@ -201,18 +207,6 @@ class _Body extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-/// Localized display name for a Shanghai [variant].
-String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
-  switch (variant) {
-    case ShanghaiVariant.classic:
-      return l.shanghaiClassic;
-    case ShanghaiVariant.clockwise:
-      return l.shanghaiClockwise;
-    case ShanghaiVariant.sequential:
-      return l.shanghaiSequential;
   }
 }
 
