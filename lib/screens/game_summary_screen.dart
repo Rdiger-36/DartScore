@@ -98,6 +98,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     );
     final cs = Theme.of(context).colorScheme;
     final l = context.l10n;
+    // Name of every player in the game, keyed by id, for the throw log.
+    final throwerNames = {
+      for (final s in states)
+        for (final p in s.players) p.id: p.name,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -269,10 +274,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                   ),
                   const SizedBox(height: 8),
                   ...provider.allThrows().map((t) {
-                    final player = states
-                        .firstWhere((s) => s.player.id == t.playerId)
-                        .player;
-                    return _ThrowRow(t: t, playerName: player.name);
+                    // Look the thrower up across every slot member: a team
+                    // slot's `player` is only whoever throws next, so matching
+                    // on that alone misses the team's other members.
+                    final name = throwerNames[t.playerId] ?? '';
+                    return _ThrowRow(t: t, playerName: name);
                   }),
                 ],
               ),
