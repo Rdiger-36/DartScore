@@ -4,6 +4,8 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
+import '../widgets/rematch_button.dart';
+import 'cricket_screen.dart';
 
 /// Post-game summary for Cricket: the winner plus each player's final marks and
 /// score.
@@ -64,8 +66,18 @@ class CricketSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
           ],
+
+          // ── Rematch ──────────────────────────────────────────────────────
+          RematchButton(
+            onRematch: () => provider.startRematch(
+              game,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const CricketScreen(),
+          ),
+          const SizedBox(height: 20),
 
           // ── Player results ───────────────────────────────────────────────
           Card(

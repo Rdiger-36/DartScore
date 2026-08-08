@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../database/db_helper.dart';
 import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../models/player.dart';
+import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
+import '../widgets/rematch_button.dart';
+import 'cricket_screen.dart';
 
 /// Detailed view of a finished Cricket game from history, with final marks and
 /// scores reconstructed from its stored throws.
@@ -229,6 +233,14 @@ class _Body extends StatelessWidget {
         _InfoRow(l.gameLabel, l.modeCricketName),
         const SizedBox(height: 6),
         _InfoRow(l.gameMode_, isCT ? l.cricketVariantCutThroat : l.cricketVariantNormal),
+        const SizedBox(height: 16),
+
+        // ── Rematch ────────────────────────────────────────────────────────
+        RematchButton(
+          onRematch: () =>
+              context.read<CricketProvider>().startRematch(game, players),
+          destination: (_) => const CricketScreen(),
+        ),
         const SizedBox(height: 16),
 
         // Per-player score cards

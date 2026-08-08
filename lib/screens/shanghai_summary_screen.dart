@@ -4,6 +4,8 @@ import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
+import '../widgets/rematch_button.dart';
+import 'shanghai_screen.dart';
 
 /// Post-game summary for Shanghai: the winner and each player's final score,
 /// ranked.
@@ -65,8 +67,18 @@ class ShanghaiSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
           ],
+
+          // ── Rematch ──────────────────────────────────────────────────────
+          RematchButton(
+            onRematch: () => provider.startRematch(
+              game,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const ShanghaiScreen(),
+          ),
+          const SizedBox(height: 20),
 
           Card(
             child: Padding(

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../models/player.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
+import '../widgets/rematch_button.dart';
+import 'shanghai_screen.dart';
 
 /// Detailed view of a finished Shanghai game from history, rebuilt by replaying
 /// its stored throws through a fresh provider.
@@ -37,7 +40,7 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
               if (provider == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, provider: provider);
+              return _Body(game: game, players: players, provider: provider);
             },
           ),
         ),
@@ -57,9 +60,14 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
 /// Renders the replayed game details: variant, players, and final scores.
 class _Body extends StatelessWidget {
   final ShanghaiGame game;
+  final List<Player> players;
   final ShanghaiProvider provider;
 
-  const _Body({required this.game, required this.provider});
+  const _Body({
+    required this.game,
+    required this.players,
+    required this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +125,14 @@ class _Body extends StatelessWidget {
         _InfoRow(l.gameLabel, l.modeShanghaiName),
         const SizedBox(height: 6),
         _InfoRow(l.gameMode_, _shanghaiVariantLabel(l, game.variant)),
+        const SizedBox(height: 16),
+
+        // ── Rematch ────────────────────────────────────────────────────────
+        RematchButton(
+          onRematch: () =>
+              context.read<ShanghaiProvider>().startRematch(game, players),
+          destination: (_) => const ShanghaiScreen(),
+        ),
         const SizedBox(height: 16),
 
         Card(
