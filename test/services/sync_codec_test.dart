@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dartscore_app/services/sync_codec.dart';
 import 'package:dartscore_app/services/sync_service.dart';
@@ -248,7 +249,7 @@ void main() {
     }
 
     test('a long evening of play fits into a single QR code', () {
-      final encoded = encodeSyncPayload(SyncPacket(
+      final transmission = prepareTransmission(SyncPacket(
         version: 2,
         senderDevice: 'iPhone',
         playerUuid: '3f2a1c9e-7b4d-4e51-9a08-6c2d5f7b1e33',
@@ -262,8 +263,8 @@ void main() {
         throws: realisticThrows(330),
       ));
 
-      expect(transportFor(encoded), SyncTransport.staticQr,
-          reason: 'encoded length was ${encoded.length}, '
+      expect(transmission.transport, SyncTransport.staticQr,
+          reason: 'encoded length was ${transmission.payload.length}, '
               'the static limit is $kStaticQrMaxChars');
     });
 
@@ -295,9 +296,9 @@ void main() {
   });
 
   group('animated transfer', () {
-    /// Enough throws to need several frames.
-    SyncPacket bigPacket() => packetOf(List.generate(
-          900,
+    /// Enough throws to need several blocks.
+    SyncPacket bigPacket([int throws = 900]) => packetOf(List.generate(
+          throws,
           (i) => t(
             score: 60 - (i % 7),
             remainingBefore: 501 - (i % 8) * 60,
@@ -306,25 +307,108 @@ void main() {
           ),
         ));
 
-    test('splits and reassembles a payload', () {
-      final payload = encodeSyncPayload(bigPacket());
-      final frames  = splitIntoFrames(payload);
+    /// Feeds frames to a decoder, dropping a share of them, and returns how
+    /// many had to pass by before the payload was complete.
+    ///
+    /// [lossRate] is the share the camera misses. [burst] drops that many
+    /// frames in a row when it misses, which is what a hand tremor or a
+    /// refocus does, and what a numbered sequence handles worst.
+    int framesUntilComplete(
+      Uint8List data, {
+      double lossRate = 0,
+      int burst = 1,
+      int seed = 1,
+      int startOffset = 0,
+      int limit = 20000,
+    }) {
+      final encoder = SyncFountainEncoder(data, startOffset: startOffset);
+      final decoder = SyncFountainDecoder();
+      final random  = Random(seed);
 
-      expect(frames.length, greaterThan(1));
-      expect(frames.length, frameCountFor(payload));
-
-      final collector = SyncFrameCollector();
-      for (final frame in frames) {
-        collector.add(frame);
+      var skipping = 0;
+      for (var i = 0; i < limit; i++) {
+        if (skipping > 0) {
+          skipping--;
+        } else if (random.nextDouble() < lossRate) {
+          skipping = burst - 1;
+        } else {
+          decoder.add(encoder.frameAt(i));
+          if (decoder.isComplete) {
+            expect(decoder.assemble(), data);
+            return i + 1;
+          }
+        }
       }
+      fail('did not decode within $limit frames');
+    }
 
-      expect(collector.isComplete, isTrue);
-      expect(collector.assemble(), payload);
+    /// Mean frames needed over [trials] transfers, each starting at a different
+    /// point in the seed space the way a real one does.
+    double meanFrames(Uint8List data,
+        {double lossRate = 0, int burst = 1, int trials = 25}) {
+      var total = 0;
+      for (var trial = 0; trial < trials; trial++) {
+        total += framesUntilComplete(data,
+            lossRate: lossRate,
+            burst: burst,
+            seed: trial + 1,
+            startOffset: trial * 7919);
+      }
+      return total / trials;
+    }
+
+    test('needs only a little more than the block count', () {
+      final data   = encodeSyncBytes(bigPacket());
+      final blocks = SyncFountainEncoder(data).sourceBlocks;
+      expect(blocks, greaterThan(1));
+
+      // Measured at about 1.25 for these sizes. Well over half again would
+      // mean the degree distribution or the seed scrambling has broken.
+      final mean = meanFrames(data);
+      expect(mean, lessThan(blocks * 1.5),
+          reason: '$mean frames for $blocks blocks');
+    });
+
+    test('does not wait for any particular frame', () {
+      // The point of the whole exercise: a numbered sequence missing frame 137
+      // has to wait a full loop for it, a fountain code just takes the next
+      // frame instead. Dropping a fifth of them must cost about that fifth in
+      // frames passing by, and nothing beyond it.
+      final data = encodeSyncBytes(bigPacket());
+
+      final clean = meanFrames(data);
+      final lossy = meanFrames(data, lossRate: 0.2);
+
+      expect(lossy * 0.8, lessThan(clean * 1.2),
+          reason: 'clean $clean, lossy $lossy');
+    });
+
+    test('survives frames going missing in bursts', () {
+      // A hand tremor or a refocus takes out a run of frames at once, which is
+      // what a numbered sequence handles worst.
+      final data = encodeSyncBytes(bigPacket());
+
+      final scattered = meanFrames(data, lossRate: 0.1);
+      final bursty    = meanFrames(data, lossRate: 0.0125, burst: 8);
+
+      expect(bursty, lessThan(scattered * 1.3),
+          reason: 'scattered $scattered, bursty $bursty');
+    });
+
+    test('decodes across a spread of payload sizes', () {
+      for (final throws in [1, 40, 400, 2000]) {
+        final data = encodeSyncBytes(bigPacket(throws));
+        expect(() => framesUntilComplete(data, lossRate: 0.15),
+            returnsNormally,
+            reason: '$throws throws');
+      }
     });
 
     test('every frame fits the size a QR code can show', () {
-      for (final frame in splitIntoFrames(encodeSyncPayload(bigPacket()))) {
-        expect(frame.length, lessThanOrEqualTo(kChunkFrameMaxChars),
+      final encoder = SyncFountainEncoder(encodeSyncBytes(bigPacket()));
+      for (var i = 0; i < 50; i++) {
+        final frame = encoder.frameAt(i);
+        expect(frame.length, lessThanOrEqualTo(kFrameMaxChars),
             reason: 'a version 15 code at level M holds 600 of these');
         expect(isAlphanumericSafe(frame), isTrue,
             reason: 'a frame outside the alphanumeric set loses a third of '
@@ -332,73 +416,50 @@ void main() {
       }
     });
 
-    test('tolerates frames arriving out of order and more than once', () {
-      final payload = encodeSyncPayload(bigPacket());
-      final frames  = splitIntoFrames(payload);
+    test('reports progress while blocks are still missing', () {
+      final encoder = SyncFountainEncoder(encodeSyncBytes(bigPacket()));
+      final decoder = SyncFountainDecoder();
 
-      final collector = SyncFrameCollector();
-      // The camera catches whatever passes it, including the same frame twice.
-      for (final frame in frames.reversed) {
-        collector.add(frame);
-      }
-      for (final frame in frames) {
-        expect(collector.add(frame), isFalse, reason: 'already collected');
-      }
-
-      expect(collector.assemble(), payload);
-    });
-
-    test('reports progress while frames are still missing', () {
-      final frames    = splitIntoFrames(encodeSyncPayload(bigPacket()));
-      final collector = SyncFrameCollector();
-
-      collector.add(frames.first);
-      expect(collector.received, 1);
-      expect(collector.total, frames.length);
-      expect(collector.isComplete, isFalse);
-      expect(collector.assemble, throwsFormatException);
+      decoder.add(encoder.frameAt(0));
+      expect(decoder.sourceBlocks, encoder.sourceBlocks);
+      expect(decoder.isComplete, isFalse);
+      expect(decoder.assemble, throwsFormatException);
     });
 
     test('starts over when frames come from a different transfer', () {
-      final first  = splitIntoFrames(encodeSyncPayload(bigPacket()));
-      final second = splitIntoFrames(
-          encodeSyncPayload(packetOf([t(remainingBefore: 501, thrownAt: 1)])),
-          chunkSize: 20);
+      final first  = SyncFountainEncoder(encodeSyncBytes(bigPacket()));
+      final second = SyncFountainEncoder(
+          encodeSyncBytes(packetOf([t(remainingBefore: 501, thrownAt: 1)])));
 
-      final collector = SyncFrameCollector();
-      collector.add(first.first);
-      collector.add(first[1]);
-      for (final frame in second) {
-        collector.add(frame);
+      final decoder = SyncFountainDecoder();
+      decoder.add(first.frameAt(0));
+      decoder.add(first.frameAt(1));
+
+      for (var i = 0; i < 20 && !decoder.isComplete; i++) {
+        decoder.add(second.frameAt(i));
       }
 
-      expect(collector.isComplete, isTrue);
-      expect(collector.total, second.length);
-      expect(decodeSyncPayload(collector.assemble()).throws.single.thrownAt, 1);
-    });
-
-    test('rejects a payload stitched together from mismatched frames', () {
-      final frames = splitIntoFrames(
-          encodeSyncPayload(bigPacket()), chunkSize: 200);
-
-      final collector = SyncFrameCollector();
-      for (var i = 0; i < frames.length; i++) {
-        // Same transfer id, but one frame carries the wrong chunk.
-        collector.add(i == 1 ? frames[i].replaceRange(
-            frames[i].length - 4, null, 'XXXX') : frames[i]);
-      }
-
-      expect(collector.isComplete, isTrue);
-      expect(collector.assemble, throwsFormatException);
+      expect(decoder.isComplete, isTrue);
+      expect(decoder.sourceBlocks, second.sourceBlocks);
+      expect(decodeSyncBytes(decoder.assemble()).throws.single.thrownAt, 1);
     });
 
     test('ignores anything that is not a frame', () {
-      final collector = SyncFrameCollector();
-      expect(collector.add('https://example.com'), isFalse);
-      expect(collector.add('DS2C:oops'), isFalse);
-      expect(collector.add('DS2C:5:3:abc:xx'), isFalse,
-          reason: 'sequence outside the frame count');
-      expect(collector.received, 0);
+      final decoder = SyncFountainDecoder();
+      expect(decoder.add('https://example.com'), isFalse);
+      expect(decoder.add('DS3:oops'), isFalse);
+      expect(decoder.add('DS3:1:0:5:ABC:QQ'), isFalse,
+          reason: 'a transfer of no blocks');
+      expect(decoder.sourceBlocks, 0);
+    });
+
+    test('the two sides agree on which blocks a frame combines', () {
+      // Sender and receiver each derive this from the seed alone, so a drift
+      // between the two generators would decode to plausible looking rubbish
+      // rather than to an error.
+      final data = encodeSyncBytes(bigPacket());
+      final sent = framesUntilComplete(data, lossRate: 0.3, seed: 99);
+      expect(sent, greaterThan(0));
     });
   });
 
@@ -420,13 +481,29 @@ void main() {
   });
 
   group('transport choice', () {
-    test('grows from one code to a loop to the server', () {
-      expect(transportFor('DS2:${'x' * 100}'), SyncTransport.staticQr);
-      expect(transportFor('DS2:${'x' * (kStaticQrMaxChars + 1)}'),
+    /// A packet with roughly [visits] visits, to grow a payload on demand.
+    SyncPacket sized(int visits) => packetOf(List.generate(
+          visits,
+          (i) => t(
+            score: 60 - (i % 7),
+            remainingBefore: 501 - (i % 8) * 60,
+            thrownAt: 1770000000000 + i * 41000,
+            leg: 1 + i ~/ 16,
+          ),
+        ));
+
+    test('grows from one code to a stream to the server', () {
+      expect(prepareTransmission(sized(50)).transport, SyncTransport.staticQr);
+      expect(prepareTransmission(sized(3000)).transport,
           SyncTransport.animatedQr);
-      expect(
-          transportFor('DS2:${'x' * (kMaxChunkFrames * kChunkPayloadChars + 1)}'),
+      expect(prepareTransmission(sized(60000)).transport,
           SyncTransport.server);
+    });
+
+    test('an animated transfer stays inside the block cap', () {
+      final animated = prepareTransmission(sized(3000));
+      expect(animated.sourceBlocks, lessThanOrEqualTo(kMaxSourceBlocks));
+      expect(animated.estimatedDuration.inSeconds, greaterThan(0));
     });
   });
 

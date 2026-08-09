@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dartscore_app/screens/sync_screen.dart';
 import 'package:dartscore_app/services/sync_codec.dart';
@@ -13,10 +14,15 @@ void main() {
   /// A payload of exactly [chars] characters from the base45 alphabet.
   String payloadOf(int chars) => 'DS2:${'W' * (chars - 4)}';
 
+  /// Frames as the sender really produces them, over a payload large enough to
+  /// need many blocks.
+  SyncFountainEncoder encoder() => SyncFountainEncoder(
+      Uint8List.fromList(List.generate(60000, (i) => (i * 37 + 11) % 256)));
+
   group('rendering sync codes', () {
     test('a full frame stays inside version 15', () {
-      final frame = 'DS2C:119:120:ZZZZZZZ:${'W' * kChunkPayloadChars}';
-      expect(frame.length, lessThanOrEqualTo(kChunkFrameMaxChars));
+      final frame = encoder().frameAt(0);
+      expect(frame.length, lessThanOrEqualTo(kFrameMaxChars));
 
       final qr = buildQrCode(frame);
       expect(qr.typeNumber, lessThanOrEqualTo(15),
@@ -24,14 +30,15 @@ void main() {
       expect(qr.errorCorrectLevel, QrErrorCorrectLevel.M);
     });
 
-    test('frames of equal length all resolve to the same version', () {
+    test('frames all resolve to the same version', () {
       // What lets the version be resolved once per transfer instead of once
       // per shown frame, which at ten frames a second is the difference
-      // between one QR code built and fifteen thrown away.
+      // between one QR code built and fifteen thrown away. Frames only share a
+      // length while the seed does, so the check spans a seed getting longer.
+      final source = encoder();
       final versions = {
-        for (var seq = 0; seq < 3; seq++)
-          buildQrCode('DS2C:$seq:120:ZZZZZZZ:${'W' * kChunkPayloadChars}')
-              .typeNumber,
+        for (final index in [0, 1, 40, 1000, 50000])
+          buildQrCode(source.frameAt(index)).typeNumber,
       };
 
       expect(versions, hasLength(1));
@@ -70,12 +77,10 @@ void main() {
       expect(() => buildQrCode(data), returnsNormally);
     });
 
-    test('a real packet at the static limit renders', () {
-      // Grows a payload up to the limit the transport choice allows, then
-      // renders it, which is the case that used to fail silently.
-      final data = payloadOf(kStaticQrMaxChars);
-      expect(transportFor(data), SyncTransport.staticQr);
-      expect(() => buildQrCode(data), returnsNormally);
+    test('a payload at the static limit renders', () {
+      // The case that used to fail silently, when the limit was computed for a
+      // different error correction level than the one being rendered.
+      expect(() => buildQrCode(payloadOf(kStaticQrMaxChars)), returnsNormally);
     });
   });
 }

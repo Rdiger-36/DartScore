@@ -249,12 +249,11 @@ class _SenderTabState extends State<_SenderTab> {
 
   // Prepared payload
   SyncPacket? _packet;
-  String? _payload;
-  List<String> _frames = const [];
-  SyncTransport _transport = SyncTransport.staticQr;
+  SyncTransmission? _transmission;
   bool _preparing = false;
 
   // Animated QR
+  SyncFountainEncoder? _encoder;
   Timer? _frameTimer;
   int _frameIndex = 0;
 
@@ -299,46 +298,47 @@ class _SenderTabState extends State<_SenderTab> {
 
     setState(() {
       _preparing = true;
-      _payload = null;
       _packet = null;
-      _frames = const [];
+      _transmission = null;
+      _encoder = null;
       _ip = null;
       _port = null;
     });
 
     final packet = await buildSyncPacket(
         player, Platform.isIOS ? 'iPhone' : 'Android', _range);
-    final payload   = encodeSyncPayload(packet);
-    final transport = transportFor(payload);
+    final transmission = prepareTransmission(packet);
 
     if (!mounted) return;
     setState(() {
-      _packet    = packet;
-      _payload   = payload;
-      _transport = transport;
-      _frames    = transport == SyncTransport.animatedQr
-          ? splitIntoFrames(payload)
-          : const [];
+      _packet       = packet;
+      _transmission = transmission;
+      _encoder      = transmission.transport == SyncTransport.animatedQr
+          ? SyncFountainEncoder(transmission.data)
+          : null;
       _frameIndex = 0;
       _preparing  = false;
     });
 
-    if (transport == SyncTransport.animatedQr) _startFrameLoop();
+    if (_encoder != null) _startFrameLoop();
   }
 
-  /// Cycles through the frames of an animated QR code, looping forever so the
-  /// receiver can pick up whatever it missed on the pass before.
+  /// Drives the endless stream of fountain coded frames.
+  ///
+  /// There is no loop to come round: every tick is a fresh combination of the
+  /// payload's blocks, and the receiver stops as soon as it has caught enough
+  /// of them, whichever ones those happen to be.
   void _startFrameLoop() {
     _frameTimer?.cancel();
     _frameTimer = Timer.periodic(kChunkFrameDuration, (_) {
-      if (!mounted || _frames.isEmpty) return;
-      setState(() => _frameIndex = (_frameIndex + 1) % _frames.length);
+      if (!mounted || _encoder == null) return;
+      setState(() => _frameIndex++);
     });
   }
 
-  /// Seconds one full pass of the animated QR code takes.
-  int get _passSeconds =>
-      (_frames.length * kChunkFrameDuration.inMilliseconds / 1000).ceil();
+  /// Roughly how long the animated transfer takes, for the info line.
+  int get _transferSeconds =>
+      (_transmission!.estimatedDuration.inMilliseconds / 1000).ceil();
 
   // ── Server transport ──────────────────────────────────────────────────────
 
@@ -509,9 +509,10 @@ class _SenderTabState extends State<_SenderTab> {
   }
 
   /// How the current payload will travel, in words.
-  String _transportLabel(AppLocalizations l) => switch (_transport) {
+  String _transportLabel(AppLocalizations l) =>
+      switch (_transmission!.transport) {
         SyncTransport.staticQr   => l.syncViaStaticQr,
-        SyncTransport.animatedQr => l.syncViaAnimatedQr(_passSeconds),
+        SyncTransport.animatedQr => l.syncViaAnimatedQr(_transferSeconds),
         SyncTransport.server     => l.syncViaServer,
       };
 
@@ -520,14 +521,14 @@ class _SenderTabState extends State<_SenderTab> {
       AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (_selectedPlayer == null) return const SizedBox.shrink();
 
-    if (_preparing || _payload == null) {
+    if (_preparing || _transmission == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 32),
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    return switch (_transport) {
+    return switch (_transmission!.transport) {
       SyncTransport.staticQr   => _buildStaticQr(l, cs, theme),
       SyncTransport.animatedQr => _buildAnimatedQr(l, cs, theme),
       SyncTransport.server     => _buildServer(l, cs, theme),
@@ -538,7 +539,7 @@ class _SenderTabState extends State<_SenderTab> {
   Widget _buildStaticQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
       Column(
         children: [
-          _qrCard(_payload!),
+          _qrCard(_transmission!.payload),
           const SizedBox(height: 8),
           Text(
             l.profileAndStats,
@@ -548,27 +549,18 @@ class _SenderTabState extends State<_SenderTab> {
         ],
       );
 
-  /// Shows the packet as a looping sequence of QR codes.
+  /// Shows the packet as an endless stream of QR codes.
   ///
-  /// The codes are rendered as large as the column allows: split across this
-  /// many frames each one is denser than a static code, and a small rendering
-  /// is what makes an animated transfer stall.
+  /// The progress bar is deliberately indeterminate. The sender has no idea how
+  /// far the receiver has got, and a bar counting frames sent would suggest it
+  /// does; what matters is only that the stream is running.
   Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
       Column(
         children: [
-          _qrCard(_frames[_frameIndex]),
+          _qrCard(_encoder!.frameAt(_frameIndex)),
           const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: (_frameIndex + 1) / _frames.length,
-            borderRadius: BorderRadius.circular(4),
-          ),
+          LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
           const SizedBox(height: 8),
-          Text(
-            l.syncScanProgress(_frameIndex + 1, _frames.length),
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 4),
           Text(
             l.syncAnimatedHint,
             textAlign: TextAlign.center,
@@ -677,8 +669,8 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   bool _fetching = false;
   String? _error;
 
-  /// Collects the frames of an animated QR code across many camera detections.
-  final _collector = SyncFrameCollector();
+  /// Rebuilds the payload from the frames of an animated QR code.
+  final _decoder = SyncFountainDecoder();
 
   /// Set once a payload is complete, so the detections that keep arriving while
   /// the confirmation dialog opens are ignored.
@@ -686,7 +678,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
 
   /// Starts a fresh scan, dropping anything a previous attempt collected.
   void _startScanning() {
-    _collector.reset();
+    _decoder.reset();
     setState(() {
       _scanning = true;
       _handled  = false;
@@ -728,16 +720,16 @@ class _ReceiverTabState extends State<_ReceiverTab> {
             const Center(child: CircularProgressIndicator())
           else if (_scanning) ...[
             Expanded(child: _QrScanner(onScanned: _onScanned)),
-            if (_collector.total > 0) ...[
+            if (_decoder.sourceBlocks > 0) ...[
               const SizedBox(height: 12),
               LinearProgressIndicator(
-                value: _collector.received / _collector.total,
+                value: _decoder.solved / _decoder.sourceBlocks,
                 borderRadius: BorderRadius.circular(4),
               ),
               const SizedBox(height: 8),
               Text(
                 '${context.l10n.syncKeepHolding}\n'
-                '${context.l10n.syncScanProgress(_collector.received, _collector.total)}',
+                '${context.l10n.syncScanProgress(_decoder.solved, _decoder.sourceBlocks)}',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: cs.onSurfaceVariant),
@@ -764,14 +756,14 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   void _onScanned(String raw) async {
     if (_handled) return;
 
-    if (SyncFrameCollector.isFrame(raw)) {
-      if (_collector.add(raw) && mounted) setState(() {});
-      if (!_collector.isComplete) return;
+    if (SyncFountainDecoder.isFrame(raw)) {
+      if (_decoder.add(raw) && mounted) setState(() {});
+      if (!_decoder.isComplete) return;
 
       _handled = true;
-      final payload = _collector.assemble();
-      _collector.reset();
-      await _finishScan(() async => decodeSyncPayload(payload));
+      final data = _decoder.assemble();
+      _decoder.reset();
+      await _finishScan(() async => decodeSyncBytes(data));
       return;
     }
 
