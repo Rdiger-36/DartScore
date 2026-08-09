@@ -40,14 +40,18 @@ const _kPrefix = 'ZZ Test';
 /// The profiles to create: how many visits, spread over how many days.
 ///
 /// The sizes are picked against the measured transport limits, a single code
-/// holding about 350 visits and an animated one about 30000, so that changing
-/// the range on a profile walks through the transports rather than jumping.
-/// One session per day keeps that predictable: seven days hold roughly a
-/// seventh of what thirty days hold.
+/// holding about 350 visits and an animated transfer about 21000, so that
+/// changing the range on a profile walks through the transports rather than
+/// jumping. One session per day keeps that predictable: seven days hold roughly
+/// a seventh of what thirty days hold.
+///
+/// Gross is deliberately just under the animated limit, because a transfer
+/// close to the cap is the one worth trying by hand: it runs for half a minute
+/// and is where a camera dropping frames shows up at all.
 const _kProfiles = [
   (name: '$_kPrefix Klein',    visits: 220,   days: 5),
   (name: '$_kPrefix Mittel',   visits: 2500,  days: 45),
-  (name: '$_kPrefix Gross',    visits: 22000, days: 150),
+  (name: '$_kPrefix Gross',    visits: 19000, days: 150),
   (name: '$_kPrefix Riesig',   visits: 45000, days: 220),
   (name: '$_kPrefix Snapshot', visits: 500,   days: 20),
 ];

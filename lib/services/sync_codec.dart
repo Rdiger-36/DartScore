@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'sync_service.dart';
@@ -9,8 +10,8 @@ import 'sync_service.dart';
 /// Marks a QR payload that carries a whole packet in the v2 binary format.
 const String kSyncPrefixV2 = 'DS2:';
 
-/// Marks one frame of a v2 payload that was too large for a single QR code.
-const String kSyncChunkPrefixV2 = 'DS2C:';
+/// Marks one frame of a payload streamed as an animated QR code.
+const String kSyncFramePrefix = 'DS3:';
 
 /// Marks a payload in the v1 format (gzipped JSON). Only ever decoded, never
 /// written: older app versions still send it and must stay importable.
@@ -27,24 +28,25 @@ const String kSyncPrefixV1 = 'QR1:';
 /// another phone's screen needs the redundancy of level M to manage it.
 const int kStaticQrMaxChars = 3200;
 
-/// Payload characters carried by one frame of an animated QR code.
+/// Bytes of the payload each source block of an animated transfer holds.
 ///
-/// Together with the frame header this stays inside a version 15 code at level
-/// M, which holds 600 alphanumeric characters across 77 modules. That is about
-/// as dense as a code can get and still be read reliably while it is moving.
-const int kChunkPayloadChars = 570;
+/// Base45 turns these into 540 characters, which together with the frame
+/// header stays inside a version 15 code at level M: 600 alphanumeric
+/// characters across 77 modules, about as dense as a code can get and still be
+/// read reliably while it is moving.
+const int kBlockSizeBytes = 360;
 
-/// Largest frame [splitIntoFrames] may produce, headers included.
-const int kChunkFrameMaxChars = 600;
+/// Largest frame [SyncFountainEncoder] may produce, header included.
+const int kFrameMaxChars = 600;
 
-/// Most frames an animated transfer may use.
+/// How long an animated transfer may typically take.
 ///
-/// One full pass takes this many times [kChunkFrameDuration], so the number is
-/// really a limit on patience: half a minute of holding two phones together is
-/// where the Wi-Fi transfer starts being the friendlier option. Expect a little
-/// more than one pass in practice, because a frame the camera misses only comes
-/// round again on the next one.
-const int kMaxChunkFrames = 300;
+/// Half a minute of holding two phones together is where the Wi-Fi transfer
+/// starts being the friendlier option. Unlike the numbered sequence this
+/// replaced, the figure is now a fair one: a fountain coded transfer finishes
+/// when it has caught enough frames, whichever ones, rather than waiting out
+/// another full loop for the one the camera blinked through.
+const Duration kMaxTransferDuration = Duration(seconds: 30);
 
 /// How long a single frame of an animated QR code stays on screen.
 ///
@@ -60,28 +62,80 @@ const Duration kChunkFrameDuration = Duration(milliseconds: 100);
 /// inside at least one sampling window, whatever the phase between the two.
 const Duration kScannerDetectionTimeout = Duration(milliseconds: 50);
 
+/// Frames a transfer typically takes per source block.
+///
+/// A fountain code needs somewhat more symbols than it has blocks before it can
+/// decode, measured at about 1.25 for the block counts that matter here, and
+/// the camera misses some of what passes it on top of that. This sets both the
+/// duration shown to the user and, through it, [kMaxSourceBlocks].
+const double kFramesPerBlock = 1.4;
+
+/// Most source blocks an animated transfer may be split into, derived from how
+/// long [kMaxTransferDuration] allows it to run.
+final int kMaxSourceBlocks = (kMaxTransferDuration.inMilliseconds /
+        (kFramesPerBlock * kChunkFrameDuration.inMilliseconds))
+    .floor();
+
 /// How a packet gets to the other device, chosen from its encoded size.
 enum SyncTransport {
   /// One still QR code.
   staticQr,
 
-  /// A looping sequence of QR codes.
+  /// An endless stream of QR codes carrying a fountain coded payload.
   animatedQr,
 
   /// A local HTTP server the receiver connects to over Wi-Fi.
   server,
 }
 
-/// Picks the transport for an already encoded [payload].
-SyncTransport transportFor(String payload) {
-  if (payload.length <= kStaticQrMaxChars) return SyncTransport.staticQr;
-  if (frameCountFor(payload) <= kMaxChunkFrames) return SyncTransport.animatedQr;
-  return SyncTransport.server;
+/// One packet, encoded and sized up, ready for whichever transport it needs.
+class SyncTransmission {
+  /// The compressed packet the animated transfer streams.
+  final Uint8List data;
+
+  /// The whole packet in one string, for the single code and the Wi-Fi reply.
+  final String payload;
+
+  /// How this packet should travel.
+  final SyncTransport transport;
+
+  /// Source blocks the animated transfer splits [data] into.
+  final int sourceBlocks;
+
+  const SyncTransmission({
+    required this.data,
+    required this.payload,
+    required this.transport,
+    required this.sourceBlocks,
+  });
+
+  /// Roughly how long an animated transfer takes, for the sender to show.
+  Duration get estimatedDuration => Duration(
+      milliseconds: (sourceBlocks *
+              kFramesPerBlock *
+              kChunkFrameDuration.inMilliseconds)
+          .round());
 }
 
-/// Number of frames [payload] needs when sent as an animated QR code.
-int frameCountFor(String payload) =>
-    (payload.length / kChunkPayloadChars).ceil();
+/// Encodes [packet] and works out how it should travel.
+SyncTransmission prepareTransmission(SyncPacket packet) {
+  final data = encodeSyncBytes(packet);
+  final payload = '$kSyncPrefixV2${base45Encode(data)}';
+  final blocks = (data.length / kBlockSizeBytes).ceil();
+
+  final transport = payload.length <= kStaticQrMaxChars
+      ? SyncTransport.staticQr
+      : blocks <= kMaxSourceBlocks
+          ? SyncTransport.animatedQr
+          : SyncTransport.server;
+
+  return SyncTransmission(
+    data: data,
+    payload: payload,
+    transport: transport,
+    sourceBlocks: blocks,
+  );
+}
 
 // ── Packet encoding ───────────────────────────────────────────────────────────
 
@@ -94,12 +148,15 @@ const int _kFlagBust           = 0x04;
 const int _kFlagExplicitContext = 0x08;
 
 /// Encodes [packet] into the string a QR code carries.
+String encodeSyncPayload(SyncPacket packet) =>
+    '$kSyncPrefixV2${base45Encode(encodeSyncBytes(packet))}';
+
+/// Encodes [packet] into the compressed bytes every transport builds on.
 ///
-/// The packet becomes a compact binary record, which is then gzipped and
-/// base64url encoded so it survives a QR code's character set. Compared to the
-/// v1 JSON format this is roughly eight times smaller per throw, which is what
-/// decides whether a sync fits into a single code.
-String encodeSyncPayload(SyncPacket packet) {
+/// The packet becomes a compact binary record, which is then gzipped. What the
+/// transports add on top is only framing: base45 for a QR code's character set,
+/// and the fountain code for an animated one.
+Uint8List encodeSyncBytes(SyncPacket packet) {
   final w = _ByteWriter();
 
   w.u8(_kBinaryFormatVersion);
@@ -157,8 +214,7 @@ String encodeSyncPayload(SyncPacket packet) {
     expectedRemaining = t.bust ? t.remainingBefore : t.remainingBefore - t.score;
   }
 
-  final compressed = gzip.encode(w.takeBytes());
-  return '$kSyncPrefixV2${base45Encode(compressed)}';
+  return Uint8List.fromList(gzip.encode(w.takeBytes()));
 }
 
 /// Decodes a scanned or fetched [payload] back into a packet.
@@ -167,8 +223,7 @@ String encodeSyncPayload(SyncPacket packet) {
 /// versions send. Throws a [FormatException] on anything else.
 SyncPacket decodeSyncPayload(String payload) {
   if (payload.startsWith(kSyncPrefixV2)) {
-    return _decodeBinary(
-        gzip.decode(base45Decode(payload.substring(kSyncPrefixV2.length))));
+    return decodeSyncBytes(base45Decode(payload.substring(kSyncPrefixV2.length)));
   }
   if (payload.startsWith(kSyncPrefixV1)) {
     final compressed = base64Url.decode(payload.substring(kSyncPrefixV1.length));
@@ -178,10 +233,11 @@ SyncPacket decodeSyncPayload(String payload) {
   throw const FormatException('Unknown sync payload format');
 }
 
-/// Reads a v2 binary record back into a packet, restoring the fields the
-/// encoder left out because they follow from the throw before.
-SyncPacket _decodeBinary(List<int> bytes) {
-  final r = _ByteReader(Uint8List.fromList(bytes));
+/// Reads the compressed bytes [encodeSyncBytes] produced back into a packet,
+/// restoring the fields the encoder left out because they follow from the
+/// throw before.
+SyncPacket decodeSyncBytes(Uint8List compressed) {
+  final r = _ByteReader(Uint8List.fromList(gzip.decode(compressed)));
 
   final version = r.u8();
   if (version != _kBinaryFormatVersion) {
@@ -252,108 +308,326 @@ SyncPacket _decodeBinary(List<int> bytes) {
   );
 }
 
-// ── Chunked transfer ──────────────────────────────────────────────────────────
+// ── Animated transfer ─────────────────────────────────────────────────────────
 
-/// Splits [payload] into the frames an animated QR code cycles through.
+/// Streams a payload as an endless sequence of fountain coded frames.
 ///
-/// Every frame names the transfer it belongs to by the checksum of the whole
-/// payload, so a receiver that catches frames from two different senders, or
-/// from the same sender after the data changed, can tell them apart instead of
-/// stitching a corrupt packet together.
-List<String> splitIntoFrames(String payload,
-    {int chunkSize = kChunkPayloadChars}) {
-  final total = (payload.length / chunkSize).ceil();
-  // Uppercase, because every character of a frame has to stay inside the QR
-  // alphanumeric set for the dense encoding to apply.
-  final id = _crc32(payload).toRadixString(36).toUpperCase();
+/// Every frame is the exclusive or of a few source blocks, chosen by a seed the
+/// frame carries. The receiver does not need a particular frame, only enough of
+/// them: any set slightly larger than the block count decodes the whole
+/// payload. That is what a plain numbered sequence cannot do, where one frame
+/// the camera blinked through means waiting a full loop for it to come round
+/// again, and where a hand tremor or a refocus in step with the loop can miss
+/// the same frames pass after pass.
+class SyncFountainEncoder {
+  /// The padded source blocks, all [kBlockSizeBytes] long.
+  final List<Uint8List> _blocks;
 
-  return List.generate(total, (i) {
-    final start = i * chunkSize;
-    final end   = start + chunkSize;
-    final chunk =
-        payload.substring(start, end > payload.length ? payload.length : end);
-    return '$kSyncChunkPrefixV2$i:$total:$id:$chunk';
-  });
+  /// Length of the original payload, so the receiver can drop the padding.
+  final int _length;
+
+  /// Checksum of the payload, identifying this transfer to the receiver.
+  final int _checksum;
+
+  /// Degree distribution the frame seeds draw from.
+  final List<double> _degreeCdf;
+
+  /// Where in the seed space this transfer starts.
+  final int _origin;
+
+  /// Wraps [data] for streaming, starting at [startOffset] in the seed space.
+  ///
+  /// The offset is random by default, and that matters. The seeds decide which
+  /// blocks each frame combines, so a fixed start would give every transfer of
+  /// a given block count the exact same sequence, and a block count whose
+  /// sequence happens to be a poor one would be poor forever. A random start
+  /// turns that into luck that differs from transfer to transfer.
+  SyncFountainEncoder(Uint8List data, {int? startOffset})
+      : _blocks = _splitIntoBlocks(data),
+        _length = data.length,
+        _checksum = _crc32(data),
+        _degreeCdf = _robustSolitonCdf((data.length / kBlockSizeBytes).ceil()),
+        _origin = startOffset ?? math.Random().nextInt(1 << 30);
+
+  /// How many blocks the payload was split into.
+  int get sourceBlocks => _blocks.length;
+
+  /// The frame at stream position [index]. The sender only ever counts up.
+  String frameAt(int index) {
+    // Seeds start at 1: a zero state would leave the generator stuck there.
+    final seed = _origin + index + 1;
+    final combined = Uint8List(kBlockSizeBytes);
+    for (final block in _pickBlocks(seed, _blocks.length, _degreeCdf)) {
+      final source = _blocks[block];
+      for (var i = 0; i < kBlockSizeBytes; i++) {
+        combined[i] ^= source[i];
+      }
+    }
+
+    final header = '$kSyncFramePrefix${_base36(seed)}:${_blocks.length}:'
+        '${_base36(_length)}:${_base36(_checksum)}:';
+    return '$header${base45Encode(combined)}';
+  }
 }
 
-/// Collects the frames of an animated QR code until the payload is complete.
+/// Collects fountain coded frames until the payload can be reconstructed.
 ///
-/// Frames arrive in whatever order the camera happens to catch them, the same
-/// frame usually arrives many times, and the sender loops forever, so this only
-/// has to keep what it has not seen yet and notice when nothing is missing.
-class SyncFrameCollector {
-  final Map<int, String> _chunks = {};
-  String? _transferId;
-  int _total = 0;
+/// Frames are solved as they arrive: one that combines a single unknown block
+/// reveals it, which may in turn reduce frames held back earlier, so the work
+/// is spread over the transfer rather than done in one pass at the end.
+class SyncFountainDecoder {
+  /// Blocks recovered so far, by index.
+  final Map<int, Uint8List> _solved = {};
 
-  /// Frames collected so far.
-  int get received => _chunks.length;
+  /// Frames that still combine more than one unknown block.
+  final List<_PendingFrame> _pending = [];
 
-  /// Frames the current transfer consists of, or 0 before the first frame.
-  int get total => _total;
+  int _sourceBlocks = 0;
+  int _length = 0;
+  int? _checksum;
+  List<double>? _degreeCdf;
 
-  /// Whether every frame has arrived.
-  bool get isComplete => _total > 0 && _chunks.length == _total;
+  /// Blocks recovered so far.
+  int get solved => _solved.length;
+
+  /// Blocks the payload consists of, or 0 before the first frame.
+  int get sourceBlocks => _sourceBlocks;
+
+  /// Whether every block has been recovered.
+  bool get isComplete => _sourceBlocks > 0 && _solved.length == _sourceBlocks;
 
   /// Whether [raw] looks like a frame of an animated transfer.
-  static bool isFrame(String raw) => raw.startsWith(kSyncChunkPrefixV2);
+  static bool isFrame(String raw) => raw.startsWith(kSyncFramePrefix);
 
-  /// Takes one scanned frame and reports whether it added anything new.
+  /// Takes one scanned frame and reports whether it recovered anything new.
   ///
   /// A frame from a different transfer starts the collection over rather than
-  /// being dropped: the sender may well have restarted with different data,
-  /// and then the frames already held are the stale ones.
+  /// being dropped: the sender may well have restarted with different data, and
+  /// then it is what has been collected so far that is stale.
   bool add(String raw) {
     if (!isFrame(raw)) return false;
 
-    final body  = raw.substring(kSyncChunkPrefixV2.length);
-    final parts = body.split(':');
-    if (parts.length < 4) return false;
+    final parts = raw.substring(kSyncFramePrefix.length).split(':');
+    if (parts.length < 5) return false;
 
-    final seq   = int.tryParse(parts[0]);
-    final total = int.tryParse(parts[1]);
-    final id    = parts[2];
-    if (seq == null || total == null || total <= 0) return false;
-    if (seq < 0 || seq >= total) return false;
-
-    // The chunk itself may contain no colon, but rejoining is cheaper than
-    // trusting that and it keeps the format free to grow another header field.
-    final chunk = parts.sublist(3).join(':');
-
-    if (_transferId != id) {
-      _chunks.clear();
-      _transferId = id;
-      _total = total;
+    final seed     = _parseBase36(parts[0]);
+    final blocks   = int.tryParse(parts[1]);
+    final length   = _parseBase36(parts[2]);
+    final checksum = _parseBase36(parts[3]);
+    if (seed == null || blocks == null || length == null || checksum == null) {
+      return false;
+    }
+    if (seed <= 0 || blocks <= 0 || blocks > kMaxSourceBlocks || length <= 0) {
+      return false;
     }
 
-    if (_chunks.containsKey(seq)) return false;
-    _chunks[seq] = chunk;
-    return true;
+    final Uint8List value;
+    try {
+      value = base45Decode(parts.sublist(4).join(':'));
+    } on FormatException {
+      return false;
+    }
+    if (value.length != kBlockSizeBytes) return false;
+
+    if (_checksum != checksum) {
+      _solved.clear();
+      _pending.clear();
+      _checksum    = checksum;
+      _sourceBlocks = blocks;
+      _length      = length;
+      _degreeCdf   = _robustSolitonCdf(blocks);
+    }
+
+    return _absorb(_PendingFrame(
+      unknowns: _pickBlocks(seed, _sourceBlocks, _degreeCdf!).toSet(),
+      value: value,
+    ));
+  }
+
+  /// Folds [frame] into what is known, cascading through the frames held back
+  /// whenever a block is recovered. Returns whether anything was recovered.
+  bool _absorb(_PendingFrame frame) {
+    var recoveredAny = false;
+    var next = frame;
+
+    while (true) {
+      // Strip the blocks that are already known out of this frame.
+      for (final index in next.unknowns.toList()) {
+        final block = _solved[index];
+        if (block == null) continue;
+        for (var i = 0; i < kBlockSizeBytes; i++) {
+          next.value[i] ^= block[i];
+        }
+        next.unknowns.remove(index);
+      }
+
+      if (next.unknowns.length != 1) {
+        // Nothing to learn from it yet, but it may become useful later.
+        if (next.unknowns.isNotEmpty) _pending.add(next);
+        return recoveredAny;
+      }
+
+      final index = next.unknowns.first;
+      _solved[index] = next.value;
+      recoveredAny = true;
+
+      // A recovered block may reduce a frame held back earlier to one unknown.
+      final ready = _pending.where((f) => f.unknowns.contains(index)).toList();
+      if (ready.isEmpty) return recoveredAny;
+      _pending.removeWhere((f) => f.unknowns.contains(index));
+
+      // Continue with the first, queue the rest by absorbing them in turn.
+      next = ready.first;
+      for (final other in ready.skip(1)) {
+        if (_absorb(other)) recoveredAny = true;
+      }
+    }
   }
 
   /// Reassembles the payload once [isComplete], verifying the checksum.
-  ///
-  /// Throws a [FormatException] when the reassembled payload does not match the
-  /// checksum every frame carried, which means frames from different transfers
-  /// got mixed up.
-  String assemble() {
+  Uint8List assemble() {
     if (!isComplete) {
       throw const FormatException('Sync transfer is still incomplete');
     }
-    final payload = List.generate(_total, (i) => _chunks[i]!).join();
-    if (_crc32(payload).toRadixString(36).toUpperCase() != _transferId) {
+
+    final out = Uint8List(_sourceBlocks * kBlockSizeBytes);
+    for (var i = 0; i < _sourceBlocks; i++) {
+      out.setRange(i * kBlockSizeBytes, (i + 1) * kBlockSizeBytes, _solved[i]!);
+    }
+
+    final payload = Uint8List.sublistView(out, 0, _length);
+    if (_crc32(payload) != _checksum) {
       throw const FormatException('Sync transfer failed its checksum');
     }
-    return payload;
+    return Uint8List.fromList(payload);
   }
 
   /// Drops everything collected so far.
   void reset() {
-    _chunks.clear();
-    _transferId = null;
-    _total = 0;
+    _solved.clear();
+    _pending.clear();
+    _sourceBlocks = 0;
+    _length = 0;
+    _checksum = null;
+    _degreeCdf = null;
   }
 }
+
+/// A received frame that still combines more than one unrecovered block.
+class _PendingFrame {
+  final Set<int> unknowns;
+  final Uint8List value;
+
+  _PendingFrame({required this.unknowns, required this.value});
+}
+
+/// Cuts [data] into equal blocks, zero padding the last one.
+List<Uint8List> _splitIntoBlocks(Uint8List data) {
+  final count = (data.length / kBlockSizeBytes).ceil();
+  return List.generate(count, (i) {
+    final block = Uint8List(kBlockSizeBytes);
+    final start = i * kBlockSizeBytes;
+    final end   = (start + kBlockSizeBytes).clamp(0, data.length);
+    if (start < data.length) {
+      block.setRange(0, end - start, data, start);
+    }
+    return block;
+  });
+}
+
+/// The block indices the frame with [seed] combines.
+///
+/// Both sides derive this from the seed alone, so a frame needs to carry only
+/// the seed rather than the list. The generator is written out here instead of
+/// using `Random`, whose sequence for a given seed is not promised to stay the
+/// same across Dart versions, and the two devices may well not run the same one.
+List<int> _pickBlocks(int seed, int blockCount, List<double> degreeCdf) {
+  // The seeds are consecutive, and a raw xorshift started on 1, 2, 3 in turn
+  // produces near identical first outputs, which would make consecutive frames
+  // near identical too. Scrambling the seed first breaks that up.
+  var state = _scramble(seed);
+  if (state == 0) state = 1;
+
+  int nextRandom() {
+    state ^= (state << 13) & 0xFFFFFFFF;
+    state ^= state >> 17;
+    state ^= (state << 5) & 0xFFFFFFFF;
+    return state;
+  }
+
+  double nextDouble() => nextRandom() / 0x100000000;
+
+  // Degree first, then that many distinct blocks by partial shuffle.
+  final roll = nextDouble();
+  var degree = 1;
+  while (degree < degreeCdf.length && degreeCdf[degree - 1] < roll) {
+    degree++;
+  }
+  if (degree > blockCount) degree = blockCount;
+
+  final pool = List.generate(blockCount, (i) => i);
+  for (var i = 0; i < degree; i++) {
+    final j = i + nextRandom() % (blockCount - i);
+    final swap = pool[i];
+    pool[i] = pool[j];
+    pool[j] = swap;
+  }
+  return pool.sublist(0, degree);
+}
+
+/// Cumulative robust soliton distribution over degrees 1 to [blockCount].
+///
+/// The shape matters: mostly small degrees so frames keep revealing blocks one
+/// at a time, with a deliberate spike at a larger degree that sweeps up the
+/// blocks the small ones keep missing. Without that spike a transfer stalls
+/// near the end with a handful of blocks no frame ever touches.
+List<double> _robustSolitonCdf(int blockCount) {
+  if (blockCount <= 1) return [1];
+
+  const delta = 0.5;
+  const c = 0.1;
+  final spikeAt =
+      (c * math.log(blockCount / delta) * math.sqrt(blockCount)).round().clamp(1, blockCount);
+
+  final weights = List<double>.filled(blockCount + 1, 0);
+  for (var d = 1; d <= blockCount; d++) {
+    // Ideal soliton.
+    weights[d] = d == 1 ? 1 / blockCount : 1 / (d * (d - 1));
+    // Robust part.
+    if (d < spikeAt) {
+      weights[d] += spikeAt / (d * blockCount);
+    } else if (d == spikeAt) {
+      weights[d] += spikeAt * math.log(1 / delta) / blockCount;
+    }
+  }
+
+  final total = weights.reduce((a, b) => a + b);
+  final cdf = List<double>.filled(blockCount, 0);
+  var running = 0.0;
+  for (var d = 1; d <= blockCount; d++) {
+    running += weights[d] / total;
+    cdf[d - 1] = running;
+  }
+  cdf[blockCount - 1] = 1;
+  return cdf;
+}
+
+/// Spreads consecutive integers across the 32 bit range.
+///
+/// The avalanche step of a hash, without the hash: neighbouring inputs come out
+/// entirely unrelated, which is what turns a counter into usable seeds.
+int _scramble(int value) {
+  var x = value & 0xFFFFFFFF;
+  x = ((x ^ (x >> 16)) * 0x7FEB352D) & 0xFFFFFFFF;
+  x = ((x ^ (x >> 15)) * 0x846CA68B) & 0xFFFFFFFF;
+  return (x ^ (x >> 16)) & 0xFFFFFFFF;
+}
+
+/// Uppercase base36, which the QR alphanumeric mode carries.
+String _base36(int value) => value.toRadixString(36).toUpperCase();
+
+/// Parses [_base36], returning null when it is not a number.
+int? _parseBase36(String value) => int.tryParse(value, radix: 36);
 
 // ── Base45 ────────────────────────────────────────────────────────────────────
 
@@ -457,10 +731,10 @@ final List<int> _crcTable = List.generate(256, (i) {
   return c;
 });
 
-/// CRC-32 of [input]'s UTF-8 bytes, used to identify and verify a transfer.
-int _crc32(String input) {
+/// CRC-32 of [bytes], used to identify a transfer and to verify it at the end.
+int _crc32(List<int> bytes) {
   var crc = 0xFFFFFFFF;
-  for (final byte in utf8.encode(input)) {
+  for (final byte in bytes) {
     crc = _crcTable[(crc ^ byte) & 0xFF] ^ (crc >> 8);
   }
   return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF;
