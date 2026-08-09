@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../models/player.dart';
 import '../providers/shanghai_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
+import '../widgets/rematch_button.dart';
+import 'shanghai_screen.dart';
 
 /// Detailed view of a finished Shanghai game from history, rebuilt by replaying
 /// its stored throws through a fresh provider.
@@ -37,7 +42,7 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
               if (provider == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, provider: provider);
+              return _Body(game: game, players: players, provider: provider);
             },
           ),
         ),
@@ -57,9 +62,14 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
 /// Renders the replayed game details: variant, players, and final scores.
 class _Body extends StatelessWidget {
   final ShanghaiGame game;
+  final List<Player> players;
   final ShanghaiProvider provider;
 
-  const _Body({required this.game, required this.provider});
+  const _Body({
+    required this.game,
+    required this.players,
+    required this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -114,9 +124,28 @@ class _Body extends StatelessWidget {
         ],
 
         // Game info
-        _InfoRow(l.gameLabel, l.modeShanghaiName),
-        const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, _shanghaiVariantLabel(l, game.variant)),
+        GameInfoCard(dense: true, rows: [
+          (l.gameLabel, l.modeShanghaiName),
+          (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+        ]),
+        const SizedBox(height: 16),
+
+        // ── Rematch ────────────────────────────────────────────────────────
+        RematchButton(
+          modeName: l.modeShanghaiName,
+          details: [
+            (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+          ],
+          slots: states
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(s.displayName,
+                      s.players.map((p) => RematchSlot.player(p.name)).toList())
+                  : RematchSlot.player(s.displayName))
+              .toList(),
+          onRematch: () =>
+              context.read<ShanghaiProvider>().startRematch(game, players),
+          destination: (_) => const ShanghaiScreen(),
+        ),
         const SizedBox(height: 16),
 
         Card(
@@ -188,37 +217,3 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Localized display name for a Shanghai [variant].
-String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
-  switch (variant) {
-    case ShanghaiVariant.classic:
-      return l.shanghaiClassic;
-    case ShanghaiVariant.clockwise:
-      return l.shanghaiClockwise;
-    case ShanghaiVariant.sequential:
-      return l.shanghaiSequential;
-  }
-}
-
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}

@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../database/db_helper.dart';
 import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
+import '../providers/game_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../utils/placement.dart';
+import '../widgets/rematch_button.dart';
+import 'game_screen.dart';
 
 /// Detailed view of a finished X01 game from history: per-player stats and the
 /// full throw log, loaded from the stored throws.
@@ -93,6 +99,10 @@ class _SummaryBody extends StatelessWidget {
       }
     }
 
+    // Team configs only store player ids, so the rematch dialog needs a name
+    // lookup to list a team's members.
+    final namesById = {for (final p in players) p.id: p.name};
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
@@ -123,10 +133,72 @@ class _SummaryBody extends StatelessWidget {
           ),
         const SizedBox(height: 14),
         // Game info
-        _InfoRow(context.l10n.gameLabel, context.l10n.modeX01Name),
-        const SizedBox(height: 6),
-        _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets, placementMode: game.placementMode)),
-        const SizedBox(height: 12),
+        GameInfoCard(dense: true, rows: [
+          (context.l10n.gameLabel, context.l10n.modeX01Name),
+          (
+            context.l10n.matchFormat,
+            game.placementMode
+                ? context.l10n.placementMode
+                : context.l10n.standardMode
+          ),
+          (
+            context.l10n.gameMode_,
+            context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+                placementMode: game.placementMode)
+          ),
+        ]),
+        const SizedBox(height: 16),
+        RematchButton(
+          modeName: context.l10n.modeX01Name,
+          details: [
+            (
+              context.l10n.matchFormat,
+              game.placementMode
+                  ? context.l10n.placementMode
+                  : context.l10n.standardMode
+            ),
+            (
+              context.l10n.gameMode_,
+              context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+                  placementMode: game.placementMode)
+            ),
+            // With handicaps the game defaults say little, so the per-player
+            // rows below carry the rules instead.
+            if (!game.hasHandicaps) ...[
+              (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
+              (
+                context.l10n.checkOut,
+                checkOutLabel(context.l10n, game.checkoutMode)
+              ),
+            ],
+          ],
+          slots: game.isTeamGame
+              ? game.teams!
+                  .map((t) => RematchSlot.team(
+                        t.name,
+                        [
+                          for (final id in t.playerIds)
+                            if (namesById[id] != null)
+                              RematchSlot.player(
+                                namesById[id]!,
+                                rules: handicapRulesLabel(
+                                    context.l10n, game, id),
+                              ),
+                        ],
+                      ))
+                  .toList()
+              : players
+                  .map((p) => RematchSlot.player(
+                        p.name,
+                        rules:
+                            handicapRulesLabel(context.l10n, game, p.id),
+                      ))
+                  .toList(),
+          onRematch: () =>
+              context.read<GameProvider>().startRematch(game, players),
+          destination: (_) => const GameScreen(),
+        ),
+        const SizedBox(height: 16),
         // Final ranking (placement mode only)
         if (game.placementMode) ...[
           _FinalRankingCard(game: game, data: data, players: players),
@@ -365,28 +437,6 @@ class _RankCell extends StatelessWidget {
   }
 }
 
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}
 
 /// Per-player stat card for a historical game, computing average, legs won,
 /// darts, highest visit, and busts from the player's throws.

@@ -3,7 +3,11 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
+import '../widgets/rematch_button.dart';
+import 'cricket_screen.dart';
 
 /// Post-game summary for Cricket: the winner plus each player's final marks and
 /// score.
@@ -64,8 +68,40 @@ class CricketSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
           ],
+
+          // ── Rematch ──────────────────────────────────────────────────────
+          RematchButton(
+            modeName: l.modeCricketName,
+            details: [
+              (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+              (
+                l.cricketScoringMode,
+                cricketScoringModeLabel(l, game.scoringMode)
+              ),
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              game,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const CricketScreen(),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Game info ────────────────────────────────────────────────────
+          GameInfoCard(rows: [
+            (l.gameLabel, l.modeCricketName),
+            (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+            (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+          ]),
+          const SizedBox(height: 16),
 
           // ── Player results ───────────────────────────────────────────────
           Card(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/player.dart';
@@ -249,6 +250,10 @@ class GameProvider extends ChangeNotifier {
   /// Restores a previously started game from the database by replaying all
   /// stored throws, rebuilding per-slot state and the current leg/set/turn.
   Future<void> resumeGame(Game game, List<Player> players) async {
+    // Always reassign, never merge: leaving the previous game's handicaps in
+    // place would silently apply them to this one.
+    _handicaps = game.handicaps ?? {};
+
     // In-progress visit and undo/redo state is only valid for the GameScreen
     // that produced it; drop it on every full rebuild of the board. Callers
     // that need to preserve it across a rebuild (undo/redo) restore it
@@ -664,12 +669,8 @@ class GameProvider extends ChangeNotifier {
 
   /// Starts a brand-new game: persists it, builds fresh per-slot state for the
   /// players or teams, resets leg/set/turn counters, and clears undo/redo.
-  Future<void> startGame(
-    Game game,
-    List<Player> players, {
-    Map<int, PlayerHandicap>? handicaps,
-  }) async {
-    _handicaps = handicaps ?? {};
+  Future<void> startGame(Game game, List<Player> players) async {
+    _handicaps = game.handicaps ?? {};
 
     final ids    = players.map((p) => p.id!).toList();
     final gameId = await _db.insertGame(game, ids);
@@ -682,6 +683,7 @@ class GameProvider extends ChangeNotifier {
       sets:         game.sets,
       createdAt:    game.createdAt,
       teams:        game.teams,
+      handicaps:    game.handicaps,
       placementMode: game.placementMode,
     );
 
@@ -722,6 +724,27 @@ class GameProvider extends ChangeNotifier {
     _checkedInThisVisit = false;
     _redoStack.clear();
     notifyListeners();
+  }
+
+  /// Starts a fresh game that reuses [template]'s settings (start score, check
+  /// in/out, legs/sets, placement mode, teams and handicaps) and the given
+  /// [players]. The template's id and timestamps are not carried over, so a
+  /// new game row is persisted and the finished one stays untouched. The
+  /// throwing order is reshuffled, mirroring how a game is set up normally.
+  Future<void> startRematch(Game template, List<Player> players) async {
+    final shuffled = List.of(players)..shuffle(Random());
+    final game = Game(
+      startScore:    template.startScore,
+      gameMode:      template.gameMode,
+      checkoutMode:  template.checkoutMode,
+      legs:          template.legs,
+      sets:          template.sets,
+      createdAt:     DateTime.now(),
+      teams:         template.teams,
+      handicaps:     template.handicaps,
+      placementMode: template.placementMode,
+    );
+    await startGame(game, shuffled);
   }
 
   // ── Submit visit ──────────────────────────────────────────────────────────

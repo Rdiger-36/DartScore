@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/shanghai_game.dart';
@@ -248,6 +249,24 @@ class ShanghaiProvider extends ChangeNotifier {
     _visitBuffer.clear();
     _throwHistory.clear();
     notifyListeners();
+  }
+
+  /// Starts a fresh Shanghai game that reuses [template]'s settings (variant,
+  /// legs/sets, teams) and the given [players]. The template's id and
+  /// timestamps are not carried over, so a new game row is persisted and the
+  /// finished one stays untouched. The throwing order is reshuffled, mirroring
+  /// how a game is set up normally.
+  Future<void> startRematch(ShanghaiGame template, List<Player> players) async {
+    final shuffled = List.of(players)..shuffle(Random());
+    final game = ShanghaiGame(
+      variant:   template.variant,
+      legs:      template.legs,
+      sets:      template.sets,
+      createdAt: DateTime.now(),
+      playerIds: shuffled.map((p) => p.id!).toList(),
+      teams:     template.teams,
+    );
+    await startGame(game, shuffled);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────

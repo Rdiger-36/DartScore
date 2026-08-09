@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/player.dart';
 import '../providers/around_the_clock_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
+import '../widgets/rematch_button.dart';
+import 'around_the_clock_screen.dart';
 
 /// Detailed view of a finished Around the Clock game from history, rebuilt by
 /// replaying its stored throws through a fresh provider.
@@ -37,7 +42,7 @@ class AroundTheClockHistorySummaryScreen extends StatelessWidget {
               if (provider == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, provider: provider);
+              return _Body(game: game, players: players, provider: provider);
             },
           ),
         ),
@@ -57,9 +62,14 @@ class AroundTheClockHistorySummaryScreen extends StatelessWidget {
 /// Renders the replayed game details: variant, players, and per-player progress.
 class _Body extends StatelessWidget {
   final AroundTheClockGame game;
+  final List<Player> players;
   final AroundTheClockProvider provider;
 
-  const _Body({required this.game, required this.provider});
+  const _Body({
+    required this.game,
+    required this.players,
+    required this.provider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -112,9 +122,29 @@ class _Body extends StatelessWidget {
         ],
 
         // Game info
-        _InfoRow(l.gameLabel, l.modeAroundClockName),
-        const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, _variantLabel(l, game.variant)),
+        GameInfoCard(dense: true, rows: [
+          (l.gameLabel, l.modeAroundClockName),
+          (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+        ]),
+        const SizedBox(height: 16),
+
+        // ── Rematch ────────────────────────────────────────────────────────
+        RematchButton(
+          modeName: l.modeAroundClockName,
+          details: [
+            (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+          ],
+          slots: states
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(s.displayName,
+                      s.players.map((p) => RematchSlot.player(p.name)).toList())
+                  : RematchSlot.player(s.displayName))
+              .toList(),
+          onRematch: () => context
+              .read<AroundTheClockProvider>()
+              .startRematch(game, players),
+          destination: (_) => const AroundTheClockScreen(),
+        ),
         const SizedBox(height: 16),
 
         Card(
@@ -183,37 +213,3 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Localized display name for an Around the Clock [variant].
-String _variantLabel(AppLocalizations l, AroundTheClockVariant variant) {
-  switch (variant) {
-    case AroundTheClockVariant.basic:
-      return l.aroundClockBasic;
-    case AroundTheClockVariant.fullSegments:
-      return l.aroundClockFullSegments;
-    case AroundTheClockVariant.skipRules:
-      return l.aroundClockSkipRules;
-  }
-}
-
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}

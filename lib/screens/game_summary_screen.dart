@@ -9,8 +9,12 @@ import 'dart:io';
 import '../providers/game_provider.dart';
 import '../models/dart_throw.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
+import '../widgets/game_info_card.dart';
+import '../widgets/rematch_button.dart';
+import 'game_screen.dart';
 
 /// Post-game summary for X01: winner, per-player/team stats and throw history,
 /// with options to save or share the result card as an image.
@@ -26,9 +30,16 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
   bool _saving = false;
 
   /// Rasterizes the result card widget to a high-resolution image.
+  ///
+  /// Waits for the pending frame first: callers set [_saving] before rendering,
+  /// which hides the rematch button inside the captured area, and that frame
+  /// must be laid out and painted before the boundary is grabbed.
   Future<ui.Image> _renderCard() async {
+    await WidgetsBinding.instance.endOfFrame;
     final ctx = _cardKey.currentContext;
-    if (ctx == null) throw StateError('Card widget is not mounted');
+    if (ctx == null || !ctx.mounted) {
+      throw StateError('Card widget is not mounted');
+    }
     final boundary = ctx.findRenderObject() as RenderRepaintBoundary;
     return boundary.toImage(pixelRatio: 3.0);
   }
@@ -88,6 +99,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     );
     final cs = Theme.of(context).colorScheme;
     final l = context.l10n;
+    // Name of every player in the game, keyed by id, for the throw log.
+    final throwerNames = {
+      for (final s in states)
+        for (final p in s.players) p.id: p.name,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -190,6 +206,86 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                       ),
                     );
                   }),
+                  // Rematch: hidden while the card is captured so it never
+                  // shows up in the saved/shared result image.
+                  if (!_saving) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: RematchButton(
+                        modeName: l.modeX01Name,
+                        details: [
+                          (
+                            l.matchFormat,
+                            provider.game!.placementMode
+                                ? l.placementMode
+                                : l.standardMode
+                          ),
+                          (
+                            l.gameMode_,
+                            l.gameSummaryInfo(
+                              provider.game!.startScore,
+                              provider.game!.legs,
+                              provider.game!.sets,
+                              placementMode: provider.game!.placementMode,
+                            )
+                          ),
+                          // With handicaps the game defaults say little, so the
+                          // per-player rows below carry the rules instead.
+                          if (!provider.game!.hasHandicaps) ...[
+                            (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
+                            (
+                              l.checkOut,
+                              checkOutLabel(l, provider.game!.checkoutMode)
+                            ),
+                          ],
+                        ],
+                        slots: states
+                            .map((s) => s.isTeamSlot
+                                ? RematchSlot.team(
+                                    s.displayName,
+                                    s.players
+                                        .map((p) => RematchSlot.player(p.name,
+                                            rules: handicapRulesLabel(
+                                                l, provider.game!, p.id)))
+                                        .toList())
+                                : RematchSlot.player(
+                                    s.displayName,
+                                    rules: handicapRulesLabel(
+                                        l, provider.game!, s.player.id),
+                                  ))
+                            .toList(),
+                        onRematch: () => provider.startRematch(
+                          provider.game!,
+                          provider.playerStates
+                              .expand((s) => s.players)
+                              .toList(),
+                        ),
+                        destination: (_) => const GameScreen(),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  // What the game was played with, so the saved or shared card
+                  // carries its settings too.
+                  GameInfoCard(rows: [
+                    (l.gameLabel, l.modeX01Name),
+                    (
+                      l.matchFormat,
+                      provider.game!.placementMode
+                          ? l.placementMode
+                          : l.standardMode
+                    ),
+                    (
+                      l.gameMode_,
+                      l.gameSummaryInfo(
+                        provider.game!.startScore,
+                        provider.game!.legs,
+                        provider.game!.sets,
+                        placementMode: provider.game!.placementMode,
+                      )
+                    ),
+                  ]),
                   const SizedBox(height: 16),
                   // Final ranking (placement mode only)
                   if (provider.game!.placementMode) ...[
@@ -222,10 +318,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                   ),
                   const SizedBox(height: 8),
                   ...provider.allThrows().map((t) {
-                    final player = states
-                        .firstWhere((s) => s.player.id == t.playerId)
-                        .player;
-                    return _ThrowRow(t: t, playerName: player.name);
+                    // Look the thrower up across every slot member: a team
+                    // slot's `player` is only whoever throws next, so matching
+                    // on that alone misses the team's other members.
+                    final name = throwerNames[t.playerId] ?? '';
+                    return _ThrowRow(t: t, playerName: name);
                   }),
                 ],
               ),
