@@ -457,16 +457,6 @@ class DbHelper {
   // Mirrors game_provider.dart: kept local to avoid circular import.
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
-  /// Computes the classic three-dart average (non-bust score divided by darts
-  /// thrown, times three) for a set of throws.
-  static double _gameAverage(List<DartThrow> throws) {
-    int darts = 0, scored = 0;
-    for (final t in throws) {
-      darts += t.dartsUsed;
-      if (!t.bust) scored += t.score;
-    }
-    return darts == 0 ? 0 : (scored / darts) * 3;
-  }
 
   /// Counts perfect legs in [throws] (legs finished within [minDarts] darts).
   static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
@@ -606,7 +596,7 @@ class DbHelper {
       'checkout_successes': stats.checkoutSuccesses,
       'games_played':       gameIds.length,
       'score_sum_squares':  stats.scoreSumSquares,
-      'highest_game_avg':   _gameAverage(throws),
+      'highest_game_avg':   bestGameAverage(throws),
       'co_at_sub40':  stats.coAttemptSub40,  'co_ok_sub40':  stats.coSuccessSub40,
       'co_at_sub60':  stats.coAttemptSub60,  'co_ok_sub60':  stats.coSuccessSub60,
       'co_at_sub100': stats.coAttemptSub100, 'co_ok_sub100': stats.coSuccessSub100,
