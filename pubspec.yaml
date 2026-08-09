@@ -36,6 +36,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
+  # Runs SQLite in the Dart VM so provider tests can drive a real database
+  # instead of mocking DbHelper away.
+  sqflite_common_ffi: ^2.3.4
 
 flutter_launcher_icons:
   android: true

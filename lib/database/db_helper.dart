@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/player.dart';
@@ -19,7 +20,21 @@ class DbHelper {
   static final DbHelper instance = DbHelper._();
   static Database? _db;
 
+  /// Where the database file lives, overriding the platform default. Only set
+  /// by tests, which point it at an in-memory database so each case starts on
+  /// a fresh schema.
+  @visibleForTesting
+  static String? debugDatabasePath;
+
   DbHelper._();
+
+  /// Closes the cached connection so the next access opens a new one. Only
+  /// used by tests between cases; the app keeps one connection for its lifetime.
+  @visibleForTesting
+  static Future<void> debugReset() async {
+    await _db?.close();
+    _db = null;
+  }
 
   /// The lazily-opened database instance, created on first access.
   Future<Database> get db async {
@@ -29,7 +44,8 @@ class DbHelper {
 
   /// Opens (creating if needed) the `dartscore.db` database with foreign keys on.
   Future<Database> _initDb() async {
-    final path = join(await getDatabasesPath(), 'dartscore.db');
+    final path =
+        debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
       version: 18,
