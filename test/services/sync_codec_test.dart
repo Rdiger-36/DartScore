@@ -87,6 +87,42 @@ void main() {
     }
   }
 
+  group('base45', () {
+    test('round trips bytes of both even and odd length', () {
+      for (final length in [0, 1, 2, 3, 4, 5, 255, 256, 1000, 1001]) {
+        final bytes = List.generate(length, (i) => (i * 37 + 11) % 256);
+        expect(base45Decode(base45Encode(bytes)), bytes,
+            reason: 'length $length');
+      }
+    });
+
+    test('covers the whole byte range', () {
+      final bytes = List.generate(256, (i) => i);
+      expect(base45Decode(base45Encode(bytes)), bytes);
+    });
+
+    test('matches the examples in RFC 9285', () {
+      expect(base45Encode(utf8.encode('AB')), 'BB8');
+      expect(base45Encode(utf8.encode('Hello!!')), '%69 VD92EX0');
+      expect(base45Encode(utf8.encode('base-45')), 'UJCLQE7W581');
+      expect(utf8.decode(base45Decode('QED8WEX0')), 'ietf!');
+    });
+
+    test('produces only characters a QR code can carry densely', () {
+      final bytes = List.generate(2000, (i) => (i * 91 + 7) % 256);
+      expect(isAlphanumericSafe(base45Encode(bytes)), isTrue);
+    });
+
+    test('rejects a corrupted payload', () {
+      expect(() => base45Decode('AB_'), throwsFormatException,
+          reason: 'underscore is not in the alphabet');
+      expect(() => base45Decode('A'), throwsFormatException,
+          reason: 'a single character cannot be a group');
+      expect(() => base45Decode(':::'), throwsFormatException,
+          reason: 'group value above 0xFFFF');
+    });
+  });
+
   group('packet round trip', () {
     test('carries a leg with a bust and a checkout', () {
       const start = 1770000000000;
@@ -223,7 +259,7 @@ void main() {
           totalDarts: 1200, totalVisits: 400, average: 62.37,
           legsWon: 18, highestVisit: 180, busts: 21, count180: 7,
         ),
-        throws: realisticThrows(220),
+        throws: realisticThrows(330),
       ));
 
       expect(transportFor(encoded), SyncTransport.staticQr,
@@ -232,15 +268,17 @@ void main() {
     });
 
     /// Guards the cost per throw against a change that quietly makes the format
-    /// wordy again. Roughly 2.5 of these bytes are the throw's timestamp, which
+    /// wordy again. About four of these bytes are the throw's timestamp, which
     /// is close to real randomness and does not compress; the rest is the score,
-    /// the flags and the occasional leg change.
-    test('costs no more than six characters per throw', () {
+    /// the flags and the occasional leg change. Base45 costs 1.5 characters per
+    /// byte against base64's 1.33, and buys back far more than that in what a
+    /// code of the same size can hold.
+    test('costs no more than seven characters per throw', () {
       final base = encodeSyncPayload(packetOf([])).length;
       final full = encodeSyncPayload(packetOf(realisticThrows(500))).length;
 
       final perThrow = (full - base) / 500;
-      expect(perThrow, lessThan(6.0), reason: '$perThrow chars per throw');
+      expect(perThrow, lessThan(7.0), reason: '$perThrow chars per throw');
     });
 
     test('is less than half the size of the JSON format it replaces', () {
@@ -286,8 +324,11 @@ void main() {
 
     test('every frame fits the size a QR code can show', () {
       for (final frame in splitIntoFrames(encodeSyncPayload(bigPacket()))) {
-        expect(frame.length, lessThanOrEqualTo(412),
-            reason: 'a version 15 QR at level M holds 412 bytes');
+        expect(frame.length, lessThanOrEqualTo(kChunkFrameMaxChars),
+            reason: 'a version 15 code at level M holds 600 of these');
+        expect(isAlphanumericSafe(frame), isTrue,
+            reason: 'a frame outside the alphanumeric set loses a third of '
+                'its capacity to the byte mode');
       }
     });
 

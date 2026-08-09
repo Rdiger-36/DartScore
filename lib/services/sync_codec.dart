@@ -20,19 +20,22 @@ const String kSyncPrefixV1 = 'QR1:';
 
 /// Largest payload still shown as a single QR code.
 ///
-/// Every code the sender renders uses error correction level M, where the
-/// largest version holds 2331 bytes. Staying below that is not just about
-/// fitting: a code near the limit is 177 modules wide, and a phone reading
-/// that off another phone's screen needs the redundancy of level M to manage
-/// it. Anything larger is better served by the animated transfer anyway.
-const int kStaticQrMaxChars = 2200;
+/// Payloads are base45 so that they fit the QR alphanumeric character set,
+/// where a code holds 3391 characters at version 40 and error correction M
+/// against 2331 in byte mode. Staying under that is not only about fitting: a
+/// code near the limit is 177 modules wide, and a phone reading that off
+/// another phone's screen needs the redundancy of level M to manage it.
+const int kStaticQrMaxChars = 3200;
 
 /// Payload characters carried by one frame of an animated QR code.
 ///
-/// Together with the frame header this stays inside a version 15 QR at level M
-/// (412 bytes, 77 modules), which is about as dense as a code can get and still
-/// be read reliably while it is moving.
-const int kChunkPayloadChars = 380;
+/// Together with the frame header this stays inside a version 15 code at level
+/// M, which holds 600 alphanumeric characters across 77 modules. That is about
+/// as dense as a code can get and still be read reliably while it is moving.
+const int kChunkPayloadChars = 570;
+
+/// Largest frame [splitIntoFrames] may produce, headers included.
+const int kChunkFrameMaxChars = 600;
 
 /// Most frames an animated transfer may use. One full pass takes roughly this
 /// many times [kChunkFrameDuration]; beyond that the Wi-Fi transfer is quicker
@@ -140,7 +143,7 @@ String encodeSyncPayload(SyncPacket packet) {
   }
 
   final compressed = gzip.encode(w.takeBytes());
-  return '$kSyncPrefixV2${base64Url.encode(compressed)}';
+  return '$kSyncPrefixV2${base45Encode(compressed)}';
 }
 
 /// Decodes a scanned or fetched [payload] back into a packet.
@@ -150,7 +153,7 @@ String encodeSyncPayload(SyncPacket packet) {
 SyncPacket decodeSyncPayload(String payload) {
   if (payload.startsWith(kSyncPrefixV2)) {
     return _decodeBinary(
-        gzip.decode(base64Url.decode(payload.substring(kSyncPrefixV2.length))));
+        gzip.decode(base45Decode(payload.substring(kSyncPrefixV2.length))));
   }
   if (payload.startsWith(kSyncPrefixV1)) {
     final compressed = base64Url.decode(payload.substring(kSyncPrefixV1.length));
@@ -245,7 +248,9 @@ SyncPacket _decodeBinary(List<int> bytes) {
 List<String> splitIntoFrames(String payload,
     {int chunkSize = kChunkPayloadChars}) {
   final total = (payload.length / chunkSize).ceil();
-  final id    = _crc32(payload).toRadixString(36);
+  // Uppercase, because every character of a frame has to stay inside the QR
+  // alphanumeric set for the dense encoding to apply.
+  final id = _crc32(payload).toRadixString(36).toUpperCase();
 
   return List.generate(total, (i) {
     final start = i * chunkSize;
@@ -321,7 +326,7 @@ class SyncFrameCollector {
       throw const FormatException('Sync transfer is still incomplete');
     }
     final payload = List.generate(_total, (i) => _chunks[i]!).join();
-    if (_crc32(payload).toRadixString(36) != _transferId) {
+    if (_crc32(payload).toRadixString(36).toUpperCase() != _transferId) {
       throw const FormatException('Sync transfer failed its checksum');
     }
     return payload;
@@ -333,6 +338,97 @@ class SyncFrameCollector {
     _transferId = null;
     _total = 0;
   }
+}
+
+// ── Base45 ────────────────────────────────────────────────────────────────────
+
+/// The 45 characters a QR code can carry in its alphanumeric mode.
+///
+/// That mode spends 5.5 bits per character against the byte mode's 8, and
+/// base45 fills it almost exactly: two bytes become three characters, so a
+/// payload costs 16.5 bits per two bytes instead of 21.3. The result is about
+/// a third more data in a code of the same size, which is the difference
+/// between one still code and a sequence of them.
+const String _kBase45Alphabet =
+    r'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
+
+/// Character to value lookup for [base45Decode].
+final Map<int, int> _base45Values = {
+  for (var i = 0; i < _kBase45Alphabet.length; i++)
+    _kBase45Alphabet.codeUnitAt(i): i,
+};
+
+/// Whether [data] consists only of characters a QR code can carry in its
+/// alphanumeric mode.
+bool isAlphanumericSafe(String data) =>
+    data.codeUnits.every(_base45Values.containsKey);
+
+/// Encodes [bytes] as base45, per RFC 9285.
+///
+/// Pairs of bytes become three characters holding the value least significant
+/// digit first; a trailing odd byte becomes two.
+String base45Encode(List<int> bytes) {
+  final out = StringBuffer();
+
+  var i = 0;
+  for (; i + 1 < bytes.length; i += 2) {
+    var value = bytes[i] * 256 + bytes[i + 1];
+    out.write(_kBase45Alphabet[value % 45]);
+    value ~/= 45;
+    out.write(_kBase45Alphabet[value % 45]);
+    out.write(_kBase45Alphabet[value ~/ 45]);
+  }
+
+  if (i < bytes.length) {
+    final value = bytes[i];
+    out.write(_kBase45Alphabet[value % 45]);
+    out.write(_kBase45Alphabet[value ~/ 45]);
+  }
+
+  return out.toString();
+}
+
+/// Decodes a base45 string back into bytes.
+///
+/// Throws a [FormatException] on an unknown character, a length that cannot
+/// have come from [base45Encode], or a group whose value is out of range,
+/// which is what a corrupted or truncated payload looks like.
+Uint8List base45Decode(String input) {
+  final values = <int>[];
+  for (final unit in input.codeUnits) {
+    final value = _base45Values[unit];
+    if (value == null) {
+      throw const FormatException('Invalid character in base45 payload');
+    }
+    values.add(value);
+  }
+
+  final out = BytesBuilder(copy: false);
+
+  var i = 0;
+  for (; i + 2 < values.length; i += 3) {
+    final value = values[i] + values[i + 1] * 45 + values[i + 2] * 2025;
+    if (value > 0xFFFF) {
+      throw const FormatException('Base45 group out of range');
+    }
+    out.addByte(value >> 8);
+    out.addByte(value & 0xFF);
+  }
+
+  switch (values.length - i) {
+    case 0:
+      break;
+    case 2:
+      final value = values[i] + values[i + 1] * 45;
+      if (value > 0xFF) {
+        throw const FormatException('Base45 group out of range');
+      }
+      out.addByte(value);
+    default:
+      throw const FormatException('Truncated base45 payload');
+  }
+
+  return out.takeBytes();
 }
 
 // ── Checksum ──────────────────────────────────────────────────────────────────
