@@ -264,9 +264,15 @@ class _SenderTabState extends State<_SenderTab> {
 
   // Server transport, only started when the user asks for it
   final _server = SyncServer();
-  String? _ip;
-  int? _port;
+  SyncConnection? _connection;
   bool _serverStarting = false;
+
+  /// Set while the approval dialog for a waiting peer is on screen, so a second
+  /// request from the same peer does not open a second one.
+  bool _askingApproval = false;
+
+  /// Set once the payload has gone out and the server has stopped itself.
+  bool _served = false;
 
   @override
   void initState() {
@@ -286,8 +292,50 @@ class _SenderTabState extends State<_SenderTab> {
   @override
   void dispose() {
     _frameTimer?.cancel();
+    _server.state.removeListener(_onServerState);
     _server.stop();
+    _server.dispose();
     super.dispose();
+  }
+
+  /// Follows the transfer: asks the user about a waiting peer, and shuts the
+  /// server down again once the payload has gone out.
+  void _onServerState() {
+    switch (_server.state.value) {
+      case SyncServerState.pending:
+        _askApproval();
+      case SyncServerState.served:
+        _finishServing();
+      case SyncServerState.waiting:
+      case SyncServerState.approved:
+      case SyncServerState.rejected:
+        if (mounted) setState(() {});
+    }
+  }
+
+  /// Shows the peer's request with the pairing number and acts on the answer.
+  Future<void> _askApproval() async {
+    if (_askingApproval || !mounted) return;
+    _askingApproval = true;
+
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PairingDialog(pin: _server.pin),
+    );
+
+    _askingApproval = false;
+    if (approved == true) {
+      _server.approve();
+    } else {
+      _server.reject();
+    }
+  }
+
+  /// Stops the server once its one payload has been handed over.
+  Future<void> _finishServing() async {
+    await _server.stop();
+    if (mounted) setState(() { _connection = null; _served = true; });
   }
 
   // ── Preparing the payload ─────────────────────────────────────────────────
@@ -306,8 +354,8 @@ class _SenderTabState extends State<_SenderTab> {
       _packet = null;
       _transmission = null;
       _encoder = null;
-      _ip = null;
-      _port = null;
+      _connection = null;
+      _served = false;
     });
 
     final packet = await buildSyncPacket(
@@ -350,21 +398,23 @@ class _SenderTabState extends State<_SenderTab> {
   /// Starts the local HTTP server serving the prepared packet and shows its
   /// IP and port as a connection QR for the receiver.
   Future<void> _startServer() async {
-    final packet = _packet;
-    if (packet == null) return;
-    setState(() => _serverStarting = true);
+    final transmission = _transmission;
+    if (transmission == null) return;
+    setState(() { _serverStarting = true; _served = false; });
 
     if (_server.isRunning) await _server.stop();
-    final (ip, port) = await _server.start(packet);
+    _server.state.removeListener(_onServerState);
+    final connection = await _server.start(transmission.payload);
+    _server.state.addListener(_onServerState);
 
     if (!mounted) return;
-    setState(() { _ip = ip; _port = port; _serverStarting = false; });
+    setState(() { _connection = connection; _serverStarting = false; });
   }
 
   /// Stops the transfer server and clears its connection details.
   Future<void> _stopServer() async {
     await _server.stop();
-    if (mounted) setState(() { _ip = null; _port = null; });
+    if (mounted) setState(() => _connection = null);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -577,10 +627,31 @@ class _SenderTabState extends State<_SenderTab> {
 
   /// Offers the Wi-Fi transfer for payloads no QR code can carry.
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
-    if (!_server.isRunning) {
+    if (_connection == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_served) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    color: Colors.green, size: 20),
+                const SizedBox(width: 8),
+                Text(l.syncServerSent,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l.syncServerSentHint,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             l.syncServerHint,
             textAlign: TextAlign.center,
@@ -602,6 +673,7 @@ class _SenderTabState extends State<_SenderTab> {
       );
     }
 
+    final connection = _connection!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -614,12 +686,12 @@ class _SenderTabState extends State<_SenderTab> {
         ),
         const SizedBox(height: 20),
         Text(
-          '$_ip:$_port',
+          '${connection.ip}:${connection.port}',
           style: theme.textTheme.labelSmall
               ?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
-        _qrCard(jsonEncode({'ip': _ip, 'port': _port})),
+        _qrCard(connection.qrPayload),
       ],
     );
   }
@@ -683,13 +755,18 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   /// the confirmation dialog opens are ignored.
   bool _handled = false;
 
+  /// The pairing number a Wi-Fi transfer is waiting on, shown so the user can
+  /// compare it against the sending device.
+  String? _pairingPin;
+
   /// Starts a fresh scan, dropping anything a previous attempt collected.
   void _startScanning() {
     _decoder.reset();
     setState(() {
-      _scanning = true;
-      _handled  = false;
-      _error    = null;
+      _scanning    = true;
+      _handled     = false;
+      _error       = null;
+      _pairingPin  = null;
     });
   }
 
@@ -724,7 +801,31 @@ class _ReceiverTabState extends State<_ReceiverTab> {
             const SizedBox(height: 12),
           ],
           if (_fetching)
-            const Center(child: CircularProgressIndicator())
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  if (_pairingPin != null) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      _pairingPin!,
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      context.l10n.syncPairWaiting,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ],
+              ),
+            )
           else if (_scanning) ...[
             Expanded(child: _QrScanner(onScanned: _onScanned)),
             if (_decoder.sourceBlocks > 0) ...[
@@ -782,12 +883,22 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       return;
     }
 
-    // ── Wi-Fi transfer (IP:port) ──────────────────────────────────────────
+    // ── Wi-Fi transfer ────────────────────────────────────────────────────
+    final connection = SyncConnection.parse(raw);
+    if (connection == null) {
+      await _finishScan(() async => throw const FormatException(
+          'Not a sync code'));
+      return;
+    }
+
     await _finishScan(() async {
-      final map  = jsonDecode(raw) as Map<String, dynamic>;
-      final ip   = map['ip'] as String;
-      final port = map['port'] as int;
-      return SyncClient().fetch(ip, port);
+      final payload = await SyncClient().fetch(
+        connection,
+        onPin: (pin) {
+          if (mounted) setState(() => _pairingPin = pin);
+        },
+      );
+      return decodeSyncPayload(payload);
     }, overWifi: true);
   }
 
@@ -798,7 +909,12 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   /// a network problem and pointing at the Wi-Fi would only mislead.
   Future<void> _finishScan(Future<SyncPacket> Function() read,
       {bool overWifi = false}) async {
-    setState(() { _scanning = false; _fetching = true; _error = null; });
+    setState(() {
+      _scanning   = false;
+      _fetching   = true;
+      _error      = null;
+      _pairingPin = null;
+    });
 
     try {
       final packet = await read();
@@ -808,9 +924,12 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       if (mounted) {
         final l = context.l10n;
         setState(() {
-          _fetching = false;
-          _error = '${overWifi ? l.connectionFailed : l.syncReadFailed}'
-              '\n\n${l.error}: $e';
+          _fetching   = false;
+          _pairingPin = null;
+          _error = e is SyncRejectedException
+              ? l.syncRejected
+              : '${overWifi ? l.connectionFailed : l.syncReadFailed}'
+                  '\n\n${l.error}: $e';
         });
       }
     }
@@ -928,13 +1047,17 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   /// enough that a bare spinner leaves the user guessing whether anything is
   /// happening at all.
   Future<void> _doImport(SyncPacket packet, Player? existing) async {
-    await showDialog<void>(
+    final imported = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _ImportProgressDialog(
         run: (report) => _writeImport(packet, existing, report),
       ),
     );
+
+    // Back to the player list, where the imported profile is now waiting. Both
+    // ways into this screen come from there, so popping lands on it.
+    if (imported == true && mounted) Navigator.of(context).pop();
   }
 
   /// Persists the incoming packet: updates the existing player or creates a new
@@ -1025,6 +1148,68 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     return existing != null
         ? l.importedWithThrows(packet.playerName, displayCount)
         : l.importedWithCount(packet.playerName, displayCount);
+  }
+}
+
+// ── Pairing ───────────────────────────────────────────────────────────────────
+
+/// Asks the sender to let a waiting device in, showing the number both screens
+/// are displaying.
+///
+/// The number is what tells the user that the device asking is the one in front
+/// of them. The token in the connection code is what actually keeps everyone
+/// else out; this is the part the user can see.
+class _PairingDialog extends StatelessWidget {
+  final String pin;
+
+  const _PairingDialog({required this.pin});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+    final l     = context.l10n;
+
+    return PopScope(
+      canPop: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: AlertDialog(
+            title: Text(l.syncPairTitle),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l.syncPairBody,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  pin,
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 8,
+                    color: cs.primary,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l.syncReject),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(l.syncApprove),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1128,7 +1313,8 @@ class _ImportProgressDialogState extends State<_ImportProgressDialog> {
                 ? null
                 : [
                     FilledButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () =>
+                          Navigator.pop(context, _error == null),
                       child: Text(l.ok),
                     ),
                   ],

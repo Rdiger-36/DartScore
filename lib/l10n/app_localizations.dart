@@ -453,6 +453,24 @@ class AppLocalizations {
       _t('$received of $total parts', '$received von $total Teilen');
   String get syncReadFailed    =>
       _t('The data could not be read.', 'Die Daten konnten nicht gelesen werden.');
+  String get syncPairTitle     =>
+      _t('Confirm transfer', 'Übertragung bestätigen');
+  String get syncPairBody      =>
+      _t('A device is asking for this profile. Both screens have to show the same number.',
+         'Ein Gerät fragt nach diesem Profil. Auf beiden Bildschirmen muss dieselbe Zahl stehen.');
+  String get syncPairWaiting   =>
+      _t('Waiting for the other device to confirm',
+         'Warte auf die Bestätigung am anderen Gerät');
+  String get syncApprove       => _t('Confirm', 'Bestätigen');
+  String get syncReject        => _t('Decline', 'Ablehnen');
+  String get syncRejected      =>
+      _t('The other device declined the transfer.',
+         'Das andere Gerät hat die Übertragung abgelehnt.');
+  String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
+  String get syncServerSentHint =>
+      _t('The server has stopped. Start it again for another transfer.',
+         'Der Server wurde gestoppt. Für eine weitere Übertragung neu starten.');
+
   String get syncImporting     => _t('Importing', 'Wird importiert');
   String syncImportProgress(int done, int total) =>
       _t('$done of $total visits', '$done von $total Aufnahmen');
