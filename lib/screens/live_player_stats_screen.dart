@@ -11,6 +11,7 @@ import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/live_stats.dart';
 import '../widgets/finish_suggestion_widget.dart';
+import '../widgets/stat_row.dart';
 
 /// Route that slides the live info screen in from the right on both platforms
 /// and keeps the iOS edge swipe back gesture, which a plain [PageRouteBuilder]
@@ -477,47 +478,9 @@ class _SectionCard extends StatelessWidget {
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            for (final row in rows) _StatRow(label: row.$1, value: row.$2),
+            for (final row in rows) StatRow(label: row.$1, value: row.$2),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// One label/value line inside a [_SectionCard].
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _StatRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -751,28 +714,28 @@ class _MemberRow extends StatelessWidget {
         title: title,
         subtitle: summary,
         children: [
-          _StatRow(
+          StatRow(
               label: l.threeDartAvg, value: stats.average.toStringAsFixed(2)),
-          _StatRow(label: l.totalDarts,   value: '${stats.totalDarts}'),
-          _StatRow(label: l.visits,       value: '${stats.totalVisits}'),
-          _StatRow(label: l.highestVisit, value: '${stats.highestVisit}'),
-          _StatRow(
+          StatRow(label: l.totalDarts,   value: '${stats.totalDarts}'),
+          StatRow(label: l.visits,       value: '${stats.totalVisits}'),
+          StatRow(label: l.highestVisit, value: '${stats.highestVisit}'),
+          StatRow(
               label: l.highestCheckout, value: '${stats.highestCheckout}'),
-          _StatRow(
+          StatRow(
             label: l.checkoutsHit,
             value: '${stats.checkoutSuccesses} / ${stats.checkoutAttempts}',
           ),
-          _StatRow(
+          StatRow(
             label: l.checkoutRate,
             value: '${stats.checkoutRate.toStringAsFixed(1)} %',
           ),
-          _StatRow(
+          StatRow(
             label: l.busts,
             value: '${stats.busts} (${stats.bustRate.toStringAsFixed(0)} %)',
           ),
-          _StatRow(label: l.count180,     value: '${stats.count180}'),
-          _StatRow(label: l.count140plus, value: '${stats.count140plus}'),
-          _StatRow(label: l.count100plus, value: '${stats.count100plus}'),
+          StatRow(label: l.count180,     value: '${stats.count180}'),
+          StatRow(label: l.count140plus, value: '${stats.count140plus}'),
+          StatRow(label: l.count100plus, value: '${stats.count100plus}'),
         ],
       ),
     );

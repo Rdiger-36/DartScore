@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/dart_throw.dart';
 import '../utils/live_stats.dart';
+import 'stat_row.dart';
 
 /// One member of a team card: their name and the visits they threw themselves.
 typedef SummaryMember = (String name, List<DartThrow> throws);
@@ -91,11 +92,11 @@ class SummaryPlayerCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 8),
-            _StatRow(l.totalDarts,   '${stats.totalDarts}'),
-            _StatRow(l.visits,       '${stats.totalVisits}'),
-            _StatRow(l.threeDartAvg, stats.average.toStringAsFixed(2)),
-            _StatRow(l.highestVisit, '${stats.highestVisit}'),
-            _StatRow(l.busts,        '${stats.busts}'),
+            StatRow(label: l.totalDarts, value: '${stats.totalDarts}'),
+            StatRow(label: l.visits, value: '${stats.totalVisits}'),
+            StatRow(label: l.threeDartAvg, value: stats.average.toStringAsFixed(2)),
+            StatRow(label: l.highestVisit, value: '${stats.highestVisit}'),
+            StatRow(label: l.busts, value: '${stats.busts}'),
             if (isTeam) ...[
               const SizedBox(height: 12),
               Text(
@@ -111,38 +112,6 @@ class SummaryPlayerCard extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A label/value row in a summary card's stats list.
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _StatRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(child: Text(label, style: theme.textTheme.bodyMedium)),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
       ),
     );
   }
