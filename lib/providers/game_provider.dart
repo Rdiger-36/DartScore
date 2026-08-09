@@ -13,6 +13,39 @@ const Map<int, int> minimumDartsForScore = {
   101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17,
 };
 
+/// The set and leg that [throws] last reached: the highest set with throws,
+/// and the highest leg *within that set*.
+///
+/// Leg numbering restarts at 1 in every set, so the leg maximum must never be
+/// taken across sets. Doing so points a resume at a leg/set pair that has no
+/// throws, which wipes the running leg's scores and misnumbers every later
+/// throw. Returns leg 1 / set 1 for a game without throws.
+({int leg, int set}) currentLegAndSet(List<DartThrow> throws) {
+  var set = 1;
+  for (final t in throws) {
+    if (t.set > set) set = t.set;
+  }
+  var leg = 1;
+  for (final t in throws) {
+    if (t.set == set && t.leg > leg) leg = t.leg;
+  }
+  return (leg: leg, set: set);
+}
+
+/// Darts a slot has used in [leg]/[set] of the current game.
+///
+/// [throws] is the slot's full throw history, which already contains the visit
+/// that just checked out: the caller must not add that visit's darts on top.
+/// Pass [playerId] to count a single player's darts, or null for a team slot,
+/// where every member's darts belong to the same leg.
+int legDartsUsed(List<DartThrow> throws, int leg, int set, {int? playerId}) =>
+    throws
+        .where((t) =>
+            t.leg == leg &&
+            t.set == set &&
+            (playerId == null || t.playerId == playerId))
+        .fold(0, (sum, t) => sum + t.dartsUsed);
+
 /// Decodes a [DartThrow.hitsJson] string back into individual dart entries,
 /// or null if no per-dart hits were recorded for that visit.
 List<DartEntry>? _parseHits(String? hitsJson) {
@@ -269,11 +302,9 @@ class GameProvider extends ChangeNotifier {
       throwsByPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
-    int maxLeg = 1, maxSet = 1;
-    for (final t in allThrowsRaw) {
-      if (t.set > maxSet) maxSet = t.set;
-      if (t.leg > maxLeg) maxLeg = t.leg;
-    }
+    final position = currentLegAndSet(allThrowsRaw);
+    final maxLeg = position.leg;
+    final maxSet = position.set;
 
     if (game.isTeamGame) {
       await _resumeTeamGame(game, players, throwsByPlayer, maxLeg, maxSet);
@@ -564,13 +595,7 @@ class GameProvider extends ChangeNotifier {
   ) {
     final ids = throwsById.keys.toList();
     final currentPlacements = legPlacements(throwsById, maxLeg, 1);
-
-    final completePlacements = Map<int, int>.of(currentPlacements);
-    if (currentPlacements.length == ids.length - 1) {
-      final missingId =
-          ids.firstWhere((id) => !currentPlacements.containsKey(id));
-      completePlacements[missingId] = ids.length;
-    }
+    final completePlacements = completedLegPlacements(throwsById, maxLeg, 1);
     final legComplete = completePlacements.length == ids.length;
 
     final ranking = placementRanking(throwsById, maxLeg - 1, 1);
@@ -801,7 +826,7 @@ class GameProvider extends ChangeNotifier {
     );
 
     if (checkout) {
-      await _handleCheckout(dartsUsed);
+      await _handleCheckout();
     } else {
       _advancePlayer();
     }
@@ -814,21 +839,21 @@ class GameProvider extends ChangeNotifier {
   /// promotes to set/game win as needed. Scores reset and play advances to
   /// the next slot, including solo games, which simply continue to the next
   /// leg until [Game.legs] is reached.
-  Future<void> _handleCheckout(int dartsUsed) async {
+  Future<void> _handleCheckout() async {
     final state = _playerStates[_currentPlayerIndex];
     int legsWon = state.legsWon + 1;
     int setsWon = state.setsWon;
 
-    // Perfect leg
+    // Perfect leg. The checkout visit is already part of state.throws by the
+    // time this runs, so counting it again here would put every leg over the
+    // minimum and no perfect leg would ever be recognised.
     final minDarts = minimumDartsForScore[_game!.startScore];
-    final currentPlayer = state.player;
-    final legDarts = state.throws
-            .where((t) =>
-                t.leg == _currentLeg &&
-                t.set == _currentSet &&
-                (state.isTeam ? true : t.playerId == currentPlayer.id))
-            .fold(0, (s, t) => s + t.dartsUsed) +
-        dartsUsed;
+    final legDarts = legDartsUsed(
+      state.throws,
+      _currentLeg,
+      _currentSet,
+      playerId: state.isTeam ? null : state.player.id,
+    );
     final isPerfect  = minDarts != null && legDarts <= minDarts;
     final perfectLegs = state.perfectLegs + (isPerfect ? 1 : 0);
 
