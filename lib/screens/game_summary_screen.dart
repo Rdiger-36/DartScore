@@ -235,17 +235,17 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                         ],
                         slots: states
                             .map((s) => s.isTeamSlot
-                                ? RematchSlot.team(s.displayName,
-                                    s.players.map((p) => p.name).toList())
+                                ? RematchSlot.team(
+                                    s.displayName,
+                                    s.players
+                                        .map((p) => RematchSlot.player(p.name,
+                                            rules: handicapRulesLabel(
+                                                l, provider.game!, p.id)))
+                                        .toList())
                                 : RematchSlot.player(
                                     s.displayName,
-                                    rules: provider.game!.hasHandicaps
-                                        ? checkInOutLabel(
-                                            l,
-                                            provider.game!.checkInFor(s.player.id),
-                                            provider.game!.checkOutFor(s.player.id),
-                                          )
-                                        : null,
+                                    rules: handicapRulesLabel(
+                                        l, provider.game!, s.player.id),
                                   ))
                             .toList(),
                         onRematch: () => provider.startRematch(

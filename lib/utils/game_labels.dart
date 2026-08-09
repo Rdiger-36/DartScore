@@ -37,6 +37,14 @@ String checkOutLabel(AppLocalizations l, CheckoutMode mode) {
 String checkInOutLabel(AppLocalizations l, GameMode checkIn, CheckoutMode checkOut) =>
     '${checkInLabel(l, checkIn)} → ${checkOutLabel(l, checkOut)}';
 
+/// The check-in/check-out label for [playerId] in [game], or null when the game
+/// is played without handicaps and the game-wide rules already say everything.
+String? handicapRulesLabel(AppLocalizations l, Game game, int? playerId) =>
+    game.hasHandicaps
+        ? checkInOutLabel(
+            l, game.checkInFor(playerId), game.checkOutFor(playerId))
+        : null;
+
 /// Localized display name for a Cricket [variant].
 String cricketVariantLabel(AppLocalizations l, CricketVariant variant) {
   switch (variant) {

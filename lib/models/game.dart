@@ -75,8 +75,8 @@ class Game {
   /// Non-null when this is a team game.
   final List<TeamConfig>? teams;
   /// Per-player check-in/check-out overrides, keyed by player id. Null or empty
-  /// when every player uses [gameMode]/[checkoutMode]. Mutually exclusive with
-  /// [teams] - the setup screen only offers handicaps for individual games.
+  /// when every player uses [gameMode]/[checkoutMode]. Independent of [teams]:
+  /// in a team game each member still throws under their own rules.
   final Map<int, PlayerHandicap>? handicaps;
   /// Whether every leg is played to the end (everyone finishes, producing a
   /// 1st/2nd/3rd/... ranking) instead of ending as soon as one slot checks out.

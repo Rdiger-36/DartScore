@@ -82,8 +82,8 @@ class CricketSummaryScreen extends StatelessWidget {
             ],
             slots: states
                 .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(
-                        s.displayName, s.players.map((p) => p.name).toList())
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
                     : RematchSlot.player(s.displayName))
                 .toList(),
             onRematch: () => provider.startRematch(

@@ -62,6 +62,29 @@ void main() {
       expect(game.checkInFor(null), GameMode.straightIn);
     });
 
+    test('keeps teams and handicaps side by side', () {
+      final game = Game(
+        startScore: 501,
+        createdAt: createdAt,
+        teams: const [
+          TeamConfig(name: 'Team 1', playerIds: [7, 8]),
+          TeamConfig(name: 'Team 2', playerIds: [9]),
+        ],
+        handicaps: {
+          7: const PlayerHandicap(checkOut: CheckoutMode.masterOut),
+        },
+      );
+
+      final restored = Game.fromMap(game.toMap());
+
+      expect(restored.isTeamGame, isTrue);
+      expect(restored.hasHandicaps, isTrue);
+      expect(restored.teams!.map((t) => t.name), ['Team 1', 'Team 2']);
+      // The handicap applies to the one member that has it, not to the team.
+      expect(restored.checkOutFor(7), CheckoutMode.masterOut);
+      expect(restored.checkOutFor(8), CheckoutMode.doubleOut);
+    });
+
     test('carries handicaps through copyWith', () {
       final game = Game(
         startScore: 501,
