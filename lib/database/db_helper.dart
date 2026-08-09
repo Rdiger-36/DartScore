@@ -9,7 +9,7 @@ import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
-import '../utils/live_stats.dart';
+import '../utils/throw_stats.dart';
 
 /// Singleton SQLite wrapper and the single point of database access for the app.
 ///
@@ -534,13 +534,13 @@ class DbHelper {
   /// from a list of throws.
   ///
   /// The counters that also matter while a game is running come from
-  /// [LiveThrowStats], so a number shown live and the same number read back
+  /// [ThrowStats], so a number shown live and the same number read back
   /// from a snapshot can never drift apart. Only what the persisted stats need
   /// on top of that is aggregated here: the segment heatmap, the score
   /// distribution, the per-day buckets behind the week comparison, and the
   /// recent-throws tail.
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
-    final stats = LiveThrowStats.fromThrows(throws);
+    final stats = ThrowStats.fromThrows(throws);
 
     final segmentHits  = <String, Map<String, int>>{};
     final scoreDistrib = <String, int>{};

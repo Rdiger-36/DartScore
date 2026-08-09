@@ -4,10 +4,16 @@ import '../models/dart_throw.dart';
 
 /// Aggregated statistics derived from a list of X01 visits.
 ///
-/// The formulas mirror the persisted lifetime snapshot built by `DbHelper`, so a
-/// number shown live during a game matches the same number on the player stats
-/// screen once the game has been archived. Any change here has to be made there
-/// as well; `test/database/live_stats_parity_test.dart` guards that.
+/// The single implementation of these formulas in the app. The live info screen
+/// computes them from the visits held in memory, the summary and history screens
+/// from the visits of one finished game, and `DbHelper` from the visits it is
+/// about to archive, so a number read during a game means exactly what the same
+/// number means on the lifetime stats screen years later.
+///
+/// The values are pinned by hand-computed cases in
+/// `test/utils/throw_stats_test.dart`; that a snapshot stores them under the
+/// right keys is a separate concern, checked by
+/// `test/database/stats_snapshot_keys_test.dart`.
 ///
 /// Two deliberate omissions:
 /// * Legs won is not part of this record. The live screens read
@@ -16,7 +22,7 @@ import '../models/dart_throw.dart';
 /// * Only committed visits are counted. Darts of a visit that is still being
 ///   entered are not included, because folding them in would make every average
 ///   jump back once the visit is committed.
-class LiveThrowStats {
+class ThrowStats {
   /// Number of committed visits (turns), busts included.
   final int totalVisits;
   /// Number of darts thrown across all visits, busts included.
@@ -58,7 +64,7 @@ class LiveThrowStats {
   final int coAttemptSub170;
   final int coSuccessSub170;
 
-  const LiveThrowStats._({
+  const ThrowStats._({
     required this.totalVisits,
     required this.totalDarts,
     required this.totalScored,
@@ -84,7 +90,7 @@ class LiveThrowStats {
   });
 
   /// Stats of a player who has not thrown yet: every counter is zero.
-  static const LiveThrowStats empty = LiveThrowStats._(
+  static const ThrowStats empty = ThrowStats._(
     totalVisits:       0,
     totalDarts:        0,
     totalScored:       0,
@@ -114,7 +120,7 @@ class LiveThrowStats {
   /// [throws] is expected in throwing order, which is how the game provider and
   /// the database both hand it out. The order only matters for the first 9
   /// values, which take the opening visits of each leg.
-  factory LiveThrowStats.fromThrows(List<DartThrow> throws) {
+  factory ThrowStats.fromThrows(List<DartThrow> throws) {
     if (throws.isEmpty) return empty;
 
     int totalDarts = 0, totalScored = 0, busts = 0;
@@ -168,7 +174,7 @@ class LiveThrowStats {
       }
     }
 
-    return LiveThrowStats._(
+    return ThrowStats._(
       totalVisits:       throws.length,
       totalDarts:        totalDarts,
       totalScored:       totalScored,

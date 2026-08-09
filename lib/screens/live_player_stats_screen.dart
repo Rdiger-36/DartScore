@@ -9,7 +9,7 @@ import '../models/player.dart';
 import '../providers/game_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
-import '../utils/live_stats.dart';
+import '../utils/throw_stats.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../widgets/stat_row.dart';
 
@@ -201,8 +201,8 @@ class _SlotStatsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l10n;
 
-    final match = LiveThrowStats.fromThrows(state.throws);
-    final leg   = LiveThrowStats.fromThrows(
+    final match = ThrowStats.fromThrows(state.throws);
+    final leg   = ThrowStats.fromThrows(
         throwsInLeg(state.throws, currentLeg, currentSet));
 
     return ListView(
@@ -488,7 +488,7 @@ class _SectionCard extends StatelessWidget {
 
 /// The 180 / 140+ / 100+ counters as three tiles.
 class _HighlightsRow extends StatelessWidget {
-  final LiveThrowStats stats;
+  final ThrowStats stats;
 
   const _HighlightsRow({required this.stats});
 
@@ -637,7 +637,7 @@ class _MemberRow extends StatelessWidget {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
     final l     = context.l10n;
-    final stats = LiveThrowStats.fromThrows(throws);
+    final stats = ThrowStats.fromThrows(throws);
     final hasThrown = stats.totalDarts > 0;
 
     final avatar = CircleAvatar(

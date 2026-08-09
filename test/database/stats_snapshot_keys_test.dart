@@ -4,13 +4,19 @@ import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
-import 'package:dartscore_app/utils/live_stats.dart';
+import 'package:dartscore_app/utils/throw_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/test_db.dart';
 
+/// Guards the mapping between [ThrowStats] and the keys a snapshot stores.
+///
+/// Both sides share one implementation of the formulas, so this is no longer a
+/// comparison of two calculations; what it catches is a wrong or renamed key on
+/// the way into `local_stats_json`, which would silently zero a lifetime number.
+/// The formulas themselves are pinned in `test/utils/throw_stats_test.dart`.
 void main() {
-  group('LiveThrowStats matches the persisted snapshot', () {
+  group('snapshot keys carry the ThrowStats values', () {
     useInMemoryDatabase();
 
     late GameProvider provider;
@@ -27,7 +33,7 @@ void main() {
       return jsonDecode(stored!.localStatsJson!) as Map<String, dynamic>;
     }
 
-    test('every shared counter agrees after a game with a bust and a finish',
+    test('every shared counter is stored under its key',
         () async {
       await provider.startGame(
           Game(startScore: 301, legs: 3, createdAt: DateTime.now()), players);
@@ -64,7 +70,7 @@ void main() {
       expect(liveThrows.any((t) => !t.bust && t.remainingBefore == t.score),
           isTrue);
 
-      final live = LiveThrowStats.fromThrows(liveThrows);
+      final live = ThrowStats.fromThrows(liveThrows);
       await DbHelper.instance.snapshotGameStats(provider.game!.id!);
       final stored = await statsFor(players.first);
 
@@ -90,7 +96,7 @@ void main() {
       expect(live.coSuccessSub170,   stored['co_ok_sub170']);
     });
 
-    test('a player without a single finish still agrees', () async {
+    test('a player without a single finish is stored too', () async {
       await provider.startGame(
           Game(startScore: 501, legs: 1, createdAt: DateTime.now()), players);
 
@@ -101,7 +107,7 @@ void main() {
       await provider.tapField(19, 1);
       await provider.tapField(19, 1);
 
-      final live = LiveThrowStats.fromThrows(provider.playerStates[1].throws);
+      final live = ThrowStats.fromThrows(provider.playerStates[1].throws);
       await DbHelper.instance.snapshotGameStats(provider.game!.id!);
       final stored = await statsFor(players[1]);
 
