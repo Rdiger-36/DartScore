@@ -164,17 +164,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 10),
                         // Match format, so a shared card says whether the
                         // ranking was played out or the first checkout won.
-                        Text(
-                          '${l.matchFormat}: '
-                          '${provider.game!.placementMode ? l.placementMode : l.standardMode}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
+                        _MatchFormatChip(
+                            placementMode: provider.game!.placementMode),
                       ],
                     ),
                   ),
@@ -323,6 +317,51 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             child: Text(l.backToHome),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quiet pill under the winner naming the match format, so a saved or shared
+/// result card says whether the ranking was played out or the first checkout
+/// ended the leg. Shares the badge shape of the perfect-game banner but stays
+/// in muted container colors, since this is context rather than a celebration.
+class _MatchFormatChip extends StatelessWidget {
+  final bool placementMode;
+
+  const _MatchFormatChip({required this.placementMode});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final l = context.l10n;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            placementMode
+                ? Icons.leaderboard_rounded
+                : Icons.sports_score_rounded,
+            size: 16,
+            color: cs.onSecondaryContainer,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            placementMode ? l.placementMode : l.standardMode,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSecondaryContainer,
+            ),
           ),
         ],
       ),
