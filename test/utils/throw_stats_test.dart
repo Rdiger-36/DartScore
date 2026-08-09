@@ -9,11 +9,12 @@ DartThrow _visit(
   int dartsUsed = 3,
   int leg = 1,
   int set = 1,
+  int gameId = 1,
   int playerId = 1,
   bool bust = false,
 }) =>
     DartThrow(
-      gameId:          1,
+      gameId:          gameId,
       playerId:        playerId,
       score:           score,
       dartsUsed:       dartsUsed,
@@ -141,6 +142,20 @@ void main() {
 
         expect(s.first9Darts, 18);
         expect(s.first9Scored, 480);
+      });
+
+      test('keeps legs of the same number apart across games', () {
+        // A lifetime list spans many games, and every one of them has a leg 1.
+        final s = ThrowStats.fromThrows([
+          _visit(60, gameId: 1),
+          _visit(60, gameId: 1),
+          _visit(60, gameId: 1),
+          _visit(100, gameId: 2),
+          _visit(100, gameId: 2),
+        ]);
+
+        expect(s.first9Darts, 15);
+        expect(s.first9Scored, 380);
       });
 
       test('keeps legs of the same number apart across sets', () {
