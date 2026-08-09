@@ -11,7 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/live_stats.dart';
-import '../utils/placement.dart';
+import '../widgets/final_ranking_card.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_player_card.dart';
@@ -297,7 +297,20 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                   const SizedBox(height: 16),
                   // Final ranking (placement mode only)
                   if (provider.game!.placementMode) ...[
-                    _FinalRankingCard(states: states),
+                    FinalRankingCard(
+                      throwsById:   {
+                        for (var i = 0; i < states.length; i++) i: states[i].throws,
+                      },
+                      namesById:    {
+                        for (var i = 0; i < states.length; i++) i: states[i].displayName,
+                      },
+                      legsWon:      {
+                        for (var i = 0; i < states.length; i++) i: states[i].legsWon,
+                      },
+                      placementSum: {
+                        for (var i = 0; i < states.length; i++) i: states[i].placementSum,
+                      },
+                    ),
                     const SizedBox(height: 16),
                   ],
                   // Per-team or per-player stats
@@ -341,171 +354,6 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             child: Text(l.backToHome),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Final ranking (placement mode) ──────────────────────────────────────────
-
-/// Final ranking card for placement-mode games: every slot sorted by legs
-/// won (desc), tie-broken by the cumulative sum of per-leg finishing
-/// positions (asc, lower is better).
-class _FinalRankingCard extends StatelessWidget {
-  final List<PlayerState> states;
-
-  const _FinalRankingCard({required this.states});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final l = context.l10n;
-
-    final throwsById = {
-      for (var i = 0; i < states.length; i++) i: states[i].throws,
-    };
-    final maxLeg = throwsById.values
-        .expand((t) => t)
-        .map((t) => t.leg)
-        .fold(0, (a, b) => b > a ? b : a);
-    final legTable = legPlacementsTable(throwsById, maxLeg, 1);
-    final points = placementPointsTotal(throwsById, maxLeg, 1);
-
-    final ranked = List<int>.generate(states.length, (i) => i)
-      ..sort((a, b) {
-        final pa = points[a] ?? 0, pb = points[b] ?? 0;
-        if (pa != pb) return pb.compareTo(pa);
-        if (states[a].legsWon != states[b].legsWon) {
-          return states[b].legsWon.compareTo(states[a].legsWon);
-        }
-        return states[a].placementSum.compareTo(states[b].placementSum);
-      });
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l.finalRanking,
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ...ranked.asMap().entries.map((entry) {
-              final rank = entry.key + 1;
-              final i = entry.value;
-              final s = states[i];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      child: Text(
-                        '$rank.',
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(s.displayName,
-                          style: theme.textTheme.bodyMedium),
-                    ),
-                    Text(
-                      '${l.legs}: ${s.legsWon}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '${l.points}: ${points[i] ?? 0}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            if (maxLeg > 0) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              Text(
-                l.legByLegPlacements,
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(fontWeight: FontWeight.bold, color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                l.placementPointsHint,
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 6),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Table(
-                  defaultColumnWidth: const FixedColumnWidth(40),
-                  columnWidths: {
-                    0: const FixedColumnWidth(100),
-                    maxLeg + 1: const FixedColumnWidth(56),
-                  },
-                  border: TableBorder(
-                    horizontalInside: BorderSide(color: cs.outlineVariant, width: 0.5),
-                  ),
-                  children: [
-                    TableRow(children: [
-                      const SizedBox.shrink(),
-                      for (var leg = 1; leg <= maxLeg; leg++)
-                        _RankCell(l.legAbbr(leg), bold: true, alignment: Alignment.center),
-                      _RankCell(l.points, bold: true, alignment: Alignment.center),
-                    ]),
-                    ...ranked.map((i) {
-                      final s = states[i];
-                      return TableRow(children: [
-                        _RankCell(s.displayName, alignment: Alignment.centerLeft),
-                        for (var leg = 1; leg <= maxLeg; leg++)
-                          _RankCell(
-                            legTable[leg]?[i] != null ? '${legTable[leg]![i]}.' : '-',
-                            alignment: Alignment.center,
-                          ),
-                        _RankCell('${points[i] ?? 0}', bold: true, alignment: Alignment.center),
-                      ]);
-                    }),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A single padded, optionally bold cell used in the per-leg placement table.
-class _RankCell extends StatelessWidget {
-  final String text;
-  final bool bold;
-  final Alignment alignment;
-
-  const _RankCell(this.text, {this.bold = false, this.alignment = Alignment.center});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-      child: Align(
-        alignment: alignment,
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: bold ? FontWeight.bold : null,
-              ),
-          overflow: TextOverflow.ellipsis,
-        ),
       ),
     );
   }

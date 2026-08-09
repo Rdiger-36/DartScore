@@ -109,6 +109,8 @@ lib/
 │   ├── starting_order_section.dart    # Shared starting-order block (random vs. fixed + drag-to-sort list)
 │   ├── game_info_card.dart            # Shared card listing a finished game's settings
 │   ├── summary_player_card.dart       # Shared player/team stat card for the X01 summary and history screens
+│   ├── final_ranking_card.dart        # Shared placement-mode ranking card and per-leg table
+│   ├── stat_row.dart                  # Shared label/value row used by every stat list
 │   ├── throw_log_card.dart            # Shared "All Throws" log for the X01 summary and history screens
 │   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
 │   └── player_dialog.dart             # Create/edit player dialog

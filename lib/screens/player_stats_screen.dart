@@ -10,6 +10,7 @@ import '../models/game.dart';
 import '../providers/game_provider.dart' show minimumDartsForScore;
 import '../services/sync_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/stat_row.dart';
 import '../utils/layout.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
@@ -582,11 +583,11 @@ class _StatsBody extends StatelessWidget {
         const SizedBox(height: 6),
         _StatCard(
           children: [
-            _StatRow(context.l10n.gamesPlayed, '${stats.gamesPlayed}'),
-            _StatRow(context.l10n.gamesWon, '${stats.gamesFinished}'),
-            _StatRow(context.l10n.legsWon, '${stats.legsWon}'),
-            _StatRow(context.l10n.totalVisits, '${stats.totalVisits}'),
-            _StatRow(context.l10n.totalDarts, '${stats.totalDarts}'),
+            StatRow(label: context.l10n.gamesPlayed, value: '${stats.gamesPlayed}', spacious: true),
+            StatRow(label: context.l10n.gamesWon, value: '${stats.gamesFinished}', spacious: true),
+            StatRow(label: context.l10n.legsWon, value: '${stats.legsWon}', spacious: true),
+            StatRow(label: context.l10n.totalVisits, value: '${stats.totalVisits}', spacious: true),
+            StatRow(label: context.l10n.totalDarts, value: '${stats.totalDarts}', spacious: true),
           ],
         ),
         const SizedBox(height: 14),
@@ -595,13 +596,10 @@ class _StatsBody extends StatelessWidget {
         const SizedBox(height: 6),
         _StatCard(
           children: [
-            _StatRow(context.l10n.threeDartAvg,
-                stats.average3Dart.toStringAsFixed(2)),
-            _StatRow(context.l10n.busts, '${stats.busts}'),
-            _StatRow(context.l10n.bustRate,
-                '${stats.bustRate.toStringAsFixed(1)} %'),
-            _StatRow(context.l10n.checkoutRate,
-                '${stats.checkoutPercent.toStringAsFixed(1)} %'),
+            StatRow(label: context.l10n.threeDartAvg, value: stats.average3Dart.toStringAsFixed(2), spacious: true),
+            StatRow(label: context.l10n.busts, value: '${stats.busts}', spacious: true),
+            StatRow(label: context.l10n.bustRate, value: '${stats.bustRate.toStringAsFixed(1)} %', spacious: true),
+            StatRow(label: context.l10n.checkoutRate, value: '${stats.checkoutPercent.toStringAsFixed(1)} %', spacious: true),
           ],
         ),
         const SizedBox(height: 14),
@@ -881,32 +879,6 @@ class _StatCard extends StatelessWidget {
                   ])
               .toList(),
         ),
-      ),
-    );
-  }
-}
-
-/// A label/value row inside a [_StatCard].
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _StatRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: theme.textTheme.bodyMedium),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
       ),
     );
   }
@@ -1341,7 +1313,7 @@ class _TopDoublesCard extends StatelessWidget {
         final label = e.key == 25
             ? context.l10n.bullLabel(true)
             : '${context.l10n.double_} ${e.key}';
-        return _StatRow(label, '${e.value}×');
+        return StatRow(label: label, value: '${e.value}×', spacious: true);
       }).toList(),
     );
   }
