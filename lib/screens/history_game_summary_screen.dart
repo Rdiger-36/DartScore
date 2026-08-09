@@ -140,6 +140,12 @@ class _SummaryBody extends StatelessWidget {
           modeName: context.l10n.modeX01Name,
           details: [
             (
+              context.l10n.matchFormat,
+              game.placementMode
+                  ? context.l10n.placementMode
+                  : context.l10n.standardMode
+            ),
+            (
               context.l10n.gameMode_,
               context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
                   placementMode: game.placementMode)

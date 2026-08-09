@@ -164,6 +164,17 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 4),
+                        // Match format, so a shared card says whether the
+                        // ranking was played out or the first checkout won.
+                        Text(
+                          '${l.matchFormat}: '
+                          '${provider.game!.placementMode ? l.placementMode : l.standardMode}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
                   ),
@@ -214,6 +225,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                       child: RematchButton(
                         modeName: l.modeX01Name,
                         details: [
+                          (
+                            l.matchFormat,
+                            provider.game!.placementMode
+                                ? l.placementMode
+                                : l.standardMode
+                          ),
                           (
                             l.gameMode_,
                             l.gameSummaryInfo(
