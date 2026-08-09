@@ -80,7 +80,12 @@ class CricketSummaryScreen extends StatelessWidget {
                 cricketScoringModeLabel(l, game.scoringMode)
               ),
             ],
-            playerNames: states.map((s) => s.displayName).toList(),
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(
+                        s.displayName, s.players.map((p) => p.name).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
             onRematch: () => provider.startRematch(
               game,
               states.expand((s) => s.players).toList(),

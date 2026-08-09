@@ -5,6 +5,22 @@ import '../l10n/app_localizations.dart';
 /// or the leg/set format of the game that is about to be repeated.
 typedef RematchDetail = (String label, String value);
 
+/// One participant of the game that would be repeated: either a single player
+/// or a team together with the members that play for it.
+class RematchSlot {
+  /// Team name, or the player's name for an individual slot.
+  final String name;
+
+  /// Names of the team's members; empty for an individual slot.
+  final List<String> members;
+
+  const RematchSlot.player(this.name) : members = const [];
+  const RematchSlot.team(this.name, this.members);
+
+  /// Whether this slot is a team whose members should be listed.
+  bool get isTeam => members.isNotEmpty;
+}
+
 /// Full-width "Play Again" button for the summary screens: asks for
 /// confirmation, showing the mode, settings and players that would be reused,
 /// then runs [onRematch] and replaces the current route with the play screen
@@ -19,8 +35,8 @@ class RematchButton extends StatefulWidget {
   /// Settings of the finished game, listed under the mode in the dialog.
   final List<RematchDetail> details;
 
-  /// Names of the participating players, or of the teams in a team game.
-  final List<String> playerNames;
+  /// The participating players, or the teams and their members in a team game.
+  final List<RematchSlot> slots;
 
   /// Starts the new game (typically a provider's `startRematch`).
   final Future<void> Function() onRematch;
@@ -32,7 +48,7 @@ class RematchButton extends StatefulWidget {
     super.key,
     required this.modeName,
     required this.details,
-    required this.playerNames,
+    required this.slots,
     required this.onRematch,
     required this.destination,
   });
@@ -59,7 +75,7 @@ class _RematchButtonState extends State<RematchButton> {
       builder: (_) => _RematchConfirmDialog(
         modeName: widget.modeName,
         details: widget.details,
-        playerNames: widget.playerNames,
+        slots: widget.slots,
       ),
     );
     if (confirmed != true) return;
@@ -102,12 +118,12 @@ class _RematchButtonState extends State<RematchButton> {
 class _RematchConfirmDialog extends StatelessWidget {
   final String modeName;
   final List<RematchDetail> details;
-  final List<String> playerNames;
+  final List<RematchSlot> slots;
 
   const _RematchConfirmDialog({
     required this.modeName,
     required this.details,
-    required this.playerNames,
+    required this.slots,
   });
 
   @override
@@ -124,7 +140,15 @@ class _RematchConfirmDialog extends StatelessWidget {
           children: [
             _DialogRow(l.gameLabel, modeName),
             ...details.map((d) => _DialogRow(d.$1, d.$2)),
-            _DialogRow(l.playersTitle, playerNames.join(', ')),
+            // Team games get one row per team so the members are visible;
+            // individual games stay on a single row of names.
+            if (slots.any((s) => s.isTeam))
+              ...slots.map((s) => _DialogRow(
+                    s.name,
+                    s.isTeam ? s.members.join(', ') : s.name,
+                  ))
+            else
+              _DialogRow(l.playersTitle, slots.map((s) => s.name).join(', ')),
             const SizedBox(height: 16),
             Text(l.playAgainQuestion, style: theme.textTheme.bodyMedium),
           ],

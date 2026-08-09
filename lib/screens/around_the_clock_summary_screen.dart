@@ -76,7 +76,12 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
                 aroundTheClockVariantLabel(l, provider.game!.variant)
               ),
             ],
-            playerNames: states.map((s) => s.displayName).toList(),
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(
+                        s.displayName, s.players.map((p) => p.name).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
             onRematch: () => provider.startRematch(
               provider.game!,
               states.expand((s) => s.players).toList(),

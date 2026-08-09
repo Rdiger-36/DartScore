@@ -98,6 +98,10 @@ class _SummaryBody extends StatelessWidget {
       }
     }
 
+    // Team configs only store player ids, so the rematch dialog needs a name
+    // lookup to list a team's members.
+    final namesById = {for (final p in players) p.id: p.name};
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
@@ -148,9 +152,17 @@ class _SummaryBody extends StatelessWidget {
               checkOutLabel(context.l10n, game.checkoutMode)
             ),
           ],
-          playerNames: game.isTeamGame
-              ? game.teams!.map((t) => t.name).toList()
-              : players.map((p) => p.name).toList(),
+          slots: game.isTeamGame
+              ? game.teams!
+                  .map((t) => RematchSlot.team(
+                        t.name,
+                        [
+                          for (final id in t.playerIds)
+                            if (namesById[id] != null) namesById[id]!,
+                        ],
+                      ))
+                  .toList()
+              : players.map((p) => RematchSlot.player(p.name)).toList(),
           onRematch: () =>
               context.read<GameProvider>().startRematch(game, players),
           destination: (_) => const GameScreen(),
