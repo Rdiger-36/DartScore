@@ -134,13 +134,14 @@ class ThrowStats {
     int coAt170 = 0, coOk170 = 0;
 
     // Visits already seen per leg, so the opening three of each leg can be
-    // picked out without sorting the list.
+    // picked out without sorting the list. Keyed by game as well, because leg
+    // and set numbers repeat across games and a lifetime list spans many.
     final visitsPerLeg = <String, int>{};
 
     for (final t in throws) {
       totalDarts += t.dartsUsed;
 
-      final legKey    = '${t.set}-${t.leg}';
+      final legKey    = '${t.gameId}-${t.set}-${t.leg}';
       final legVisits = visitsPerLeg[legKey] ?? 0;
       visitsPerLeg[legKey] = legVisits + 1;
       if (legVisits < 3) {
@@ -212,6 +213,27 @@ class ThrowStats {
   /// Share of checkout attempts that finished a leg, in percent.
   double get checkoutRate =>
       checkoutAttempts == 0 ? 0 : (checkoutSuccesses / checkoutAttempts) * 100;
+}
+
+/// The best three-dart average reached in any single game within [throws].
+///
+/// Groups by game id, so it works both for the visits of one game, where the
+/// result is simply that game's average, and for a player's whole history.
+double bestGameAverage(List<DartThrow> throws) {
+  final darts  = <int, int>{};
+  final scored = <int, int>{};
+  for (final t in throws) {
+    darts[t.gameId] = (darts[t.gameId] ?? 0) + t.dartsUsed;
+    if (!t.bust) scored[t.gameId] = (scored[t.gameId] ?? 0) + t.score;
+  }
+
+  var best = 0.0;
+  for (final entry in darts.entries) {
+    if (entry.value == 0) continue;
+    final average = (scored[entry.key] ?? 0) / entry.value * 3;
+    if (average > best) best = average;
+  }
+  return best;
 }
 
 /// Legs won according to the throws alone: visits that took the slot to exactly
