@@ -31,7 +31,13 @@ enum _NameResolution { useExisting }
 QrCode buildQrCode(String data) {
   final alphanumeric = isAlphanumericSafe(data);
 
-  for (var version = 1; version <= 40; version++) {
+  // In the alphanumeric mode the character count fixes the bit count exactly,
+  // so the version that fitted a payload of this length fits every other one.
+  // Every frame of an animated transfer is the same length, which turns the
+  // search below into a single attempt from the second frame onwards.
+  final cached = alphanumeric ? _qrVersionCache[data.length] : null;
+
+  for (var version = cached ?? 1; version <= 40; version++) {
     final qr = QrCode(version, QrErrorCorrectLevel.M);
     if (alphanumeric) {
       qr.addAlphaNumeric(data);
@@ -41,6 +47,7 @@ QrCode buildQrCode(String data) {
     try {
       // The size check only runs once the modules are laid out.
       QrImage(qr);
+      if (alphanumeric) _qrVersionCache[data.length] = version;
       return qr;
     } on InputTooLongException {
       continue;
@@ -49,6 +56,9 @@ QrCode buildQrCode(String data) {
 
   throw InputTooLongException(data.length, 0);
 }
+
+/// Smallest QR version known to hold an alphanumeric payload of a given length.
+final Map<int, int> _qrVersionCache = {};
 
 /// The localized label for a range given in days, with null meaning the
 /// player's whole history. Shared by the sender's picker and the receiver's
@@ -1144,6 +1154,23 @@ class _QrScannerState extends State<_QrScanner> {
   /// camera is not reported dozens of times a second.
   String? _lastReported;
 
+  /// The scanner is throttled far below its default, because an animated
+  /// transfer is a race between how fast the sender shows frames and how often
+  /// the camera is allowed to report one. At the default of 250ms both run at
+  /// the same rate, and two free running clocks of the same rate drift against
+  /// each other, so a good share of the frames is never sampled. Keeping the
+  /// throttle rather than removing it altogether bounds the work per second,
+  /// which [DetectionSpeed.unrestricted] explicitly does not.
+  late final MobileScannerController _controller = MobileScannerController(
+    detectionTimeoutMs: kScannerDetectionTimeout.inMilliseconds,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -1152,6 +1179,7 @@ class _QrScannerState extends State<_QrScanner> {
       child: Stack(
         children: [
           MobileScanner(
+            controller: _controller,
             onDetect: (capture) {
               final raw = capture.barcodes.firstOrNull?.rawValue;
               if (raw == null || raw == _lastReported) return;
