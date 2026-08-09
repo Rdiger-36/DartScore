@@ -453,6 +453,11 @@ class AppLocalizations {
       _t('$received of $total parts', '$received von $total Teilen');
   String get syncReadFailed    =>
       _t('The data could not be read.', 'Die Daten konnten nicht gelesen werden.');
+  String get syncImporting     => _t('Importing', 'Wird importiert');
+  String syncImportProgress(int done, int total) =>
+      _t('$done of $total visits', '$done von $total Aufnahmen');
+  String get syncImportDone    => _t('Import complete', 'Import abgeschlossen');
+  String get syncImportFailed  => _t('Import failed', 'Import fehlgeschlagen');
   String get connectionFailed  =>
       _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
          'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte im selben WLAN sind.');

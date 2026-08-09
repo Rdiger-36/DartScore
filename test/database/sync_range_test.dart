@@ -92,10 +92,14 @@ void main() {
       if (packet.throws.isNotEmpty) {
         final gameId = await db.createSyncGame(
             packet.throws.first.remainingBefore + packet.throws.first.score);
-        for (final t in packet.throws) {
-          await db.insertSyncedThrow(receiver.id!, gameId,
-              t.toDartThrow(gameId: gameId, playerId: receiver.id!));
-        }
+        await db.insertSyncedThrows(
+          receiver.id!,
+          gameId,
+          packet.throws
+              .map((t) =>
+                  t.toDartThrow(gameId: gameId, playerId: receiver.id!))
+              .toList(),
+        );
       }
 
       return loadPlayerStats(await reload(receiver));
