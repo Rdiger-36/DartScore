@@ -48,17 +48,18 @@ A mode selection screen lets you pick from four fully playable game modes. Each 
 
 #### X01
 
-Classic countdown game. Supported start scores: **201 / 301 / 501 / 701 / 1001**.
+Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 701 / 1001**.
 
 - **Solo game** — single player, no legs/sets, finishes on checkout
 - **Multiplayer** — 2+ players, turn-based
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
-- **Legs & Sets** — configurable legs per set and sets per match
+- **Match format** — presets (Best of 3/5/7/9, PDC Sets, Premier League) or custom legs per set and sets per match
+- **Placement mode** — available from 3 players or 3 teams: every leg is played to the end so everyone finishes, producing a final ranking with points per leg instead of ending on the first checkout
 
 **Check-In rules** (per player): Straight In / Double In / Master In  
 **Check-Out rules** (per player): Straight Out / Double Out / Master Out
 
-- Individual in/out overrides per player within the same game
+- Individual in/out overrides per player within the same game, including inside a team — each member throws under their own rules
 - Check-in enforced in leg 1 / set 1 only; subsequent legs always start Straight In
 - Bust detection including the "remaining = 1" edge case for Double/Master Out
 
@@ -124,6 +125,17 @@ Hit every number 1–20 in order, then finish on Bull.
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
 - Legs & Sets configurable
 - Joker mechanic (Skip Rules variant)
+
+---
+
+### After the Game
+
+Every mode ends on a summary screen, and the same view is reachable for any finished game from the history.
+
+- **Winner banner** and per-player or per-team result cards
+- **Game info card** — the settings the game was played with (mode, variant or match format, scoring rules), shown the same way in every mode
+- **Play Again** — repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused, and reshuffles the throwing order like a fresh setup. The finished game stays in the history untouched
+- **Save or share the result** (X01) — the result card is rendered to an image for the photo library or the share sheet
 
 ---
 
@@ -260,7 +272,8 @@ lib/
 │   ├── dart_throw.dart                    # X01 visit record (score, multiplier, bust, hits_json)
 │   ├── cricket_game.dart                  # CricketGame, CricketThrow, variant/scoring enums
 │   ├── shanghai_game.dart                 # ShanghaiGame, ShanghaiThrow, ShanghaiVariant enum
-│   └── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
+│   ├── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
+│   └── team_config.dart                   # Shared TeamConfig + JSON encode/decode for team_config_json
 ├── providers/
 │   ├── players_provider.dart              # Player CRUD; notifies listeners
 │   ├── game_provider.dart                 # X01 game state machine; score calc, bust detection, turn logic
@@ -302,7 +315,14 @@ lib/
 │   └── sync_service.dart                  # QR/WiFi sync encode/decode logic
 ├── utils/
 │   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles
+│   ├── game_labels.dart                   # Localised names for per-mode settings and handicap rules
+│   ├── match_format.dart                  # Match format presets (Best of N, PDC Sets, ...)
+│   ├── placement.dart                     # Placement-mode ranking and points helpers
+│   ├── team_color.dart                    # Shared team accent palette
+│   ├── triple_color.dart                  # Shared blue tones for triple-field UI
 │   └── layout.dart                        # Responsive max-width helper
+├── l10n/
+│   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
 └── widgets/
     ├── numpad.dart                         # Numeric score input pad
     ├── dartboard_input.dart                # Segment-level dartboard tap input
@@ -310,7 +330,10 @@ lib/
     ├── dartboard_target_painter.dart       # Custom painter for Shanghai target view
     ├── finish_suggestion_widget.dart       # X01 checkout hint display
     ├── cricket_marks_widget.dart           # Cricket field/marks grid
+    ├── favorite_double_picker.dart         # Picks a player's favourite doubles
     ├── team_section.dart                   # Shared team assignment UI for setup screens
+    ├── game_info_card.dart                 # Shared card listing a finished game's settings
+    ├── rematch_button.dart                 # "Play Again" button and its confirmation dialog
     └── player_dialog.dart                  # Create/edit player dialog
 ```
 
@@ -325,13 +348,17 @@ players      (id, name, favorite_doubles, is_deleted, is_primary,
               uuid, last_synced_at, synced_stats, local_stats_json)
 
 games        (id, start_score, game_mode, checkout_mode, legs, sets,
-              created_at, finished_at, is_synced, team_config_json)
+              created_at, finished_at, is_synced, team_config_json,
+              handicap_json, placement_mode)
 
 game_players (game_id, player_id, sort_order)
 
 dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
               remaining_before, thrown_at, bust, hits_json)
 ```
+
+`handicap_json` — per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
+`placement_mode` — 1 when every leg is played to the end for a final ranking.
 
 `hits_json` stores individual dart hits as a compact JSON array:
 ```json
