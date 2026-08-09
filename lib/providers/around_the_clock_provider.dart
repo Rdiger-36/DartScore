@@ -356,16 +356,7 @@ class AroundTheClockProvider extends ChangeNotifier {
     if (_gameOver) {
       _gameOver = false;
       _winnerId = null;
-      _game = AroundTheClockGame(
-        id:         _game!.id,
-        variant:    _game!.variant,
-        legs:       _game!.legs,
-        sets:       _game!.sets,
-        createdAt:  _game!.createdAt,
-        finishedAt: null,
-        playerIds:  _game!.playerIds,
-        teams:      _game!.teams,
-      );
+      _game = _game!.copyWith(clearFinishedAt: true);
       await _db.updateAroundTheClockGame(_game!);
     }
 

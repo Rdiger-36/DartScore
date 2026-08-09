@@ -74,14 +74,19 @@ class AroundTheClockGame {
         startingOrder: StartingOrder.values[map['starting_order'] as int? ?? 0],
       );
 
-  /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
-  AroundTheClockGame copyWith({DateTime? finishedAt}) => AroundTheClockGame(
+  /// Returns a copy with [finishedAt] updated (marking a game done), or cleared
+  /// when [clearFinishedAt] is set, which reopens a game whose winning dart was
+  /// undone. Copying rather than rebuilding the object by hand keeps every
+  /// other field, so a new field cannot be forgotten here.
+  AroundTheClockGame copyWith(
+          {DateTime? finishedAt, bool clearFinishedAt = false}) =>
+      AroundTheClockGame(
         id:         id,
         variant:    variant,
         legs:       legs,
         sets:       sets,
         createdAt:  createdAt,
-        finishedAt: finishedAt ?? this.finishedAt,
+        finishedAt: clearFinishedAt ? null : (finishedAt ?? this.finishedAt),
         playerIds:  playerIds,
         teams:      teams,
         startingOrder: startingOrder,
