@@ -37,7 +37,6 @@ void main() {
       expect(s.first9Average, 0);
       expect(s.bustRate, 0);
       expect(s.checkoutRate, 0);
-      expect(s.scoreStdDev, 0);
     });
 
     test('a bust adds darts but no score', () {
@@ -180,19 +179,15 @@ void main() {
       });
     });
 
-    test('standard deviation ignores busts', () {
-      final even = ThrowStats.fromThrows([
-        _visit(60),
-        _visit(60),
-        _visit(60),
-      ]);
-      expect(even.scoreStdDev, closeTo(0, 0.001));
-
-      final spread = ThrowStats.fromThrows([
+    test('the squared sum the snapshot needs adds up over scored visits', () {
+      final s = ThrowStats.fromThrows([
         _visit(100),
         _visit(20),
+        _visit(60, bust: true),
       ]);
-      expect(spread.scoreStdDev, closeTo(40, 0.001));
+
+      expect(s.scoreSumSquares, 100 * 100 + 20 * 20,
+          reason: 'the busted visit contributes nothing');
     });
   });
 

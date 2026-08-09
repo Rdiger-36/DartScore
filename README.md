@@ -72,6 +72,8 @@ Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 
 - Dart-level undo and redo, working across visit and player boundaries
 - Finish suggestion always visible, highlighted when checkout is reachable
 
+**Live player info:** tapping a scoreboard card (or one of the compact chips shown from 3 players) slides in a live info screen for that player or team, pageable to the others in throwing order. It carries the current leg, the match so far, 180s / 140+ / 100+ and the check-in and check-out rules in force. A team shows its combined numbers plus every member in upcoming throwing order, each expandable to that member's own full set. The running game is untouched; back or the iOS edge swipe returns to it.
+
 ---
 
 #### Cricket
@@ -136,7 +138,7 @@ Hit every number 1–20 in order, then finish on Bull.
 
 Every mode ends on a summary screen, and the same view is reachable for any finished game from the history.
 
-- **Winner banner** and per-player or per-team result cards
+- **Winner banner** and per-player or per-team result cards, identical in the post-game summary and the history detail view down to the throw log
 - **Game info card**: the settings the game was played with (mode, variant or match format, scoring rules, starting order), shown the same way in every mode
 - **Play Again**: repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused. A random starting order is drawn again, an order that was fixed by hand is kept. The finished game stays in the history untouched
 - **Save or share the result** (X01): the result card is rendered to an image for the photo library or the share sheet
@@ -193,6 +195,7 @@ All stats are shown per player on a dedicated screen.
 - **Dark / Light / System theme**
 - **German / English localisation**: auto-detected from device locale, switchable in settings
 - **Responsive layout**: content width capped on tablets; portrait orientation locked on phones
+- **Leaving a running game** needs a deliberate act: the close button and the Android back button ask for confirmation, and the iOS edge swipe stays disabled for as long as the game runs
 - **About screen**: version info, open-source licences
 - **Support the developer**: optional one-time donations via in-app purchase
 
@@ -302,6 +305,7 @@ lib/
 │   ├── game_mode_info_screen.dart         # Per-mode rules info page
 │   ├── game_setup_screen.dart             # Configure X01: start score, in/out modes, legs/sets, players
 │   ├── game_screen.dart                   # Live X01: scoreboard, dartboard/numpad input, finish suggestions
+│   ├── live_player_stats_screen.dart      # Live X01 player/team info, opened from the scoreboard
 │   ├── game_summary_screen.dart           # Post-X01 stats
 │   ├── history_game_summary_screen.dart   # Detailed view of a past X01 game
 │   ├── cricket_setup_screen.dart          # Configure Cricket: variant, scoring mode, players
@@ -323,6 +327,7 @@ lib/
 │   ├── game_labels.dart                   # Localised names for per-mode settings and handicap rules
 │   ├── match_format.dart                  # Match format presets (Best of N, PDC Sets, ...)
 │   ├── placement.dart                     # Placement-mode ranking and points helpers
+│   ├── throw_stats.dart                   # ThrowStats: the one aggregation over recorded throws
 │   ├── team_color.dart                    # Shared team accent palette
 │   ├── triple_color.dart                  # Shared blue tones for triple-field UI
 │   └── layout.dart                        # Responsive max-width helper
@@ -339,6 +344,10 @@ lib/
     ├── team_section.dart                   # Shared team assignment UI for setup screens
     ├── starting_order_section.dart         # Shared starting-order picker with drag-to-sort list
     ├── game_info_card.dart                 # Shared card listing a finished game's settings
+    ├── summary_player_card.dart            # Shared X01 player/team result card
+    ├── final_ranking_card.dart             # Shared placement-mode ranking and per-leg table
+    ├── throw_log_card.dart                 # Shared "All Throws" log
+    ├── stat_row.dart                       # Shared label/value row for every stat list
     ├── rematch_button.dart                 # "Play Again" button and its confirmation dialog
     └── player_dialog.dart                  # Create/edit player dialog
 ```
