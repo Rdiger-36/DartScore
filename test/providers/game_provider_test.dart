@@ -1,4 +1,5 @@
 import 'package:dartscore_app/models/dart_throw.dart';
+import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -105,6 +106,44 @@ void main() {
       ];
 
       expect(legDartsUsed(throws, 1, 1), 6);
+    });
+  });
+
+  group('PlayerState.throwingOrder', () {
+    /// A slot holding [names] with the turn on the member at [currentPlayerIdx].
+    PlayerState makeSlot(List<String> names, int currentPlayerIdx) => PlayerState(
+          displayName:      names.length > 1 ? 'Team' : names.first,
+          players:          [
+            for (var i = 0; i < names.length; i++)
+              Player(id: i + 1, name: names[i]),
+          ],
+          currentPlayerIdx: currentPlayerIdx,
+          legsWon:          0,
+          setsWon:          0,
+          remaining:        501,
+          throws:           const [],
+          isTeamSlot:       names.length > 1,
+        );
+
+    test('returns the single player of an individual slot', () {
+      expect(makeSlot(['A'], 0).throwingOrder.map((p) => p.name), ['A']);
+    });
+
+    test('starts at the member who throws next and wraps around', () {
+      expect(makeSlot(['A', 'B', 'C'], 0).throwingOrder.map((p) => p.name),
+          ['A', 'B', 'C']);
+      expect(makeSlot(['A', 'B', 'C'], 1).throwingOrder.map((p) => p.name),
+          ['B', 'C', 'A']);
+      expect(makeSlot(['A', 'B', 'C'], 2).throwingOrder.map((p) => p.name),
+          ['C', 'A', 'B']);
+    });
+
+    test('leaves the player list of the slot untouched', () {
+      final slot = makeSlot(['A', 'B', 'C'], 2);
+
+      slot.throwingOrder;
+
+      expect(slot.players.map((p) => p.name), ['A', 'B', 'C']);
     });
   });
 }
