@@ -54,108 +54,116 @@ class _AroundTheClockGameView extends StatelessWidget {
     final states  = provider.playerStates;
     final current = provider.currentPlayerState;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Around the Clock'),
-        actions: [
-          if (provider.canUndo)
+    return PopScope(
+      // A running game must not be lost to a stray back gesture; the system
+      // back asks the same question the close button in the app bar asks.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmQuit(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Around the Clock'),
+          actions: [
+            if (provider.canUndo)
+              IconButton(
+                icon: const Icon(Icons.undo_rounded),
+                tooltip: l.undo,
+                onPressed: () => provider.undoLastDart(),
+              ),
             IconButton(
-              icon: const Icon(Icons.undo_rounded),
-              tooltip: l.undo,
-              onPressed: () => provider.undoLastDart(),
+              icon: const Icon(Icons.close_rounded),
+              tooltip: l.aroundClockQuit,
+              onPressed: () => _confirmQuit(context),
             ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded),
-            tooltip: l.aroundClockQuit,
-            onPressed: () => _confirmQuit(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ── Fixed target card + dartboard ─────────────────────────────────
-          Padding(
-            padding: contentPadding(
-              context,
-              fraction: kGameWidthFraction,
-              maxWidth: kMaxGameWidth,
-              top: 8,
-              innerH: 12,
-            ),
-            child: Column(
-              children: [
-                SizedBox(width: double.infinity, child: _TargetDartboard(provider: provider)),
-              ],
-            ),
-          ),
-          // ── Scrollable player list ────────────────────────────────────────
-          Expanded(
-            child: SingleChildScrollView(
+          ],
+        ),
+        body: Column(
+          children: [
+            // ── Fixed target card + dartboard ─────────────────────────────────
+            Padding(
               padding: contentPadding(
                 context,
                 fraction: kGameWidthFraction,
                 maxWidth: kMaxGameWidth,
-                top: 12,
-                bottom: 8,
+                top: 8,
                 innerH: 12,
               ),
-              child: _AroundTheClockBoard(
-                provider:   provider,
-                states:     states,
-                currentIdx: provider.currentPlayerIndex,
-                throwCount: provider.dartsInVisit,
+              child: Column(
+                children: [
+                  SizedBox(width: double.infinity, child: _TargetDartboard(provider: provider)),
+                ],
               ),
             ),
-          ),
-          // ── Input area ────────────────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: cs.surfaceContainer,
-              border: Border(top: BorderSide(color: cs.outlineVariant)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              current.displayName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: cs.primary,
-                              ),
-                            ),
-                            if (current.isTeamSlot)
-                              Text(
-                                current.player.name,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                          ],
-                        ),
-                        const Spacer(),
-                        _DartDots(count: provider.dartsInVisit),
-                      ],
-                    ),
-                    _AroundTheClockHint(provider: provider),
-                    const SizedBox(height: 10),
-                    _AroundTheClockInput(provider: provider),
-                  ],
+            // ── Scrollable player list ────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: contentPadding(
+                  context,
+                  fraction: kGameWidthFraction,
+                  maxWidth: kMaxGameWidth,
+                  top: 12,
+                  bottom: 8,
+                  innerH: 12,
+                ),
+                child: _AroundTheClockBoard(
+                  provider:   provider,
+                  states:     states,
+                  currentIdx: provider.currentPlayerIndex,
+                  throwCount: provider.dartsInVisit,
                 ),
               ),
             ),
-          ),
-        ],
+            // ── Input area ────────────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainer,
+                border: Border(top: BorderSide(color: cs.outlineVariant)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                current.displayName,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.primary,
+                                ),
+                              ),
+                              if (current.isTeamSlot)
+                                Text(
+                                  current.player.name,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const Spacer(),
+                          _DartDots(count: provider.dartsInVisit),
+                        ],
+                      ),
+                      _AroundTheClockHint(provider: provider),
+                      const SizedBox(height: 10),
+                      _AroundTheClockInput(provider: provider),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
