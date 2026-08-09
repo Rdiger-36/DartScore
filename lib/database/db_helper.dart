@@ -458,24 +458,10 @@ class DbHelper {
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
 
-  /// Counts perfect legs in [throws] (legs finished within [minDarts] darts).
-  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
-    if (minDarts == null) return 0;
-    int count = 0;
-    // Group darts used per leg (gameId-set-leg key)
-    final legDarts = <String, int>{};
-    for (final t in throws) {
-      final k = '${t.gameId}-${t.set}-${t.leg}';
-      legDarts[k] = (legDarts[k] ?? 0) + t.dartsUsed;
-    }
-    for (final t in throws) {
-      if (!t.bust && t.remainingBefore - t.score == 0) {
-        final k = '${t.gameId}-${t.set}-${t.leg}';
-        if ((legDarts[k] ?? 999) <= minDarts) count++;
-      }
-    }
-    return count;
-  }
+  /// Counts perfect legs in [throws], all of which come from one game and so
+  /// share the same [minDarts].
+  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) =>
+      perfectLegsFromThrows(throws, (_) => minDarts);
 
   /// Snapshots one game's throws into each involved player's persistent
   /// `local_stats_json`, so lifetime stats survive deleting the game. Call this

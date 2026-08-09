@@ -236,6 +236,34 @@ double bestGameAverage(List<DartThrow> throws) {
   return best;
 }
 
+/// Legs in [throws] finished within the fewest darts their game allows.
+///
+/// [minDartsFor] gives that minimum for a game id, or null when the game is
+/// unknown or its start score has no published minimum, in which case none of
+/// its legs can be perfect.
+///
+/// The dart count per leg is gathered in one pass up front. Counting it per
+/// checkout instead means rescanning every throw for every leg won, which over
+/// a lifetime of a few tens of thousands of throws is the difference between a
+/// stats screen that opens instantly and one that visibly stalls.
+int perfectLegsFromThrows(
+    List<DartThrow> throws, int? Function(int gameId) minDartsFor) {
+  final legDarts = <String, int>{};
+  for (final t in throws) {
+    final key = '${t.gameId}-${t.set}-${t.leg}';
+    legDarts[key] = (legDarts[key] ?? 0) + t.dartsUsed;
+  }
+
+  var count = 0;
+  for (final t in throws) {
+    if (t.bust || t.remainingBefore - t.score != 0) continue;
+    final minDarts = minDartsFor(t.gameId);
+    if (minDarts == null) continue;
+    if ((legDarts['${t.gameId}-${t.set}-${t.leg}'] ?? 999) <= minDarts) count++;
+  }
+  return count;
+}
+
 /// Legs won according to the throws alone: visits that took the slot to exactly
 /// zero.
 ///
