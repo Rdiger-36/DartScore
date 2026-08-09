@@ -113,6 +113,36 @@ void main() {
       expect(stats.perfectLegs, 0, reason: '12 darts is not a nine darter');
     });
 
+    test('counts a nine darter as a perfect leg', () async {
+      // The counterpart to the case above: the same 501, finished in the
+      // fewest darts it allows. Without it the perfect leg count could be
+      // stuck at zero and every other assertion here would still pass.
+      final provider = GameProvider();
+      await provider.startGame(
+          Game(startScore: 501, legs: 1, createdAt: DateTime.now()), players);
+
+      Future<void> visit(List<(int, int)> darts) async {
+        for (final d in darts) {
+          await provider.tapField(d.$1, d.$2);
+        }
+      }
+
+      const maximum = [(20, 3), (20, 3), (20, 3)];
+      const sixty   = [(20, 1), (20, 1), (20, 1)];
+
+      await visit(maximum);              // 501 to 321
+      await visit(sixty);                // opponent
+      await visit(maximum);              // 321 to 141
+      await visit(sixty);                // opponent
+      await visit([(20, 3), (19, 3), (12, 2)]); // 141 checked out on a double
+
+      expect(provider.gameOver, isTrue);
+
+      final stats = await loadPlayerStats(players.first);
+      expect(stats.totalDarts, 9);
+      expect(stats.perfectLegs, 1, reason: 'nine darts on a 501 is perfect');
+    });
+
     test('leaves a player without any throws at zero', () async {
       final stats = await loadPlayerStats(players[1]);
 

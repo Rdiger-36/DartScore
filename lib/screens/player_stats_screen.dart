@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
-import '../models/game.dart';
 import '../providers/game_provider.dart' show minimumDartsForScore;
 import '../utils/throw_stats.dart';
 import '../services/sync_service.dart';
@@ -115,14 +114,14 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
   player = await db.getPlayer(playerId) ?? player;
 
   final throws = await db.getThrowsForPlayer(playerId);
-  final gameIds = await db.getGameIdsForPlayer(playerId);
-  final games = <int, Game>{};
-  for (final id in gameIds) {
-    final rows = await db.getGames();
-    for (final g in rows) {
-      if (g.id == id) games[id] = g;
-    }
-  }
+
+  // One query, then a lookup. Asking the database again for every game the
+  // player has ever played reads the whole table once per game.
+  final gameIds = (await db.getGameIdsForPlayer(playerId)).toSet();
+  final games = {
+    for (final g in await db.getGames())
+      if (gameIds.contains(g.id)) g.id!: g,
+  };
 
   // ── Counters from the games still on the device ───────────────────────────
   // The snapshot of deleted games is added on top further down, so these start
@@ -182,19 +181,14 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
       ds['visits'] = (ds['visits'] ?? 0) + 1;
       if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
     }
-
-    // Perfect legs: a leg finished within the fewest darts its start score
-    // allows. Needs the leg's whole dart count and that game's start score, so
-    // it cannot come from the shared record.
-    if (!t.bust && t.remainingBefore - t.score == 0) {
-      final legDarts = throws
-          .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
-          .fold(0, (s, x) => s + x.dartsUsed);
-      final startForGame = games[t.gameId]?.startScore;
-      final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
-      if (minD != null && legDarts <= minD) perfectLegs++;
-    }
   }
+
+  // Perfect legs need the leg's whole dart count and its game's start score,
+  // so they cannot come from the shared record and are counted separately.
+  perfectLegs = perfectLegsFromThrows(throws, (gameId) {
+    final startScore = games[gameId]?.startScore;
+    return startScore == null ? null : minimumDartsForScore[startScore];
+  });
 
   int gamesFinished      = games.values.where((g) => g.finishedAt != null).length;
   final liveTotalDarts    = live.totalDarts;
