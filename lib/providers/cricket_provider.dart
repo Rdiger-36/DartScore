@@ -16,7 +16,7 @@ import '../models/player.dart';
 /// scoreboard.
 class CricketPlayerState {
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -227,7 +227,7 @@ class CricketProvider extends ChangeNotifier {
       _applyDart(_currentPlayerIndex, field, multiplier);
 
       // A leg ends the instant a player closes the last field while leading
-      // (or level) - no need to finish the rest of the visit.
+      // (or level), no need to finish the rest of the visit.
       if (_checkWin(_currentPlayerIndex)) {
         _visitBuffer.clear();
         await _handleWin(_currentPlayerIndex);
@@ -269,7 +269,7 @@ class CricketProvider extends ChangeNotifier {
 
     if (scoringMarks <= 0) return;
 
-    // The field is now open (or was already open) — handle scoring
+    // The field is now open (or was already open): handle scoring
     final fieldValue = field == 25 ? 25 : field;
     final points     = scoringMarks * fieldValue;
 
@@ -284,7 +284,7 @@ class CricketProvider extends ChangeNotifier {
         }
       }
     } else {
-      // Score for current slot — only if at least one opponent hasn't closed it
+      // Score for current slot: only if at least one opponent hasn't closed it
       final fieldAlive = _playerStates
           .indexed
           .any((e) => e.$1 != slotIdx && !e.$2.hasClosedField(field));
@@ -307,7 +307,7 @@ class CricketProvider extends ChangeNotifier {
     // that closes their last field (see recordDart), so only the "stalemate"
     // case remains here.
 
-    // All slots have closed all fields — nobody can score anymore, decide by score
+    // All slots have closed all fields: nobody can score anymore, decide by score
     if (_playerStates.every((s) => s.hasClosedAll)) {
       await _handleWin(_scoreWinnerIndex());
       return;

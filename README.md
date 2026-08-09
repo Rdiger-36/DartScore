@@ -6,7 +6,7 @@
 
 <p align="center">
   A feature-rich dart scoring app for Android and iOS.<br/>
-  Track games, analyse your performance, and sync profiles between devices — no internet required.
+  Track games, analyse your performance, and sync profiles between devices, no internet required.
 </p>
 
 <p align="center">
@@ -50,17 +50,17 @@ A mode selection screen lets you pick from four fully playable game modes. Each 
 
 Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 701 / 1001**.
 
-- **Solo game** — single player, no legs/sets, finishes on checkout
-- **Multiplayer** — 2+ players, turn-based
-- **Team game** — players split into teams sharing one score; active thrower shown per team slot
-- **Match format** — presets (Best of 3/5/7/9, PDC Sets, Premier League) or custom legs per set and sets per match
-- **Placement mode** — available from 3 players or 3 teams: every leg is played to the end so everyone finishes, producing a final ranking with points per leg instead of ending on the first checkout
+- **Solo game**: single player, no legs/sets, finishes on checkout
+- **Multiplayer**: 2+ players, turn-based
+- **Team game**: players split into teams sharing one score; active thrower shown per team slot
+- **Match format**: presets (Best of 3/5/7/9, PDC Sets, Premier League) or custom legs per set and sets per match
+- **Placement mode** is available from 3 players or 3 teams: every leg is played to the end so everyone finishes, producing a final ranking with points per leg instead of ending on the first checkout
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 
 **Check-In rules** (per player): Straight In / Double In / Master In  
 **Check-Out rules** (per player): Straight Out / Double Out / Master Out
 
-- Individual in/out overrides per player within the same game, including inside a team — each member throws under their own rules
+- Individual in/out overrides per player within the same game, including inside a team, where each member throws under their own rules
 - Check-in enforced in leg 1 / set 1 only; subsequent legs always start Straight In
 - Bust detection including the "remaining = 1" edge case for Double/Master Out
 
@@ -70,7 +70,7 @@ Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 
 - Numpad input as alternative
 - Live score update after every dart
 - Dart-level undo and redo, working across visit and player boundaries
-- Finish suggestion always visible — highlighted when checkout is reachable
+- Finish suggestion always visible, highlighted when checkout is reachable
 
 ---
 
@@ -89,7 +89,7 @@ Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks 
 | **Simple** | Counts marks per field only; no dart-level breakdown. |
 
 - Minimum 2 players
-- **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Team game**: players split into teams sharing one score; active thrower shown per team slot
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard-style input with mark tracking
 - Undo support (dart-by-dart)
@@ -98,7 +98,7 @@ Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks 
 
 #### Shanghai
 
-Score on the target number each round — hit it cleanly for instant win.
+Score on the target number each round. Hit it cleanly for an instant win.
 
 | Variant | Rules |
 |---|---|
@@ -107,7 +107,7 @@ Score on the target number each round — hit it cleanly for instant win.
 | **Sequential** | Throw at 1 until you hit it, then move to 2, up to 20. First to finish wins. |
 
 - Minimum 2 players
-- **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Team game**: players split into teams sharing one score; active thrower shown per team slot
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard input centred on the active target field
 - Shanghai (hitting Single + Double + Triple of the target) triggers an instant win
@@ -125,7 +125,7 @@ Hit every number 1–20 in order, then finish on Bull.
 | **Skip Rules** | Double skips one field ahead; Triple skips two; Bull's Eye is a joker that skips the current field. |
 
 - Solo or multiplayer (minimum 1 player)
-- **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Team game**: players split into teams sharing one score; active thrower shown per team slot
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Legs & Sets configurable
 - Joker mechanic (Skip Rules variant)
@@ -137,9 +137,9 @@ Hit every number 1–20 in order, then finish on Bull.
 Every mode ends on a summary screen, and the same view is reachable for any finished game from the history.
 
 - **Winner banner** and per-player or per-team result cards
-- **Game info card** — the settings the game was played with (mode, variant or match format, scoring rules, starting order), shown the same way in every mode
-- **Play Again** — repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused. A random starting order is drawn again, an order that was fixed by hand is kept. The finished game stays in the history untouched
-- **Save or share the result** (X01) — the result card is rendered to an image for the photo library or the share sheet
+- **Game info card**: the settings the game was played with (mode, variant or match format, scoring rules, starting order), shown the same way in every mode
+- **Play Again**: repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused. A random starting order is drawn again, an order that was fixed by hand is kept. The finished game stays in the history untouched
+- **Save or share the result** (X01): the result card is rendered to an image for the photo library or the share sheet
 
 ---
 
@@ -166,10 +166,10 @@ All stats are shown per player on a dedicated screen.
 
 ### Game History
 
-- **Open / Finished tabs** — separate views for resumable and completed games
-- **Game mode chip filter** — per tab: filter by All, X01, Cricket, Shanghai, or Around the Clock (only modes present in that tab are shown)
-- **Bulk delete** — trash icon deletes only the currently visible entries; confirmation dialog states exactly what will be removed
-- **Swipe to delete** — individual games can be swiped away
+- **Open / Finished tabs**: separate views for resumable and completed games
+- **Game mode chip filter** works per tab: filter by All, X01, Cricket, Shanghai, or Around the Clock (only modes present in that tab are shown)
+- **Bulk delete**: trash icon deletes only the currently visible entries; confirmation dialog states exactly what will be removed
+- **Swipe to delete**: individual games can be swiped away
 - Per-game summary screen with full throw history for all modes
 - Resume open games directly from the history list
 
@@ -177,8 +177,8 @@ All stats are shown per player on a dedicated screen.
 
 ### Sync (device-to-device, no server)
 
-- **Quick QR** — encodes player profile + recent throws into a QR code; works offline anywhere
-- **WiFi Sync** — local HTTP server on the sender; receiver scans QR to connect; both devices on the same Wi-Fi (automatically used when data is too large for QR)
+- **Quick QR**: encodes player profile + recent throws into a QR code; works offline anywhere
+- **WiFi Sync**: local HTTP server on the sender; receiver scans QR to connect; both devices on the same Wi-Fi (automatically used when data is too large for QR)
 - Import new players or update existing ones
 - Transfers full stats snapshot and all recorded throws
 - Deduplication: already-imported throws are never doubled
@@ -188,13 +188,13 @@ All stats are shown per player on a dedicated screen.
 
 ### Other
 
-- **Onboarding** — name entry on first launch, sets the primary player
-- **Manage Players** — add, edit, delete (soft-delete preserves history), set favourite double
+- **Onboarding**: name entry on first launch, sets the primary player
+- **Manage Players**: add, edit, delete (soft-delete preserves history), set favourite double
 - **Dark / Light / System theme**
-- **German / English localisation** — auto-detected from device locale, switchable in settings
-- **Responsive layout** — content width capped on tablets; portrait orientation locked on phones
-- **About screen** — version info, open-source licences
-- **Support the developer** — optional one-time donations via in-app purchase
+- **German / English localisation**: auto-detected from device locale, switchable in settings
+- **Responsive layout**: content width capped on tablets; portrait orientation locked on phones
+- **About screen**: version info, open-source licences
+- **Support the developer**: optional one-time donations via in-app purchase
 
 ---
 
@@ -257,7 +257,7 @@ dart run flutter_launcher_icons
 
 This writes correctly-sized icons into `android/app/src/main/res/` and `ios/Runner/Assets.xcassets/AppIcon.appiconset/`.
 
-> `remove_alpha_ios: true` is set in `pubspec.yaml` — the App Store requires icons without an alpha channel.
+> `remove_alpha_ios: true` is set in `pubspec.yaml` because the App Store requires icons without an alpha channel.
 
 ---
 
@@ -363,8 +363,8 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
               remaining_before, thrown_at, bust, hits_json)
 ```
 
-`handicap_json` — per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
-`placement_mode` — 1 when every leg is played to the end for a final ranking.  
+`handicap_json` holds per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
+`placement_mode` is 1 when every leg is played to the end for a final ranking.  
 `starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all four game tables; games created before the setting existed read as 0, which is how they were actually played.
 
 `hits_json` stores individual dart hits as a compact JSON array:
@@ -383,9 +383,9 @@ cricket_throws  (id, game_id, player_id, field, multiplier,
                  leg, set_, thrown_at)
 ```
 
-`player_ids` — JSON-encoded array of player IDs (turn order).  
-`field` — 15–20 for numbered fields, 25 for Bull, 0 for miss.  
-`multiplier` — 1 single / 2 double / 3 triple, 0 for miss.
+`player_ids` is a JSON-encoded array of player IDs (turn order).  
+`field` is 15–20 for numbered fields, 25 for Bull, 0 for miss.  
+`multiplier` is 1 single / 2 double / 3 triple, 0 for miss.
 
 ### Shanghai
 
@@ -397,7 +397,7 @@ shanghai_throws  (id, game_id, player_id, target, multiplier,
                   round, leg, set_, thrown_at)
 ```
 
-`target` — active number (1–9 in Classic, 1–7 in Clockwise, 1–20 in Sequential).
+`target` is the active number (1–9 in Classic, 1–7 in Clockwise, 1–20 in Sequential).
 
 ### Around the Clock
 
@@ -409,7 +409,7 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
                           leg, set_, thrown_at)
 ```
 
-`field` — number just hit (1–20, 25 for Bull).
+`field` is the number just hit (1–20, 25 for Bull).
 
 ---
 
@@ -437,4 +437,4 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE) for details.
+This project is licensed under the **GNU General Public License v3.0**. See [LICENSE](LICENSE) for details.

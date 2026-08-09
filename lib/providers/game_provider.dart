@@ -30,8 +30,8 @@ List<DartEntry>? _parseHits(String? hitsJson) {
 }
 
 /// A unit of redo state for [GameProvider.redoLastDart]: either a single dart
-/// to re-add to the in-progress visit, or - for legacy throws recorded before
-/// per-dart [DartThrow.hitsJson] was captured - a whole visit to re-insert verbatim.
+/// to re-add to the in-progress visit, or, for legacy throws recorded before
+/// per-dart [DartThrow.hitsJson] was captured, a whole visit to re-insert verbatim.
 class _RedoEntry {
   final DartEntry? dart;
   final DartThrow? legacyVisit;
@@ -50,7 +50,7 @@ class _RedoEntry {
 class PlayerState {
   /// Human-readable name for the scoreboard: team name or player name.
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -776,7 +776,7 @@ class GameProvider extends ChangeNotifier {
 
     final t = DartThrow(
       gameId:          _game!.id!,
-      playerId:        state.player.id!, // individual player — even in team mode
+      playerId:        state.player.id!, // individual player: even in team mode
       score:           bust ? 0 : score,
       dartsUsed:       dartsUsed,
       leg:             _currentLeg,
@@ -855,7 +855,7 @@ class GameProvider extends ChangeNotifier {
         await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
         return;
       }
-      // New set — reset legs for all players
+      // New set: reset legs for all players
       _currentSet += 1;
       _currentLeg  = 1;
       _playerStates = _playerStates
@@ -1153,8 +1153,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Redoes the last undone dart: restores it to the in-progress visit
-  /// (committing the visit again if that completes it), or - for a legacy
-  /// whole-visit redo - re-inserts the previously removed visit verbatim.
+  /// (committing the visit again if that completes it), or, for a legacy
+  /// whole-visit redo, re-inserts the previously removed visit verbatim.
   Future<void> redoLastDart() async {
     if (_game == null || _redoStack.isEmpty) return;
 

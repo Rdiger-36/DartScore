@@ -355,7 +355,7 @@ class DbHelper {
   /// Sets one player as primary, clears the flag on all others.
   Future<void> setPrimaryPlayer(int id) async {
     final d = await db;
-    // Atomic: clear all, then set one — prevents a crash window
+    // Atomic: clear all, then set one, which prevents a crash window
     await d.transaction((txn) async {
       await txn.update('players', {'is_primary': 0});
       await txn.update('players', {'is_primary': 1},
@@ -394,7 +394,7 @@ class DbHelper {
   /// Soft-deletes the player with [id], keeping the name visible in history/stats.
   Future<void> deletePlayer(int id) async {
     final d = await db;
-    // Soft delete — keeps name visible in history/stats
+    // Soft delete: keeps name visible in history/stats
     await d.update('players', {'is_deleted': 1},
         where: 'id = ?', whereArgs: [id]);
   }
@@ -425,7 +425,7 @@ class DbHelper {
   }
 
   // Minimum darts to finish from a given start score (double-out).
-  // Mirrors game_provider.dart — kept local to avoid circular import.
+  // Mirrors game_provider.dart: kept local to avoid circular import.
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
   /// Computes the classic three-dart average (non-bust score divided by darts
@@ -585,7 +585,7 @@ class DbHelper {
         } catch (_) {}
       }
 
-      // Daily stats (all throws, bust or not — for activity heat and week windows)
+      // Daily stats (all throws, bust or not, for activity heat and week windows)
       final day = '${t.thrownAt.year}-'
           '${t.thrownAt.month.toString().padLeft(2, '0')}-'
           '${t.thrownAt.day.toString().padLeft(2, '0')}';
@@ -625,7 +625,7 @@ class DbHelper {
       }
     }
 
-    // Recent throws — last 20, newest first, as compact maps
+    // Recent throws: last 20, newest first, as compact maps
     final sortedThrows = [...throws]
       ..sort((a, b) => b.thrownAt.compareTo(a.thrownAt));
     final recentThrows = sortedThrows.take(20).map((t) => {

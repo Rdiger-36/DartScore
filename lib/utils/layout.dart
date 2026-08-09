@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 /// Screen width threshold (dp) above which tablet layout is applied.
 const double kTabletBreakpoint = 600;
 
-/// Maximum content width on tablets/large screens — matches a typical
+/// Maximum content width on tablets/large screens: matches a typical
 /// portrait-phone width so the layout doesn't stretch across wide screens.
 const double kMaxContentWidth = 440.0;
 
-/// Maximum width for the game screen — slightly wider to fit scoreboard
+/// Maximum width for the game screen: slightly wider to fit scoreboard
 /// and input comfortably on tablets.
 const double kMaxGameWidth = 500.0;
 

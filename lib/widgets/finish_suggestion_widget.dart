@@ -108,7 +108,7 @@ class FinishSuggestionWidget extends StatelessWidget {
       }
     }
 
-    // No checkout possible — same red container as checkout hint, same sizing behaviour
+    // No checkout possible: same red container as checkout hint, same sizing behaviour
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
