@@ -86,6 +86,7 @@ lib/
 │   ├── around_the_clock_screen.dart              # Around the Clock live game
 │   ├── around_the_clock_summary_screen.dart      # Around the Clock post-game summary
 │   ├── around_the_clock_history_summary_screen.dart  # Detailed view of a past Around the Clock game
+│   ├── live_player_stats_screen.dart     # X01 live player/team info opened from the scoreboard
 │   ├── history_screen.dart               # List of all past games (all modes)
 │   ├── history_game_summary_screen.dart  # Detailed view of a past X01 game
 │   ├── players_screen.dart               # Player management list
@@ -107,11 +108,14 @@ lib/
 │   ├── team_section.dart              # Shared team setup block (naming, add/remove, assignment) for every mode
 │   ├── starting_order_section.dart    # Shared starting-order block (random vs. fixed + drag-to-sort list)
 │   ├── game_info_card.dart            # Shared card listing a finished game's settings
+│   ├── summary_player_card.dart       # Shared player/team stat card for the X01 summary and history screens
+│   ├── throw_log_card.dart            # Shared "All Throws" log for the X01 summary and history screens
 │   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
 │   └── player_dialog.dart             # Create/edit player dialog
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
+│   ├── live_stats.dart         # Live per slot and per member stat aggregation over recorded throws
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette

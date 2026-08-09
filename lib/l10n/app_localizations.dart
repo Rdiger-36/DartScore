@@ -153,6 +153,23 @@ class AppLocalizations {
   String get average           => _t('Average', 'Average');
   String get remaining         => _t('remaining', 'übrig');
 
+  // ── Live Player Info ─────────────────────────────────────────────────────
+  String get livePlayerInfo     => _t('Live Info', 'Live-Info');
+  String get liveStatsTooltip   => _t('Show live statistics', 'Live-Statistik anzeigen');
+  String get throwingNow        => _t('Throwing now', 'Wirft gerade');
+  String get throwsNext         => _t('Throws next', 'Wirft als Nächstes');
+  String get throwingOrderLabel => _t('Throwing order', 'Wurfreihenfolge');
+  String get rulesLabel         => _t('Rules', 'Regeln');
+  String get thisLeg            => _t('This Leg', 'Aktuelles Leg');
+  String get matchSoFar         => _t('Match so far', 'Bisheriges Spiel');
+  String get legAverage         => _t('Leg Average', 'Leg-Average');
+  String get dartsThisLeg       => _t('Darts this Leg', 'Pfeile in diesem Leg');
+  String get visitsThisLeg      => _t('Visits this Leg', 'Aufnahmen in diesem Leg');
+  String get bestVisitThisLeg   => _t('Best Visit this Leg', 'Beste Aufnahme im Leg');
+  String get first9Average      => _t('First 9 Average', 'First-9-Average');
+  String get checkoutsHit       => _t('Check-Outs hit', 'Check-Outs getroffen');
+  String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
+
   // ── Game Summary ─────────────────────────────────────────────────────────
   String get gameOverview      => _t('Game Summary', 'Spielübersicht');
   String get gameInfo          => _t('Game Info', 'Spielinfo');

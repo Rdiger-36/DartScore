@@ -6,6 +6,7 @@ import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
 import 'game_summary_screen.dart';
+import 'live_player_stats_screen.dart';
 import '../utils/layout.dart';
 import '../utils/match_format.dart';
 
@@ -159,6 +160,8 @@ class _GameScreenState extends State<GameScreen> {
                     playerCheckIns: playerCheckIns,
                     playerCheckOuts: playerCheckOuts,
                     playerCheckedIn: playerCheckedIn,
+                    onSlotTap: (i) => Navigator.of(context)
+                        .push(LivePlayerStatsRoute<void>(slotIndex: i)),
                   ),
                   const SizedBox(height: 6),
                   // Fixed-height area for the checkout hint so buttons never shift
@@ -243,6 +246,8 @@ class _Scoreboard extends StatelessWidget {
   final List<GameMode> playerCheckIns;
   final List<CheckoutMode> playerCheckOuts;
   final List<bool> playerCheckedIn;
+  /// Opens the live info view for the slot at the given index.
+  final void Function(int slotIndex) onSlotTap;
 
   const _Scoreboard({
     required this.states,
@@ -257,6 +262,7 @@ class _Scoreboard extends StatelessWidget {
     required this.playerCheckIns,
     required this.playerCheckOuts,
     required this.playerCheckedIn,
+    required this.onSlotTap,
   });
 
   /// Builds one player score card.
@@ -264,7 +270,6 @@ class _Scoreboard extends StatelessWidget {
     required BuildContext context,
     required int i,
     required bool isCurrent,
-    required bool isNext,
   }) {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
@@ -309,7 +314,14 @@ class _Scoreboard extends StatelessWidget {
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Padding(
+        // The ink has to sit inside the opaque container, otherwise the splash
+        // is painted underneath the card colour and stays invisible.
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => onSlotTap(i),
+            child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -365,6 +377,14 @@ class _Scoreboard extends StatelessWidget {
               Stack(
                 alignment: Alignment.center,
                 children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Icon(
+                      Icons.bar_chart_rounded,
+                      size: 14,
+                      color: onCardMuted,
+                    ),
+                  ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -407,6 +427,8 @@ class _Scoreboard extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+            ),
           ),
         ),
       ),
@@ -454,7 +476,6 @@ class _Scoreboard extends StatelessWidget {
                 context: context,
                 i: i,
                 isCurrent: i == currentIdx,
-                isNext: !showAll && i == nextIdx,
               )).toList(),
             ),
           ),
@@ -477,13 +498,19 @@ class _Scoreboard extends StatelessWidget {
                       finished ? cs.onSecondaryContainer : cs.onSurface;
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: chipBg,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => onSlotTap(i),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
@@ -521,6 +548,9 @@ class _Scoreboard extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                        ),
+                      ),
                     ),
                   );
                 }).toList(),
