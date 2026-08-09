@@ -90,7 +90,7 @@ lib/
 │   ├── history_game_summary_screen.dart  # Detailed view of a past X01 game
 │   ├── players_screen.dart               # Player management list
 │   ├── player_stats_screen.dart          # Per-player lifetime stats
-│   ├── settings_screen.dart              # Theme, language, data management
+│   ├── settings_screen.dart              # Theme, language, donation and about links
 │   ├── about_screen.dart                 # App info, version, license (GPL-3.0), project links
 │   ├── donation_screen.dart              # Support the developer via in-app purchases
 │   └── sync_screen.dart                  # QR-based device-to-device data sync

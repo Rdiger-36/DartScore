@@ -367,6 +367,11 @@ class AroundTheClockProvider extends ChangeNotifier {
   /// Rebuilds the full game state from the persisted darts: resets progress and
   /// turn counters, then replays every dart, advancing turns and detecting the
   /// winning dart along the way.
+  /// Each dart is applied to whoever the replay currently has on turn, not to
+  /// the player its row names. That relies on darts being stored in the order
+  /// they were thrown, which [DbHelper] guarantees by ordering on the throw
+  /// time and, for ties within a millisecond, the row id. Recording a dart out
+  /// of turn would silently shift every later dart onto the wrong slot.
   Future<void> _replayState() async {
     if (_game == null) return;
 

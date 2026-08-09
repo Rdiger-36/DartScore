@@ -1231,9 +1231,14 @@ class GameProvider extends ChangeNotifier {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// All throws across every slot, sorted chronologically.
+  /// All throws across every slot, sorted chronologically. Two throws can share
+  /// a millisecond, so the row id breaks the tie and undo always removes the
+  /// visit that was really thrown last.
   List<DartThrow> allThrows() {
     return _playerStates.expand((s) => s.throws).toList()
-      ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
+      ..sort((a, b) {
+        final byTime = a.thrownAt.compareTo(b.thrownAt);
+        return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
+      });
   }
 }
