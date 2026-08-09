@@ -5,6 +5,7 @@ import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'shanghai_screen.dart';
 
@@ -90,6 +91,13 @@ class ShanghaiSummaryScreen extends StatelessWidget {
             destination: (_) => const ShanghaiScreen(),
           ),
           const SizedBox(height: 20),
+
+          // ── Game info ────────────────────────────────────────────────────
+          GameInfoCard(rows: [
+            (l.gameLabel, l.modeShanghaiName),
+            (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+          ]),
+          const SizedBox(height: 16),
 
           Card(
             child: Padding(

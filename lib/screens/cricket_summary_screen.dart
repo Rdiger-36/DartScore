@@ -5,6 +5,7 @@ import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'cricket_screen.dart';
 
@@ -93,6 +94,14 @@ class CricketSummaryScreen extends StatelessWidget {
             destination: (_) => const CricketScreen(),
           ),
           const SizedBox(height: 20),
+
+          // ── Game info ────────────────────────────────────────────────────
+          GameInfoCard(rows: [
+            (l.gameLabel, l.modeCricketName),
+            (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+            (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+          ]),
+          const SizedBox(height: 16),
 
           // ── Player results ───────────────────────────────────────────────
           Card(

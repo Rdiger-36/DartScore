@@ -9,6 +9,7 @@ import '../providers/cricket_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'cricket_screen.dart';
 
@@ -231,9 +232,11 @@ class _Body extends StatelessWidget {
         ],
 
         // Game info
-        _InfoRow(l.gameLabel, l.modeCricketName),
-        const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, isCT ? l.cricketVariantCutThroat : l.cricketVariantNormal),
+        GameInfoCard(dense: true, rows: [
+          (l.gameLabel, l.modeCricketName),
+          (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+          (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+        ]),
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
@@ -391,25 +394,3 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}
