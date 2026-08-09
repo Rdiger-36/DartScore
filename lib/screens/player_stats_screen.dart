@@ -41,8 +41,6 @@ class _PlayerStats {
   /// field (1-20, 25=bull) → multiplier (1/2/3) → hit count
   final Map<int, Map<int, int>> segmentHits;
   final double scoreStdDev;
-  /// throws per UTC-day key "yyyy-MM-dd" → count (live throws only)
-  final Map<String, int> throwsPerDay;
   // Week comparison (Mon–today vs previous Mon–Sun)
   final double thisWeekAvg;
   final double lastWeekAvg;
@@ -76,7 +74,6 @@ class _PlayerStats {
     this.perfectLegs = 0,
     this.segmentHits = const {},
     this.scoreStdDev = 0,
-    this.throwsPerDay = const {},
     this.thisWeekAvg = 0,
     this.lastWeekAvg = 0,
     this.thisWeekVisits = 0,
@@ -170,24 +167,27 @@ Future<_PlayerStats> _loadStats(Player player) async {
       ds['visits'] = (ds['visits'] ?? 0) + 1;
       if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
 
-      if (t.remainingBefore <= 170) {
-        checkoutAttempts++;
-        final success = t.remainingBefore - t.score == 0;
-        if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
-        else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
-        else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
-        else                               { coAtSub170++; if (success) coOkSub170++; }
-        if (success) {
-          legsWon++;
-          checkoutSuccess++;
-          if (t.score > highestCheckout) highestCheckout = t.score;
-          final legDarts = throws
-              .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
-              .fold(0, (s, x) => s + x.dartsUsed);
-          final startForGame = games[t.gameId]?.startScore;
-          final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
-          if (minD != null && legDarts <= minD) perfectLegs++;
-        }
+    }
+
+    // Counted for busts too: a visit that started on a finishable remaining
+    // was an attempt at the finish, whether or not it overshot.
+    if (t.remainingBefore <= 170) {
+      checkoutAttempts++;
+      final success = !t.bust && t.remainingBefore - t.score == 0;
+      if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
+      else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
+      else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
+      else                               { coAtSub170++; if (success) coOkSub170++; }
+      if (success) {
+        legsWon++;
+        checkoutSuccess++;
+        if (t.score > highestCheckout) highestCheckout = t.score;
+        final legDarts = throws
+            .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
+            .fold(0, (s, x) => s + x.dartsUsed);
+        final startForGame = games[t.gameId]?.startScore;
+        final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
+        if (minD != null && legDarts <= minD) perfectLegs++;
       }
     }
   }
@@ -216,7 +216,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
   int persistentTotalVisits = 0;
   int persistentGamesPlayed = 0;
   int persistentNonBusts    = 0;
-  // Snapshot recent throws — compact maps from deleted games
+  // Snapshot recent throws: compact maps from deleted games
   var snapRecentThrows = <Map<String, dynamic>>[];
 
   if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
@@ -309,14 +309,12 @@ Future<_PlayerStats> _loadStats(Player player) async {
   double lastWeekScored = 0; int lastWeekDarts = 0;
   int thisWeekVisits = 0, lastWeekVisits = 0;
   int thisWeek180s = 0, lastWeek180s = 0;
-  final throwsPerDay = <String, int>{};
 
   for (final entry in dailyStats.entries) {
     final parts = entry.key.split('-');
     if (parts.length != 3) continue;
     final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
     final ds   = entry.value;
-    throwsPerDay[entry.key] = (ds['visits'] ?? 0) + (busts > 0 ? 1 : 0); // approximate for heatmap
 
     final inThisWeek = !date.isBefore(thisWeekStart);
     final inLastWeek = !date.isBefore(lastWeekStart) && date.isBefore(thisWeekStart);
@@ -392,7 +390,6 @@ Future<_PlayerStats> _loadStats(Player player) async {
     perfectLegs:    perfectLegs,
     segmentHits:    segmentHits,
     scoreStdDev:    stdDev,
-    throwsPerDay:   throwsPerDay,
     thisWeekAvg:    thisWeekAvg3,
     lastWeekAvg:    lastWeekAvg3,
     thisWeekVisits: thisWeekVisits,
@@ -435,7 +432,7 @@ class PlayerStatsScreen extends StatelessWidget {
             return Center(child: Text('${context.l10n.error}: ${snap.error}'));
           }
           final stats = snap.data!;
-          // No throws at all — show synced snapshot or empty state
+          // No throws at all: show synced snapshot or empty state
           if (stats.totalVisits == 0 && player.syncedStats != null) {
             return _SyncedStatsView(player: player);
           }
@@ -1276,7 +1273,7 @@ class _DartboardPainter extends CustomPainter {
       final a0    = startAngle + i * angleStep;
       final sweep = angleStep;
 
-      // Inner single (multiplier 1) — extends from bull to triple ring
+      // Inner single (multiplier 1): extends from bull to triple ring
       drawArc(canvas, center, rBull, rTriple1, a0, sweep, _color(field, 1));
       // Triple ring (multiplier 3)
       drawArc(canvas, center, rTriple1, rTriple2, a0, sweep, _color(field, 3));

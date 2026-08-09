@@ -17,7 +17,7 @@ import '../models/player.dart';
 /// the scoreboard.
 class ShanghaiPlayerState {
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -238,6 +238,7 @@ class ShanghaiProvider extends ChangeNotifier {
       createdAt: game.createdAt,
       playerIds: game.playerIds,
       teams: game.teams,
+      startingOrder: game.startingOrder,
     );
 
     _playerStates = _buildSlots(players, game.teams);
@@ -254,19 +255,26 @@ class ShanghaiProvider extends ChangeNotifier {
   /// Starts a fresh Shanghai game that reuses [template]'s settings (variant,
   /// legs/sets, teams) and the given [players]. The template's id and
   /// timestamps are not carried over, so a new game row is persisted and the
-  /// finished one stays untouched. The throwing order is reshuffled, mirroring
-  /// how a game is set up normally.
+  /// finished one stays untouched. The throwing order follows the template's
+  /// [StartingOrder]: drawn again for [StartingOrder.random], kept as it is for
+  /// a fixed order.
   Future<void> startRematch(ShanghaiGame template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = ShanghaiGame(
       variant:   template.variant,
       legs:      template.legs,
       sets:      template.sets,
       createdAt: DateTime.now(),
-      playerIds: shuffled.map((p) => p.id!).toList(),
-      teams:     template.teams,
+      playerIds: ordered.map((p) => p.id!).toList(),
+      teams:     teams,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
@@ -361,12 +369,12 @@ class ShanghaiProvider extends ChangeNotifier {
 
     final shanghai = _isShanghai(visitDarts, _currentPlayerIndex);
     // True if no further visit will follow (classic/clockwise reach their
-    // scheduled end on this very visit) — there is no "next player" left
+    // scheduled end on this very visit): there is no "next player" left
     // who could cancel a Shanghai, so it must be confirmed immediately.
     final isLastScheduledVisit = _isGameComplete();
 
     if (_playerStates.length >= 3) {
-      // 3+ players: Shanghai is an instant win — no response round.
+      // 3+ players: Shanghai is an instant win: no response round.
       if (shanghai) {
         await _handleWin(_currentPlayerIndex);
         return;
@@ -405,7 +413,7 @@ class ShanghaiProvider extends ChangeNotifier {
         await _handleWin(winnerIdx);
         return;
       }
-      // Tied: sudden death - play continues until someone takes the lead.
+      // Tied: sudden death, play continues until someone takes the lead.
     }
 
     _advanceTurn();
@@ -521,6 +529,12 @@ class ShanghaiProvider extends ChangeNotifier {
 
   /// Rebuilds the full game state from the persisted darts: zeroes scores and
   /// turn counters, then replays every dart, ending visits via [_replayEndVisit].
+  ///
+  /// Each dart is applied to whoever the replay currently has on turn, not to
+  /// the player its row names. That relies on darts being stored in the order
+  /// they were thrown, which [DbHelper] guarantees by ordering on the throw
+  /// time and, for ties within a millisecond, the row id. Recording a dart out
+  /// of turn would silently shift every later dart onto the wrong slot.
   Future<void> _replayState() async {
     if (_game == null) return;
 
@@ -604,7 +618,7 @@ class ShanghaiProvider extends ChangeNotifier {
         _winnerId = _playerStates[winnerIdx].player.id;
         return;
       }
-      // Tied: sudden death - play continues until someone takes the lead.
+      // Tied: sudden death, play continues until someone takes the lead.
     }
 
     _advanceTurn();

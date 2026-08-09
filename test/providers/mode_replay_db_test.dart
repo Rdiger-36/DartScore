@@ -1,0 +1,243 @@
+import 'package:dartscore_app/models/around_the_clock_game.dart';
+import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/models/shanghai_game.dart';
+import 'package:dartscore_app/providers/around_the_clock_provider.dart';
+import 'package:dartscore_app/providers/shanghai_provider.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../support/test_db.dart';
+
+void main() {
+  group('ShanghaiProvider against a real database', () {
+    useInMemoryDatabase();
+
+    late ShanghaiProvider provider;
+    late List<Player> players;
+
+    setUp(() async {
+      provider = ShanghaiProvider();
+      players = await insertPlayers(['A', 'B']);
+    });
+
+    ShanghaiGame game({ShanghaiVariant variant = ShanghaiVariant.classic}) =>
+        ShanghaiGame(
+          variant: variant,
+          legs: 1,
+          sets: 1,
+          createdAt: DateTime.now(),
+          playerIds: players.map((p) => p.id!).toList(),
+        );
+
+    /// Throws [count] darts with the given multiplier for whoever is on turn.
+    Future<void> throwDarts(int multiplier, {int count = 1}) async {
+      for (var i = 0; i < count; i++) {
+        await provider.recordDart(multiplier);
+      }
+    }
+
+    test('scores multiplier times the round target', () async {
+      await provider.startGame(game(), players);
+
+      // Round 1, target 1: single, double, triple is 1 + 2 + 3.
+      await provider.recordDart(1);
+      await provider.recordDart(2);
+      await provider.recordDart(3);
+
+      expect(provider.playerStates[0].score, 6);
+      expect(provider.currentPlayerIndex, 1);
+    });
+
+    test('advances the round after both players have thrown', () async {
+      await provider.startGame(game(), players);
+
+      await throwDarts(1, count: 3);   // A, round 1
+      expect(provider.currentRound, 1);
+      await throwDarts(1, count: 3);   // B, round 1
+
+      expect(provider.currentRound, 2);
+      expect(provider.activeTarget, 2);
+    });
+
+    test('a miss scores nothing but uses a dart', () async {
+      await provider.startGame(game(), players);
+
+      await provider.recordDart(0);
+
+      expect(provider.playerStates[0].score, 0);
+      expect(provider.dartsInVisit, 1);
+    });
+
+    test('undo replays the board from the remaining darts', () async {
+      await provider.startGame(game(), players);
+
+      await provider.recordDart(3);   // target 1, three points
+      await provider.recordDart(2);   // two points
+      expect(provider.playerStates[0].score, 5);
+
+      await provider.undoLastDart();
+
+      expect(provider.playerStates[0].score, 3);
+      expect(provider.dartsInVisit, 1);
+      expect(provider.currentPlayerIndex, 0);
+    });
+
+    test('undo reaches back across a finished visit', () async {
+      await provider.startGame(game(), players);
+
+      await throwDarts(1, count: 3);   // A finishes its visit
+      expect(provider.currentPlayerIndex, 1);
+
+      await provider.undoLastDart();
+
+      expect(provider.currentPlayerIndex, 0,
+          reason: 'the turn returns to whoever threw the undone dart');
+      expect(provider.playerStates[0].score, 2);
+      expect(provider.dartsInVisit, 2);
+    });
+
+    test('the sequential variant only advances on the current target',
+        () async {
+      await provider.startGame(
+          game(variant: ShanghaiVariant.sequential), players);
+
+      expect(provider.activeTarget, 1);
+      await provider.recordDart(1);
+      expect(provider.activeTarget, 2,
+          reason: 'hitting the target moves on to the next number');
+
+      await provider.recordDart(0);
+      expect(provider.activeTarget, 2, reason: 'a miss does not advance');
+    });
+
+    test('resuming rebuilds scores and the turn', () async {
+      await provider.startGame(game(), players);
+      await throwDarts(2, count: 3);   // A: three doubles of 1
+      await throwDarts(1, count: 3);   // B: three singles of 1
+
+      final fresh = ShanghaiProvider();
+      await fresh.resumeGame(provider.game!, players);
+
+      expect(fresh.playerStates[0].score, 6);
+      expect(fresh.playerStates[1].score, 3);
+      expect(fresh.currentRound, 2);
+      expect(fresh.currentPlayerIndex, 0);
+    });
+  });
+
+  group('AroundTheClockProvider against a real database', () {
+    useInMemoryDatabase();
+
+    late AroundTheClockProvider provider;
+    late List<Player> players;
+
+    setUp(() async {
+      provider = AroundTheClockProvider();
+      players = await insertPlayers(['A', 'B']);
+    });
+
+    AroundTheClockGame game({
+      AroundTheClockVariant variant = AroundTheClockVariant.basic,
+    }) =>
+        AroundTheClockGame(
+          variant: variant,
+          legs: 1,
+          sets: 1,
+          createdAt: DateTime.now(),
+          playerIds: players.map((p) => p.id!).toList(),
+        );
+
+    test('hitting the target advances to the next number', () async {
+      await provider.startGame(game(), players);
+
+      expect(provider.activeTarget, aroundTheClockOrder.first);
+      await provider.recordDart(aroundTheClockOrder.first, 1);
+
+      expect(provider.activeTarget, aroundTheClockOrder[1]);
+    });
+
+    test('any other field leaves the target alone', () async {
+      await provider.startGame(game(), players);
+
+      await provider.recordDart(aroundTheClockOrder[5], 1);
+
+      expect(provider.activeTarget, aroundTheClockOrder.first);
+    });
+
+    test('the full segments variant needs single, double and triple',
+        () async {
+      await provider.startGame(
+          game(variant: AroundTheClockVariant.fullSegments), players);
+      final target = aroundTheClockOrder.first;
+
+      await provider.recordDart(target, 1);
+      expect(provider.activeTarget, target);
+      await provider.recordDart(target, 2);
+      expect(provider.activeTarget, target);
+      await provider.recordDart(target, 3);
+
+      // The third dart also ends the visit, so the turn is with B now. The
+      // progress of the slot that threw is what tells us it advanced.
+      expect(provider.playerStates[0].progress, 1);
+      expect(provider.playerStates[0].currentTarget, aroundTheClockOrder[1]);
+    });
+
+    test('skip rules move further on a double or a triple', () async {
+      await provider.startGame(
+          game(variant: AroundTheClockVariant.skipRules), players);
+
+      await provider.recordDart(aroundTheClockOrder.first, 3);
+
+      expect(provider.activeTarget, aroundTheClockOrder[3],
+          reason: 'a triple advances three fields');
+    });
+
+    test('undo replays the progress', () async {
+      await provider.startGame(game(), players);
+
+      await provider.recordDart(aroundTheClockOrder.first, 1);
+      await provider.recordDart(aroundTheClockOrder[1], 1);
+      expect(provider.activeTarget, aroundTheClockOrder[2]);
+
+      await provider.undoLastDart();
+
+      expect(provider.activeTarget, aroundTheClockOrder[1]);
+      expect(provider.dartsInVisit, 1);
+    });
+
+    test('undoing the winning dart reopens the game', () async {
+      await provider.startGame(game(), players);
+
+      // A walks the whole board while B never hits its target.
+      for (var i = 0; i < aroundTheClockOrder.length; i++) {
+        await provider.recordDart(provider.activeTarget, 1);
+        if (provider.gameOver) break;
+        if (provider.dartsInVisit == 0) {
+          // B wastes a full visit so the turn comes back to A.
+          await provider.recordDart(0, 0);
+          await provider.recordDart(0, 0);
+          await provider.recordDart(0, 0);
+        }
+      }
+      expect(provider.gameOver, isTrue);
+
+      await provider.undoLastDart();
+
+      expect(provider.gameOver, isFalse);
+      expect(provider.winnerId, isNull);
+      expect(provider.game!.finishedAt, isNull);
+    });
+
+    test('resuming rebuilds the progress and the turn', () async {
+      await provider.startGame(game(), players);
+      await provider.recordDart(aroundTheClockOrder.first, 1);
+      await provider.recordDart(0, 0);
+      await provider.recordDart(0, 0);   // A's visit is over
+
+      final fresh = AroundTheClockProvider();
+      await fresh.resumeGame(provider.game!, players);
+
+      expect(fresh.playerStates[0].progress, 1);
+      expect(fresh.currentPlayerIndex, 1);
+    });
+  });
+}

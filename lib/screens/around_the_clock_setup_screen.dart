@@ -7,8 +7,10 @@ import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../widgets/player_dialog.dart';
+import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
 import '../utils/layout.dart';
+import '../utils/team_color.dart';
 import 'around_the_clock_screen.dart';
 
 /// Setup screen for Around the Clock: pick the rule variant and the players,
@@ -32,6 +34,9 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
     TextEditingController(text: 'Team 1'),
     TextEditingController(text: 'Team 2'),
   ];
+
+  // ── Starting order ────────────────────────────────────────────────────────
+  StartingOrder _startingOrder = StartingOrder.random;
 
   /// Adds a new, default-named team.
   void _addTeam() {
@@ -57,6 +62,45 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
         } else if (current > ti) {
           _teamAssignment[p] = current - 1;
         }
+      }
+    });
+  }
+
+  /// The draggable entries of the starting-order section: the teams in a team
+  /// game, otherwise the selected players.
+  List<StartingOrderEntry> _startingOrderEntries() => _teamGameEnabled
+      ? List.generate(_teamNames.length, (ti) => StartingOrderEntry(
+            // The controller instance identifies the team across reorders; the
+            // index does not, because it is exactly what the drag changes.
+            key:   ObjectKey(_teamNameCtrl[ti]),
+            label: _teamNames[ti],
+            color: teamColor(ti),
+          ))
+      : _selectedPlayers
+          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.name))
+          .toList();
+
+  /// Moves the entry at [oldIndex] to [newIndex] in the throwing order: the
+  /// teams in a team game, otherwise the selected players.
+  void _reorderStartingOrder(int oldIndex, int newIndex) {
+    setState(() {
+      if (_teamGameEnabled) {
+        _teamNames.insert(newIndex, _teamNames.removeAt(oldIndex));
+        _teamNameCtrl.insert(newIndex, _teamNameCtrl.removeAt(oldIndex));
+        // Every team between the old and the new slot shifts by one, so the
+        // stored player → team indices have to follow the move.
+        for (final p in _selectedPlayers) {
+          final ti = _teamAssignment[p] ?? 0;
+          if (ti == oldIndex) {
+            _teamAssignment[p] = newIndex;
+          } else if (oldIndex < newIndex && ti > oldIndex && ti <= newIndex) {
+            _teamAssignment[p] = ti - 1;
+          } else if (oldIndex > newIndex && ti >= newIndex && ti < oldIndex) {
+            _teamAssignment[p] = ti + 1;
+          }
+        }
+      } else {
+        _selectedPlayers.insert(newIndex, _selectedPlayers.removeAt(oldIndex));
       }
     });
   }
@@ -171,6 +215,18 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
             ),
           ],
 
+          // ── Starting order ───────────────────────────────────────────────
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
+            StartingOrderSection(
+              order:    _startingOrder,
+              entries:  _startingOrderEntries(),
+              teamMode: _teamGameEnabled,
+              onOrderChanged: (o) => setState(() => _startingOrder = o),
+              onReorder: _reorderStartingOrder,
+            ),
+          ],
+
           const SizedBox(height: 24),
           if (_selectedPlayers.isEmpty)
             Padding(
@@ -214,9 +270,12 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
     );
   }
 
-  /// Builds the game with a randomized player order and navigates to the play screen.
+  /// Builds the game with the chosen throwing order and navigates to the play
+  /// screen.
   Future<void> _startGame() async {
-    final players = List.of(_selectedPlayers)..shuffle(Random());
+    final players = _startingOrder == StartingOrder.random
+        ? (List.of(_selectedPlayers)..shuffle(Random()))
+        : List.of(_selectedPlayers);
 
     // Build team config if team game is enabled
     List<TeamConfig>? teamConfigs;
@@ -230,6 +289,9 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
           playerIds: teamPlayers.map((p) => p.id!).toList(),
         );
       }).where((t) => t.playerIds.isNotEmpty).toList();
+      // Slots follow the team list, so a random order has to draw the teams
+      // as well. Shuffling the players alone would leave team 1 always first.
+      if (_startingOrder == StartingOrder.random) teamConfigs.shuffle(Random());
     }
 
     final game = AroundTheClockGame(
@@ -239,6 +301,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
       createdAt: DateTime.now(),
       playerIds: players.map((p) => p.id!).toList(),
       teams:     teamConfigs,
+      startingOrder: _startingOrder,
     );
 
     await context.read<AroundTheClockProvider>().startGame(game, players);

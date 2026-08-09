@@ -194,7 +194,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                                 color: Colors.white, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              '${s.player.name} – $label! 🏆',
+                              '${s.player.name}: $label! 🏆',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -285,6 +285,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                         placementMode: provider.game!.placementMode,
                       )
                     ),
+                    // A solo game has nobody to be ordered against.
+                    if (states.length > 1)
+                      (
+                        l.startingOrder,
+                        startingOrderLabel(l, provider.game!.startingOrder)
+                      ),
                   ]),
                   const SizedBox(height: 16),
                   // Final ranking (placement mode only)
@@ -303,7 +309,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // Throw history (outside captured area — too long for image)
+          // Throw history (outside captured area: too long for image)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),

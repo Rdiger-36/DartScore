@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'starting_order.dart';
 import 'team_config.dart';
 
+export 'starting_order.dart';
 export 'team_config.dart';
 
 /// Shanghai target progression: [classic] (numbers 1-7), [clockwise] (full
@@ -19,6 +21,8 @@ class ShanghaiGame {
   final List<int> playerIds;
   /// Non-null when this is a team game.
   final List<TeamConfig>? teams;
+  /// How the throwing order was determined.
+  final StartingOrder startingOrder;
 
   const ShanghaiGame({
     this.id,
@@ -29,6 +33,7 @@ class ShanghaiGame {
     this.finishedAt,
     required this.playerIds,
     this.teams,
+    this.startingOrder = StartingOrder.random,
   });
 
   /// Whether this game is played in teams rather than individually.
@@ -44,6 +49,7 @@ class ShanghaiGame {
         'finished_at': finishedAt?.millisecondsSinceEpoch,
         'player_ids':  jsonEncode(playerIds),
         'team_config_json': encodeTeamConfigs(teams),
+        'starting_order':   startingOrder.index,
       };
 
   /// Reconstructs a Shanghai game from a SQLite row map.
@@ -58,6 +64,7 @@ class ShanghaiGame {
             : null,
         playerIds:  (jsonDecode(map['player_ids'] as String) as List).cast<int>(),
         teams:      decodeTeamConfigs(map['team_config_json'] as String?),
+        startingOrder: StartingOrder.values[map['starting_order'] as int? ?? 0],
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -70,6 +77,7 @@ class ShanghaiGame {
         finishedAt: finishedAt ?? this.finishedAt,
         playerIds:  playerIds,
         teams:      teams,
+        startingOrder: startingOrder,
       );
 }
 

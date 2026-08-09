@@ -21,7 +21,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Android 15+ forces edge-to-edge. Enable it explicitly so Flutter
   // correctly reports the bottom inset (navigation bar height).
-  // iOS handles safe-area insets natively — no change needed there.
+  // iOS handles safe-area insets natively: no change needed there.
   if (Platform.isAndroid) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
@@ -86,17 +86,17 @@ class DartScoreApp extends StatelessWidget {
 
   static final _lightScheme = ColorScheme(
     brightness: Brightness.light,
-    // Red bull — #B71C1C on white = 7.2:1 ✓✓
+    // Red bull: #B71C1C on white = 7.2:1 ✓✓
     primary: const Color(0xFFB71C1C),
     onPrimary: Colors.white,
     primaryContainer: const Color(0xFFFFCDD2),
     onPrimaryContainer: const Color(0xFF7F0000),
-    // Green double ring — #66BB6A on white = 3.0:1 ✓ (large UI element)
+    // Green double ring: #66BB6A on white = 3.0:1 ✓ (large UI element)
     secondary: const Color(0xFF66BB6A),
     onSecondary: const Color(0xFF003909),
     secondaryContainer: const Color(0xFFA5D6A7),    // more saturated, visible
     onSecondaryContainer: const Color(0xFF002106),
-    // Triple ring red — #8B0000 on white = 8.1:1 ✓✓
+    // Triple ring red: #8B0000 on white = 8.1:1 ✓✓
     tertiary: const Color(0xFF8B0000),
     onTertiary: Colors.white,
     tertiaryContainer: const Color(0xFFFFCDD2),
@@ -105,16 +105,16 @@ class DartScoreApp extends StatelessWidget {
     onError: Colors.white,
     errorContainer: const Color(0xFFFFDAD6),
     onErrorContainer: const Color(0xFF410002),
-    // Clean white surface — no warm cream tint → stronger contrast
+    // Clean white surface: no warm cream tint → stronger contrast
     surface: const Color(0xFFFFFFFF),
     onSurface: const Color(0xFF0D0D0D),             // near-black, 18:1 ✓✓
     surfaceContainerHighest: const Color(0xFFDDDDDD),
     surfaceContainerHigh: const Color(0xFFEAEAEA),
     surfaceContainerLow: const Color(0xFFF5F5F5),
     surfaceContainer: const Color(0xFFE5E5E5),
-    outline: const Color(0xFF4A4A4A),               // 9.7:1 — sharp borders ✓✓
-    outlineVariant: const Color(0xFF9E9E9E),        // 3.9:1 — visible dividers ✓
-    onSurfaceVariant: const Color(0xFF2E2E2E),      // 12.6:1 — secondary text ✓✓
+    outline: const Color(0xFF4A4A4A),               // 9.7:1, sharp borders ✓✓
+    outlineVariant: const Color(0xFF9E9E9E),        // 3.9:1, visible dividers ✓
+    onSurfaceVariant: const Color(0xFF2E2E2E),      // 12.6:1, secondary text ✓✓
     inverseSurface: const Color(0xFF1C1C1C),
     onInverseSurface: const Color(0xFFF5F5F5),
     inversePrimary: const Color(0xFFFF8A80),
@@ -123,20 +123,20 @@ class DartScoreApp extends StatelessWidget {
     surfaceTint: Colors.transparent,
   );
 
-  // iOS-style dark gray — neutral, no warm tint
+  // iOS-style dark gray: neutral, no warm tint
   static final _darkScheme = ColorScheme(
     brightness: Brightness.dark,
-    // Muted red — not neon, comfortable on dark gray
+    // Muted red: not neon, comfortable on dark gray
     primary: const Color(0xFFEF5350),           // red 400
     onPrimary: Colors.white,
     primaryContainer: const Color(0xFF7F0000),
     onPrimaryContainer: const Color(0xFFFFCDD2),
     // Muted green
-    secondary: const Color(0xFF1B5E20),         // green 800 — deep, calm on dark
+    secondary: const Color(0xFF1B5E20),         // green 800: deep, calm on dark
     onSecondary: Colors.white,
     secondaryContainer: const Color(0xFF1B5E20),
     onSecondaryContainer: const Color(0xFFC8E6C9),
-    // Triple ring red — muted for dark mode
+    // Triple ring red: muted for dark mode
     tertiary: const Color(0xFFEF9A9A),          // red 200
     onTertiary: const Color(0xFF7F0000),
     tertiaryContainer: const Color(0xFF7F0000),
@@ -172,7 +172,7 @@ class DartScoreApp extends StatelessWidget {
         cardTheme: CardThemeData(
           elevation: 0,
           color: cs.brightness == Brightness.light
-              ? const Color(0xFFF5F5F5)   // light gray — visible on white surface
+              ? const Color(0xFFF5F5F5)   // light gray: visible on white surface
               : const Color(0xFF2C2C2E),  // iOS secondarySystemBackground
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14)),

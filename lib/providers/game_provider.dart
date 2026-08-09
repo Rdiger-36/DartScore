@@ -13,6 +13,55 @@ const Map<int, int> minimumDartsForScore = {
   101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17,
 };
 
+/// The set and leg that [throws] last reached: the highest set with throws,
+/// and the highest leg *within that set*.
+///
+/// Leg numbering restarts at 1 in every set, so the leg maximum must never be
+/// taken across sets. Doing so points a resume at a leg/set pair that has no
+/// throws, which wipes the running leg's scores and misnumbers every later
+/// throw. Returns leg 1 / set 1 for a game without throws.
+({int leg, int set}) currentLegAndSet(List<DartThrow> throws) {
+  var set = 1;
+  for (final t in throws) {
+    if (t.set > set) set = t.set;
+  }
+  var leg = 1;
+  for (final t in throws) {
+    if (t.set == set && t.leg > leg) leg = t.leg;
+  }
+  return (leg: leg, set: set);
+}
+
+/// Every set/leg pair [throws] contains, in playing order.
+///
+/// Tallying legs and sets by counting from 1 up to the highest leg number does
+/// not work, because each set runs its own number of legs: an earlier set can
+/// hold more legs than the one in play. Iterating the pairs that really exist
+/// avoids both missing a leg and inventing one.
+List<({int set, int leg})> playedLegs(List<DartThrow> throws) {
+  final seen = <({int set, int leg})>{};
+  for (final t in throws) {
+    seen.add((set: t.set, leg: t.leg));
+  }
+  return seen.toList()
+    ..sort((a, b) =>
+        a.set != b.set ? a.set.compareTo(b.set) : a.leg.compareTo(b.leg));
+}
+
+/// Darts a slot has used in [leg]/[set] of the current game.
+///
+/// [throws] is the slot's full throw history, which already contains the visit
+/// that just checked out: the caller must not add that visit's darts on top.
+/// Pass [playerId] to count a single player's darts, or null for a team slot,
+/// where every member's darts belong to the same leg.
+int legDartsUsed(List<DartThrow> throws, int leg, int set, {int? playerId}) =>
+    throws
+        .where((t) =>
+            t.leg == leg &&
+            t.set == set &&
+            (playerId == null || t.playerId == playerId))
+        .fold(0, (sum, t) => sum + t.dartsUsed);
+
 /// Decodes a [DartThrow.hitsJson] string back into individual dart entries,
 /// or null if no per-dart hits were recorded for that visit.
 List<DartEntry>? _parseHits(String? hitsJson) {
@@ -30,8 +79,8 @@ List<DartEntry>? _parseHits(String? hitsJson) {
 }
 
 /// A unit of redo state for [GameProvider.redoLastDart]: either a single dart
-/// to re-add to the in-progress visit, or - for legacy throws recorded before
-/// per-dart [DartThrow.hitsJson] was captured - a whole visit to re-insert verbatim.
+/// to re-add to the in-progress visit, or, for legacy throws recorded before
+/// per-dart [DartThrow.hitsJson] was captured, a whole visit to re-insert verbatim.
 class _RedoEntry {
   final DartEntry? dart;
   final DartThrow? legacyVisit;
@@ -50,7 +99,7 @@ class _RedoEntry {
 class PlayerState {
   /// Human-readable name for the scoreboard: team name or player name.
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -269,16 +318,21 @@ class GameProvider extends ChangeNotifier {
       throwsByPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
-    int maxLeg = 1, maxSet = 1;
-    for (final t in allThrowsRaw) {
-      if (t.set > maxSet) maxSet = t.set;
-      if (t.leg > maxLeg) maxLeg = t.leg;
-    }
+    final position = currentLegAndSet(allThrowsRaw);
+    final maxLeg = position.leg;
+    final maxSet = position.set;
+    // Everything except the leg in play has been decided and counts toward
+    // legs and sets won.
+    final finishedLegs = playedLegs(allThrowsRaw)
+        .where((p) => p.set != maxSet || p.leg != maxLeg)
+        .toList();
 
     if (game.isTeamGame) {
-      await _resumeTeamGame(game, players, throwsByPlayer, maxLeg, maxSet);
+      await _resumeTeamGame(
+          game, players, throwsByPlayer, maxLeg, maxSet, finishedLegs);
     } else {
-      await _resumeIndividualGame(game, players, throwsByPlayer, maxLeg, maxSet);
+      await _resumeIndividualGame(
+          game, players, throwsByPlayer, maxLeg, maxSet, finishedLegs);
     }
 
     _game     = game;
@@ -296,6 +350,7 @@ class GameProvider extends ChangeNotifier {
     Map<int, List<DartThrow>> throwsByPlayer,
     int maxLeg,
     int maxSet,
+    List<({int set, int leg})> finishedLegs,
   ) async {
     if (game.placementMode) {
       _resumeTeamPlacementGame(game, players, throwsByPlayer, maxLeg);
@@ -310,17 +365,15 @@ class GameProvider extends ChangeNotifier {
     final teamSetsWon = List<int>.filled(teams.length, 0);
     final tempLegs    = List<int>.filled(teams.length, 0);
 
-    for (var s = 1; s <= maxSet; s++) {
-      for (var l = 1; l <= maxLeg; l++) {
-        if (s == maxSet && l == maxLeg) continue;
-        for (var ti = 0; ti < teams.length; ti++) {
-          final winner = _teamCheckedOutLeg(teams[ti], throwsByPlayer, l, s);
-          if (winner) {
-            tempLegs[ti]++;
-            if (tempLegs[ti] >= legsToWin) {
-              teamSetsWon[ti]++;
-              tempLegs[ti] = 0;
-            }
+    for (final pos in finishedLegs) {
+      for (var ti = 0; ti < teams.length; ti++) {
+        final winner =
+            _teamCheckedOutLeg(teams[ti], throwsByPlayer, pos.leg, pos.set);
+        if (winner) {
+          tempLegs[ti]++;
+          if (tempLegs[ti] >= legsToWin) {
+            teamSetsWon[ti]++;
+            tempLegs[ti] = 0;
           }
         }
       }
@@ -481,6 +534,7 @@ class GameProvider extends ChangeNotifier {
     Map<int, List<DartThrow>> throwsByPlayer,
     int maxLeg,
     int maxSet,
+    List<({int set, int leg})> finishedLegs,
   ) async {
     if (game.placementMode) {
       _resumeIndividualPlacementGame(game, players, throwsByPlayer, maxLeg);
@@ -491,22 +545,19 @@ class GameProvider extends ChangeNotifier {
     final setsWon     = <int, int>{for (final p in players) p.id!: 0};
     final legsToWinSet = game.legs;
 
-    for (var s = 1; s <= maxSet; s++) {
-      for (var l = 1; l <= maxLeg; l++) {
-        if (s == maxSet && l == maxLeg) continue;
-        for (final p in players) {
-          final legThrows = throwsByPlayer[p.id!]
-                  ?.where((t) => t.leg == l && t.set == s)
-                  .toList() ??
-              [];
-          if (legThrows.isNotEmpty &&
-              !legThrows.last.bust &&
-              legThrows.last.remainingBefore - legThrows.last.score == 0) {
-            legsWon[p.id!] = (legsWon[p.id!] ?? 0) + 1;
-            if ((legsWon[p.id!] ?? 0) >= legsToWinSet) {
-              setsWon[p.id!] = (setsWon[p.id!] ?? 0) + 1;
-              legsWon[p.id!] = 0;
-            }
+    for (final pos in finishedLegs) {
+      for (final p in players) {
+        final legThrows = throwsByPlayer[p.id!]
+                ?.where((t) => t.leg == pos.leg && t.set == pos.set)
+                .toList() ??
+            [];
+        if (legThrows.isNotEmpty &&
+            !legThrows.last.bust &&
+            legThrows.last.remainingBefore - legThrows.last.score == 0) {
+          legsWon[p.id!] = (legsWon[p.id!] ?? 0) + 1;
+          if ((legsWon[p.id!] ?? 0) >= legsToWinSet) {
+            setsWon[p.id!] = (setsWon[p.id!] ?? 0) + 1;
+            legsWon[p.id!] = 0;
           }
         }
       }
@@ -564,13 +615,7 @@ class GameProvider extends ChangeNotifier {
   ) {
     final ids = throwsById.keys.toList();
     final currentPlacements = legPlacements(throwsById, maxLeg, 1);
-
-    final completePlacements = Map<int, int>.of(currentPlacements);
-    if (currentPlacements.length == ids.length - 1) {
-      final missingId =
-          ids.firstWhere((id) => !currentPlacements.containsKey(id));
-      completePlacements[missingId] = ids.length;
-    }
+    final completePlacements = completedLegPlacements(throwsById, maxLeg, 1);
     final legComplete = completePlacements.length == ids.length;
 
     final ranking = placementRanking(throwsById, maxLeg - 1, 1);
@@ -685,6 +730,7 @@ class GameProvider extends ChangeNotifier {
       teams:        game.teams,
       handicaps:    game.handicaps,
       placementMode: game.placementMode,
+      startingOrder: game.startingOrder,
     );
 
     if (game.isTeamGame) {
@@ -730,9 +776,15 @@ class GameProvider extends ChangeNotifier {
   /// in/out, legs/sets, placement mode, teams and handicaps) and the given
   /// [players]. The template's id and timestamps are not carried over, so a
   /// new game row is persisted and the finished one stays untouched. The
-  /// throwing order is reshuffled, mirroring how a game is set up normally.
+  /// throwing order follows the template's [StartingOrder]: drawn again for
+  /// [StartingOrder.random], kept as it is for a fixed order.
   Future<void> startRematch(Game template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = Game(
       startScore:    template.startScore,
       gameMode:      template.gameMode,
@@ -740,11 +792,12 @@ class GameProvider extends ChangeNotifier {
       legs:          template.legs,
       sets:          template.sets,
       createdAt:     DateTime.now(),
-      teams:         template.teams,
+      teams:         teams,
       handicaps:     template.handicaps,
       placementMode: template.placementMode,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Submit visit ──────────────────────────────────────────────────────────
@@ -768,7 +821,7 @@ class GameProvider extends ChangeNotifier {
 
     final t = DartThrow(
       gameId:          _game!.id!,
-      playerId:        state.player.id!, // individual player — even in team mode
+      playerId:        state.player.id!, // individual player: even in team mode
       score:           bust ? 0 : score,
       dartsUsed:       dartsUsed,
       leg:             _currentLeg,
@@ -793,7 +846,7 @@ class GameProvider extends ChangeNotifier {
     );
 
     if (checkout) {
-      await _handleCheckout(dartsUsed);
+      await _handleCheckout();
     } else {
       _advancePlayer();
     }
@@ -806,21 +859,21 @@ class GameProvider extends ChangeNotifier {
   /// promotes to set/game win as needed. Scores reset and play advances to
   /// the next slot, including solo games, which simply continue to the next
   /// leg until [Game.legs] is reached.
-  Future<void> _handleCheckout(int dartsUsed) async {
+  Future<void> _handleCheckout() async {
     final state = _playerStates[_currentPlayerIndex];
     int legsWon = state.legsWon + 1;
     int setsWon = state.setsWon;
 
-    // Perfect leg
+    // Perfect leg. The checkout visit is already part of state.throws by the
+    // time this runs, so counting it again here would put every leg over the
+    // minimum and no perfect leg would ever be recognised.
     final minDarts = minimumDartsForScore[_game!.startScore];
-    final currentPlayer = state.player;
-    final legDarts = state.throws
-            .where((t) =>
-                t.leg == _currentLeg &&
-                t.set == _currentSet &&
-                (state.isTeam ? true : t.playerId == currentPlayer.id))
-            .fold(0, (s, t) => s + t.dartsUsed) +
-        dartsUsed;
+    final legDarts = legDartsUsed(
+      state.throws,
+      _currentLeg,
+      _currentSet,
+      playerId: state.isTeam ? null : state.player.id,
+    );
     final isPerfect  = minDarts != null && legDarts <= minDarts;
     final perfectLegs = state.perfectLegs + (isPerfect ? 1 : 0);
 
@@ -847,7 +900,7 @@ class GameProvider extends ChangeNotifier {
         await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
         return;
       }
-      // New set — reset legs for all players
+      // New set: reset legs for all players
       _currentSet += 1;
       _currentLeg  = 1;
       _playerStates = _playerStates
@@ -1145,8 +1198,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Redoes the last undone dart: restores it to the in-progress visit
-  /// (committing the visit again if that completes it), or - for a legacy
-  /// whole-visit redo - re-inserts the previously removed visit verbatim.
+  /// (committing the visit again if that completes it), or, for a legacy
+  /// whole-visit redo, re-inserts the previously removed visit verbatim.
   Future<void> redoLastDart() async {
     if (_game == null || _redoStack.isEmpty) return;
 
@@ -1178,9 +1231,14 @@ class GameProvider extends ChangeNotifier {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// All throws across every slot, sorted chronologically.
+  /// All throws across every slot, sorted chronologically. Two throws can share
+  /// a millisecond, so the row id breaks the tie and undo always removes the
+  /// visit that was really thrown last.
   List<DartThrow> allThrows() {
     return _playerStates.expand((s) => s.throws).toList()
-      ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
+      ..sort((a, b) {
+        final byTime = a.thrownAt.compareTo(b.thrownAt);
+        return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
+      });
   }
 }

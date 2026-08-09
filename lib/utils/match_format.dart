@@ -21,7 +21,7 @@ enum MatchFormat {
   /// Best of 3 legs (first to 2).
   bo3,
 
-  /// Best of 5 legs (first to 3) - the default, matching the previous standard.
+  /// Best of 5 legs (first to 3), the default matching the previous standard.
   bo5,
 
   /// Best of 7 legs (first to 4).

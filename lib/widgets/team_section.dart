@@ -79,7 +79,10 @@ class TeamSection extends StatelessWidget {
                       child: TextField(
                         controller: teamNameCtrl[ti],
                         decoration: InputDecoration(
-                          labelText: context.l10n.teamN(ti + 1),
+                          // Deliberately not "Team ${ti + 1}": the starting
+                          // order can move a team, so a positional label would
+                          // contradict the name in the field.
+                          labelText: context.l10n.teamNameLabel,
                           border: const OutlineInputBorder(),
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 8),

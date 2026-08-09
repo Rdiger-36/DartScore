@@ -13,7 +13,7 @@ class SyncThrow {
   final int score;
   final int dartsUsed;
   final int remainingBefore;
-  final int thrownAt; // ms since epoch — used as dedup key
+  final int thrownAt; // ms since epoch: used as dedup key
   final bool bust;
   final int leg;
   final int set;
@@ -76,7 +76,7 @@ class SyncThrow {
     final leg  = j['leg'] as int;
     final set  = j['set'] as int;
 
-    // Bounds validation — reject obviously corrupt/malicious data
+    // Bounds validation: reject obviously corrupt/malicious data
     if (score < 0 || score > 180) {
       throw FormatException('Invalid score: $score');
     }
@@ -164,7 +164,7 @@ class SyncPacket {
   final String favoriteDoubles;
   final SyncStats stats;
   final List<SyncThrow> throws;
-  // Full historical stats snapshot (local_stats_json) — includes data from cleared game history.
+  // Full historical stats snapshot (local_stats_json): includes data from cleared game history.
   final String? localStatsJson;
 
   const SyncPacket({

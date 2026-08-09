@@ -45,6 +45,16 @@ String? handicapRulesLabel(AppLocalizations l, Game game, int? playerId) =>
             l, game.checkInFor(playerId), game.checkOutFor(playerId))
         : null;
 
+/// Localized display name for how a game's throwing [order] was determined.
+String startingOrderLabel(AppLocalizations l, StartingOrder order) {
+  switch (order) {
+    case StartingOrder.random:
+      return l.startingOrderRandom;
+    case StartingOrder.fixed:
+      return l.startingOrderFixed;
+  }
+}
+
 /// Localized display name for a Cricket [variant].
 String cricketVariantLabel(AppLocalizations l, CricketVariant variant) {
   switch (variant) {
