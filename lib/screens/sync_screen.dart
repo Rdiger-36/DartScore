@@ -18,6 +18,38 @@ import '../utils/layout.dart';
 /// existing local player.
 enum _NameResolution { useExisting }
 
+/// Builds a QR code for [data] at the smallest version that holds it.
+///
+/// Sync payloads are base45, which lets the code use its alphanumeric mode and
+/// carry about a third more than the byte mode would. `QrCode.fromData` always
+/// picks the byte mode, so the code is assembled here instead. Anything outside
+/// the alphanumeric character set, such as the connection details of a Wi-Fi
+/// transfer, falls back to the byte mode.
+///
+/// Throws an [InputTooLongException] if [data] does not fit any version, which
+/// the transport choice is meant to prevent from ever happening.
+QrCode buildQrCode(String data) {
+  final alphanumeric = isAlphanumericSafe(data);
+
+  for (var version = 1; version <= 40; version++) {
+    final qr = QrCode(version, QrErrorCorrectLevel.M);
+    if (alphanumeric) {
+      qr.addAlphaNumeric(data);
+    } else {
+      qr.addData(data);
+    }
+    try {
+      // The size check only runs once the modules are laid out.
+      QrImage(qr);
+      return qr;
+    } on InputTooLongException {
+      continue;
+    }
+  }
+
+  throw InputTooLongException(data.length, 0);
+}
+
 /// The localized label for a range given in days, with null meaning the
 /// player's whole history. Shared by the sender's picker and the receiver's
 /// confirmation dialog, which only ever sees the day count.
@@ -603,10 +635,8 @@ class _SenderTabState extends State<_SenderTab> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: QrImageView(
-              data: data,
-              version: QrVersions.auto,
-              errorCorrectionLevel: QrErrorCorrectLevel.M,
+            child: QrImageView.withQr(
+              qr: buildQrCode(data),
               eyeStyle: const QrEyeStyle(
                 eyeShape: QrEyeShape.square,
                 color: Color(0xFFB71C1C),
