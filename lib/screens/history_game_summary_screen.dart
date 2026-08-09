@@ -9,6 +9,7 @@ import '../models/dart_throw.dart';
 import '../providers/game_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../utils/placement.dart';
 import '../widgets/rematch_button.dart';
 import 'game_screen.dart';
@@ -132,15 +133,20 @@ class _SummaryBody extends StatelessWidget {
           ),
         const SizedBox(height: 14),
         // Game info
-        _InfoRow(context.l10n.gameLabel, context.l10n.modeX01Name),
-        const SizedBox(height: 6),
-        _InfoRow(
+        GameInfoCard(dense: true, rows: [
+          (context.l10n.gameLabel, context.l10n.modeX01Name),
+          (
             context.l10n.matchFormat,
             game.placementMode
                 ? context.l10n.placementMode
-                : context.l10n.standardMode),
-        const SizedBox(height: 6),
-        _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets, placementMode: game.placementMode)),
+                : context.l10n.standardMode
+          ),
+          (
+            context.l10n.gameMode_,
+            context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+                placementMode: game.placementMode)
+          ),
+        ]),
         const SizedBox(height: 16),
         RematchButton(
           modeName: context.l10n.modeX01Name,
@@ -431,28 +437,6 @@ class _RankCell extends StatelessWidget {
   }
 }
 
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}
 
 /// Per-player stat card for a historical game, computing average, legs won,
 /// darts, highest visit, and busts from the player's throws.

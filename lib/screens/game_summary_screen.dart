@@ -12,6 +12,7 @@ import '../l10n/app_localizations.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/placement.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'game_screen.dart';
 
@@ -164,11 +165,6 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 10),
-                        // Match format, so a shared card says whether the
-                        // ranking was played out or the first checkout won.
-                        _MatchFormatChip(
-                            placementMode: provider.game!.placementMode),
                       ],
                     ),
                   ),
@@ -270,6 +266,27 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
+                  // What the game was played with, so the saved or shared card
+                  // carries its settings too.
+                  GameInfoCard(rows: [
+                    (l.gameLabel, l.modeX01Name),
+                    (
+                      l.matchFormat,
+                      provider.game!.placementMode
+                          ? l.placementMode
+                          : l.standardMode
+                    ),
+                    (
+                      l.gameMode_,
+                      l.gameSummaryInfo(
+                        provider.game!.startScore,
+                        provider.game!.legs,
+                        provider.game!.sets,
+                        placementMode: provider.game!.placementMode,
+                      )
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
                   // Final ranking (placement mode only)
                   if (provider.game!.placementMode) ...[
                     _FinalRankingCard(states: states),
@@ -317,51 +334,6 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             child: Text(l.backToHome),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Quiet pill under the winner naming the match format, so a saved or shared
-/// result card says whether the ranking was played out or the first checkout
-/// ended the leg. Shares the badge shape of the perfect-game banner but stays
-/// in muted container colors, since this is context rather than a celebration.
-class _MatchFormatChip extends StatelessWidget {
-  final bool placementMode;
-
-  const _MatchFormatChip({required this.placementMode});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final l = context.l10n;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            placementMode
-                ? Icons.leaderboard_rounded
-                : Icons.sports_score_rounded,
-            size: 16,
-            color: cs.onSecondaryContainer,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            placementMode ? l.placementMode : l.standardMode,
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: cs.onSecondaryContainer,
-            ),
           ),
         ],
       ),

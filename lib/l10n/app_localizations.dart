@@ -155,6 +155,7 @@ class AppLocalizations {
 
   // ── Game Summary ─────────────────────────────────────────────────────────
   String get gameOverview      => _t('Game Summary', 'Spielübersicht');
+  String get gameInfo          => _t('Game Info', 'Spielinfo');
   String wins(String name)     => _t('🎯 $name wins!', '🎯 $name hat gewonnen!');
   String get allThrows         => _t('All Throws', 'Alle Würfe');
   String get backToHome        => _t('Back to Main Menu', 'Zurück zum Hauptmenü');
