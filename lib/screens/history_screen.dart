@@ -90,42 +90,24 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<List<_HistoryEntry>> _load() async {
     final db      = DbHelper.instance;
     final entries = <_HistoryEntry>[];
+    // Resolved once for the whole list instead of once per player per game.
+    final byId    = await db.getPlayersById();
+
+    List<Player> resolve(List<int> ids) =>
+        [for (final id in ids) if (byId[id] != null) byId[id]!];
 
     for (final g in await db.getGames()) {
-      final ids     = await db.getGamePlayerIds(g.id!);
-      final players = <Player>[];
-      for (final id in ids) {
-        final p = await db.getPlayer(id);
-        if (p != null) players.add(p);
-      }
-      entries.add(_HistoryEntry.x01(g, players));
+      entries.add(
+          _HistoryEntry.x01(g, resolve(await db.getGamePlayerIds(g.id!))));
     }
-
     for (final g in await db.getCricketGames()) {
-      final players = <Player>[];
-      for (final id in g.playerIds) {
-        final p = await db.getPlayer(id);
-        if (p != null) players.add(p);
-      }
-      entries.add(_HistoryEntry.cricket(g, players));
+      entries.add(_HistoryEntry.cricket(g, resolve(g.playerIds)));
     }
-
     for (final g in await db.getShanghaiGames()) {
-      final players = <Player>[];
-      for (final id in g.playerIds) {
-        final p = await db.getPlayer(id);
-        if (p != null) players.add(p);
-      }
-      entries.add(_HistoryEntry.shanghai(g, players));
+      entries.add(_HistoryEntry.shanghai(g, resolve(g.playerIds)));
     }
-
     for (final g in await db.getAroundTheClockGames()) {
-      final players = <Player>[];
-      for (final id in g.playerIds) {
-        final p = await db.getPlayer(id);
-        if (p != null) players.add(p);
-      }
-      entries.add(_HistoryEntry.aroundTheClock(g, players));
+      entries.add(_HistoryEntry.aroundTheClock(g, resolve(g.playerIds)));
     }
 
     entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));

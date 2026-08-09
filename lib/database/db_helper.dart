@@ -401,6 +401,18 @@ class DbHelper {
     return rows.isEmpty ? null : Player.fromMap(rows.first);
   }
 
+  /// Every player keyed by id, deleted ones included, for callers that resolve
+  /// many ids at once. The history would otherwise run one query per player per
+  /// game.
+  Future<Map<int, Player>> getPlayersById() async {
+    final d = await db;
+    final rows = await d.query('players');
+    return {
+      for (final row in rows.map(Player.fromMap))
+        if (row.id != null) row.id!: row,
+    };
+  }
+
   /// Updates the stored row for [p].
   Future<void> updatePlayer(Player p) async {
     final d = await db;
@@ -514,55 +526,6 @@ class DbHelper {
 
       await d.update('players', {'local_stats_json': jsonEncode(merged)},
           where: 'id = ?', whereArgs: [playerId]);
-    }
-  }
-
-  /// Computes per-player stats from current throws and merges them into
-  /// [local_stats_json] on each player. Call this BEFORE [clearAllGames].
-  Future<void> snapshotPlayerStats() async {
-    final d       = await db;
-    final players = await getPlayers();
-
-    // Build gameId → startScore map for perfect-leg computation
-    final allGames    = await d.query('games');
-    final startScores = {for (final g in allGames) g['id'] as int: g['start_score'] as int};
-
-    for (final player in players) {
-      final throws = await getThrowsForPlayer(player.id!);
-      if (throws.isEmpty) continue;
-
-      // Perfect legs and highest single-game average: compute per game, since
-      // each game has its own minDarts and its own average.
-      int totalPerfect = 0;
-      double highestGameAvg = 0;
-      final gameIds = throws.map((t) => t.gameId).toSet();
-      for (final gid in gameIds) {
-        final gThrows  = throws.where((t) => t.gameId == gid).toList();
-        final minDarts = _kMinDarts[startScores[gid]];
-        totalPerfect  += _perfectLegsFor(gThrows, minDarts);
-        final avg = _gameAverage(gThrows);
-        if (avg > highestGameAvg) highestGameAvg = avg;
-      }
-
-      // Count finished games for this player
-      final playerGameIds   = throws.map((t) => t.gameId).toSet();
-      final finishedCount   = allGames
-          .where((g) => playerGameIds.contains(g['id']) && g['finished_at'] != null)
-          .length;
-
-      final stats = <String, dynamic>{
-        ..._computeStatsFromThrows(throws),
-        'perfect_legs':     totalPerfect,
-        'games_finished':   finishedCount,
-        'highest_game_avg': highestGameAvg,
-      };
-      final existing = player.localStatsJson;
-      final merged   = (existing != null && existing.isNotEmpty)
-          ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
-          : stats;
-
-      await d.update('players', {'local_stats_json': jsonEncode(merged)},
-          where: 'id = ?', whereArgs: [player.id]);
     }
   }
 
@@ -766,20 +729,6 @@ class DbHelper {
     };
   }
 
-  /// Deletes every game and throw across all modes (player records are kept).
-  Future<void> clearAllGames() async {
-    final d = await db;
-    await d.delete('dart_throws');
-    await d.delete('game_players');
-    await d.delete('games');
-    await d.delete('cricket_throws');
-    await d.delete('cricket_games');
-    await d.delete('shanghai_throws');
-    await d.delete('shanghai_games');
-    await d.delete('around_the_clock_throws');
-    await d.delete('around_the_clock_games');
-  }
-
   /// Updates an X01 game row (e.g. to mark it finished).
   Future<void> updateGame(Game g) async {
     final d = await db;
@@ -829,7 +778,9 @@ class DbHelper {
       'dart_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -841,7 +792,9 @@ class DbHelper {
       'dart_throws',
       where: 'player_id = ?',
       whereArgs: [playerId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -893,7 +846,9 @@ class DbHelper {
       'dart_throws',
       where: 'player_id = ? AND thrown_at > ?',
       whereArgs: [playerId, sinceMs],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -988,7 +943,9 @@ class DbHelper {
       'cricket_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(CricketThrow.fromMap).toList();
   }
@@ -1043,7 +1000,9 @@ class DbHelper {
       'shanghai_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(ShanghaiThrow.fromMap).toList();
   }
@@ -1098,7 +1057,9 @@ class DbHelper {
       'around_the_clock_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(AroundTheClockThrow.fromMap).toList();
   }

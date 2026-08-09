@@ -41,8 +41,6 @@ class _PlayerStats {
   /// field (1-20, 25=bull) → multiplier (1/2/3) → hit count
   final Map<int, Map<int, int>> segmentHits;
   final double scoreStdDev;
-  /// throws per UTC-day key "yyyy-MM-dd" → count (live throws only)
-  final Map<String, int> throwsPerDay;
   // Week comparison (Mon–today vs previous Mon–Sun)
   final double thisWeekAvg;
   final double lastWeekAvg;
@@ -76,7 +74,6 @@ class _PlayerStats {
     this.perfectLegs = 0,
     this.segmentHits = const {},
     this.scoreStdDev = 0,
-    this.throwsPerDay = const {},
     this.thisWeekAvg = 0,
     this.lastWeekAvg = 0,
     this.thisWeekVisits = 0,
@@ -309,14 +306,12 @@ Future<_PlayerStats> _loadStats(Player player) async {
   double lastWeekScored = 0; int lastWeekDarts = 0;
   int thisWeekVisits = 0, lastWeekVisits = 0;
   int thisWeek180s = 0, lastWeek180s = 0;
-  final throwsPerDay = <String, int>{};
 
   for (final entry in dailyStats.entries) {
     final parts = entry.key.split('-');
     if (parts.length != 3) continue;
     final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
     final ds   = entry.value;
-    throwsPerDay[entry.key] = (ds['visits'] ?? 0) + (busts > 0 ? 1 : 0); // approximate for heatmap
 
     final inThisWeek = !date.isBefore(thisWeekStart);
     final inLastWeek = !date.isBefore(lastWeekStart) && date.isBefore(thisWeekStart);
@@ -392,7 +387,6 @@ Future<_PlayerStats> _loadStats(Player player) async {
     perfectLegs:    perfectLegs,
     segmentHits:    segmentHits,
     scoreStdDev:    stdDev,
-    throwsPerDay:   throwsPerDay,
     thisWeekAvg:    thisWeekAvg3,
     lastWeekAvg:    lastWeekAvg3,
     thisWeekVisits: thisWeekVisits,

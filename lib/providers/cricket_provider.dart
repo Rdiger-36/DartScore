@@ -22,7 +22,9 @@ class CricketPlayerState {
   final int currentPlayerIdx;
   /// Whether this slot represents a team rather than a single player.
   final bool isTeamSlot;
-  /// Total marks per field (never decremented; 3 = closed, >3 possible via Double/Triple).
+  /// Marks per field, capped at 3 because that closes it. Anything a Double or
+  /// Triple adds beyond the third mark turns into points instead, so the excess
+  /// is deliberately not kept here.
   final Map<int, int> marks;
   final int score;
 
@@ -416,7 +418,9 @@ class CricketProvider extends ChangeNotifier {
             ))
         .toList();
 
-    // Replay all darts in chronological order, routing each to its slot
+    // Replay all darts in chronological order, each routed to the slot of the
+    // player that threw it. Shanghai and Around the Clock instead follow the
+    // turn order; both work, this one also survives a dart stored out of turn.
     for (final t in allThrows) {
       if (t.isMiss) continue;
       final slotIdx = _playerStates

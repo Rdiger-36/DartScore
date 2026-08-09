@@ -292,7 +292,7 @@ lib/
 │   ├── home_screen.dart                   # Entry screen; navigation to setup, history, players
 │   ├── onboarding_screen.dart             # First-launch walkthrough
 │   ├── about_screen.dart                  # Version info and open-source licences
-│   ├── settings_screen.dart               # Theme, language, data management
+│   ├── settings_screen.dart               # Theme, language, donation and about links
 │   ├── donation_screen.dart               # Support the developer via in-app purchases
 │   ├── sync_screen.dart                   # QR/WiFi device-to-device data sync
 │   ├── players_screen.dart                # Player management list
