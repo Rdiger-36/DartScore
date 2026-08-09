@@ -136,6 +136,18 @@ class PlayerState {
   /// The player who throws next (backward-compatible accessor).
   Player get player => players[currentPlayerIdx];
 
+  /// This slot's members in the order they throw from now on, starting with
+  /// [player].
+  ///
+  /// [currentPlayerIdx] always points at the member who throws this slot's next
+  /// dart: while the slot holds the turn that is the member at the oche, while
+  /// it is idle it is the member who steps up when the slot comes around again.
+  /// One rotation covers both readings.
+  List<Player> get throwingOrder => [
+        for (var k = 0; k < players.length; k++)
+          players[(currentPlayerIdx + k) % players.length],
+      ];
+
   /// Whether this slot represents a team rather than a single player.
   bool get isTeam   => players.length > 1;
 

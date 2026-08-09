@@ -9,6 +9,7 @@ import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
+import '../utils/throw_stats.dart';
 
 /// Singleton SQLite wrapper and the single point of database access for the app.
 ///
@@ -531,26 +532,23 @@ class DbHelper {
 
   /// Computes an aggregate stats map (darts, scored, averages, highs, counts)
   /// from a list of throws.
+  ///
+  /// The counters that also matter while a game is running come from
+  /// [ThrowStats], so a number shown live and the same number read back
+  /// from a snapshot can never drift apart. Only what the persisted stats need
+  /// on top of that is aggregated here: the segment heatmap, the score
+  /// distribution, the per-day buckets behind the week comparison, and the
+  /// recent-throws tail.
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
-    int totalDarts = 0, totalScored = 0;
-    int busts = 0, legsWon = 0;
-    int highestVisit = 0, highestCheckout = 0;
-    int count180 = 0, count140plus = 0, count100plus = 0;
-    int checkoutAttempts = 0, checkoutSuccesses = 0;
-    int scoreSumSquares = 0;
-    int coAtSub40 = 0, coOkSub40 = 0;
-    int coAtSub60 = 0, coOkSub60 = 0;
-    int coAtSub100 = 0, coOkSub100 = 0;
-    int coAtSub170 = 0, coOkSub170 = 0;
-    final segmentHits    = <String, Map<String, int>>{};
-    final scoreDistrib   = <String, int>{};
+    final stats = ThrowStats.fromThrows(throws);
+
+    final segmentHits  = <String, Map<String, int>>{};
+    final scoreDistrib = <String, int>{};
     // date → {scored, darts, visits, s180} for week-comparison reconstruction
-    final dailyStats     = <String, Map<String, int>>{};
+    final dailyStats   = <String, Map<String, int>>{};
     final gameIds = throws.map((t) => t.gameId).toSet();
 
     for (final t in throws) {
-      totalDarts += t.dartsUsed;
-
       // Heatmap
       if (t.hitsJson != null) {
         try {
@@ -571,39 +569,13 @@ class DbHelper {
       final ds = dailyStats.putIfAbsent(day, () => {'scored': 0, 'darts': 0, 'visits': 0, 's180': 0});
       ds['darts'] = (ds['darts'] ?? 0) + t.dartsUsed;
 
-      if (t.bust) {
-        busts++;
-      } else {
-        totalScored     += t.score;
-        scoreSumSquares += t.score * t.score;
-        if (t.score > highestVisit) highestVisit = t.score;
-        if (t.score == 180) count180++;
-        if (t.score >= 140) count140plus++;
-        if (t.score >= 100) count100plus++;
-
+      if (!t.bust) {
         final bucket = ((t.score ~/ 20) * 20).toString();
         scoreDistrib[bucket] = (scoreDistrib[bucket] ?? 0) + 1;
 
         ds['scored']  = (ds['scored']  ?? 0) + t.score;
         ds['visits']  = (ds['visits']  ?? 0) + 1;
         if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
-
-      }
-
-      // Counted for busts too: a visit that started on a finishable remaining
-      // was an attempt at the finish, whether or not it overshot.
-      if (t.remainingBefore <= 170) {
-        checkoutAttempts++;
-        final success = !t.bust && t.remainingBefore - t.score == 0;
-        if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
-        else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
-        else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
-        else                               { coAtSub170++; if (success) coOkSub170++; }
-        if (success) {
-          legsWon++;
-          checkoutSuccesses++;
-          if (t.score > highestCheckout) highestCheckout = t.score;
-        }
       }
     }
 
@@ -619,25 +591,26 @@ class DbHelper {
     }).toList();
 
     return {
-      'total_darts':        totalDarts,
-      'total_scored':       totalScored,
-      'total_visits':       throws.length,
-      'legs_won':           legsWon,
-      'busts':              busts,
-      'highest_visit':      highestVisit,
-      'highest_checkout':   highestCheckout,
-      'count_180':          count180,
-      'count_140_plus':     count140plus,
-      'count_100_plus':     count100plus,
-      'checkout_attempts':  checkoutAttempts,
-      'checkout_successes': checkoutSuccesses,
+      'total_darts':        stats.totalDarts,
+      'total_scored':       stats.totalScored,
+      'total_visits':       stats.totalVisits,
+      // A leg is won by finishing it, so every successful checkout is a leg.
+      'legs_won':           stats.checkoutSuccesses,
+      'busts':              stats.busts,
+      'highest_visit':      stats.highestVisit,
+      'highest_checkout':   stats.highestCheckout,
+      'count_180':          stats.count180,
+      'count_140_plus':     stats.count140plus,
+      'count_100_plus':     stats.count100plus,
+      'checkout_attempts':  stats.checkoutAttempts,
+      'checkout_successes': stats.checkoutSuccesses,
       'games_played':       gameIds.length,
-      'score_sum_squares':  scoreSumSquares,
+      'score_sum_squares':  stats.scoreSumSquares,
       'highest_game_avg':   _gameAverage(throws),
-      'co_at_sub40':  coAtSub40,  'co_ok_sub40':  coOkSub40,
-      'co_at_sub60':  coAtSub60,  'co_ok_sub60':  coOkSub60,
-      'co_at_sub100': coAtSub100, 'co_ok_sub100': coOkSub100,
-      'co_at_sub170': coAtSub170, 'co_ok_sub170': coOkSub170,
+      'co_at_sub40':  stats.coAttemptSub40,  'co_ok_sub40':  stats.coSuccessSub40,
+      'co_at_sub60':  stats.coAttemptSub60,  'co_ok_sub60':  stats.coSuccessSub60,
+      'co_at_sub100': stats.coAttemptSub100, 'co_ok_sub100': stats.coSuccessSub100,
+      'co_at_sub170': stats.coAttemptSub170, 'co_ok_sub170': stats.coSuccessSub170,
       'segment_hits':       segmentHits,
       'score_distribution': scoreDistrib,
       'daily_stats':        dailyStats,

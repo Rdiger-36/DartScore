@@ -58,92 +58,100 @@ class _CricketGameView extends StatelessWidget {
     final currentIdx = provider.currentPlayerIndex;
     final current = provider.currentPlayerState;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cricket'),
-        actions: [
-          if (provider.canUndo)
+    return PopScope(
+      // A running game must not be lost to a stray back gesture; the system
+      // back asks the same question the close button in the app bar asks.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmQuit(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Cricket'),
+          actions: [
+            if (provider.canUndo)
+              IconButton(
+                icon: const Icon(Icons.undo_rounded),
+                tooltip: l.undo,
+                onPressed: () => provider.undoLastDart(),
+              ),
             IconButton(
-              icon: const Icon(Icons.undo_rounded),
-              tooltip: l.undo,
-              onPressed: () => provider.undoLastDart(),
+              icon: const Icon(Icons.close_rounded),
+              tooltip: l.cricketQuit,
+              onPressed: () => _confirmQuit(context),
             ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded),
-            tooltip: l.cricketQuit,
-            onPressed: () => _confirmQuit(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ── Scoreboard ────────────────────────────────────────────────────
-          Expanded(
-            child: SingleChildScrollView(
-              padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
-              child: _CricketBoard(
-                states: states,
-                currentIdx: currentIdx,
-                throwCount: provider.throwCount,
-                game: game,
+          ],
+        ),
+        body: Column(
+          children: [
+            // ── Scoreboard ────────────────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
+                child: _CricketBoard(
+                  states: states,
+                  currentIdx: currentIdx,
+                  throwCount: provider.throwCount,
+                  game: game,
+                ),
               ),
             ),
-          ),
-          // ── Input area ────────────────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: cs.surfaceContainer,
-              border: Border(top: BorderSide(color: cs.outlineVariant)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Current player/team + dart counter
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              current.displayName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: cs.primary,
-                              ),
-                            ),
-                            if (current.isTeamSlot)
+            // ── Input area ────────────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainer,
+                border: Border(top: BorderSide(color: cs.outlineVariant)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Current player/team + dart counter
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Text(
-                                current.player.name,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
+                                current.displayName,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.primary,
                                 ),
                               ),
-                          ],
-                        ),
-                        const Spacer(),
-                        _DartDots(count: provider.dartsInVisit),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _CricketInput(
-                      provider: provider,
-                      scoringMode: game.scoringMode,
-                    ),
-                  ],
+                              if (current.isTeamSlot)
+                                Text(
+                                  current.player.name,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const Spacer(),
+                          _DartDots(count: provider.dartsInVisit),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _CricketInput(
+                        provider: provider,
+                        scoringMode: game.scoringMode,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

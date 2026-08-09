@@ -86,6 +86,7 @@ lib/
 │   ├── around_the_clock_screen.dart              # Around the Clock live game
 │   ├── around_the_clock_summary_screen.dart      # Around the Clock post-game summary
 │   ├── around_the_clock_history_summary_screen.dart  # Detailed view of a past Around the Clock game
+│   ├── live_player_stats_screen.dart     # X01 live player/team info opened from the scoreboard
 │   ├── history_screen.dart               # List of all past games (all modes)
 │   ├── history_game_summary_screen.dart  # Detailed view of a past X01 game
 │   ├── players_screen.dart               # Player management list
@@ -107,11 +108,16 @@ lib/
 │   ├── team_section.dart              # Shared team setup block (naming, add/remove, assignment) for every mode
 │   ├── starting_order_section.dart    # Shared starting-order block (random vs. fixed + drag-to-sort list)
 │   ├── game_info_card.dart            # Shared card listing a finished game's settings
+│   ├── summary_player_card.dart       # Shared player/team stat card for the X01 summary and history screens
+│   ├── final_ranking_card.dart        # Shared placement-mode ranking card and per-leg table
+│   ├── stat_row.dart                  # Shared label/value row used by every stat list
+│   ├── throw_log_card.dart            # Shared "All Throws" log for the X01 summary and history screens
 │   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
 │   └── player_dialog.dart             # Create/edit player dialog
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
+│   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
@@ -153,6 +159,10 @@ lib/
 - `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
 - Finish/checkout logic is isolated in `FinishCalculator` — do not inline checkout logic elsewhere
+- Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
+- The X01 summary and the X01 history detail render the same result through `SummaryPlayerCard`, `FinalRankingCard` and `ThrowLogCard`; a change to one view belongs in the shared widget, not in one screen
+- `GameInfoCard` is deliberately `dense: true` in all four history detail screens and default in all four post-game summaries. It looks like an oversight per mode but is a convention across both sets; change it for all eight or for none
+- The live game screens answer the system back with their quit dialog via `PopScope(canPop: false)`. That also suppresses the iOS edge swipe for as long as the game runs, which is the point: Flutter only installs the Cupertino back gesture on a route that may pop, so a confirmation cannot be shown from the gesture itself
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
