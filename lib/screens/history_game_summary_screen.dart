@@ -134,6 +134,12 @@ class _SummaryBody extends StatelessWidget {
         // Game info
         _InfoRow(context.l10n.gameLabel, context.l10n.modeX01Name),
         const SizedBox(height: 6),
+        _InfoRow(
+            context.l10n.matchFormat,
+            game.placementMode
+                ? context.l10n.placementMode
+                : context.l10n.standardMode),
+        const SizedBox(height: 6),
         _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets, placementMode: game.placementMode)),
         const SizedBox(height: 16),
         RematchButton(
