@@ -81,15 +81,19 @@ class CricketGame {
         startingOrder: StartingOrder.values[map['starting_order'] as int? ?? 0],
       );
 
-  /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
-  CricketGame copyWith({DateTime? finishedAt}) => CricketGame(
+  /// Returns a copy with [finishedAt] updated (marking a game done), or cleared
+  /// when [clearFinishedAt] is set, which reopens a game whose winning dart was
+  /// undone. Copying rather than rebuilding the object by hand keeps every
+  /// other field, so a new field cannot be forgotten here.
+  CricketGame copyWith({DateTime? finishedAt, bool clearFinishedAt = false}) =>
+      CricketGame(
         id:          id,
         variant:     variant,
         scoringMode: scoringMode,
         legs:        legs,
         sets:        sets,
         createdAt:   createdAt,
-        finishedAt:  finishedAt ?? this.finishedAt,
+        finishedAt:  clearFinishedAt ? null : (finishedAt ?? this.finishedAt),
         playerIds:   playerIds,
         teams:       teams,
         startingOrder: startingOrder,

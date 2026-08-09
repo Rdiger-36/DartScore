@@ -388,17 +388,7 @@ class CricketProvider extends ChangeNotifier {
     if (_gameOver) {
       _gameOver = false;
       _winnerId = null;
-      _game = CricketGame(
-        id:           _game!.id,
-        variant:      _game!.variant,
-        scoringMode:  _game!.scoringMode,
-        legs:         _game!.legs,
-        sets:         _game!.sets,
-        createdAt:    _game!.createdAt,
-        finishedAt:   null,
-        playerIds:    _game!.playerIds,
-        teams:        _game!.teams,
-      );
+      _game = _game!.copyWith(clearFinishedAt: true);
       await _db.updateCricketGame(_game!);
     }
 
