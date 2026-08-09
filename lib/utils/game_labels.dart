@@ -32,6 +32,11 @@ String checkOutLabel(AppLocalizations l, CheckoutMode mode) {
   }
 }
 
+/// Localized "check-in to check-out" summary of one player's X01 rules, used
+/// where the per-player rules matter more than the game defaults.
+String checkInOutLabel(AppLocalizations l, GameMode checkIn, CheckoutMode checkOut) =>
+    '${checkInLabel(l, checkIn)} → ${checkOutLabel(l, checkOut)}';
+
 /// Localized display name for a Cricket [variant].
 String cricketVariantLabel(AppLocalizations l, CricketVariant variant) {
   switch (variant) {

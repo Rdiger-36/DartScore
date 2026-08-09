@@ -14,8 +14,12 @@ class RematchSlot {
   /// Names of the team's members; empty for an individual slot.
   final List<String> members;
 
-  const RematchSlot.player(this.name) : members = const [];
-  const RematchSlot.team(this.name, this.members);
+  /// This player's individual check-in/check-out rules, when the game is played
+  /// with handicaps. Null when everyone uses the game defaults.
+  final String? rules;
+
+  const RematchSlot.player(this.name, {this.rules}) : members = const [];
+  const RematchSlot.team(this.name, this.members) : rules = null;
 
   /// Whether this slot is a team whose members should be listed.
   bool get isTeam => members.isNotEmpty;
@@ -140,13 +144,13 @@ class _RematchConfirmDialog extends StatelessWidget {
           children: [
             _DialogRow(l.gameLabel, modeName),
             ...details.map((d) => _DialogRow(d.$1, d.$2)),
-            // Team games get one row per team so the members are visible;
-            // individual games stay on a single row of names.
+            // Team games get one row per team so the members are visible, and
+            // handicap games one row per player so the individual rules are.
+            // Everything else stays on a single row of names.
             if (slots.any((s) => s.isTeam))
-              ...slots.map((s) => _DialogRow(
-                    s.name,
-                    s.isTeam ? s.members.join(', ') : s.name,
-                  ))
+              ...slots.map((s) => _DialogRow(s.name, s.members.join(', ')))
+            else if (slots.any((s) => s.rules != null))
+              ...slots.map((s) => _DialogRow(s.name, s.rules ?? ''))
             else
               _DialogRow(l.playersTitle, slots.map((s) => s.name).join(', ')),
             const SizedBox(height: 16),

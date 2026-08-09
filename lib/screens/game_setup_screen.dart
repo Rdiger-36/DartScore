@@ -520,11 +520,12 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       sets:         game.sets,
       createdAt:    game.createdAt,
       teams:        teamConfigs,
+      handicaps:    handicapMap,
       placementMode: game.placementMode,
     );
 
     final provider = context.read<GameProvider>();
-    await provider.startGame(gameWithTeams, players, handicaps: handicapMap);
+    await provider.startGame(gameWithTeams, players);
 
     if (mounted) {
       Navigator.pushReplacement(
