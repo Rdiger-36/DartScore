@@ -136,8 +136,6 @@ class _SummaryBody extends StatelessWidget {
         const SizedBox(height: 6),
         _InfoRow(context.l10n.gameMode_, context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets, placementMode: game.placementMode)),
         const SizedBox(height: 16),
-        // Rematch. Handicaps are not persisted, so a replay from history
-        // always starts without them.
         RematchButton(
           modeName: context.l10n.modeX01Name,
           details: [
@@ -146,11 +144,15 @@ class _SummaryBody extends StatelessWidget {
               context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
                   placementMode: game.placementMode)
             ),
-            (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
-            (
-              context.l10n.checkOut,
-              checkOutLabel(context.l10n, game.checkoutMode)
-            ),
+            // With handicaps the game defaults say little, so the per-player
+            // rows below carry the rules instead.
+            if (!game.hasHandicaps) ...[
+              (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
+              (
+                context.l10n.checkOut,
+                checkOutLabel(context.l10n, game.checkoutMode)
+              ),
+            ],
           ],
           slots: game.isTeamGame
               ? game.teams!
@@ -162,7 +164,15 @@ class _SummaryBody extends StatelessWidget {
                         ],
                       ))
                   .toList()
-              : players.map((p) => RematchSlot.player(p.name)).toList(),
+              : players
+                  .map((p) => RematchSlot.player(
+                        p.name,
+                        rules: game.hasHandicaps
+                            ? checkInOutLabel(context.l10n,
+                                game.checkInFor(p.id), game.checkOutFor(p.id))
+                            : null,
+                      ))
+                  .toList(),
           onRematch: () =>
               context.read<GameProvider>().startRematch(game, players),
           destination: (_) => const GameScreen(),

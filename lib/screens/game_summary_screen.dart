@@ -223,24 +223,36 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                               placementMode: provider.game!.placementMode,
                             )
                           ),
-                          (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
-                          (
-                            l.checkOut,
-                            checkOutLabel(l, provider.game!.checkoutMode)
-                          ),
+                          // With handicaps the game defaults say little, so the
+                          // per-player rows below carry the rules instead.
+                          if (!provider.game!.hasHandicaps) ...[
+                            (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
+                            (
+                              l.checkOut,
+                              checkOutLabel(l, provider.game!.checkoutMode)
+                            ),
+                          ],
                         ],
                         slots: states
                             .map((s) => s.isTeamSlot
                                 ? RematchSlot.team(s.displayName,
                                     s.players.map((p) => p.name).toList())
-                                : RematchSlot.player(s.displayName))
+                                : RematchSlot.player(
+                                    s.displayName,
+                                    rules: provider.game!.hasHandicaps
+                                        ? checkInOutLabel(
+                                            l,
+                                            provider.game!.checkInFor(s.player.id),
+                                            provider.game!.checkOutFor(s.player.id),
+                                          )
+                                        : null,
+                                  ))
                             .toList(),
                         onRematch: () => provider.startRematch(
                           provider.game!,
                           provider.playerStates
                               .expand((s) => s.players)
                               .toList(),
-                          handicaps: Map.of(provider.handicaps),
                         ),
                         destination: (_) => const GameScreen(),
                       ),

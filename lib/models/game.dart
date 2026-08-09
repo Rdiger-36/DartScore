@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'team_config.dart';
 
 export 'team_config.dart';
@@ -26,6 +28,36 @@ class PlayerHandicap {
         checkIn:  checkIn  ?? this.checkIn,
         checkOut: checkOut ?? this.checkOut,
       );
+
+  /// Serializes this handicap for the game's `handicap_json` column.
+  Map<String, dynamic> toJson() =>
+      {'check_in': checkIn.index, 'check_out': checkOut.index};
+
+  /// Reconstructs a handicap from its JSON map.
+  factory PlayerHandicap.fromJson(Map<String, dynamic> j) => PlayerHandicap(
+        checkIn:  GameMode.values[j['check_in'] as int],
+        checkOut: CheckoutMode.values[j['check_out'] as int],
+      );
+}
+
+/// Encodes per-player [handicaps] for storage in a `handicap_json` column, or
+/// null when the game is played without handicaps.
+String? encodePlayerHandicaps(Map<int, PlayerHandicap>? handicaps) =>
+    handicaps == null || handicaps.isEmpty
+        ? null
+        : jsonEncode({
+            for (final e in handicaps.entries) '${e.key}': e.value.toJson(),
+          });
+
+/// Decodes the stored handicap JSON into a player-id keyed map, or null when
+/// the game was played without handicaps.
+Map<int, PlayerHandicap>? decodePlayerHandicaps(String? json) {
+  if (json == null) return null;
+  final map = jsonDecode(json) as Map<String, dynamic>;
+  return {
+    for (final e in map.entries)
+      int.parse(e.key): PlayerHandicap.fromJson(e.value as Map<String, dynamic>),
+  };
 }
 
 /// An X01 game configuration and result (start score, in/out modes, legs/sets,
@@ -42,6 +74,10 @@ class Game {
   final DateTime? finishedAt;
   /// Non-null when this is a team game.
   final List<TeamConfig>? teams;
+  /// Per-player check-in/check-out overrides, keyed by player id. Null or empty
+  /// when every player uses [gameMode]/[checkoutMode]. Mutually exclusive with
+  /// [teams] - the setup screen only offers handicaps for individual games.
+  final Map<int, PlayerHandicap>? handicaps;
   /// Whether every leg is played to the end (everyone finishes, producing a
   /// 1st/2nd/3rd/... ranking) instead of ending as soon as one slot checks out.
   final bool placementMode;
@@ -56,11 +92,25 @@ class Game {
     required this.createdAt,
     this.finishedAt,
     this.teams,
+    this.handicaps,
     this.placementMode = false,
   });
 
   /// Whether this game is played in teams rather than individually.
   bool get isTeamGame => teams != null && teams!.isNotEmpty;
+
+  /// Whether any player plays with an individual check-in/check-out rule.
+  bool get hasHandicaps => handicaps != null && handicaps!.isNotEmpty;
+
+  /// The check-in rule that applies to [playerId]: their handicap if they have
+  /// one, otherwise the game default.
+  GameMode checkInFor(int? playerId) =>
+      handicaps?[playerId]?.checkIn ?? gameMode;
+
+  /// The check-out rule that applies to [playerId]: their handicap if they have
+  /// one, otherwise the game default.
+  CheckoutMode checkOutFor(int? playerId) =>
+      handicaps?[playerId]?.checkOut ?? checkoutMode;
 
   /// Serializes this game to a row map for the SQLite `games` table.
   Map<String, dynamic> toMap() => {
@@ -73,6 +123,7 @@ class Game {
         'created_at': createdAt.millisecondsSinceEpoch,
         'finished_at': finishedAt?.millisecondsSinceEpoch,
         'team_config_json': encodeTeamConfigs(teams),
+        'handicap_json': encodePlayerHandicaps(handicaps),
         'placement_mode': placementMode ? 1 : 0,
       };
 
@@ -89,6 +140,7 @@ class Game {
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
             : null,
         teams:        decodeTeamConfigs(map['team_config_json'] as String?),
+        handicaps:    decodePlayerHandicaps(map['handicap_json'] as String?),
         placementMode: (map['placement_mode'] as int? ?? 0) == 1,
       );
 
@@ -103,6 +155,7 @@ class Game {
         createdAt:    createdAt,
         finishedAt:   finishedAt ?? this.finishedAt,
         teams:        teams,
+        handicaps:    handicaps,
         placementMode: placementMode,
       );
 }
