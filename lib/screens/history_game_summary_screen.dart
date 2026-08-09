@@ -160,17 +160,20 @@ class _SummaryBody extends StatelessWidget {
                         t.name,
                         [
                           for (final id in t.playerIds)
-                            if (namesById[id] != null) namesById[id]!,
+                            if (namesById[id] != null)
+                              RematchSlot.player(
+                                namesById[id]!,
+                                rules: handicapRulesLabel(
+                                    context.l10n, game, id),
+                              ),
                         ],
                       ))
                   .toList()
               : players
                   .map((p) => RematchSlot.player(
                         p.name,
-                        rules: game.hasHandicaps
-                            ? checkInOutLabel(context.l10n,
-                                game.checkInFor(p.id), game.checkOutFor(p.id))
-                            : null,
+                        rules:
+                            handicapRulesLabel(context.l10n, game, p.id),
                       ))
                   .toList(),
           onRematch: () =>

@@ -6,13 +6,15 @@ import '../l10n/app_localizations.dart';
 typedef RematchDetail = (String label, String value);
 
 /// One participant of the game that would be repeated: either a single player
-/// or a team together with the members that play for it.
+/// or a team, which is itself a named group of player slots. Nesting the
+/// members as slots lets a team carry each member's handicap rules, since
+/// handicaps stay per player in a team game.
 class RematchSlot {
   /// Team name, or the player's name for an individual slot.
   final String name;
 
-  /// Names of the team's members; empty for an individual slot.
-  final List<String> members;
+  /// The team's members; empty for an individual slot.
+  final List<RematchSlot> members;
 
   /// This player's individual check-in/check-out rules, when the game is played
   /// with handicaps. Null when everyone uses the game defaults.
@@ -130,6 +132,43 @@ class _RematchConfirmDialog extends StatelessWidget {
     required this.slots,
   });
 
+  /// The lines describing who plays, in the most compact form that still shows
+  /// everything that matters:
+  /// - teams whose members have handicaps: a team heading per team, then one
+  ///   indented line per member with that member's rules
+  /// - teams without handicaps: one line per team listing its members
+  /// - individuals with handicaps: one line per player with their rules
+  /// - individuals without handicaps: a single line of all names
+  List<Widget> _participantRows(BuildContext context) {
+    if (slots.any((s) => s.isTeam)) {
+      final withRules =
+          slots.any((s) => s.members.any((m) => m.rules != null));
+      if (!withRules) {
+        return [
+          for (final s in slots)
+            _DialogRow(s.name, s.members.map((m) => m.name).join(', ')),
+        ];
+      }
+      return [
+        for (final s in slots) ...[
+          _DialogGroupLabel(s.name),
+          for (final m in s.members)
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: _DialogRow(m.name, m.rules ?? ''),
+            ),
+        ],
+      ];
+    }
+    if (slots.any((s) => s.rules != null)) {
+      return [for (final s in slots) _DialogRow(s.name, s.rules ?? '')];
+    }
+    return [
+      _DialogRow(context.l10n.playersTitle,
+          slots.map((s) => s.name).join(', ')),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -144,15 +183,7 @@ class _RematchConfirmDialog extends StatelessWidget {
           children: [
             _DialogRow(l.gameLabel, modeName),
             ...details.map((d) => _DialogRow(d.$1, d.$2)),
-            // Team games get one row per team so the members are visible, and
-            // handicap games one row per player so the individual rules are.
-            // Everything else stays on a single row of names.
-            if (slots.any((s) => s.isTeam))
-              ...slots.map((s) => _DialogRow(s.name, s.members.join(', ')))
-            else if (slots.any((s) => s.rules != null))
-              ...slots.map((s) => _DialogRow(s.name, s.rules ?? ''))
-            else
-              _DialogRow(l.playersTitle, slots.map((s) => s.name).join(', ')),
+            ..._participantRows(context),
             const SizedBox(height: 16),
             Text(l.playAgainQuestion, style: theme.textTheme.bodyMedium),
           ],
@@ -168,6 +199,29 @@ class _RematchConfirmDialog extends StatelessWidget {
           child: Text(l.startGame),
         ),
       ],
+    );
+  }
+}
+
+/// A group heading in the rematch confirmation dialog, used for the team a
+/// following block of member lines belongs to.
+class _DialogGroupLabel extends StatelessWidget {
+  final String label;
+
+  const _DialogGroupLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: theme.colorScheme.primary,
+        ),
+      ),
     );
   }
 }

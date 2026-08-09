@@ -11,6 +11,7 @@ import '../widgets/team_section.dart';
 import 'game_screen.dart';
 import '../utils/layout.dart';
 import '../utils/match_format.dart';
+import '../utils/team_color.dart';
 
 /// Setup screen for an X01 game: start score, in/out modes, legs/sets, player
 /// selection, and optional per-player handicaps or team configuration.
@@ -389,6 +390,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               handicaps: _handicaps,
               gameCheckIn: _gameMode,
               gameCheckOut: _checkoutMode,
+              teamAssignment: _teamGameEnabled ? _teamAssignment : null,
+              teamNames: _teamGameEnabled ? _teamNames : null,
               onToggle: (v) => setState(() {
                 _handicapEnabled = v;
                 if (v) {
@@ -416,7 +419,6 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               onToggle: (v) => setState(() {
                 _teamGameEnabled = v;
                 if (v) {
-                  _handicapEnabled = false;
                   for (var i = 0; i < _selectedPlayers.length; i++) {
                     _teamAssignment[_selectedPlayers[i]] = i % _teamNames.length;
                   }
@@ -503,8 +505,10 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       }).where((t) => t.playerIds.isNotEmpty).toList();
     }
 
-    // Build handicap map (playerId → PlayerHandicap) if enabled
-    final Map<int, PlayerHandicap>? handicapMap = _handicapEnabled && !_teamGameEnabled
+    // Build handicap map (playerId → PlayerHandicap) if enabled. Handicaps are
+    // per player and stay valid in a team game, where each member throws under
+    // their own check-in/check-out rules.
+    final Map<int, PlayerHandicap>? handicapMap = _handicapEnabled
         ? {
             for (final p in players)
               if (p.id != null && _handicaps.containsKey(p))
@@ -702,12 +706,20 @@ class _Stepper extends StatelessWidget {
 
 /// Optional section to set per-player check-in/check-out handicaps that override
 /// the game-wide modes.
+///
+/// Handicaps stay per player in a team game, so when [teamAssignment] and
+/// [teamNames] are given the players are listed under their team to make the
+/// assignment visible while their rules are set.
 class _HandicapSection extends StatelessWidget {
   final bool enabled;
   final List<Player> players;
   final Map<Player, PlayerHandicap> handicaps;
   final GameMode gameCheckIn;
   final CheckoutMode gameCheckOut;
+  /// Team index per player, or null when the game is played individually.
+  final Map<Player, int>? teamAssignment;
+  /// Team names, or null when the game is played individually.
+  final List<String>? teamNames;
   final ValueChanged<bool> onToggle;
   final void Function(Player, PlayerHandicap) onChanged;
 
@@ -717,9 +729,126 @@ class _HandicapSection extends StatelessWidget {
     required this.handicaps,
     required this.gameCheckIn,
     required this.gameCheckOut,
+    this.teamAssignment,
+    this.teamNames,
     required this.onToggle,
     required this.onChanged,
   });
+
+  /// Whether the players are listed grouped under their teams.
+  bool get _grouped => teamAssignment != null && teamNames != null;
+
+  /// One block per team: a colored header with the team name, then that team's
+  /// players. Teams nobody is assigned to are skipped.
+  List<Widget> _teamGroups(BuildContext context, ThemeData theme) {
+    final names = teamNames!;
+    final assignment = teamAssignment!;
+    final blocks = <Widget>[];
+
+    for (var ti = 0; ti < names.length; ti++) {
+      // Unassigned players fall back to team 0, mirroring _startGame.
+      final members = players
+          .where((p) =>
+              (assignment[p] ?? 0).clamp(0, names.length - 1) == ti)
+          .toList();
+      if (members.isEmpty) continue;
+
+      blocks.add(Padding(
+        padding: EdgeInsets.only(bottom: 8, top: blocks.isEmpty ? 0 : 4),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: teamColor(ti),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              names[ti],
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: teamColor(ti),
+              ),
+            ),
+          ],
+        ),
+      ));
+      blocks.addAll(members.map((p) => Padding(
+            padding: const EdgeInsets.only(left: 18),
+            child: _playerRow(context, theme, p),
+          )));
+    }
+    return blocks;
+  }
+
+  /// The avatar/name header plus the two mode dropdowns for one player.
+  Widget _playerRow(BuildContext context, ThemeData theme, Player p) {
+    final cs = theme.colorScheme;
+    final h = handicaps[p] ??
+        PlayerHandicap(checkIn: gameCheckIn, checkOut: gameCheckOut);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: cs.primaryContainer,
+                child: Text(
+                  p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(p.name,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: _ModeDropdown<GameMode>(
+                  label: context.l10n.checkIn,
+                  value: h.checkIn,
+                  items: [
+                    (GameMode.straightIn, context.l10n.straight),
+                    (GameMode.doubleIn,   context.l10n.double_),
+                    (GameMode.masterIn,   context.l10n.master),
+                  ],
+                  onChanged: (v) => onChanged(p, h.copyWith(checkIn: v)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ModeDropdown<CheckoutMode>(
+                  label: context.l10n.checkOut,
+                  value: h.checkOut,
+                  items: [
+                    (CheckoutMode.straightOut, context.l10n.straight),
+                    (CheckoutMode.doubleOut,   context.l10n.double_),
+                    (CheckoutMode.masterOut,   context.l10n.master),
+                  ],
+                  onChanged: (v) => onChanged(p, h.copyWith(checkOut: v)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -755,73 +884,10 @@ class _HandicapSection extends StatelessWidget {
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
-              ...players.map((p) {
-                final h = handicaps[p] ??
-                    PlayerHandicap(
-                        checkIn: gameCheckIn, checkOut: gameCheckOut);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: cs.primaryContainer,
-                            child: Text(
-                              p.name.isNotEmpty
-                                  ? p.name[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: cs.onPrimaryContainer,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(p.name,
-                              style: theme.textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ModeDropdown<GameMode>(
-                              label: context.l10n.checkIn,
-                              value: h.checkIn,
-                              items: [
-                                (GameMode.straightIn, context.l10n.straight),
-                                (GameMode.doubleIn,   context.l10n.double_),
-                                (GameMode.masterIn,   context.l10n.master),
-                              ],
-                              onChanged: (v) => onChanged(
-                                p, h.copyWith(checkIn: v)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _ModeDropdown<CheckoutMode>(
-                              label: context.l10n.checkOut,
-                              value: h.checkOut,
-                              items: [
-                                (CheckoutMode.straightOut, context.l10n.straight),
-                                (CheckoutMode.doubleOut,   context.l10n.double_),
-                                (CheckoutMode.masterOut,   context.l10n.master),
-                              ],
-                              onChanged: (v) => onChanged(
-                                p, h.copyWith(checkOut: v)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
+              if (_grouped)
+                ..._teamGroups(context, theme)
+              else
+                ...players.map((p) => _playerRow(context, theme, p)),
             ],
           ],
         ),
