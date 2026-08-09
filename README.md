@@ -55,6 +55,7 @@ Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
 - **Match format** — presets (Best of 3/5/7/9, PDC Sets, Premier League) or custom legs per set and sets per match
 - **Placement mode** — available from 3 players or 3 teams: every leg is played to the end so everyone finishes, producing a final ranking with points per leg instead of ending on the first checkout
+- **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 
 **Check-In rules** (per player): Straight In / Double In / Master In  
 **Check-Out rules** (per player): Straight Out / Double Out / Master Out
@@ -89,6 +90,7 @@ Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks 
 
 - Minimum 2 players
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard-style input with mark tracking
 - Undo support (dart-by-dart)
 
@@ -106,6 +108,7 @@ Score on the target number each round — hit it cleanly for instant win.
 
 - Minimum 2 players
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard input centred on the active target field
 - Shanghai (hitting Single + Double + Triple of the target) triggers an instant win
 
@@ -123,6 +126,7 @@ Hit every number 1–20 in order, then finish on Bull.
 
 - Solo or multiplayer (minimum 1 player)
 - **Team game** — players split into teams sharing one score; active thrower shown per team slot
+- **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Legs & Sets configurable
 - Joker mechanic (Skip Rules variant)
 
@@ -133,8 +137,8 @@ Hit every number 1–20 in order, then finish on Bull.
 Every mode ends on a summary screen, and the same view is reachable for any finished game from the history.
 
 - **Winner banner** and per-player or per-team result cards
-- **Game info card** — the settings the game was played with (mode, variant or match format, scoring rules), shown the same way in every mode
-- **Play Again** — repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused, and reshuffles the throwing order like a fresh setup. The finished game stays in the history untouched
+- **Game info card** — the settings the game was played with (mode, variant or match format, scoring rules, starting order), shown the same way in every mode
+- **Play Again** — repeat the game with the same mode, settings, teams and handicaps. Asks for confirmation first, listing what would be reused. A random starting order is drawn again, an order that was fixed by hand is kept. The finished game stays in the history untouched
 - **Save or share the result** (X01) — the result card is rendered to an image for the photo library or the share sheet
 
 ---
@@ -273,7 +277,8 @@ lib/
 │   ├── cricket_game.dart                  # CricketGame, CricketThrow, variant/scoring enums
 │   ├── shanghai_game.dart                 # ShanghaiGame, ShanghaiThrow, ShanghaiVariant enum
 │   ├── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
-│   └── team_config.dart                   # Shared TeamConfig + JSON encode/decode for team_config_json
+│   ├── team_config.dart                   # Shared TeamConfig + JSON encode/decode for team_config_json
+│   └── starting_order.dart                # Shared StartingOrder enum (random or fixed throwing order)
 ├── providers/
 │   ├── players_provider.dart              # Player CRUD; notifies listeners
 │   ├── game_provider.dart                 # X01 game state machine; score calc, bust detection, turn logic
@@ -332,6 +337,7 @@ lib/
     ├── cricket_marks_widget.dart           # Cricket field/marks grid
     ├── favorite_double_picker.dart         # Picks a player's favourite doubles
     ├── team_section.dart                   # Shared team assignment UI for setup screens
+    ├── starting_order_section.dart         # Shared starting-order picker with drag-to-sort list
     ├── game_info_card.dart                 # Shared card listing a finished game's settings
     ├── rematch_button.dart                 # "Play Again" button and its confirmation dialog
     └── player_dialog.dart                  # Create/edit player dialog
@@ -349,7 +355,7 @@ players      (id, name, favorite_doubles, is_deleted, is_primary,
 
 games        (id, start_score, game_mode, checkout_mode, legs, sets,
               created_at, finished_at, is_synced, team_config_json,
-              handicap_json, placement_mode)
+              handicap_json, placement_mode, starting_order)
 
 game_players (game_id, player_id, sort_order)
 
@@ -358,7 +364,8 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 ```
 
 `handicap_json` — per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
-`placement_mode` — 1 when every leg is played to the end for a final ranking.
+`placement_mode` — 1 when every leg is played to the end for a final ranking.  
+`starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all four game tables; games created before the setting existed read as 0, which is how they were actually played.
 
 `hits_json` stores individual dart hits as a compact JSON array:
 ```json
@@ -369,8 +376,8 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 ### Cricket
 
 ```sql
-cricket_games   (id, variant, scoring_mode, legs, sets,
-                 created_at, finished_at, player_ids, team_config_json)
+cricket_games   (id, variant, scoring_mode, legs, sets, created_at,
+                 finished_at, player_ids, team_config_json, starting_order)
 
 cricket_throws  (id, game_id, player_id, field, multiplier,
                  leg, set_, thrown_at)
@@ -384,7 +391,7 @@ cricket_throws  (id, game_id, player_id, field, multiplier,
 
 ```sql
 shanghai_games   (id, variant, legs, sets, created_at, finished_at,
-                  player_ids, team_config_json)
+                  player_ids, team_config_json, starting_order)
 
 shanghai_throws  (id, game_id, player_id, target, multiplier,
                   round, leg, set_, thrown_at)
@@ -395,8 +402,8 @@ shanghai_throws  (id, game_id, player_id, target, multiplier,
 ### Around the Clock
 
 ```sql
-around_the_clock_games   (id, variant, legs, sets,
-                          created_at, finished_at, player_ids, team_config_json)
+around_the_clock_games   (id, variant, legs, sets, created_at, finished_at,
+                          player_ids, team_config_json, starting_order)
 
 around_the_clock_throws  (id, game_id, player_id, field, multiplier,
                           leg, set_, thrown_at)

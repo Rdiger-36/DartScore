@@ -96,6 +96,7 @@ class ShanghaiSummaryScreen extends StatelessWidget {
           GameInfoCard(rows: [
             (l.gameLabel, l.modeShanghaiName),
             (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+            (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
           ]),
           const SizedBox(height: 16),
 

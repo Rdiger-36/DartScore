@@ -146,6 +146,12 @@ class _SummaryBody extends StatelessWidget {
             context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
                 placementMode: game.placementMode)
           ),
+          // A solo game has nobody to be ordered against.
+          if (game.isTeamGame || players.length > 1)
+            (
+              context.l10n.startingOrder,
+              startingOrderLabel(context.l10n, game.startingOrder)
+            ),
         ]),
         const SizedBox(height: 16),
         RematchButton(

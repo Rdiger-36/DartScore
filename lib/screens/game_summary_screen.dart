@@ -285,6 +285,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                         placementMode: provider.game!.placementMode,
                       )
                     ),
+                    // A solo game has nobody to be ordered against.
+                    if (states.length > 1)
+                      (
+                        l.startingOrder,
+                        startingOrderLabel(l, provider.game!.startingOrder)
+                      ),
                   ]),
                   const SizedBox(height: 16),
                   // Final ranking (placement mode only)

@@ -32,7 +32,7 @@ class DbHelper {
     final path = join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 17,
+      version: 18,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -179,6 +179,19 @@ class DbHelper {
     if (oldVersion < 17) {
       await db.execute('ALTER TABLE games ADD COLUMN handicap_json TEXT');
     }
+    if (oldVersion < 18) {
+      // Default 0 = StartingOrder.random, which is how every game up to here
+      // was played: the setup screens always shuffled.
+      for (final table in const [
+        'games',
+        'cricket_games',
+        'shanghai_games',
+        'around_the_clock_games',
+      ]) {
+        await db.execute(
+            'ALTER TABLE $table ADD COLUMN starting_order INTEGER NOT NULL DEFAULT 0');
+      }
+    }
   }
 
   /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
@@ -223,7 +236,8 @@ class DbHelper {
         is_synced INTEGER NOT NULL DEFAULT 0,
         team_config_json TEXT,
         handicap_json TEXT,
-        placement_mode INTEGER NOT NULL DEFAULT 0
+        placement_mode INTEGER NOT NULL DEFAULT 0,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -259,7 +273,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -283,7 +298,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -308,7 +324,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
