@@ -408,8 +408,8 @@ class AppLocalizations {
   String get syncRangeMonth    => _t('30 days', '30 Tage');
   String get syncRangeAll      => _t('Everything', 'Alles');
   String get syncRangeNote     =>
-      _t('Older visits travel as statistics. Every lifetime number arrives, only the single visits stay behind.',
-         'Ältere Aufnahmen gehen als Statistik mit. Alle Lebenszeit-Zahlen kommen an, nur die einzelnen Aufnahmen bleiben hier.');
+      _t('Older visits are not transferred one by one, only as a total. The statistics on the other device are still correct, only its "All Throws" list does not reach back as far.',
+         'Ältere Aufnahmen werden nicht einzeln übertragen, sondern nur als Summe. Die Statistiken stimmen auf dem anderen Gerät trotzdem, nur die Liste "Alle Würfe" reicht dort nicht so weit zurück.');
   String syncVisitCount(int n) =>
       _t('$n visit${n != 1 ? 's' : ''}',
          '$n ${n != 1 ? 'Aufnahmen' : 'Aufnahme'}');
