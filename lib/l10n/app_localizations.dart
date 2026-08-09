@@ -397,59 +397,103 @@ class AppLocalizations {
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
   // ── Sync ──────────────────────────────────────────────────────────────────
-  String get syncTitle         => _t('Profile Sync', 'Profil Sync');
+  String get syncTitle         => _t('Profile Sync', 'Profil-Sync');
   String get syncSend          => _t('Send', 'Senden');
   String get syncReceive       => _t('Receive', 'Empfangen');
 
-  // Quick QR
-  String get quickQr           => _t('Quick QR', 'Schnell-QR');
-  String get wifiSync          => _t('WiFi Sync', 'WLAN-Sync');
-  String get quickQrDesc       =>
-      _t('Transfer your profile & new throws directly via QR code. No network needed.',
-         'Übertrage dein Profil & neue Würfe direkt über einen QR-Code. Kein Netzwerk nötig.');
-  String get qrTooLargeWarning =>
-      _t('Too many throws for a QR code.\nUse WiFi Sync to transfer all data.',
-         'Zu viele Würfe für einen QR-Code.\nNutze WLAN-Sync um alle Daten zu übertragen.');
-  String newThrowsSinceSync(int n) =>
-      _t('$n new throw${n != 1 ? 's' : ''} since last sync',
-         '$n neue${n != 1 ? '' : 'r'} ${n != 1 ? 'Würfe' : 'Wurf'} seit letztem Sync');
-  String get allThrowsFirstSync =>
-      _t('All throws included, first sync', 'Alle Würfe enthalten, erster Sync');
-  String get noNewThrowsQr    =>
-      _t('No new throws, stats snapshot updated.',
-         'Keine neuen Würfe, Statistik-Snapshot aktualisiert.');
+  // How far back a sync reaches
+  String get syncRangeLabel    => _t('Time range', 'Zeitraum');
+  String get syncRangeDay      => _t('1 day', '1 Tag');
+  String get syncRangeWeek     => _t('7 days', '7 Tage');
+  String get syncRangeMonth    => _t('30 days', '30 Tage');
+  String get syncRangeAll      => _t('Everything', 'Alles');
+  String get syncRangeNote     =>
+      _t('Older visits are not transferred one by one, only as a total. The statistics on the other device are still correct, only its "All Throws" list does not reach back as far.',
+         'Ältere Aufnahmen werden nicht einzeln übertragen, sondern nur als Summe. Die Statistiken stimmen auf dem anderen Gerät trotzdem, nur die Liste "Alle Würfe" reicht dort nicht so weit zurück.');
+  String syncVisitCount(int n) =>
+      _t('$n visit${n != 1 ? 's' : ''}',
+         '$n ${n != 1 ? 'Aufnahmen' : 'Aufnahme'}');
+  String syncRangeInPacket(String range) =>
+      _t('Range: $range', 'Zeitraum: $range');
+
+  // How the data gets across, chosen from how much of it there is
+  String get syncViaStaticQr   =>
+      _t('fits into one QR code', 'passt in einen QR-Code');
+  String syncViaAnimatedQr(int seconds) =>
+      _t('animated QR code, about $seconds seconds',
+         'animierter QR-Code, etwa $seconds Sekunden');
+  String get syncViaServer     =>
+      _t('too much for a QR code, transferred over Wi-Fi',
+         'zu viel für einen QR-Code, Übertragung über WLAN');
+  String get syncAnimatedHint  =>
+      _t('Hold both phones steady until the receiver is finished.',
+         'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
+  String get syncServerHint    =>
+      _t('Both devices need to be on the same Wi-Fi for this.',
+         'Dafür müssen beide Geräte im selben WLAN sein.');
 
   String get syncSendDesc      =>
-      _t('Select a player and start the server. The receiver scans the QR code. Both devices must be on the same Wi-Fi.',
-         'Wähle deinen Spieler und starte den Server. Der Empfänger scannt den QR-Code. Beide Geräte müssen im selben WLAN sein.');
+      _t('Pick a player and a time range. Which way the data travels follows from how much of it there is.',
+         'Wähle Spieler und Zeitraum. Auf welchem Weg die Daten reisen, ergibt sich aus ihrer Menge.');
   String get syncReceiveDesc   =>
-      _t('Scan the sender\'s QR code to import their profile.',
-         'Scanne den QR-Code des Senders um sein Profil zu importieren.');
+      _t('Scan the sender\'s QR code to import the profile.',
+         'Scanne den QR-Code des Senders, um das Profil zu importieren.');
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
-  String get startServer       => _t('Start Server', 'Server starten');
-  String get stopServer        => _t('Stop Server', 'Server stoppen');
-  String get scanQr            => _t('Scan QR Code', 'QR-Code scannen');
-  String get profileAndStats   => _t('Profile · Stats · all throws', 'Profil · Statistiken · alle Würfe');
-  String get qrScanHint        => _t('Hold sender\'s QR code in frame', 'QR-Code des Senders halten');
+  String get startServer       => _t('Start server', 'Server starten');
+  String get stopServer        => _t('Stop server', 'Server stoppen');
+  String get scanQr            => _t('Scan QR code', 'QR-Code scannen');
+  String get profileAndStats   =>
+      _t('Profile · Statistics · Visits', 'Profil · Statistiken · Aufnahmen');
+  String get qrScanHint        =>
+      _t('Hold the sender\'s QR code in frame', 'QR-Code des Senders ins Bild halten');
+  String get syncKeepHolding   =>
+      _t('Keep holding, the code is still being read',
+         'Weiter halten, der Code wird noch gelesen');
+  String syncScanProgress(int received, int total) =>
+      _t('$received of $total parts', '$received von $total Teilen');
+  String get syncReadFailed    =>
+      _t('The data could not be read.', 'Die Daten konnten nicht gelesen werden.');
+  String get syncPairTitle     =>
+      _t('Confirm transfer', 'Übertragung bestätigen');
+  String get syncPairBody      =>
+      _t('A device is asking for this profile. Both screens have to show the same number.',
+         'Ein Gerät fragt nach diesem Profil. Auf beiden Bildschirmen muss dieselbe Zahl stehen.');
+  String get syncPairWaiting   =>
+      _t('Waiting for the other device to confirm',
+         'Warten auf die Bestätigung am anderen Gerät');
+  String get syncApprove       => _t('Confirm', 'Bestätigen');
+  String get syncReject        => _t('Decline', 'Ablehnen');
+  String get syncNotConfirmed  =>
+      _t('The transfer was not confirmed in time.',
+         'Die Übertragung wurde nicht rechtzeitig bestätigt.');
+  String get syncRejected      =>
+      _t('The other device declined the transfer.',
+         'Das andere Gerät hat die Übertragung abgelehnt.');
+  String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
+  String get syncServerSentHint =>
+      _t('The server has stopped. Start it again for another transfer.',
+         'Der Server wurde gestoppt. Für eine weitere Übertragung neu starten.');
+
+  String get syncImporting     => _t('Importing', 'Wird importiert');
+  String syncImportProgress(int done, int total) =>
+      _t('$done of $total visits', '$done von $total Aufnahmen');
+  String get syncImportDone    => _t('Import complete', 'Import abgeschlossen');
+  String get syncImportFailed  => _t('Import failed', 'Import fehlgeschlagen');
   String get connectionFailed  =>
       _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
-         'Verbindung fehlgeschlagen.\nPrüfe ob beide Geräte im selben WLAN sind.');
-  String get importNewPlayer   => _t('Import New Player', 'Neuen Spieler importieren');
-  String get updatePlayer      => _t('Update Player', 'Spieler aktualisieren');
+         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte im selben WLAN sind.');
+  String get importNewPlayer   => _t('Import new player', 'Neuen Spieler importieren');
+  String get updatePlayer      => _t('Update player', 'Spieler aktualisieren');
   String get nameConflictTitle => _t('Name already exists', 'Name bereits vorhanden');
   String nameConflictBody(String name) =>
       _t('"$name" already exists. What should happen?',
          '"$name" existiert bereits. Was soll passieren?');
   String importAs(String name) => _t('Import as "$name"', 'Als "$name" importieren');
-  String get renameAndImport   => _t('Rename & Import', 'Umbenennen & importieren');
+  String get renameAndImport   => _t('Rename and import', 'Umbenennen und importieren');
   String get alternativeName   => _t('Alternative name', 'Alternativer Name');
-  String get lastSyncPrefix    => _t('Last sync: ', 'Letzter Sync: ');
   String fromDevice(String d)  => _t('From: $d', 'Von: $d');
-  String get updateProfileToggle =>
-      _t('Update name & favorite double', 'Name & Lieblings-Double übernehmen');
   String get import_           => _t('Import', 'Importieren');
   String get update            => _t('Update', 'Aktualisieren');
-  String get alreadyOwned      => _t('Already imported', 'Bereits vorhanden');
   String importedMsg(String name) => _t('$name imported.', '$name importiert.');
   String updatedMsg(String name) => _t('$name updated.', '$name aktualisiert.');
   String importedWithThrows(String name, int n) =>
@@ -459,19 +503,9 @@ class AppLocalizations {
       _t('$name imported · $n visits.',
          '$name importiert · $n Aufnahmen.');
   String overwriteProfile(String name) =>
-      _t('Profile of "$name" will be overwritten with this data.',
-         'Profil von "$name" wird mit diesen Daten überschrieben.');
+      _t('The profile of "$name" will be overwritten with this data.',
+         'Das Profil von "$name" wird mit diesen Daten überschrieben.');
   String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
-  String get noQrInImage       => _t('No QR code found in image.', 'Kein QR-Code im Bild gefunden.');
-  String get invalidQr         => _t('Invalid QR code.', 'Ungültiger QR-Code.');
-  String get nameMissing       => _t('Name missing in QR code.', 'Name fehlt im QR-Code.');
-  String get qrReadError       => _t('Error reading QR code.', 'Fehler beim Lesen des QR-Codes.');
-  String get saveQrHint        =>
-      _t('Have a friend scan this, or save it as an image.',
-         'Von einem Freund scannen lassen oder als Bild speichern.');
-  String get profileDataHint   =>
-      _t('Profile data: Name · Favorite double · Statistics',
-         'Profil-Daten: Name · Lieblings-Double · Statistiken');
   String get throws            => _t('Throws', 'Würfe');
 
   // ── Game Mode Selection ──────────────────────────────────────────────────

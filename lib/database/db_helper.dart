@@ -458,24 +458,10 @@ class DbHelper {
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
 
-  /// Counts perfect legs in [throws] (legs finished within [minDarts] darts).
-  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) {
-    if (minDarts == null) return 0;
-    int count = 0;
-    // Group darts used per leg (gameId-set-leg key)
-    final legDarts = <String, int>{};
-    for (final t in throws) {
-      final k = '${t.gameId}-${t.set}-${t.leg}';
-      legDarts[k] = (legDarts[k] ?? 0) + t.dartsUsed;
-    }
-    for (final t in throws) {
-      if (!t.bust && t.remainingBefore - t.score == 0) {
-        final k = '${t.gameId}-${t.set}-${t.leg}';
-        if ((legDarts[k] ?? 999) <= minDarts) count++;
-      }
-    }
-    return count;
-  }
+  /// Counts perfect legs in [throws], all of which come from one game and so
+  /// share the same [minDarts].
+  static int _perfectLegsFor(List<DartThrow> throws, int? minDarts) =>
+      perfectLegsFromThrows(throws, (_) => minDarts);
 
   /// Snapshots one game's throws into each involved player's persistent
   /// `local_stats_json`, so lifetime stats survive deleting the game. Call this
@@ -520,6 +506,52 @@ class DbHelper {
     }
   }
 
+  /// Folds [excluded] into the snapshot [snapshotJson] and returns the result,
+  /// or null when there is nothing to carry.
+  ///
+  /// A sync can be limited to the last few days, in which case only those
+  /// throws travel as individual throws. Everything older still has to reach
+  /// the other device, just as aggregated numbers, otherwise its lifetime
+  /// totals silently read low and nobody can tell. Grouping by game mirrors
+  /// [snapshotGameStats]: perfect legs and the finished-game count are
+  /// properties of a game, not of a single throw.
+  Future<Map<String, dynamic>?> foldThrowsIntoSnapshot(
+      String? snapshotJson, List<DartThrow> excluded) async {
+    var merged = (snapshotJson != null && snapshotJson.isNotEmpty)
+        ? jsonDecode(snapshotJson) as Map<String, dynamic>
+        : null;
+    if (excluded.isEmpty) return merged;
+
+    final d = await db;
+
+    final byGame = <int, List<DartThrow>>{};
+    for (final t in excluded) {
+      byGame.putIfAbsent(t.gameId, () => []).add(t);
+    }
+
+    for (final entry in byGame.entries) {
+      final gameRows = await d.query('games',
+          columns: ['start_score', 'finished_at'],
+          where: 'id = ?',
+          whereArgs: [entry.key]);
+
+      final startScore =
+          gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
+      final minDarts = startScore != null ? _kMinDarts[startScore] : null;
+
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(entry.value),
+        'perfect_legs':   _perfectLegsFor(entry.value, minDarts),
+        'games_finished':
+            gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0,
+      };
+
+      merged = merged == null ? stats : _mergeStats(merged, stats);
+    }
+
+    return merged;
+  }
+
   /// Computes an aggregate stats map (darts, scored, averages, highs, counts)
   /// from a list of throws.
   ///
@@ -532,26 +564,13 @@ class DbHelper {
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
     final stats = ThrowStats.fromThrows(throws);
 
-    final segmentHits  = <String, Map<String, int>>{};
+    final segmentHits  = segmentHitsOf(throws);
     final scoreDistrib = <String, int>{};
     // date → {scored, darts, visits, s180} for week-comparison reconstruction
     final dailyStats   = <String, Map<String, int>>{};
     final gameIds = throws.map((t) => t.gameId).toSet();
 
     for (final t in throws) {
-      // Heatmap
-      if (t.hitsJson != null) {
-        try {
-          final hits = jsonDecode(t.hitsJson!) as List<dynamic>;
-          for (final h in hits) {
-            final field = (h['f'] as int).toString();
-            final mul   = (h['m'] as int).toString();
-            segmentHits.putIfAbsent(field, () => {});
-            segmentHits[field]![mul] = (segmentHits[field]![mul] ?? 0) + 1;
-          }
-        } catch (_) {}
-      }
-
       // Daily stats (all throws, bust or not, for activity heat and week windows)
       final day = '${t.thrownAt.year}-'
           '${t.thrownAt.month.toString().padLeft(2, '0')}-'
@@ -606,6 +625,46 @@ class DbHelper {
       'daily_stats':        dailyStats,
       'recent_throws':      recentThrows,
     };
+  }
+
+  /// Counts the dartboard segments [throws] hit, as field to multiplier to
+  /// count, skipping the throws that were entered as a plain score.
+  static Map<String, Map<String, int>> segmentHitsOf(List<DartThrow> throws) {
+    final hits = <String, Map<String, int>>{};
+
+    for (final t in throws) {
+      if (t.hitsJson == null) continue;
+      try {
+        for (final h in jsonDecode(t.hitsJson!) as List<dynamic>) {
+          final field = (h['f'] as int).toString();
+          final mul   = (h['m'] as int).toString();
+          hits.putIfAbsent(field, () => {});
+          hits[field]![mul] = (hits[field]![mul] ?? 0) + 1;
+        }
+      } catch (_) {}
+    }
+
+    return hits;
+  }
+
+  /// Adds the segments [throws] hit to [snapshot], leaving every other counter
+  /// in it untouched, and returns null when there is nothing to add.
+  ///
+  /// Which segment a dart landed on is the one thing a synced throw cannot
+  /// carry: the wire format holds a visit's score but not the three darts
+  /// behind it. Without this the dartboard heatmap and the top doubles would
+  /// stay empty on the receiving device for everything that travelled as
+  /// throws, and would fill in only for whatever a shorter range happened to
+  /// push into the snapshot instead.
+  ///
+  /// Adding them here cannot double count: the throws travelling alongside
+  /// arrive without their darts, so they contribute nothing to the segments on
+  /// the other side.
+  static Map<String, dynamic>? addSegmentHits(
+      Map<String, dynamic>? snapshot, List<DartThrow> throws) {
+    final hits = segmentHitsOf(throws);
+    if (hits.isEmpty) return snapshot;
+    return _mergeStats(snapshot ?? {}, {'segment_hits': hits});
   }
 
   /// Merges two stats maps, summing counts and recomputing maxima/averages, so
@@ -832,7 +891,7 @@ class DbHelper {
   }
 
   /// Creates one hidden sync-game and returns its id.
-  /// Call once per import session, then pass the id to [insertSyncedThrow].
+  /// Call once per import session, then pass the id to [insertSyncedThrows].
   Future<int> createSyncGame(int playerStartScore) async {
     final d = await db;
     return d.insert('games', {
@@ -847,20 +906,61 @@ class DbHelper {
     });
   }
 
-  /// Inserts a throw imported during sync into the hidden sync-game.
-  Future<void> insertSyncedThrow(int playerId, int gameId, DartThrow t) async {
+  /// Removes [playerId]'s throws from earlier imports, dropping any hidden
+  /// sync-game left empty by that.
+  ///
+  /// Call this before importing, because a packet is authoritative for
+  /// everything that came from the sending device. Its stats snapshot may cover
+  /// throws an earlier sync delivered one by one, and keeping both would count
+  /// the same leg twice. Games played on this device carry `is_synced = 0` and
+  /// are never touched.
+  Future<void> deleteSyncedThrowsForPlayer(int playerId) async {
     final d = await db;
-    await d.insert('dart_throws', {
-      'game_id': gameId,
-      'player_id': playerId,
-      'score': t.score,
-      'darts_used': t.dartsUsed,
-      'leg': t.leg,
-      'set_': t.set,
-      'remaining_before': t.remainingBefore,
-      'thrown_at': t.thrownAt.millisecondsSinceEpoch,
-      'bust': t.bust ? 1 : 0,
-    });
+    final rows = await d.rawQuery(
+      'SELECT DISTINCT g.id AS id FROM games g '
+      'JOIN dart_throws t ON t.game_id = g.id '
+      'WHERE g.is_synced = 1 AND t.player_id = ?',
+      [playerId],
+    );
+
+    for (final row in rows) {
+      final gameId = row['id'] as int;
+      await d.delete('dart_throws',
+          where: 'game_id = ? AND player_id = ?',
+          whereArgs: [gameId, playerId]);
+
+      final remaining = Sqflite.firstIntValue(await d.rawQuery(
+          'SELECT COUNT(*) FROM dart_throws WHERE game_id = ?', [gameId]));
+      if (remaining == 0) await deleteGame(gameId);
+    }
+  }
+
+  /// Inserts throws imported during sync into the hidden sync-game.
+  ///
+  /// One statement per throw would mean a round trip each, and a sync can carry
+  /// tens of thousands of them; a batch keeps a large import to a few seconds.
+  /// Callers that show progress pass the throws in slices and get a chance to
+  /// report between the calls.
+  Future<void> insertSyncedThrows(
+      int playerId, int gameId, List<DartThrow> throws) async {
+    final d = await db;
+    final batch = d.batch();
+
+    for (final t in throws) {
+      batch.insert('dart_throws', {
+        'game_id': gameId,
+        'player_id': playerId,
+        'score': t.score,
+        'darts_used': t.dartsUsed,
+        'leg': t.leg,
+        'set_': t.set,
+        'remaining_before': t.remainingBefore,
+        'thrown_at': t.thrownAt.millisecondsSinceEpoch,
+        'bust': t.bust ? 1 : 0,
+      });
+    }
+
+    await batch.commit(noResult: true);
   }
 
   /// Records the last sync time and optional received stats snapshot for a player.
