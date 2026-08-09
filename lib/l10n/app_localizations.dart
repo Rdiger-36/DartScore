@@ -460,9 +460,12 @@ class AppLocalizations {
          'Ein Gerät fragt nach diesem Profil. Auf beiden Bildschirmen muss dieselbe Zahl stehen.');
   String get syncPairWaiting   =>
       _t('Waiting for the other device to confirm',
-         'Warte auf die Bestätigung am anderen Gerät');
+         'Warten auf die Bestätigung am anderen Gerät');
   String get syncApprove       => _t('Confirm', 'Bestätigen');
   String get syncReject        => _t('Decline', 'Ablehnen');
+  String get syncNotConfirmed  =>
+      _t('The transfer was not confirmed in time.',
+         'Die Übertragung wurde nicht rechtzeitig bestätigt.');
   String get syncRejected      =>
       _t('The other device declined the transfer.',
          'Das andere Gerät hat die Übertragung abgelehnt.');
