@@ -3,7 +3,11 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
+import '../widgets/rematch_button.dart';
+import 'around_the_clock_screen.dart';
 
 /// Post-game summary for Around the Clock: the winner plus each player's final
 /// progress and darts used, ranked by finish order.
@@ -61,8 +65,41 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
           ],
+
+          // ── Rematch ──────────────────────────────────────────────────────
+          RematchButton(
+            modeName: l.modeAroundClockName,
+            details: [
+              (
+                l.aroundClockVariant,
+                aroundTheClockVariantLabel(l, provider.game!.variant)
+              ),
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              provider.game!,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const AroundTheClockScreen(),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Game info ────────────────────────────────────────────────────
+          GameInfoCard(rows: [
+            (l.gameLabel, l.modeAroundClockName),
+            (
+              l.aroundClockVariant,
+              aroundTheClockVariantLabel(l, provider.game!.variant)
+            ),
+          ]),
+          const SizedBox(height: 16),
 
           Card(
             child: Padding(

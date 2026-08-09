@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/player.dart';
+import '../utils/team_color.dart';
 
 /// Optional section to enable team play, name teams, add/remove them, and assign
 /// each selected player to a team. Shared by every game mode's setup screen.
@@ -29,18 +30,6 @@ class TeamSection extends StatelessWidget {
     required this.onAddTeam,
     required this.onRemoveTeam,
   });
-
-  static const List<Color> _teamColors = [
-    Color(0xFF1565C0), // blue
-    Color(0xFF2E7D32), // green
-    Color(0xFFC62828), // red
-    Color(0xFF6A1B9A), // purple
-    Color(0xFFE65100), // orange
-    Color(0xFF00695C), // teal
-  ];
-
-  /// The accent color for team [ti], cycling through the palette.
-  Color _teamColor(int ti) => _teamColors[ti % _teamColors.length];
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +70,7 @@ class TeamSection extends StatelessWidget {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: _teamColor(ti),
+                        color: teamColor(ti),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -130,13 +119,13 @@ class TeamSection extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 14,
-                        backgroundColor: _teamColor(clampedAssigned).withValues(alpha: 0.2),
+                        backgroundColor: teamColor(clampedAssigned).withValues(alpha: 0.2),
                         child: Text(
                           p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: _teamColor(clampedAssigned),
+                            color: teamColor(clampedAssigned),
                           ),
                         ),
                       ),
@@ -158,7 +147,7 @@ class TeamSection extends StatelessWidget {
                                   width: 10,
                                   height: 10,
                                   decoration: BoxDecoration(
-                                    color: _teamColor(ti),
+                                    color: teamColor(ti),
                                     shape: BoxShape.circle,
                                   ),
                                 ),

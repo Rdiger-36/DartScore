@@ -12,6 +12,7 @@ import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/shanghai_provider.dart';
 import '../providers/around_the_clock_provider.dart';
+import '../utils/game_labels.dart';
 import 'cricket_history_summary_screen.dart';
 import 'cricket_screen.dart';
 import 'game_screen.dart';
@@ -536,30 +537,6 @@ class _ChipBar extends StatelessWidget {
   }
 }
 
-/// Localized display name for a Shanghai [variant].
-String _shanghaiVariantLabel(AppLocalizations l, ShanghaiVariant variant) {
-  switch (variant) {
-    case ShanghaiVariant.classic:
-      return l.shanghaiClassic;
-    case ShanghaiVariant.clockwise:
-      return l.shanghaiClockwise;
-    case ShanghaiVariant.sequential:
-      return l.shanghaiSequential;
-  }
-}
-
-/// Localized display name for an Around the Clock [variant].
-String _aroundClockVariantLabel(AppLocalizations l, AroundTheClockVariant variant) {
-  switch (variant) {
-    case AroundTheClockVariant.basic:
-      return l.aroundClockBasic;
-    case AroundTheClockVariant.fullSegments:
-      return l.aroundClockFullSegments;
-    case AroundTheClockVariant.skipRules:
-      return l.aroundClockSkipRules;
-  }
-}
-
 // ── Data model ────────────────────────────────────────────────────────────────
 
 /// A single history list item wrapping a game of any mode (exactly one of the
@@ -644,10 +621,10 @@ class _GameTile extends StatelessWidget {
                 : l.cricketVariantNormal,
           )
         : entry.isShanghai
-            ? l.shanghaiGameInfo(_shanghaiVariantLabel(l, entry.shanghaiGame!.variant))
+            ? l.shanghaiGameInfo(shanghaiVariantLabel(l, entry.shanghaiGame!.variant))
             : entry.isAroundTheClock
                 ? l.aroundClockGameInfo(
-                    _aroundClockVariantLabel(l, entry.aroundTheClockGame!.variant))
+                    aroundTheClockVariantLabel(l, entry.aroundTheClockGame!.variant))
                 : l.gameSummaryInfo(
                     entry.x01Game!.startScore,
                     entry.x01Game!.legs,
