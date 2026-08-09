@@ -7,6 +7,7 @@ import '../models/player.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'shanghai_screen.dart';
 
@@ -123,9 +124,10 @@ class _Body extends StatelessWidget {
         ],
 
         // Game info
-        _InfoRow(l.gameLabel, l.modeShanghaiName),
-        const SizedBox(height: 6),
-        _InfoRow(l.gameMode_, shanghaiVariantLabel(l, game.variant)),
+        GameInfoCard(dense: true, rows: [
+          (l.gameLabel, l.modeShanghaiName),
+          (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+        ]),
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
@@ -215,25 +217,3 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// A label/value row used in the game-info section.
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        )),
-        Text(value, style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.bold,
-        )),
-      ],
-    );
-  }
-}

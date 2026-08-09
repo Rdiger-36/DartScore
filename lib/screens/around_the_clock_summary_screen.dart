@@ -5,6 +5,7 @@ import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import 'around_the_clock_screen.dart';
 
@@ -89,6 +90,16 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
             destination: (_) => const AroundTheClockScreen(),
           ),
           const SizedBox(height: 20),
+
+          // ── Game info ────────────────────────────────────────────────────
+          GameInfoCard(rows: [
+            (l.gameLabel, l.modeAroundClockName),
+            (
+              l.aroundClockVariant,
+              aroundTheClockVariantLabel(l, provider.game!.variant)
+            ),
+          ]),
+          const SizedBox(height: 16),
 
           Card(
             child: Padding(
