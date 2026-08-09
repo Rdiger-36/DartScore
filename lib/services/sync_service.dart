@@ -1,6 +1,29 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import '../models/dart_throw.dart';
+
+// ── Sync range ────────────────────────────────────────────────────────────────
+
+/// How far back a sync reaches when collecting a player's throws.
+///
+/// Only the individual throws are cut off by this. Everything older is folded
+/// into the stats snapshot that travels with the packet, so the receiver's
+/// lifetime numbers come out the same whichever range was picked.
+enum SyncRange {
+  day(1),
+  week(7),
+  month(30),
+  all(null);
+
+  const SyncRange(this.days);
+
+  /// Days of history covered, or null for the player's whole history.
+  final int? days;
+}
 
 // ── Sync throw ────────────────────────────────────────────────────────────────
 
@@ -166,6 +189,12 @@ class SyncPacket {
   final List<SyncThrow> throws;
   // Full historical stats snapshot (local_stats_json): includes data from cleared game history.
   final String? localStatsJson;
+  /// How far back [throws] reaches, in days, or null when it holds every throw.
+  ///
+  /// Only the individual throws are cut off by this; the throws left out were
+  /// folded into [localStatsJson] before sending, so no aggregate number is
+  /// lost by picking a shorter range.
+  final int? rangeDays;
 
   const SyncPacket({
     required this.version,
@@ -176,6 +205,7 @@ class SyncPacket {
     required this.stats,
     required this.throws,
     this.localStatsJson,
+    this.rangeDays,
   });
 
   /// Serializes this packet to its JSON wire representation.
@@ -188,6 +218,7 @@ class SyncPacket {
         'stats': stats.toJson(),
         'throws': throws.map((t) => t.toJson()).toList(),
         if (localStatsJson != null) 'local_stats_json': localStatsJson,
+        if (rangeDays != null) 'range_days': rangeDays,
       };
 
   /// Parses a packet from JSON, applying defaults for optional fields.
@@ -203,47 +234,198 @@ class SyncPacket {
             .map((t) => SyncThrow.fromJson(t as Map<String, dynamic>))
             .toList(),
         localStatsJson: j['local_stats_json'] as String?,
+        rangeDays: j['range_days'] as int?,
+      );
+
+  /// A copy of this packet under a different [playerName], used when the
+  /// receiver resolves a name clash by importing under an alternative name.
+  SyncPacket withName(String name) => SyncPacket(
+        version: version,
+        senderDevice: senderDevice,
+        playerUuid: playerUuid,
+        playerName: name,
+        favoriteDoubles: favoriteDoubles,
+        stats: stats,
+        throws: throws,
+        localStatsJson: localStatsJson,
+        rangeDays: rangeDays,
       );
 }
 
 // ── Server ────────────────────────────────────────────────────────────────────
 
-/// Hosts a one-shot local HTTP server that serves a [SyncPacket] as JSON to the
-/// peer device over the local network. The sender shows its IP/port (e.g. via
-/// QR) and the [SyncClient] on the other device fetches the payload.
+/// Marks the QR code that carries a Wi-Fi transfer's connection details.
+const String kSyncWifiPrefix = 'DSW:';
+
+/// How far a Wi-Fi transfer has got, from the sender's side.
+enum SyncServerState {
+  /// Bound and listening, nobody has asked yet.
+  waiting,
+
+  /// A peer with the right token is asking to be let in.
+  pending,
+
+  /// The user approved, the payload goes out on the next request.
+  approved,
+
+  /// The payload has been handed over.
+  served,
+
+  /// The user turned the peer away.
+  rejected,
+}
+
+/// Where and how a peer reaches a running [SyncServer].
+class SyncConnection {
+  final String ip;
+  final int port;
+
+  /// Random per session, and the only way past the server's front door.
+  final String token;
+
+  const SyncConnection(this.ip, this.port, this.token);
+
+  /// The connection QR's contents. Uppercase and punctuation only, so the code
+  /// can use the dense alphanumeric mode.
+  String get qrPayload => '$kSyncWifiPrefix$ip:$port:$token';
+
+  /// Parses what [qrPayload] produced, or null if [raw] is something else.
+  static SyncConnection? parse(String raw) {
+    if (!raw.startsWith(kSyncWifiPrefix)) return null;
+    final parts = raw.substring(kSyncWifiPrefix.length).split(':');
+    if (parts.length != 3) return null;
+    final port = int.tryParse(parts[1]);
+    if (port == null) return null;
+    return SyncConnection(parts[0], port, parts[2]);
+  }
+}
+
+/// Hosts a one-shot local HTTP server that hands a payload to one peer over the
+/// local network, once the user has confirmed the peer is the right one.
+///
+/// A peer needs the token from the connection QR to get any answer at all,
+/// which is what keeps the payload from anyone else who happens to be on the
+/// same Wi-Fi. Past that door it still waits: the first request only starts a
+/// pairing, both devices show the same four digits, and the payload is released
+/// when the user approves it here. The server then stops itself rather than
+/// staying open for the rest of the session.
 class SyncServer {
   HttpServer? _server;
   String? _payload;
+  String _token = '';
+  String _pin = '';
+
+  final ValueNotifier<SyncServerState> _state =
+      ValueNotifier(SyncServerState.waiting);
+
+  /// Follows the transfer for the sender's screen.
+  ValueListenable<SyncServerState> get state => _state;
+
+  /// The four digits both devices show while the transfer is being confirmed.
+  String get pin => _pin;
 
   /// Whether the server is currently bound and listening.
   bool get isRunning => _server != null;
 
-  /// Binds the server on a free port, serving [packet] as JSON, and returns the
-  /// local IP and chosen port for the peer to connect to.
-  Future<(String ip, int port)> start(SyncPacket packet) async {
-    _payload = jsonEncode(packet.toJson());
+  /// Binds the server on a free port, ready to serve [payload], and returns
+  /// where the peer should connect.
+  Future<SyncConnection> start(String payload) async {
+    final random = Random.secure();
+
+    _payload = payload;
+    _token = List.generate(
+        16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
+    _pin = random.nextInt(10000).toString().padLeft(4, '0');
+    _state.value = SyncServerState.waiting;
+
     _server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
-    _server!.listen(_handle, onError: (_) {}, cancelOnError: false);
-    final ip = await _localIp();
-    return (ip, _server!.port);
+    _server!.listen((req) => _handle(req).catchError((_) {}),
+        onError: (_) {}, cancelOnError: false);
+
+    return SyncConnection(await _localIp(), _server!.port, _token);
   }
 
-  /// Responds to every request with the stored JSON payload and permissive CORS.
-  void _handle(HttpRequest req) {
-    req.response
-      ..statusCode = 200
-      ..headers.contentType = ContentType.json
-      ..headers.add('Access-Control-Allow-Origin', '*')
-      ..write(_payload)
-      ..close();
+  /// Releases the payload to the waiting peer.
+  void approve() {
+    if (_state.value == SyncServerState.pending) {
+      _state.value = SyncServerState.approved;
+    }
   }
 
-  /// Stops the server and clears the cached payload.
+  /// Turns the waiting peer away.
+  void reject() {
+    if (_state.value == SyncServerState.pending) {
+      _state.value = SyncServerState.rejected;
+    }
+  }
+
+  /// Answers one request according to how far the pairing has got.
+  ///
+  /// The peer polls rather than holding the connection open, which keeps a
+  /// request from timing out while the user is still looking at their screen.
+  Future<void> _handle(HttpRequest req) async {
+    final response = req.response
+      ..headers.contentType = ContentType.json;
+
+    // Anything without the token gets nothing, and does not disturb the user.
+    if (req.uri.path != '/$_token') {
+      response.statusCode = HttpStatus.forbidden;
+      await response.close();
+      return;
+    }
+
+    if (_state.value == SyncServerState.waiting) {
+      _state.value = SyncServerState.pending;
+    }
+
+    switch (_state.value) {
+      case SyncServerState.rejected:
+        response.statusCode = HttpStatus.forbidden;
+        await response.close();
+      case SyncServerState.approved:
+      case SyncServerState.served:
+        response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.text
+          ..headers.set(HttpHeaders.connectionHeader, 'close')
+          ..write(_payload);
+
+        // The state has to wait for the last byte. Announcing the hand-over
+        // any earlier lets the screen shut the server down mid-response, and
+        // a payload of a few tens of kilobytes is still in flight at that
+        // point, so the receiver sees the connection break instead.
+        await response.close();
+        _state.value = SyncServerState.served;
+      case SyncServerState.waiting:
+      case SyncServerState.pending:
+        response
+          ..statusCode = HttpStatus.accepted
+          ..write(jsonEncode({'pin': _pin}));
+        await response.close();
+    }
+  }
+
+  /// Stops the server and clears the payload and the session secrets.
+  ///
+  /// The state is deliberately left where it was. A screen shutting down calls
+  /// this and then [dispose] without waiting, so a write here would land on a
+  /// notifier that is already gone; [start] resets the state anyway.
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
     _payload = null;
+    _token = '';
+    _pin = '';
   }
+
+  /// Releases the state notifier. Call when the owning screen goes away.
+  void dispose() {
+    _state.dispose();
+  }
+
+  /// Characters a session token is built from: unambiguous, and all inside the
+  /// QR alphanumeric set so the connection code stays dense.
+  static const _kTokenAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
   /// Best-effort lookup of the device's LAN IPv4 address, preferring `en*`
   /// interfaces and falling back to loopback when none is found.
@@ -270,23 +452,67 @@ class SyncServer {
 
 // ── Client ────────────────────────────────────────────────────────────────────
 
-/// Fetches a [SyncPacket] from a peer device's [SyncServer] over the local network.
+/// Raised when the sending device turned the transfer down.
+class SyncRejectedException implements Exception {
+  const SyncRejectedException();
+
+  @override
+  String toString() => 'The other device declined the transfer';
+}
+
+/// Fetches a payload from a peer's [SyncServer] over the local network.
 class SyncClient {
-  /// Performs an HTTP GET against the peer at [ip]:[port] and decodes the
-  /// returned [SyncPacket]. Times out after 10 seconds and always closes the
-  /// underlying client.
-  Future<SyncPacket> fetch(String ip, int port) async {
+  /// How long to keep asking before giving up on the user confirming.
+  static const _kTimeout = Duration(minutes: 2);
+
+  /// How long to wait between asking again.
+  static const _kPollInterval = Duration(milliseconds: 600);
+
+  /// Connects to [connection] and returns the payload once the sending device
+  /// has approved the transfer.
+  ///
+  /// [onPin] is called with the four digits as soon as the server names them,
+  /// so the receiver can show the user what to compare against.
+  Future<String> fetch(SyncConnection connection,
+      {void Function(String pin)? onPin}) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10)
       ..idleTimeout = const Duration(seconds: 10);
+
+    final deadline = DateTime.now().add(_kTimeout);
+    var announced = false;
+
     try {
-      final req = await client.getUrl(Uri.parse('http://$ip:$port/'));
-      final res = await req.close().timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) {
-        throw Exception('Server responded with ${res.statusCode}');
+      while (true) {
+        final url =
+            Uri.parse('http://${connection.ip}:${connection.port}/${connection.token}');
+        final res = await (await client.getUrl(url))
+            .close()
+            .timeout(const Duration(seconds: 10));
+        final body = await res.transform(utf8.decoder).join();
+
+        switch (res.statusCode) {
+          case HttpStatus.ok:
+            return body;
+          case HttpStatus.forbidden:
+            throw const SyncRejectedException();
+          case HttpStatus.accepted:
+            if (!announced) {
+              final pin = (jsonDecode(body) as Map<String, dynamic>)['pin'];
+              if (pin is String) {
+                announced = true;
+                onPin?.call(pin);
+              }
+            }
+          default:
+            throw Exception('Server responded with ${res.statusCode}');
+        }
+
+        if (DateTime.now().isAfter(deadline)) {
+          throw TimeoutException('The transfer was not confirmed in time');
+        }
+        await Future<void>.delayed(_kPollInterval);
       }
-      final body = await res.transform(utf8.decoder).join();
-      return SyncPacket.fromJson(jsonDecode(body) as Map<String, dynamic>);
     } finally {
       client.close(force: true);
     }
