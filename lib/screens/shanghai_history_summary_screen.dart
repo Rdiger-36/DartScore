@@ -134,7 +134,12 @@ class _Body extends StatelessWidget {
           details: [
             (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
           ],
-          playerNames: states.map((s) => s.displayName).toList(),
+          slots: states
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(
+                      s.displayName, s.players.map((p) => p.name).toList())
+                  : RematchSlot.player(s.displayName))
+              .toList(),
           onRematch: () =>
               context.read<ShanghaiProvider>().startRematch(game, players),
           destination: (_) => const ShanghaiScreen(),

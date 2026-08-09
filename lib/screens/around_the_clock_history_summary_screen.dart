@@ -132,7 +132,12 @@ class _Body extends StatelessWidget {
           details: [
             (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
           ],
-          playerNames: states.map((s) => s.displayName).toList(),
+          slots: states
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(
+                      s.displayName, s.players.map((p) => p.name).toList())
+                  : RematchSlot.player(s.displayName))
+              .toList(),
           onRematch: () => context
               .read<AroundTheClockProvider>()
               .startRematch(game, players),

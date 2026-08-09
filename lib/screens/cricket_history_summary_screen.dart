@@ -243,7 +243,12 @@ class _Body extends StatelessWidget {
             (l.cricketVariant, cricketVariantLabel(l, game.variant)),
             (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
           ],
-          playerNames: data.slots.map((s) => s.displayName).toList(),
+          slots: data.slots
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(
+                      s.displayName, s.players.map((p) => p.name).toList())
+                  : RematchSlot.player(s.displayName))
+              .toList(),
           onRematch: () =>
               context.read<CricketProvider>().startRematch(game, players),
           destination: (_) => const CricketScreen(),
