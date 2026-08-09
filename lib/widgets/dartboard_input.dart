@@ -404,7 +404,7 @@ class _FieldButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (compact)
-              // Compact: single line — notation (e.g. T20) or just the number
+              // Compact: single line: notation (e.g. T20) or just the number
               Text(
                 modifier > 1 ? notation : '$field',
                 style: t.titleMedium?.copyWith(

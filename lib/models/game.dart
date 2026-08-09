@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'starting_order.dart';
 import 'team_config.dart';
 
+export 'starting_order.dart';
 export 'team_config.dart';
 
 /// How a player may open (check in) an X01 leg: with any field, only a double,
@@ -81,6 +83,8 @@ class Game {
   /// Whether every leg is played to the end (everyone finishes, producing a
   /// 1st/2nd/3rd/... ranking) instead of ending as soon as one slot checks out.
   final bool placementMode;
+  /// How the throwing order was determined.
+  final StartingOrder startingOrder;
 
   const Game({
     this.id,
@@ -94,6 +98,7 @@ class Game {
     this.teams,
     this.handicaps,
     this.placementMode = false,
+    this.startingOrder = StartingOrder.random,
   });
 
   /// Whether this game is played in teams rather than individually.
@@ -125,6 +130,7 @@ class Game {
         'team_config_json': encodeTeamConfigs(teams),
         'handicap_json': encodePlayerHandicaps(handicaps),
         'placement_mode': placementMode ? 1 : 0,
+        'starting_order': startingOrder.index,
       };
 
   /// Reconstructs a game from a SQLite row map.
@@ -142,6 +148,7 @@ class Game {
         teams:        decodeTeamConfigs(map['team_config_json'] as String?),
         handicaps:    decodePlayerHandicaps(map['handicap_json'] as String?),
         placementMode: (map['placement_mode'] as int? ?? 0) == 1,
+        startingOrder: StartingOrder.values[map['starting_order'] as int? ?? 0],
       );
 
   /// Returns a copy with [finishedAt] optionally updated (used to mark a game done).
@@ -157,5 +164,6 @@ class Game {
         teams:        teams,
         handicaps:    handicaps,
         placementMode: placementMode,
+        startingOrder: startingOrder,
       );
 }

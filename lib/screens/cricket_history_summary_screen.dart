@@ -236,6 +236,7 @@ class _Body extends StatelessWidget {
           (l.gameLabel, l.modeCricketName),
           (l.cricketVariant, cricketVariantLabel(l, game.variant)),
           (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+          (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
         const SizedBox(height: 16),
 

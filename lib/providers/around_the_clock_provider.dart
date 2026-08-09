@@ -17,7 +17,7 @@ import '../models/player.dart';
 /// scoreboard.
 class AroundTheClockPlayerState {
   final String displayName;
-  /// All players in this slot - 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -112,7 +112,7 @@ class AroundTheClockProvider extends ChangeNotifier {
     if (_game == null || _variant != AroundTheClockVariant.fullSegments) return null;
     final target = activeTarget;
     final hit = currentPlayerState.hitSegments;
-    // The Bull only has Single (25) and Double (50) - no Triple.
+    // The Bull only has Single (25) and Double (50), no Triple.
     final segments = target == 25 ? const [1, 2] : const [1, 2, 3];
     return segments.where((m) => !hit.contains(m)).toList();
   }
@@ -167,6 +167,7 @@ class AroundTheClockProvider extends ChangeNotifier {
       createdAt: game.createdAt,
       playerIds: game.playerIds,
       teams:     game.teams,
+      startingOrder: game.startingOrder,
     );
 
     _playerStates = _buildSlots(players, game.teams);
@@ -181,20 +182,27 @@ class AroundTheClockProvider extends ChangeNotifier {
   /// Starts a fresh Around the Clock game that reuses [template]'s settings
   /// (variant, legs/sets, teams) and the given [players]. The template's id and
   /// timestamps are not carried over, so a new game row is persisted and the
-  /// finished one stays untouched. The throwing order is reshuffled, mirroring
-  /// how a game is set up normally.
+  /// finished one stays untouched. The throwing order follows the template's
+  /// [StartingOrder]: drawn again for [StartingOrder.random], kept as it is for
+  /// a fixed order.
   Future<void> startRematch(
       AroundTheClockGame template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = AroundTheClockGame(
       variant:   template.variant,
       legs:      template.legs,
       sets:      template.sets,
       createdAt: DateTime.now(),
-      playerIds: shuffled.map((p) => p.id!).toList(),
-      teams:     template.teams,
+      playerIds: ordered.map((p) => p.id!).toList(),
+      teams:     teams,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
@@ -265,7 +273,7 @@ class AroundTheClockProvider extends ChangeNotifier {
           break;
 
         case AroundTheClockVariant.fullSegments:
-          // The Bull only has Single (25) and Double (50) - no Triple.
+          // The Bull only has Single (25) and Double (50), no Triple.
           final required = target == 25 ? const [1, 2] : const [1, 2, 3];
           newHitSegments = {...state.hitSegments, t.multiplier};
           if (newHitSegments.containsAll(required)) {
@@ -348,16 +356,7 @@ class AroundTheClockProvider extends ChangeNotifier {
     if (_gameOver) {
       _gameOver = false;
       _winnerId = null;
-      _game = AroundTheClockGame(
-        id:         _game!.id,
-        variant:    _game!.variant,
-        legs:       _game!.legs,
-        sets:       _game!.sets,
-        createdAt:  _game!.createdAt,
-        finishedAt: null,
-        playerIds:  _game!.playerIds,
-        teams:      _game!.teams,
-      );
+      _game = _game!.copyWith(clearFinishedAt: true);
       await _db.updateAroundTheClockGame(_game!);
     }
 
@@ -368,6 +367,11 @@ class AroundTheClockProvider extends ChangeNotifier {
   /// Rebuilds the full game state from the persisted darts: resets progress and
   /// turn counters, then replays every dart, advancing turns and detecting the
   /// winning dart along the way.
+  /// Each dart is applied to whoever the replay currently has on turn, not to
+  /// the player its row names. That relies on darts being stored in the order
+  /// they were thrown, which [DbHelper] guarantees by ordering on the throw
+  /// time and, for ties within a millisecond, the row id. Recording a dart out
+  /// of turn would silently shift every later dart onto the wrong slot.
   Future<void> _replayState() async {
     if (_game == null) return;
 

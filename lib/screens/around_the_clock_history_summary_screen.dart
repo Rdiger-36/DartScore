@@ -125,6 +125,7 @@ class _Body extends StatelessWidget {
         GameInfoCard(dense: true, rows: [
           (l.gameLabel, l.modeAroundClockName),
           (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+          (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
         const SizedBox(height: 16),
 

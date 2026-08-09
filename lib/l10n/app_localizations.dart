@@ -103,7 +103,7 @@ class AppLocalizations {
   String get formatBo9Rule     => _t('First to 5 Legs.', 'First to 5 Legs.');
   String get formatPdcSetsRule => _t(
       'First to 3 Sets, each Set First to 3 Legs.',
-      'First to 3 Sets - pro Set First to 3 Legs.');
+      'First to 3 Sets, pro Set First to 3 Legs.');
   String get formatPremierRule => _t(
       'Pure leg race: First to 6 Legs, no Sets.',
       'Reines Leg-Race: First to 6 Legs, keine Sets.');
@@ -236,8 +236,8 @@ class AppLocalizations {
   String get stabilityMedium    => _t('Variable', 'Variabel');
   String get stabilityLow       => _t('Very Variable', 'Sehr variabel');
   String stabilityHint(String s) =>
-      _t('Standard deviation of visits: $s pts — lower = more consistent.',
-         'Standardabweichung der Aufnahmen: $s Punkte — niedriger = gleichmäßiger.');
+      _t('Standard deviation of visits: $s pts. Lower means more consistent.',
+         'Standardabweichung der Aufnahmen: $s Punkte. Niedriger heißt gleichmäßiger.');
   String get checkoutBreakdown  => _t('Check-Out by Range', 'Check-Out nach Restpunkten');
   String get topDoubles         => _t('Top Doubles', 'Beste Doppelfelder');
   String get weekComparison     => _t('Week Comparison', 'Wochenvergleich');
@@ -282,14 +282,14 @@ class AppLocalizations {
 
   /// Match format label for a past game derived from its stored legs/sets:
   /// the named preset (e.g. "Best of 5") when one matches, otherwise the custom
-  /// label with the concrete counts (e.g. "Eigene 6 Legs - 7 Sets").
+  /// label with the concrete counts (e.g. "Eigene 6 Legs, 7 Sets").
   String matchFormatDesc(int legs, int sets) {
     final f = MatchFormatLookup.fromValues(legs, sets);
     if (f != MatchFormat.custom) return matchFormatLabel(f);
     final legLabel = legs == 1 ? 'Leg' : 'Legs';
     final setLabel = sets == 1 ? 'Set' : 'Sets';
-    return _t('Custom $legs $legLabel - $sets $setLabel',
-              'Eigene $legs $legLabel - $sets $setLabel');
+    return _t('Custom $legs $legLabel, $sets $setLabel',
+              'Eigene $legs $legLabel, $sets $setLabel');
   }
 
   String gameSummaryInfo(int score, int l, int s, {bool placementMode = false}) =>
@@ -315,6 +315,20 @@ class AppLocalizations {
   String get gameLabel           => _t('Game', 'Spiel');
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
+
+  // ── Starting order ───────────────────────────────────────────────────────
+  String get startingOrder       => _t('Starting order', 'Startreihenfolge');
+  String get startingOrderFixed  => _t('Fixed', 'Festgelegt');
+  String get startingOrderRandom => _t('Random', 'Zufällig');
+  String get startingOrderFixedHint => _t(
+      'Throw for the bull and sort the list by it: whoever lands closest starts the round.',
+      'Wirf aufs Bull und sortiere die Liste danach: Wer am nächsten dran ist, beginnt die Runde.');
+  String get startingOrderTeamHint => _t(
+      'Throw for the bull and sort the teams by it: whoever lands closest starts the round. Only one player per team throws.',
+      'Wirf aufs Bull und sortiere die Teams danach: Wer am nächsten dran ist, beginnt die Runde. Pro Team wirft nur einer.');
+  String get startingOrderRandomHint => _t(
+      'The order is drawn randomly when the game starts.',
+      'Die Reihenfolge wird beim Start zufällig ausgelost.');
 
   // ── Settings ─────────────────────────────────────────────────────────────
   String get settingsTitle     => _t('Settings', 'Einstellungen');
@@ -383,14 +397,14 @@ class AppLocalizations {
       _t('$n new throw${n != 1 ? 's' : ''} since last sync',
          '$n neue${n != 1 ? '' : 'r'} ${n != 1 ? 'Würfe' : 'Wurf'} seit letztem Sync');
   String get allThrowsFirstSync =>
-      _t('All throws included — first sync', 'Alle Würfe enthalten — erster Sync');
+      _t('All throws included, first sync', 'Alle Würfe enthalten, erster Sync');
   String get noNewThrowsQr    =>
-      _t('No new throws — stats snapshot updated.',
-         'Keine neuen Würfe — Statistik-Snapshot aktualisiert.');
+      _t('No new throws, stats snapshot updated.',
+         'Keine neuen Würfe, Statistik-Snapshot aktualisiert.');
 
   String get syncSendDesc      =>
-      _t('Select a player and start the server. The receiver scans the QR code — both devices must be on the same Wi-Fi.',
-         'Wähle deinen Spieler und starte den Server. Der Empfänger scannt den QR-Code — beide Geräte müssen im selben WLAN sein.');
+      _t('Select a player and start the server. The receiver scans the QR code. Both devices must be on the same Wi-Fi.',
+         'Wähle deinen Spieler und starte den Server. Der Empfänger scannt den QR-Code. Beide Geräte müssen im selben WLAN sein.');
   String get syncReceiveDesc   =>
       _t('Scan the sender\'s QR code to import their profile.',
          'Scanne den QR-Code des Senders um sein Profil zu importieren.');
@@ -436,7 +450,7 @@ class AppLocalizations {
   String get nameMissing       => _t('Name missing in QR code.', 'Name fehlt im QR-Code.');
   String get qrReadError       => _t('Error reading QR code.', 'Fehler beim Lesen des QR-Codes.');
   String get saveQrHint        =>
-      _t('Have a friend scan this — or save as image.',
+      _t('Have a friend scan this, or save it as an image.',
          'Von einem Freund scannen lassen oder als Bild speichern.');
   String get profileDataHint   =>
       _t('Profile data: Name · Favorite double · Statistics',
@@ -605,7 +619,7 @@ class AppLocalizations {
   String get guest          => _t('Guest', 'Gast');
   String get addTeam        => _t('Add team', 'Team hinzufügen');
   String get removeTeam     => _t('Remove team', 'Team entfernen');
-  String teamN(int n)       => _t('Team $n', 'Team $n');
+  String get teamNameLabel  => _t('Team name', 'Teamname');
   String get doublesLabel   => _t('Doubles', 'Doubles');
 
   // ── Cricket History ──────────────────────────────────────────────────────────

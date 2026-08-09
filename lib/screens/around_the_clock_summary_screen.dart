@@ -98,6 +98,7 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
               l.aroundClockVariant,
               aroundTheClockVariantLabel(l, provider.game!.variant)
             ),
+            (l.startingOrder, startingOrderLabel(l, provider.game!.startingOrder)),
           ]),
           const SizedBox(height: 16),
 

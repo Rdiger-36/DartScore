@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/player.dart';
@@ -19,7 +20,21 @@ class DbHelper {
   static final DbHelper instance = DbHelper._();
   static Database? _db;
 
+  /// Where the database file lives, overriding the platform default. Only set
+  /// by tests, which point it at an in-memory database so each case starts on
+  /// a fresh schema.
+  @visibleForTesting
+  static String? debugDatabasePath;
+
   DbHelper._();
+
+  /// Closes the cached connection so the next access opens a new one. Only
+  /// used by tests between cases; the app keeps one connection for its lifetime.
+  @visibleForTesting
+  static Future<void> debugReset() async {
+    await _db?.close();
+    _db = null;
+  }
 
   /// The lazily-opened database instance, created on first access.
   Future<Database> get db async {
@@ -29,10 +44,11 @@ class DbHelper {
 
   /// Opens (creating if needed) the `dartscore.db` database with foreign keys on.
   Future<Database> _initDb() async {
-    final path = join(await getDatabasesPath(), 'dartscore.db');
+    final path =
+        debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 17,
+      version: 18,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -179,6 +195,19 @@ class DbHelper {
     if (oldVersion < 17) {
       await db.execute('ALTER TABLE games ADD COLUMN handicap_json TEXT');
     }
+    if (oldVersion < 18) {
+      // Default 0 = StartingOrder.random, which is how every game up to here
+      // was played: the setup screens always shuffled.
+      for (final table in const [
+        'games',
+        'cricket_games',
+        'shanghai_games',
+        'around_the_clock_games',
+      ]) {
+        await db.execute(
+            'ALTER TABLE $table ADD COLUMN starting_order INTEGER NOT NULL DEFAULT 0');
+      }
+    }
   }
 
   /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
@@ -223,7 +252,8 @@ class DbHelper {
         is_synced INTEGER NOT NULL DEFAULT 0,
         team_config_json TEXT,
         handicap_json TEXT,
-        placement_mode INTEGER NOT NULL DEFAULT 0
+        placement_mode INTEGER NOT NULL DEFAULT 0,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -259,7 +289,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -283,7 +314,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -308,7 +340,8 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         player_ids TEXT NOT NULL,
-        team_config_json TEXT
+        team_config_json TEXT,
+        starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -338,7 +371,7 @@ class DbHelper {
   /// Sets one player as primary, clears the flag on all others.
   Future<void> setPrimaryPlayer(int id) async {
     final d = await db;
-    // Atomic: clear all, then set one — prevents a crash window
+    // Atomic: clear all, then set one, which prevents a crash window
     await d.transaction((txn) async {
       await txn.update('players', {'is_primary': 0});
       await txn.update('players', {'is_primary': 1},
@@ -368,6 +401,18 @@ class DbHelper {
     return rows.isEmpty ? null : Player.fromMap(rows.first);
   }
 
+  /// Every player keyed by id, deleted ones included, for callers that resolve
+  /// many ids at once. The history would otherwise run one query per player per
+  /// game.
+  Future<Map<int, Player>> getPlayersById() async {
+    final d = await db;
+    final rows = await d.query('players');
+    return {
+      for (final row in rows.map(Player.fromMap))
+        if (row.id != null) row.id!: row,
+    };
+  }
+
   /// Updates the stored row for [p].
   Future<void> updatePlayer(Player p) async {
     final d = await db;
@@ -377,7 +422,7 @@ class DbHelper {
   /// Soft-deletes the player with [id], keeping the name visible in history/stats.
   Future<void> deletePlayer(int id) async {
     final d = await db;
-    // Soft delete — keeps name visible in history/stats
+    // Soft delete: keeps name visible in history/stats
     await d.update('players', {'is_deleted': 1},
         where: 'id = ?', whereArgs: [id]);
   }
@@ -408,7 +453,7 @@ class DbHelper {
   }
 
   // Minimum darts to finish from a given start score (double-out).
-  // Mirrors game_provider.dart — kept local to avoid circular import.
+  // Mirrors game_provider.dart: kept local to avoid circular import.
   static const _kMinDarts = {101: 2, 170: 3, 201: 4, 301: 6, 501: 9, 701: 12, 1001: 17};
 
   /// Computes the classic three-dart average (non-bust score divided by darts
@@ -484,55 +529,6 @@ class DbHelper {
     }
   }
 
-  /// Computes per-player stats from current throws and merges them into
-  /// [local_stats_json] on each player. Call this BEFORE [clearAllGames].
-  Future<void> snapshotPlayerStats() async {
-    final d       = await db;
-    final players = await getPlayers();
-
-    // Build gameId → startScore map for perfect-leg computation
-    final allGames    = await d.query('games');
-    final startScores = {for (final g in allGames) g['id'] as int: g['start_score'] as int};
-
-    for (final player in players) {
-      final throws = await getThrowsForPlayer(player.id!);
-      if (throws.isEmpty) continue;
-
-      // Perfect legs and highest single-game average: compute per game, since
-      // each game has its own minDarts and its own average.
-      int totalPerfect = 0;
-      double highestGameAvg = 0;
-      final gameIds = throws.map((t) => t.gameId).toSet();
-      for (final gid in gameIds) {
-        final gThrows  = throws.where((t) => t.gameId == gid).toList();
-        final minDarts = _kMinDarts[startScores[gid]];
-        totalPerfect  += _perfectLegsFor(gThrows, minDarts);
-        final avg = _gameAverage(gThrows);
-        if (avg > highestGameAvg) highestGameAvg = avg;
-      }
-
-      // Count finished games for this player
-      final playerGameIds   = throws.map((t) => t.gameId).toSet();
-      final finishedCount   = allGames
-          .where((g) => playerGameIds.contains(g['id']) && g['finished_at'] != null)
-          .length;
-
-      final stats = <String, dynamic>{
-        ..._computeStatsFromThrows(throws),
-        'perfect_legs':     totalPerfect,
-        'games_finished':   finishedCount,
-        'highest_game_avg': highestGameAvg,
-      };
-      final existing = player.localStatsJson;
-      final merged   = (existing != null && existing.isNotEmpty)
-          ? _mergeStats(jsonDecode(existing) as Map<String, dynamic>, stats)
-          : stats;
-
-      await d.update('players', {'local_stats_json': jsonEncode(merged)},
-          where: 'id = ?', whereArgs: [player.id]);
-    }
-  }
-
   /// Computes an aggregate stats map (darts, scored, averages, highs, counts)
   /// from a list of throws.
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
@@ -568,7 +564,7 @@ class DbHelper {
         } catch (_) {}
       }
 
-      // Daily stats (all throws, bust or not — for activity heat and week windows)
+      // Daily stats (all throws, bust or not, for activity heat and week windows)
       final day = '${t.thrownAt.year}-'
           '${t.thrownAt.month.toString().padLeft(2, '0')}-'
           '${t.thrownAt.day.toString().padLeft(2, '0')}';
@@ -592,23 +588,26 @@ class DbHelper {
         ds['visits']  = (ds['visits']  ?? 0) + 1;
         if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
 
-        if (t.remainingBefore <= 170) {
-          checkoutAttempts++;
-          final success = t.remainingBefore - t.score == 0;
-          if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
-          else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
-          else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
-          else                               { coAtSub170++; if (success) coOkSub170++; }
-          if (success) {
-            legsWon++;
-            checkoutSuccesses++;
-            if (t.score > highestCheckout) highestCheckout = t.score;
-          }
+      }
+
+      // Counted for busts too: a visit that started on a finishable remaining
+      // was an attempt at the finish, whether or not it overshot.
+      if (t.remainingBefore <= 170) {
+        checkoutAttempts++;
+        final success = !t.bust && t.remainingBefore - t.score == 0;
+        if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
+        else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
+        else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
+        else                               { coAtSub170++; if (success) coOkSub170++; }
+        if (success) {
+          legsWon++;
+          checkoutSuccesses++;
+          if (t.score > highestCheckout) highestCheckout = t.score;
         }
       }
     }
 
-    // Recent throws — last 20, newest first, as compact maps
+    // Recent throws: last 20, newest first, as compact maps
     final sortedThrows = [...throws]
       ..sort((a, b) => b.thrownAt.compareTo(a.thrownAt));
     final recentThrows = sortedThrows.take(20).map((t) => {
@@ -733,20 +732,6 @@ class DbHelper {
     };
   }
 
-  /// Deletes every game and throw across all modes (player records are kept).
-  Future<void> clearAllGames() async {
-    final d = await db;
-    await d.delete('dart_throws');
-    await d.delete('game_players');
-    await d.delete('games');
-    await d.delete('cricket_throws');
-    await d.delete('cricket_games');
-    await d.delete('shanghai_throws');
-    await d.delete('shanghai_games');
-    await d.delete('around_the_clock_throws');
-    await d.delete('around_the_clock_games');
-  }
-
   /// Updates an X01 game row (e.g. to mark it finished).
   Future<void> updateGame(Game g) async {
     final d = await db;
@@ -796,7 +781,9 @@ class DbHelper {
       'dart_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -808,7 +795,9 @@ class DbHelper {
       'dart_throws',
       where: 'player_id = ?',
       whereArgs: [playerId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -860,7 +849,9 @@ class DbHelper {
       'dart_throws',
       where: 'player_id = ? AND thrown_at > ?',
       whereArgs: [playerId, sinceMs],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(_throwFromMap).toList();
   }
@@ -955,7 +946,9 @@ class DbHelper {
       'cricket_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(CricketThrow.fromMap).toList();
   }
@@ -1010,7 +1003,9 @@ class DbHelper {
       'shanghai_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(ShanghaiThrow.fromMap).toList();
   }
@@ -1065,7 +1060,9 @@ class DbHelper {
       'around_the_clock_throws',
       where: 'game_id = ?',
       whereArgs: [gameId],
-      orderBy: 'thrown_at ASC',
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
     );
     return rows.map(AroundTheClockThrow.fromMap).toList();
   }

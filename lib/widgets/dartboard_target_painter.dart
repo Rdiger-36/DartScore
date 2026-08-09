@@ -31,7 +31,7 @@ const dartboardDoubleRingOuter = 0.780;
 ///
 /// When [highlightMultipliers] is null, all rings of the target segment are
 /// highlighted. When provided, only the listed multipliers (1=single,
-/// 2=double, 3=triple) are highlighted — used for the full-segments variant.
+/// 2=double, 3=triple) are highlighted: used for the full-segments variant.
 class DartboardTargetPainter extends CustomPainter {
   final int target;
   final Set<int>? highlightMultipliers;

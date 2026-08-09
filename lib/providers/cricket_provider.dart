@@ -16,13 +16,15 @@ import '../models/player.dart';
 /// scoreboard.
 class CricketPlayerState {
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
   /// Whether this slot represents a team rather than a single player.
   final bool isTeamSlot;
-  /// Total marks per field (never decremented; 3 = closed, >3 possible via Double/Triple).
+  /// Marks per field, capped at 3 because that closes it. Anything a Double or
+  /// Triple adds beyond the third mark turns into points instead, so the excess
+  /// is deliberately not kept here.
   final Map<int, int> marks;
   final int score;
 
@@ -153,6 +155,7 @@ class CricketProvider extends ChangeNotifier {
       createdAt:   game.createdAt,
       playerIds:   game.playerIds,
       teams:       game.teams,
+      startingOrder: game.startingOrder,
     );
 
     _playerStates = _buildSlots(players, game.teams);
@@ -168,20 +171,27 @@ class CricketProvider extends ChangeNotifier {
   /// Starts a fresh Cricket game that reuses [template]'s settings (variant,
   /// scoring mode, legs/sets, teams) and the given [players]. The template's id
   /// and timestamps are not carried over, so a new game row is persisted and
-  /// the finished one stays untouched. The throwing order is reshuffled,
-  /// mirroring how a game is set up normally.
+  /// the finished one stays untouched. The throwing order follows the
+  /// template's [StartingOrder]: drawn again for [StartingOrder.random], kept
+  /// as it is for a fixed order.
   Future<void> startRematch(CricketGame template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = CricketGame(
       variant:     template.variant,
       scoringMode: template.scoringMode,
       legs:        template.legs,
       sets:        template.sets,
       createdAt:   DateTime.now(),
-      playerIds:   shuffled.map((p) => p.id!).toList(),
-      teams:       template.teams,
+      playerIds:   ordered.map((p) => p.id!).toList(),
+      teams:       teams,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
@@ -219,7 +229,7 @@ class CricketProvider extends ChangeNotifier {
       _applyDart(_currentPlayerIndex, field, multiplier);
 
       // A leg ends the instant a player closes the last field while leading
-      // (or level) - no need to finish the rest of the visit.
+      // (or level), no need to finish the rest of the visit.
       if (_checkWin(_currentPlayerIndex)) {
         _visitBuffer.clear();
         await _handleWin(_currentPlayerIndex);
@@ -261,7 +271,7 @@ class CricketProvider extends ChangeNotifier {
 
     if (scoringMarks <= 0) return;
 
-    // The field is now open (or was already open) — handle scoring
+    // The field is now open (or was already open): handle scoring
     final fieldValue = field == 25 ? 25 : field;
     final points     = scoringMarks * fieldValue;
 
@@ -276,7 +286,7 @@ class CricketProvider extends ChangeNotifier {
         }
       }
     } else {
-      // Score for current slot — only if at least one opponent hasn't closed it
+      // Score for current slot: only if at least one opponent hasn't closed it
       final fieldAlive = _playerStates
           .indexed
           .any((e) => e.$1 != slotIdx && !e.$2.hasClosedField(field));
@@ -299,7 +309,7 @@ class CricketProvider extends ChangeNotifier {
     // that closes their last field (see recordDart), so only the "stalemate"
     // case remains here.
 
-    // All slots have closed all fields — nobody can score anymore, decide by score
+    // All slots have closed all fields: nobody can score anymore, decide by score
     if (_playerStates.every((s) => s.hasClosedAll)) {
       await _handleWin(_scoreWinnerIndex());
       return;
@@ -380,17 +390,7 @@ class CricketProvider extends ChangeNotifier {
     if (_gameOver) {
       _gameOver = false;
       _winnerId = null;
-      _game = CricketGame(
-        id:           _game!.id,
-        variant:      _game!.variant,
-        scoringMode:  _game!.scoringMode,
-        legs:         _game!.legs,
-        sets:         _game!.sets,
-        createdAt:    _game!.createdAt,
-        finishedAt:   null,
-        playerIds:    _game!.playerIds,
-        teams:        _game!.teams,
-      );
+      _game = _game!.copyWith(clearFinishedAt: true);
       await _db.updateCricketGame(_game!);
     }
 
@@ -418,7 +418,9 @@ class CricketProvider extends ChangeNotifier {
             ))
         .toList();
 
-    // Replay all darts in chronological order, routing each to its slot
+    // Replay all darts in chronological order, each routed to the slot of the
+    // player that threw it. Shanghai and Around the Clock instead follow the
+    // turn order; both work, this one also survives a dart stored out of turn.
     for (final t in allThrows) {
       if (t.isMiss) continue;
       final slotIdx = _playerStates

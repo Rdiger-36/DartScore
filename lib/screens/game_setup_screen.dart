@@ -7,6 +7,7 @@ import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/player_dialog.dart';
+import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
 import 'game_screen.dart';
 import '../utils/layout.dart';
@@ -46,6 +47,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     TextEditingController(text: 'Team 1'),
     TextEditingController(text: 'Team 2'),
   ];
+
+  // ── Starting order ───────────────────────────────────────────────────────
+  StartingOrder _startingOrder = StartingOrder.random;
 
   // ── Placement mode ───────────────────────────────────────────────────────
   bool _placementMode = false;
@@ -105,6 +109,45 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
         } else if (current > ti) {
           _teamAssignment[p] = current - 1;
         }
+      }
+    });
+  }
+
+  /// The draggable entries of the starting-order section: the teams in a team
+  /// game, otherwise the selected players.
+  List<StartingOrderEntry> _startingOrderEntries() => _teamGameEnabled
+      ? List.generate(_teamNames.length, (ti) => StartingOrderEntry(
+            // The controller instance identifies the team across reorders; the
+            // index does not, because it is exactly what the drag changes.
+            key:   ObjectKey(_teamNameCtrl[ti]),
+            label: _teamNames[ti],
+            color: teamColor(ti),
+          ))
+      : _selectedPlayers
+          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.name))
+          .toList();
+
+  /// Moves the entry at [oldIndex] to [newIndex] in the throwing order: the
+  /// teams in a team game, otherwise the selected players.
+  void _reorderStartingOrder(int oldIndex, int newIndex) {
+    setState(() {
+      if (_teamGameEnabled) {
+        _teamNames.insert(newIndex, _teamNames.removeAt(oldIndex));
+        _teamNameCtrl.insert(newIndex, _teamNameCtrl.removeAt(oldIndex));
+        // Every team between the old and the new slot shifts by one, so the
+        // stored player → team indices have to follow the move.
+        for (final p in _selectedPlayers) {
+          final ti = _teamAssignment[p] ?? 0;
+          if (ti == oldIndex) {
+            _teamAssignment[p] = newIndex;
+          } else if (oldIndex < newIndex && ti > oldIndex && ti <= newIndex) {
+            _teamAssignment[p] = ti - 1;
+          } else if (oldIndex > newIndex && ti >= newIndex && ti < oldIndex) {
+            _teamAssignment[p] = ti + 1;
+          }
+        }
+      } else {
+        _selectedPlayers.insert(newIndex, _selectedPlayers.removeAt(oldIndex));
       }
     });
   }
@@ -432,6 +475,17 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               onRemoveTeam: _removeTeam,
             ),
           ],
+          // ── Starting order ─────────────────────────────────────────────
+          if (_selectedPlayers.length >= 2) ...[
+            const SizedBox(height: 16),
+            StartingOrderSection(
+              order:    _startingOrder,
+              entries:  _startingOrderEntries(),
+              teamMode: _teamGameEnabled,
+              onOrderChanged: (o) => setState(() => _startingOrder = o),
+              onReorder: _reorderStartingOrder,
+            ),
+          ],
           const SizedBox(height: 24),
           if (_selectedPlayers.isEmpty)
             Padding(
@@ -477,7 +531,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   }
 
   /// Builds the game from the chosen settings (including team and handicap
-  /// config), shuffles the player order, starts it, and opens the play screen.
+  /// config), applies the chosen throwing order, starts it, and opens the play
+  /// screen.
   Future<void> _startGame() async {
     final isSolo = _selectedPlayers.length == 1;
     final game = Game(
@@ -488,8 +543,11 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       sets: isSolo ? 1 : (_placementActive ? 1 : _sets),
       createdAt: DateTime.now(),
       placementMode: !isSolo && _placementActive,
+      startingOrder: _startingOrder,
     );
-    final players = List.of(_selectedPlayers)..shuffle(Random());
+    final players = _startingOrder == StartingOrder.random
+        ? (List.of(_selectedPlayers)..shuffle(Random()))
+        : List.of(_selectedPlayers);
 
     // Build team config if team game is enabled
     List<TeamConfig>? teamConfigs;
@@ -503,6 +561,9 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
           playerIds: teamPlayers.map((p) => p.id!).toList(),
         );
       }).where((t) => t.playerIds.isNotEmpty).toList();
+      // Slots follow the team list, so a random order has to draw the teams
+      // as well. Shuffling the players alone would leave team 1 always first.
+      if (_startingOrder == StartingOrder.random) teamConfigs.shuffle(Random());
     }
 
     // Build handicap map (playerId → PlayerHandicap) if enabled. Handicaps are
@@ -526,6 +587,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       teams:        teamConfigs,
       handicaps:    handicapMap,
       placementMode: game.placementMode,
+      startingOrder: game.startingOrder,
     );
 
     final provider = context.read<GameProvider>();

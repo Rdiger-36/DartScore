@@ -459,7 +459,7 @@ class _Scoreboard extends StatelessWidget {
             ),
           ),
 
-          // ── Other players — compact score strip ────────────────────
+          // ── Other players: compact score strip ────────────────────
           if (otherIndices.isNotEmpty) ...[
             const SizedBox(height: 6),
             SingleChildScrollView(
@@ -535,9 +535,9 @@ class _Scoreboard extends StatelessWidget {
 
 // ── Mode badge ────────────────────────────────────────────────────────────────
 // Shown below the player name in the scoreboard card.
-// • "DOUBLE IN" (amber)  — when double-in is required and player hasn't checked in
-// • "D-Out / M-Out / S-Out" (subtle) — when in checkout range (remaining ≤ 170)
-// • Nothing  — normal scoring range, already checked in, no special action needed
+// • "DOUBLE IN" (amber): when double-in is required and player hasn't checked in
+// • "D-Out / M-Out / S-Out" (subtle): when in checkout range (remaining ≤ 170)
+// • Nothing: normal scoring range, already checked in, no special action needed
 
 /// Small status badge under a player's name showing a required check-in or the
 /// active checkout rule, or nothing during normal scoring.
@@ -582,7 +582,7 @@ class _ModeBadge extends StatelessWidget {
       );
     }
 
-    // Priority 2: In checkout range — show checkout mode
+    // Priority 2: In checkout range, show checkout mode
     if (remaining <= 170 && remaining > 1) {
       final label = switch (checkOut) {
         CheckoutMode.doubleOut  => 'D-Out',
