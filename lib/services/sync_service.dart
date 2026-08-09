@@ -2,6 +2,25 @@ import 'dart:convert';
 import 'dart:io';
 import '../models/dart_throw.dart';
 
+// ── Sync range ────────────────────────────────────────────────────────────────
+
+/// How far back a sync reaches when collecting a player's throws.
+///
+/// Only the individual throws are cut off by this. Everything older is folded
+/// into the stats snapshot that travels with the packet, so the receiver's
+/// lifetime numbers come out the same whichever range was picked.
+enum SyncRange {
+  day(1),
+  week(7),
+  month(30),
+  all(null);
+
+  const SyncRange(this.days);
+
+  /// Days of history covered, or null for the player's whole history.
+  final int? days;
+}
+
 // ── Sync throw ────────────────────────────────────────────────────────────────
 
 /// A single throw in the wire format exchanged during device-to-device sync.
@@ -166,6 +185,12 @@ class SyncPacket {
   final List<SyncThrow> throws;
   // Full historical stats snapshot (local_stats_json): includes data from cleared game history.
   final String? localStatsJson;
+  /// How far back [throws] reaches, in days, or null when it holds every throw.
+  ///
+  /// Only the individual throws are cut off by this; the throws left out were
+  /// folded into [localStatsJson] before sending, so no aggregate number is
+  /// lost by picking a shorter range.
+  final int? rangeDays;
 
   const SyncPacket({
     required this.version,
@@ -176,6 +201,7 @@ class SyncPacket {
     required this.stats,
     required this.throws,
     this.localStatsJson,
+    this.rangeDays,
   });
 
   /// Serializes this packet to its JSON wire representation.
@@ -188,6 +214,7 @@ class SyncPacket {
         'stats': stats.toJson(),
         'throws': throws.map((t) => t.toJson()).toList(),
         if (localStatsJson != null) 'local_stats_json': localStatsJson,
+        if (rangeDays != null) 'range_days': rangeDays,
       };
 
   /// Parses a packet from JSON, applying defaults for optional fields.
@@ -203,6 +230,21 @@ class SyncPacket {
             .map((t) => SyncThrow.fromJson(t as Map<String, dynamic>))
             .toList(),
         localStatsJson: j['local_stats_json'] as String?,
+        rangeDays: j['range_days'] as int?,
+      );
+
+  /// A copy of this packet under a different [playerName], used when the
+  /// receiver resolves a name clash by importing under an alternative name.
+  SyncPacket withName(String name) => SyncPacket(
+        version: version,
+        senderDevice: senderDevice,
+        playerUuid: playerUuid,
+        playerName: name,
+        favoriteDoubles: favoriteDoubles,
+        stats: stats,
+        throws: throws,
+        localStatsJson: localStatsJson,
+        rangeDays: rangeDays,
       );
 }
 

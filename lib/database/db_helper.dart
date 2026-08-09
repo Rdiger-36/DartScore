@@ -520,6 +520,52 @@ class DbHelper {
     }
   }
 
+  /// Folds [excluded] into the snapshot [snapshotJson] and returns the result,
+  /// or null when there is nothing to carry.
+  ///
+  /// A sync can be limited to the last few days, in which case only those
+  /// throws travel as individual throws. Everything older still has to reach
+  /// the other device, just as aggregated numbers, otherwise its lifetime
+  /// totals silently read low and nobody can tell. Grouping by game mirrors
+  /// [snapshotGameStats]: perfect legs and the finished-game count are
+  /// properties of a game, not of a single throw.
+  Future<Map<String, dynamic>?> foldThrowsIntoSnapshot(
+      String? snapshotJson, List<DartThrow> excluded) async {
+    var merged = (snapshotJson != null && snapshotJson.isNotEmpty)
+        ? jsonDecode(snapshotJson) as Map<String, dynamic>
+        : null;
+    if (excluded.isEmpty) return merged;
+
+    final d = await db;
+
+    final byGame = <int, List<DartThrow>>{};
+    for (final t in excluded) {
+      byGame.putIfAbsent(t.gameId, () => []).add(t);
+    }
+
+    for (final entry in byGame.entries) {
+      final gameRows = await d.query('games',
+          columns: ['start_score', 'finished_at'],
+          where: 'id = ?',
+          whereArgs: [entry.key]);
+
+      final startScore =
+          gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
+      final minDarts = startScore != null ? _kMinDarts[startScore] : null;
+
+      final stats = <String, dynamic>{
+        ..._computeStatsFromThrows(entry.value),
+        'perfect_legs':   _perfectLegsFor(entry.value, minDarts),
+        'games_finished':
+            gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0,
+      };
+
+      merged = merged == null ? stats : _mergeStats(merged, stats);
+    }
+
+    return merged;
+  }
+
   /// Computes an aggregate stats map (darts, scored, averages, highs, counts)
   /// from a list of throws.
   ///
@@ -845,6 +891,35 @@ class DbHelper {
       'finished_at': DateTime.now().millisecondsSinceEpoch,
       'is_synced': 1, // hidden from history
     });
+  }
+
+  /// Removes [playerId]'s throws from earlier imports, dropping any hidden
+  /// sync-game left empty by that.
+  ///
+  /// Call this before importing, because a packet is authoritative for
+  /// everything that came from the sending device. Its stats snapshot may cover
+  /// throws an earlier sync delivered one by one, and keeping both would count
+  /// the same leg twice. Games played on this device carry `is_synced = 0` and
+  /// are never touched.
+  Future<void> deleteSyncedThrowsForPlayer(int playerId) async {
+    final d = await db;
+    final rows = await d.rawQuery(
+      'SELECT DISTINCT g.id AS id FROM games g '
+      'JOIN dart_throws t ON t.game_id = g.id '
+      'WHERE g.is_synced = 1 AND t.player_id = ?',
+      [playerId],
+    );
+
+    for (final row in rows) {
+      final gameId = row['id'] as int;
+      await d.delete('dart_throws',
+          where: 'game_id = ? AND player_id = ?',
+          whereArgs: [gameId, playerId]);
+
+      final remaining = Sqflite.firstIntValue(await d.rawQuery(
+          'SELECT COUNT(*) FROM dart_throws WHERE game_id = ?', [gameId]));
+      if (remaining == 0) await deleteGame(gameId);
+    }
   }
 
   /// Inserts a throw imported during sync into the hidden sync-game.
