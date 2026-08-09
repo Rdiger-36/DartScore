@@ -33,7 +33,7 @@ dart run flutter_launcher_icons
 - `sqflite` + `path` — SQLite local database
 - `provider` — state management
 - `shared_preferences` — lightweight key/value persistence
-- `mobile_scanner` + `qr_flutter` — QR-based sync between devices
+- `mobile_scanner` + `qr_flutter` — QR-based sync between devices (see the Sync section under Key Conventions)
 - `share_plus` + `gal` + `image_picker` + `path_provider` — export/share functionality
 - `in_app_purchase` — donation / supporter in-app purchases
 - `package_info_plus` + `url_launcher` — app metadata and external links (about screen)
@@ -94,9 +94,10 @@ lib/
 │   ├── settings_screen.dart              # Theme, language, donation and about links
 │   ├── about_screen.dart                 # App info, version, license (GPL-3.0), project links
 │   ├── donation_screen.dart              # Support the developer via in-app purchases
-│   └── sync_screen.dart                  # QR-based device-to-device data sync
+│   └── sync_screen.dart                  # Device-to-device data sync (QR and Wi-Fi)
 ├── services/
-│   └── sync_service.dart      # Encode/decode game data for QR sync
+│   ├── sync_codec.dart        # Sync wire format: binary packet, base45, fountain coded frames
+│   └── sync_service.dart      # Sync payload types, the Wi-Fi server and its client
 ├── widgets/
 │   ├── numpad.dart                    # Numeric input pad for score entry
 │   ├── dartboard_input.dart           # Dartboard-style tap input
@@ -169,3 +170,13 @@ lib/
 - `app_localizations.dart` is hand-written, not generated — there are no `.arb` files and no codegen step. A new string is one getter in `class AppLocalizations` using `_t('<en>', '<de>')`, placed under the matching `// ── Section ──` banner; parameterized strings become methods instead of getters
 - Never run `dart format` — the codebase aligns constructor arguments and the `=>` of the localization getters in columns by hand, and the formatter collapses all of it
 - Donation / supporter state lives in `DonationProvider`; never call `in_app_purchase` directly from a screen
+
+### Sync
+
+- A sync carries a player's whole history whatever range the user picks. Only the individual throws are cut off; everything left out is folded into the stats snapshot that travels along, and the segments of the throws that do travel are folded in too. Break either fold and the receiving device's lifetime numbers read low, which is invisible in the app
+- An incoming packet is authoritative for everything that came from that device. Games from an earlier sync (`games.is_synced = 1`) are deleted before importing, otherwise a snapshot covering throws an earlier sync already delivered counts the same legs twice
+- `thrownAt` in milliseconds is the deduplication key on import. Do not round it
+- All three transports build on the same bytes from `sync_codec.dart`. What differs is only the framing: base45 for one code, fountain coded frames for an animated one, HTTP for the Wi-Fi transfer
+- QR payloads are base45 so a code can use its alphanumeric mode, which holds about a third more than the byte mode. Every character a code carries, headers included, has to stay inside that set, and the codes are built through `buildQrCode` in `sync_screen.dart` because `QrCode.fromData` always picks the byte mode
+- Animated frames are LT coded: the receiver needs any set of frames slightly larger than the block count, not particular ones. Seeds are scrambled before use and each transfer starts at a random point in the seed space; both are load bearing, without them the overhead goes from about 1.25 to 4 times the block count
+- The Wi-Fi server hands its payload to one peer, once, after the user confirms a pairing number, and then stops. A request without the session token is refused without disturbing the user. The state may only reach `served` after the response has finished writing, or the screen shuts the socket down mid-body

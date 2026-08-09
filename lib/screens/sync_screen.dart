@@ -305,10 +305,13 @@ class _SenderTabState extends State<_SenderTab> {
       case SyncServerState.pending:
         _askApproval();
       case SyncServerState.served:
+      case SyncServerState.rejected:
+        // Both are the end of this session. Turning a device away leaves the
+        // server refusing everyone, so it comes down rather than sitting there
+        // saying no to the next attempt as well.
         _finishServing();
       case SyncServerState.waiting:
       case SyncServerState.approved:
-      case SyncServerState.rejected:
         if (mounted) setState(() {});
     }
   }
@@ -332,10 +335,11 @@ class _SenderTabState extends State<_SenderTab> {
     }
   }
 
-  /// Stops the server once its one payload has been handed over.
+  /// Stops the server once the session is over, one way or the other.
   Future<void> _finishServing() async {
+    final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
-    if (mounted) setState(() { _connection = null; _served = true; });
+    if (mounted) setState(() { _connection = null; _served = sent; });
   }
 
   // ── Preparing the payload ─────────────────────────────────────────────────
@@ -926,10 +930,15 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         setState(() {
           _fetching   = false;
           _pairingPin = null;
-          _error = e is SyncRejectedException
-              ? l.syncRejected
-              : '${overWifi ? l.connectionFailed : l.syncReadFailed}'
-                  '\n\n${l.error}: $e';
+          _error = switch (e) {
+            // Both of these are ordinary outcomes of a pairing, not faults,
+            // and pointing at the Wi-Fi would send the user looking in the
+            // wrong place.
+            SyncRejectedException() => l.syncRejected,
+            TimeoutException()      => l.syncNotConfirmed,
+            _ => '${overWifi ? l.connectionFailed : l.syncReadFailed}'
+                '\n\n${l.error}: $e',
+          };
         });
       }
     }

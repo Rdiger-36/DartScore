@@ -406,13 +406,16 @@ class SyncServer {
   }
 
   /// Stops the server and clears the payload and the session secrets.
+  ///
+  /// The state is deliberately left where it was. A screen shutting down calls
+  /// this and then [dispose] without waiting, so a write here would land on a
+  /// notifier that is already gone; [start] resets the state anyway.
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
     _payload = null;
     _token = '';
     _pin = '';
-    _state.value = SyncServerState.waiting;
   }
 
   /// Releases the state notifier. Call when the owning screen goes away.

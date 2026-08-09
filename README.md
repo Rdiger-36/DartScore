@@ -177,14 +177,22 @@ All stats are shown per player on a dedicated screen.
 
 ---
 
-### Sync (device-to-device, no server)
+### Sync (device-to-device, no account, no cloud)
 
-- **Quick QR**: encodes player profile + recent throws into a QR code; works offline anywhere
-- **WiFi Sync**: local HTTP server on the sender; receiver scans QR to connect; both devices on the same Wi-Fi (automatically used when data is too large for QR)
-- Import new players or update existing ones
-- Transfers full stats snapshot and all recorded throws
-- Deduplication: already-imported throws are never doubled
-- Synced stats snapshot used when a remote player has no local throw data
+Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **everything**. The app then picks the quickest way to move that much data on its own.
+
+| Data | How it travels |
+| --- | --- |
+| up to ~350 visits | one still QR code |
+| up to ~21,000 visits | an animated QR code, up to half a minute |
+| more than that | a local Wi-Fi transfer |
+
+- **Nothing is lost by picking a shorter range.** Only the individual visits are cut off; everything older is folded into the stats snapshot that travels along, so lifetime averages, checkout rates, the dartboard heatmap and the top doubles all arrive in full. What a short range gives up is only how far back the receiving device's "All Throws" list reaches
+- **Animated QR codes are fountain coded**, so the receiver needs any set of frames slightly larger than the payload rather than particular ones. A frame the camera blinks through costs nothing, and there is no waiting for it to come round again
+- **The Wi-Fi transfer is paired like Bluetooth.** The connection code carries a session token, so nobody else on the network gets an answer at all. Past that the sending device shows a four digit number, the receiving device shows the same one, and the payload only moves once the sender confirms. The server hands it over once and then stops
+- Import new players or update existing ones, with a name-clash prompt
+- An incoming packet replaces what an earlier sync from that device brought in, so repeated syncs never double a number
+- Works with no internet at all; the Wi-Fi transfer needs both devices on the same network, the QR codes need nothing
 
 ---
 
@@ -297,7 +305,7 @@ lib/
 │   ├── about_screen.dart                  # Version info and open-source licences
 │   ├── settings_screen.dart               # Theme, language, donation and about links
 │   ├── donation_screen.dart               # Support the developer via in-app purchases
-│   ├── sync_screen.dart                   # QR/WiFi device-to-device data sync
+│   ├── sync_screen.dart                   # Device-to-device data sync (QR and Wi-Fi)
 │   ├── players_screen.dart                # Player management list
 │   ├── player_stats_screen.dart           # Per-player lifetime statistics + dartboard heatmap
 │   ├── history_screen.dart                # Game history with Open/Finished tabs and mode filter chips
@@ -321,7 +329,8 @@ lib/
 │   ├── around_the_clock_summary_screen.dart
 │   └── around_the_clock_history_summary_screen.dart
 ├── services/
-│   └── sync_service.dart                  # QR/WiFi sync encode/decode logic
+│   ├── sync_codec.dart                    # Sync wire format: binary packet, base45, fountain coded frames
+│   └── sync_service.dart                  # Sync payload types, the Wi-Fi server and its paired client
 ├── utils/
 │   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles
 │   ├── game_labels.dart                   # Localised names for per-mode settings and handicap rules
