@@ -406,7 +406,7 @@ class _AroundTheClockHint extends StatelessWidget {
     final target = provider.activeTarget;
     final hit    = provider.currentPlayerState.hitSegments;
 
-    // Bull has no Triple — only S and D chips.
+    // Bull has no Triple: only S and D chips.
     final multipliers = target == 25 ? const [1, 2] : const [1, 2, 3];
 
     return Padding(

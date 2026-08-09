@@ -368,7 +368,7 @@ class FinishCalculator {
         primary     = all.first;
         alternative = all.length > 1 ? all[1] : null;
 
-        // Primary doesn't finish on the favorite double - offer a dedicated
+        // Primary doesn't finish on the favorite double, so offer a dedicated
         // route there instead of the next-best alternative.
         final favRoute = _favoriteDoubleRoute(remaining, favoriteDouble);
         if (favRoute != null && favRoute.join('|') != primary.join('|')) {
@@ -383,7 +383,7 @@ class FinishCalculator {
     return (primary: primary, alternative: alternative);
   }
 
-  /// Legacy helper — keep existing callers working.
+  /// Legacy helper: keep existing callers working.
   static List<List<String>> getCheckouts(
     int remaining,
     List<String> favoriteDoubles,

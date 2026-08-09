@@ -17,7 +17,7 @@ import '../models/player.dart';
 /// scoreboard.
 class AroundTheClockPlayerState {
   final String displayName;
-  /// All players in this slot - 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -112,7 +112,7 @@ class AroundTheClockProvider extends ChangeNotifier {
     if (_game == null || _variant != AroundTheClockVariant.fullSegments) return null;
     final target = activeTarget;
     final hit = currentPlayerState.hitSegments;
-    // The Bull only has Single (25) and Double (50) - no Triple.
+    // The Bull only has Single (25) and Double (50), no Triple.
     final segments = target == 25 ? const [1, 2] : const [1, 2, 3];
     return segments.where((m) => !hit.contains(m)).toList();
   }
@@ -273,7 +273,7 @@ class AroundTheClockProvider extends ChangeNotifier {
           break;
 
         case AroundTheClockVariant.fullSegments:
-          // The Bull only has Single (25) and Double (50) - no Triple.
+          // The Bull only has Single (25) and Double (50), no Triple.
           final required = target == 25 ? const [1, 2] : const [1, 2, 3];
           newHitSegments = {...state.hitSegments, t.multiplier};
           if (newHitSegments.containsAll(required)) {

@@ -17,7 +17,7 @@ import '../models/player.dart';
 /// the scoreboard.
 class ShanghaiPlayerState {
   final String displayName;
-  /// All players in this slot — 1 for individual, N for team.
+  /// All players in this slot: 1 for individual, N for team.
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -369,12 +369,12 @@ class ShanghaiProvider extends ChangeNotifier {
 
     final shanghai = _isShanghai(visitDarts, _currentPlayerIndex);
     // True if no further visit will follow (classic/clockwise reach their
-    // scheduled end on this very visit) — there is no "next player" left
+    // scheduled end on this very visit): there is no "next player" left
     // who could cancel a Shanghai, so it must be confirmed immediately.
     final isLastScheduledVisit = _isGameComplete();
 
     if (_playerStates.length >= 3) {
-      // 3+ players: Shanghai is an instant win — no response round.
+      // 3+ players: Shanghai is an instant win: no response round.
       if (shanghai) {
         await _handleWin(_currentPlayerIndex);
         return;
@@ -413,7 +413,7 @@ class ShanghaiProvider extends ChangeNotifier {
         await _handleWin(winnerIdx);
         return;
       }
-      // Tied: sudden death - play continues until someone takes the lead.
+      // Tied: sudden death, play continues until someone takes the lead.
     }
 
     _advanceTurn();
@@ -612,7 +612,7 @@ class ShanghaiProvider extends ChangeNotifier {
         _winnerId = _playerStates[winnerIdx].player.id;
         return;
       }
-      // Tied: sudden death - play continues until someone takes the lead.
+      // Tied: sudden death, play continues until someone takes the lead.
     }
 
     _advanceTurn();

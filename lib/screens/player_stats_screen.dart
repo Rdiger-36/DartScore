@@ -216,7 +216,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
   int persistentTotalVisits = 0;
   int persistentGamesPlayed = 0;
   int persistentNonBusts    = 0;
-  // Snapshot recent throws — compact maps from deleted games
+  // Snapshot recent throws: compact maps from deleted games
   var snapRecentThrows = <Map<String, dynamic>>[];
 
   if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
@@ -435,7 +435,7 @@ class PlayerStatsScreen extends StatelessWidget {
             return Center(child: Text('${context.l10n.error}: ${snap.error}'));
           }
           final stats = snap.data!;
-          // No throws at all — show synced snapshot or empty state
+          // No throws at all: show synced snapshot or empty state
           if (stats.totalVisits == 0 && player.syncedStats != null) {
             return _SyncedStatsView(player: player);
           }
@@ -1276,7 +1276,7 @@ class _DartboardPainter extends CustomPainter {
       final a0    = startAngle + i * angleStep;
       final sweep = angleStep;
 
-      // Inner single (multiplier 1) — extends from bull to triple ring
+      // Inner single (multiplier 1): extends from bull to triple ring
       drawArc(canvas, center, rBull, rTriple1, a0, sweep, _color(field, 1));
       // Triple ring (multiplier 3)
       drawArc(canvas, center, rTriple1, rTriple2, a0, sweep, _color(field, 3));

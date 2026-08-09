@@ -67,23 +67,23 @@ class DartboardPainter extends CustomPainter {
       final baseColor     = isEven ? _black  : _cream;
       final scoringColor  = isEven ? _red    : _green;
 
-      // Single outer (between double outer and board edge) — black/cream
+      // Single outer (between double outer and board edge): black/cream
       _drawSector(canvas, cx, cy, rDouble2, rBoard, angle, sweep,
           paint, baseColor);
 
-      // Double ring — red/green
+      // Double ring: red/green
       _drawSector(canvas, cx, cy, rDouble1, rDouble2, angle, sweep,
           paint, scoringColor);
 
-      // Single inner (between triple outer and double inner) — black/cream
+      // Single inner (between triple outer and double inner): black/cream
       _drawSector(canvas, cx, cy, rTriple2, rDouble1, angle, sweep,
           paint, baseColor);
 
-      // Triple ring — red/green
+      // Triple ring: red/green
       _drawSector(canvas, cx, cy, rTriple1, rTriple2, angle, sweep,
           paint, scoringColor);
 
-      // Single inner inner (between bull outer and triple inner) — black/cream
+      // Single inner inner (between bull outer and triple inner): black/cream
       _drawSector(canvas, cx, cy, rBullOuter, rTriple1, angle, sweep,
           paint, baseColor);
     }
