@@ -136,6 +136,8 @@ lib/
 - Doc comments should be detailed where it matters: go in depth for complex logic, keep it short for self-explanatory members. Do not over-comment - describe purpose, non-obvious behavior, parameters, and return value only when they add value
 - Never use a dash as punctuation anywhere: not the em dash (`—`) and not a standalone hyphen (` - `). This covers UI strings, doc comments, inline comments, commit messages and PR titles/descriptions. Rephrase, or use a comma, colon or full stop. Hyphens inside compound words (`cut-throat`, `Co-Authored-By`) are fine
 - Always create a **new branch** before making changes when the current branch is `main`
+- Name the branch after everything it ends up holding, not just its first commit. Rename it when the scope grows
+- Never open a pull request on your own. Commit, push, report the branch, and wait: a PR may only be created once the user has given an explicit go-ahead for that specific PR. A general permission is not a standing one, ask again for the next
 - Both platforms (Android and iOS) must be considered for every change; flag platform-specific implications when relevant
 - GUI/design changes and larger changes that touch many references must be discussed and approved first before they are applied
 - No inline comments unless the WHY is non-obvious (hidden constraint, workaround, subtle invariant)
