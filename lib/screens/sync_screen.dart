@@ -489,7 +489,7 @@ class _SenderTabState extends State<_SenderTab> {
             if (packet != null && !_preparing) ...[
               const SizedBox(height: 10),
               Text(
-                '${l.syncThrowCount(packet.throws.length)} · ${_transportLabel(l)}',
+                '${l.syncVisitCount(packet.throws.length)} · ${_transportLabel(l)}',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
@@ -574,6 +574,7 @@ class _SenderTabState extends State<_SenderTab> {
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (!_server.isRunning) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             l.syncServerHint,
@@ -597,6 +598,7 @@ class _SenderTabState extends State<_SenderTab> {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OutlinedButton.icon(
           onPressed: _stopServer,
@@ -768,23 +770,29 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     }
 
     _handled = true;
-    await _finishScan(() async {
-      // ── Whole packet in one code ────────────────────────────────────────
-      if (raw.startsWith(kSyncPrefixV2) || raw.startsWith(kSyncPrefixV1)) {
-        return decodeSyncPayload(raw);
-      }
 
-      // ── Wi-Fi transfer (IP:port) ────────────────────────────────────────
+    // ── Whole packet in one code ──────────────────────────────────────────
+    if (raw.startsWith(kSyncPrefixV2) || raw.startsWith(kSyncPrefixV1)) {
+      await _finishScan(() async => decodeSyncPayload(raw));
+      return;
+    }
+
+    // ── Wi-Fi transfer (IP:port) ──────────────────────────────────────────
+    await _finishScan(() async {
       final map  = jsonDecode(raw) as Map<String, dynamic>;
       final ip   = map['ip'] as String;
       final port = map['port'] as int;
       return SyncClient().fetch(ip, port);
-    });
+    }, overWifi: true);
   }
 
   /// Closes the camera, resolves [read] into a packet and imports it, turning
   /// any failure into the error banner.
-  Future<void> _finishScan(Future<SyncPacket> Function() read) async {
+  ///
+  /// [overWifi] picks the message, because a code that would not decode is not
+  /// a network problem and pointing at the Wi-Fi would only mislead.
+  Future<void> _finishScan(Future<SyncPacket> Function() read,
+      {bool overWifi = false}) async {
     setState(() { _scanning = false; _fetching = true; _error = null; });
 
     try {
@@ -793,10 +801,11 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       await _handlePacket(packet);
     } catch (e) {
       if (mounted) {
+        final l = context.l10n;
         setState(() {
           _fetching = false;
-          _error =
-              '${context.l10n.connectionFailed}\n\n${context.l10n.error}: $e';
+          _error = '${overWifi ? l.connectionFailed : l.syncReadFailed}'
+              '\n\n${l.error}: $e';
         });
       }
     }

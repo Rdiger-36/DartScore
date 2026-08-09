@@ -397,76 +397,77 @@ class AppLocalizations {
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
   // ── Sync ──────────────────────────────────────────────────────────────────
-  String get syncTitle         => _t('Profile Sync', 'Profil Sync');
+  String get syncTitle         => _t('Profile Sync', 'Profil-Sync');
   String get syncSend          => _t('Send', 'Senden');
   String get syncReceive       => _t('Receive', 'Empfangen');
 
   // How far back a sync reaches
-  String get syncRangeLabel    => _t('Include throws from', 'Würfe übertragen aus');
+  String get syncRangeLabel    => _t('Time range', 'Zeitraum');
   String get syncRangeDay      => _t('1 day', '1 Tag');
   String get syncRangeWeek     => _t('7 days', '7 Tage');
   String get syncRangeMonth    => _t('30 days', '30 Tage');
   String get syncRangeAll      => _t('Everything', 'Alles');
   String get syncRangeNote     =>
-      _t('Older throws travel as statistics, so no lifetime number is lost. Only their individual entries stay behind.',
-         'Ältere Würfe gehen als Statistik mit, es geht also keine Lebenszeit-Zahl verloren. Nur ihre Einzeleinträge bleiben zurück.');
-  String syncThrowCount(int n) =>
-      _t('$n throw${n != 1 ? 's' : ''}', '$n ${n != 1 ? 'Würfe' : 'Wurf'}');
+      _t('Older visits travel as statistics. Every lifetime number arrives, only the single visits stay behind.',
+         'Ältere Aufnahmen gehen als Statistik mit. Alle Lebenszeit-Zahlen kommen an, nur die einzelnen Aufnahmen bleiben hier.');
+  String syncVisitCount(int n) =>
+      _t('$n visit${n != 1 ? 's' : ''}',
+         '$n ${n != 1 ? 'Aufnahmen' : 'Aufnahme'}');
   String syncRangeInPacket(String range) =>
       _t('Range: $range', 'Zeitraum: $range');
 
-  // How the data gets across, chosen from its size
+  // How the data gets across, chosen from how much of it there is
   String get syncViaStaticQr   =>
       _t('fits into one QR code', 'passt in einen QR-Code');
   String syncViaAnimatedQr(int seconds) =>
-      _t('sent as a moving QR code, about $seconds seconds',
-         'läuft als bewegter QR-Code, etwa $seconds Sekunden');
+      _t('animated QR code, about $seconds seconds',
+         'animierter QR-Code, etwa $seconds Sekunden');
   String get syncViaServer     =>
       _t('too much for a QR code, transferred over Wi-Fi',
-         'zu viel für einen QR-Code, geht über WLAN');
+         'zu viel für einen QR-Code, Übertragung über WLAN');
   String get syncAnimatedHint  =>
-      _t('Hold both phones still until the receiver is done.',
-         'Halte beide Handys ruhig bis der Empfänger fertig ist.');
+      _t('Hold both phones steady until the receiver is finished.',
+         'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
   String get syncServerHint    =>
-      _t('Both devices must be on the same Wi-Fi for this.',
+      _t('Both devices need to be on the same Wi-Fi for this.',
          'Dafür müssen beide Geräte im selben WLAN sein.');
 
   String get syncSendDesc      =>
-      _t('Pick a player and how far back to go. The app picks the quickest way to get the data across.',
-         'Wähle Spieler und Zeitraum. Den schnellsten Weg für die Daten sucht die App selbst aus.');
+      _t('Pick a player and a time range. Which way the data travels follows from how much of it there is.',
+         'Wähle Spieler und Zeitraum. Auf welchem Weg die Daten reisen, ergibt sich aus ihrer Menge.');
   String get syncReceiveDesc   =>
-      _t('Scan the sender\'s QR code to import their profile.',
-         'Scanne den QR-Code des Senders um sein Profil zu importieren.');
+      _t('Scan the sender\'s QR code to import the profile.',
+         'Scanne den QR-Code des Senders, um das Profil zu importieren.');
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
-  String get startServer       => _t('Start Server', 'Server starten');
-  String get stopServer        => _t('Stop Server', 'Server stoppen');
-  String get scanQr            => _t('Scan QR Code', 'QR-Code scannen');
-  String get profileAndStats   => _t('Profile · Stats · all throws', 'Profil · Statistiken · alle Würfe');
-  String get qrScanHint        => _t('Hold sender\'s QR code in frame', 'QR-Code des Senders halten');
+  String get startServer       => _t('Start server', 'Server starten');
+  String get stopServer        => _t('Stop server', 'Server stoppen');
+  String get scanQr            => _t('Scan QR code', 'QR-Code scannen');
+  String get profileAndStats   =>
+      _t('Profile · Statistics · Visits', 'Profil · Statistiken · Aufnahmen');
+  String get qrScanHint        =>
+      _t('Hold the sender\'s QR code in frame', 'QR-Code des Senders ins Bild halten');
   String get syncKeepHolding   =>
-      _t('Keep holding, the code is still coming in',
-         'Weiter halten, der Code kommt noch rein');
+      _t('Keep holding, the code is still being read',
+         'Weiter halten, der Code wird noch gelesen');
   String syncScanProgress(int received, int total) =>
       _t('$received of $total parts', '$received von $total Teilen');
+  String get syncReadFailed    =>
+      _t('The data could not be read.', 'Die Daten konnten nicht gelesen werden.');
   String get connectionFailed  =>
       _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
-         'Verbindung fehlgeschlagen.\nPrüfe ob beide Geräte im selben WLAN sind.');
-  String get importNewPlayer   => _t('Import New Player', 'Neuen Spieler importieren');
-  String get updatePlayer      => _t('Update Player', 'Spieler aktualisieren');
+         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte im selben WLAN sind.');
+  String get importNewPlayer   => _t('Import new player', 'Neuen Spieler importieren');
+  String get updatePlayer      => _t('Update player', 'Spieler aktualisieren');
   String get nameConflictTitle => _t('Name already exists', 'Name bereits vorhanden');
   String nameConflictBody(String name) =>
       _t('"$name" already exists. What should happen?',
          '"$name" existiert bereits. Was soll passieren?');
   String importAs(String name) => _t('Import as "$name"', 'Als "$name" importieren');
-  String get renameAndImport   => _t('Rename & Import', 'Umbenennen & importieren');
+  String get renameAndImport   => _t('Rename and import', 'Umbenennen und importieren');
   String get alternativeName   => _t('Alternative name', 'Alternativer Name');
-  String get lastSyncPrefix    => _t('Last sync: ', 'Letzter Sync: ');
   String fromDevice(String d)  => _t('From: $d', 'Von: $d');
-  String get updateProfileToggle =>
-      _t('Update name & favorite double', 'Name & Lieblings-Double übernehmen');
   String get import_           => _t('Import', 'Importieren');
   String get update            => _t('Update', 'Aktualisieren');
-  String get alreadyOwned      => _t('Already imported', 'Bereits vorhanden');
   String importedMsg(String name) => _t('$name imported.', '$name importiert.');
   String updatedMsg(String name) => _t('$name updated.', '$name aktualisiert.');
   String importedWithThrows(String name, int n) =>
@@ -476,19 +477,9 @@ class AppLocalizations {
       _t('$name imported · $n visits.',
          '$name importiert · $n Aufnahmen.');
   String overwriteProfile(String name) =>
-      _t('Profile of "$name" will be overwritten with this data.',
-         'Profil von "$name" wird mit diesen Daten überschrieben.');
+      _t('The profile of "$name" will be overwritten with this data.',
+         'Das Profil von "$name" wird mit diesen Daten überschrieben.');
   String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
-  String get noQrInImage       => _t('No QR code found in image.', 'Kein QR-Code im Bild gefunden.');
-  String get invalidQr         => _t('Invalid QR code.', 'Ungültiger QR-Code.');
-  String get nameMissing       => _t('Name missing in QR code.', 'Name fehlt im QR-Code.');
-  String get qrReadError       => _t('Error reading QR code.', 'Fehler beim Lesen des QR-Codes.');
-  String get saveQrHint        =>
-      _t('Have a friend scan this, or save it as an image.',
-         'Von einem Freund scannen lassen oder als Bild speichern.');
-  String get profileDataHint   =>
-      _t('Profile data: Name · Favorite double · Statistics',
-         'Profil-Daten: Name · Lieblings-Double · Statistiken');
   String get throws            => _t('Throws', 'Würfe');
 
   // ── Game Mode Selection ──────────────────────────────────────────────────
