@@ -37,10 +37,14 @@ const int kChunkPayloadChars = 570;
 /// Largest frame [splitIntoFrames] may produce, headers included.
 const int kChunkFrameMaxChars = 600;
 
-/// Most frames an animated transfer may use. One full pass takes roughly this
-/// many times [kChunkFrameDuration]; beyond that the Wi-Fi transfer is quicker
-/// than holding two phones together.
-const int kMaxChunkFrames = 120;
+/// Most frames an animated transfer may use.
+///
+/// One full pass takes this many times [kChunkFrameDuration], so the number is
+/// really a limit on patience: half a minute of holding two phones together is
+/// where the Wi-Fi transfer starts being the friendlier option. Expect a little
+/// more than one pass in practice, because a frame the camera misses only comes
+/// round again on the next one.
+const int kMaxChunkFrames = 300;
 
 /// How long a single frame of an animated QR code stays on screen.
 ///

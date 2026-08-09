@@ -39,13 +39,16 @@ const _kPrefix = 'ZZ Test';
 
 /// The profiles to create: how many visits, spread over how many days.
 ///
-/// The sizes are picked against the measured transport limits (a single code
-/// holds about 350 visits, an animated one about 11500) so that changing the
-/// range on one profile walks through all three transports.
+/// The sizes are picked against the measured transport limits, a single code
+/// holding about 350 visits and an animated one about 30000, so that changing
+/// the range on a profile walks through the transports rather than jumping.
+/// One session per day keeps that predictable: seven days hold roughly a
+/// seventh of what thirty days hold.
 const _kProfiles = [
   (name: '$_kPrefix Klein',    visits: 220,   days: 5),
   (name: '$_kPrefix Mittel',   visits: 2500,  days: 45),
   (name: '$_kPrefix Gross',    visits: 22000, days: 150),
+  (name: '$_kPrefix Riesig',   visits: 45000, days: 220),
   (name: '$_kPrefix Snapshot', visits: 500,   days: 20),
 ];
 
