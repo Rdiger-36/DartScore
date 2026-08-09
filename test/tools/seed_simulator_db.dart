@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -176,6 +177,7 @@ Future<Player> _seedProfile(
         'remaining_before': t.remainingBefore,
         'thrown_at':        t.thrownAt.millisecondsSinceEpoch,
         'bust':             t.bust ? 1 : 0,
+        'hits_json':        t.hitsJson,
       });
     }
     await batch.commit(noResult: true);
@@ -188,15 +190,11 @@ Future<Player> _seedProfile(
 
 /// Plays [visits] visits of 501 double out, returning them in throwing order.
 ///
-/// The scores follow a rough amateur spread, busts happen on an overshoot and
-/// a leg ends when a visit lands exactly on zero, so the remaining scores form
-/// the same chains the app's own games produce.
+/// The darts are thrown rather than the scores drawn, so every visit carries
+/// the per dart record the dartboard input produces. Without it the seeded
+/// profiles could not exercise the heatmap or the top doubles at all, which is
+/// exactly the part of a sync that is easiest to get wrong.
 List<DartThrow> _playSession(int visits, int startMs, Random random) {
-  const scores = [
-    0, 26, 26, 41, 41, 45, 45, 55, 60, 60, 60, 66, 81, 85, 95,
-    100, 100, 121, 133, 140, 140, 180,
-  ];
-
   final out = <DartThrow>[];
   var time = startMs;
   var leg = 1;
@@ -204,38 +202,42 @@ List<DartThrow> _playSession(int visits, int startMs, Random random) {
   var remaining = 501;
 
   while (out.length < visits) {
-    var score = scores[random.nextInt(scores.length)];
+    final darts = <(int, int)>[];
+    var scored = 0;
     var bust = false;
-    var dartsUsed = 3;
+    var finished = false;
 
-    if (remaining <= 170 && random.nextInt(3) == 0) {
-      // Going for the checkout: either it lands or it busts.
-      if (random.nextInt(3) == 0) {
-        score = remaining;
-        dartsUsed = 1 + random.nextInt(3);
-      } else {
+    while (darts.length < 3 && !bust && !finished) {
+      final aim  = _aimFor(remaining - scored);
+      final dart = _throwAt(aim.$1, aim.$2, random);
+      darts.add(dart);
+
+      final left = remaining - scored - _dartScore(dart.$1, dart.$2);
+      // A leg ends on a double, and one point left cannot be finished.
+      if (left < 0 || left == 1 || (left == 0 && dart.$2 != 2)) {
         bust = true;
-        score = 0;
+      } else {
+        scored = remaining - left;
+        finished = left == 0;
       }
-    } else if (score > remaining - 2) {
-      bust = true;
-      score = 0;
     }
 
     out.add(DartThrow(
       gameId: 0, // filled in by the caller
       playerId: 0,
-      score: score,
-      dartsUsed: dartsUsed,
+      score: bust ? 0 : scored,
+      dartsUsed: darts.length,
       leg: leg,
       set: set,
       remainingBefore: remaining,
       thrownAt: DateTime.fromMillisecondsSinceEpoch(time),
       bust: bust,
+      hitsJson: jsonEncode(
+          darts.map((d) => {'f': d.$1, 'm': d.$2}).toList()),
     ));
 
     time += 35000 + random.nextInt(25000);
-    if (!bust) remaining -= score;
+    if (!bust) remaining -= scored;
 
     if (remaining == 0) {
       leg++;
@@ -246,3 +248,45 @@ List<DartThrow> _playSession(int visits, int startMs, Random random) {
 
   return out;
 }
+
+/// Where the player aims with [remaining] left.
+///
+/// The treble twenty while the score is high, a double once a finish is on,
+/// and a single in between to leave an even number to finish on.
+(int, int) _aimFor(int remaining) {
+  if (remaining > 60) return (20, 3);
+  if (remaining == 50) return (25, 2);
+  if (remaining <= 40 && remaining.isEven) return (remaining ~/ 2, 2);
+  return ((remaining > 40 ? remaining - 40 : 1).clamp(1, 20), 1);
+}
+
+/// Throws one dart at [field] with [multiplier] and reports where it landed.
+///
+/// A decent club player hits the treble they aimed at less than a fifth of the
+/// time, usually catching the single of the same number and often enough a
+/// neighbouring segment. That spread is what gives a heatmap its shape, and it
+/// puts the three dart average somewhere around seventy rather than at the
+/// hundred a professional throws.
+(int, int) _throwAt(int field, int multiplier, Random random) {
+  final roll = random.nextInt(100);
+  if (roll < 18) return (field, multiplier);
+  if (roll < 62) return (field, 1);
+  if (roll < 85) return (_neighbourOf(field, random), 1);
+  if (roll < 93) return (field, multiplier == 3 ? 2 : 1);
+  return (0, 1); // off the board
+}
+
+/// A segment next to [field] on the board, either side.
+int _neighbourOf(int field, Random random) {
+  const order = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+  final index = order.indexOf(field);
+  if (index < 0) return field; // the bull has no neighbours worth modelling
+  return order[(index + (random.nextBool() ? 1 : order.length - 1)) % order.length];
+}
+
+/// Points a dart on [field] with [multiplier] is worth.
+int _dartScore(int field, int multiplier) => switch (field) {
+      0  => 0,
+      25 => multiplier == 2 ? 50 : 25,
+      _  => field * multiplier,
+    };
