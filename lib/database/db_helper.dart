@@ -905,7 +905,7 @@ class DbHelper {
   }
 
   /// Creates one hidden sync-game and returns its id.
-  /// Call once per import session, then pass the id to [insertSyncedThrow].
+  /// Call once per import session, then pass the id to [insertSyncedThrows].
   Future<int> createSyncGame(int playerStartScore) async {
     final d = await db;
     return d.insert('games', {
@@ -949,20 +949,32 @@ class DbHelper {
     }
   }
 
-  /// Inserts a throw imported during sync into the hidden sync-game.
-  Future<void> insertSyncedThrow(int playerId, int gameId, DartThrow t) async {
+  /// Inserts throws imported during sync into the hidden sync-game.
+  ///
+  /// One statement per throw would mean a round trip each, and a sync can carry
+  /// tens of thousands of them; a batch keeps a large import to a few seconds.
+  /// Callers that show progress pass the throws in slices and get a chance to
+  /// report between the calls.
+  Future<void> insertSyncedThrows(
+      int playerId, int gameId, List<DartThrow> throws) async {
     final d = await db;
-    await d.insert('dart_throws', {
-      'game_id': gameId,
-      'player_id': playerId,
-      'score': t.score,
-      'darts_used': t.dartsUsed,
-      'leg': t.leg,
-      'set_': t.set,
-      'remaining_before': t.remainingBefore,
-      'thrown_at': t.thrownAt.millisecondsSinceEpoch,
-      'bust': t.bust ? 1 : 0,
-    });
+    final batch = d.batch();
+
+    for (final t in throws) {
+      batch.insert('dart_throws', {
+        'game_id': gameId,
+        'player_id': playerId,
+        'score': t.score,
+        'darts_used': t.dartsUsed,
+        'leg': t.leg,
+        'set_': t.set,
+        'remaining_before': t.remainingBefore,
+        'thrown_at': t.thrownAt.millisecondsSinceEpoch,
+        'bust': t.bust ? 1 : 0,
+      });
+    }
+
+    await batch.commit(noResult: true);
   }
 
   /// Records the last sync time and optional received stats snapshot for a player.

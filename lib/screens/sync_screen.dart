@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -920,93 +921,221 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     return result == true;
   }
 
-  /// Persists the incoming packet: updates the existing player or creates a new
-  /// one, storing the received stats snapshot, and shows a result message.
+  /// Runs the import behind a modal that shows how far it has got and then
+  /// reports the outcome.
+  ///
+  /// A sync can carry tens of thousands of visits, and writing them takes long
+  /// enough that a bare spinner leaves the user guessing whether anything is
+  /// happening at all.
   Future<void> _doImport(SyncPacket packet, Player? existing) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ImportProgressDialog(
+        run: (report) => _writeImport(packet, existing, report),
+      ),
+    );
+  }
+
+  /// Persists the incoming packet: updates the existing player or creates a new
+  /// one, stores the received stats snapshot and writes the throws, reporting
+  /// progress through [report]. Returns the message to show when it is done.
+  Future<String> _writeImport(SyncPacket packet, Player? existing,
+      void Function(int done, int total) report) async {
     final provider  = context.read<PlayersProvider>();
-    final messenger = ScaffoldMessenger.of(context);
     final l         = context.l10n;
     final db        = DbHelper.instance;
     final statsJson = jsonEncode(packet.stats.toJson());
     final now       = DateTime.now().millisecondsSinceEpoch;
 
-    try {
-      int playerId;
+    int playerId;
 
-      if (existing != null) {
-        await provider.updatePlayer(existing.copyWith(
-          name: packet.playerName,
-          favoriteDoubles: packet.favoriteDoubles,
-          syncedStats: statsJson,
-          localStatsJson: packet.localStatsJson,
-        ));
-        await db.updatePlayerSyncTime(existing.id!, now,
-            syncedStatsJson: statsJson);
-        playerId = existing.id!;
-      } else {
-        final newPlayer = await provider.addPlayer(packet.playerName);
-        final updated = Player(
-          id: newPlayer.id,
-          name: packet.playerName,
-          favoriteDoubles: packet.favoriteDoubles,
-          uuid: packet.playerUuid,
-          lastSyncedAt: now,
-          syncedStats: statsJson,
-          localStatsJson: packet.localStatsJson,
-        );
-        await db.updatePlayer(updated);
-        await provider.load();
-        playerId = newPlayer.id!;
-      }
-
-      // What an earlier sync brought in is replaced, not added to: this packet's
-      // snapshot may already account for those throws, and keeping both would
-      // count the same legs twice. Locally played games are not affected.
-      await db.deleteSyncedThrowsForPlayer(playerId);
-
-      if (packet.throws.isNotEmpty) {
-        final existingTs = await db.getThrowTimestampsForPlayer(playerId);
-        final newThrows  = packet.throws
-            .where((t) => !existingTs.contains(t.thrownAt))
-            .toList();
-
-        if (newThrows.isNotEmpty) {
-          final gameId = await db.createSyncGame(
-              newThrows.first.remainingBefore + newThrows.first.score);
-          for (final t in newThrows) {
-            await db.insertSyncedThrow(
-              playerId, gameId,
-              t.toDartThrow(gameId: gameId, playerId: playerId),
-            );
-          }
-        }
-
-        final duplicates = existingTs
-            .intersection(packet.throws.map((t) => t.thrownAt).toSet())
-            .length;
-        final newLiveVisits = packet.throws.length - duplicates;
-        // For display: new player shows total visits (live + historical snapshot),
-        // update shows only the newly added live visits.
-        final displayCount = existing != null
-            ? newLiveVisits
-            : packet.stats.totalVisits;
-
-        messenger.showSnackBar(SnackBar(
-          content: Text(existing != null
-              ? l.importedWithThrows(packet.playerName, displayCount)
-              : l.importedWithCount(packet.playerName, displayCount)),
-        ));
-      } else {
-        messenger.showSnackBar(SnackBar(
-          content: Text(existing != null
-              ? l.updatedMsg(packet.playerName)
-              : l.importedMsg(packet.playerName)),
-        ));
-      }
-    } catch (e) {
-      messenger.showSnackBar(
-          SnackBar(content: Text('${l.error}: $e')));
+    if (existing != null) {
+      await provider.updatePlayer(existing.copyWith(
+        name: packet.playerName,
+        favoriteDoubles: packet.favoriteDoubles,
+        syncedStats: statsJson,
+        localStatsJson: packet.localStatsJson,
+      ));
+      await db.updatePlayerSyncTime(existing.id!, now,
+          syncedStatsJson: statsJson);
+      playerId = existing.id!;
+    } else {
+      final newPlayer = await provider.addPlayer(packet.playerName);
+      final updated = Player(
+        id: newPlayer.id,
+        name: packet.playerName,
+        favoriteDoubles: packet.favoriteDoubles,
+        uuid: packet.playerUuid,
+        lastSyncedAt: now,
+        syncedStats: statsJson,
+        localStatsJson: packet.localStatsJson,
+      );
+      await db.updatePlayer(updated);
+      await provider.load();
+      playerId = newPlayer.id!;
     }
+
+    // What an earlier sync brought in is replaced, not added to: this packet's
+    // snapshot may already account for those throws, and keeping both would
+    // count the same legs twice. Locally played games are not affected.
+    await db.deleteSyncedThrowsForPlayer(playerId);
+
+    if (packet.throws.isEmpty) {
+      return existing != null
+          ? l.updatedMsg(packet.playerName)
+          : l.importedMsg(packet.playerName);
+    }
+
+    final existingTs = await db.getThrowTimestampsForPlayer(playerId);
+    final newThrows  = packet.throws
+        .where((t) => !existingTs.contains(t.thrownAt))
+        .toList();
+
+    if (newThrows.isNotEmpty) {
+      final gameId = await db.createSyncGame(
+          newThrows.first.remainingBefore + newThrows.first.score);
+
+      // Written in slices so the modal can move between them. One batch for
+      // everything would be marginally quicker and show nothing until the end.
+      const sliceSize = 500;
+      for (var start = 0; start < newThrows.length; start += sliceSize) {
+        final end = min(start + sliceSize, newThrows.length);
+        await db.insertSyncedThrows(
+          playerId,
+          gameId,
+          newThrows
+              .sublist(start, end)
+              .map((t) => t.toDartThrow(gameId: gameId, playerId: playerId))
+              .toList(),
+        );
+        report(end, newThrows.length);
+      }
+    }
+
+    final duplicates = existingTs
+        .intersection(packet.throws.map((t) => t.thrownAt).toSet())
+        .length;
+    final newLiveVisits = packet.throws.length - duplicates;
+    // For display: a new player shows total visits (live plus the historical
+    // snapshot), an update shows only the newly added live visits.
+    final displayCount =
+        existing != null ? newLiveVisits : packet.stats.totalVisits;
+
+    return existing != null
+        ? l.importedWithThrows(packet.playerName, displayCount)
+        : l.importedWithCount(packet.playerName, displayCount);
+  }
+}
+
+// ── Import progress ───────────────────────────────────────────────────────────
+
+/// Runs an import, showing its progress, and stays open on the result.
+///
+/// The user cannot dismiss it while the writing is going on, because a half
+/// written import is exactly the state the rest of the sync works hard to
+/// avoid.
+class _ImportProgressDialog extends StatefulWidget {
+  /// The work to run. It reports how many visits of how many are written and
+  /// returns the message to show when it finishes.
+  final Future<String> Function(void Function(int done, int total)) run;
+
+  const _ImportProgressDialog({required this.run});
+
+  @override
+  State<_ImportProgressDialog> createState() => _ImportProgressDialogState();
+}
+
+class _ImportProgressDialogState extends State<_ImportProgressDialog> {
+  int _done = 0;
+  int _total = 0;
+  String? _message;
+  String? _error;
+
+  bool get _running => _message == null && _error == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  /// Runs the import and holds on to whatever it produced.
+  Future<void> _start() async {
+    try {
+      final message = await widget.run((done, total) {
+        if (mounted) setState(() { _done = done; _total = total; });
+      });
+      if (mounted) setState(() => _message = message);
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+    final l     = context.l10n;
+
+    return PopScope(
+      canPop: !_running,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: AlertDialog(
+            title: Text(_running
+                ? l.syncImporting
+                : _error != null
+                    ? l.syncImportFailed
+                    : l.syncImportDone),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _running
+                  ? [
+                      LinearProgressIndicator(
+                        value: _total == 0 ? null : _done / _total,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      if (_total > 0) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          l.syncImportProgress(_done, _total),
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ]
+                  : [
+                      Icon(
+                        _error != null
+                            ? Icons.error_outline
+                            : Icons.check_circle_outline,
+                        size: 44,
+                        color: _error != null ? cs.error : Colors.green,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _error ?? _message!,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+            ),
+            actions: _running
+                ? null
+                : [
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(l.ok),
+                    ),
+                  ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
