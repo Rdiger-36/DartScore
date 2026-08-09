@@ -118,6 +118,10 @@ void main() {
       expect(b.checkoutPercent,
           closeTo(a.checkoutPercent, 0.001), reason: 'checkout percent');
       expect(b.perfectLegs,     a.perfectLegs,     reason: 'perfect legs');
+      // Which segment each dart hit is the one thing a synced throw cannot
+      // carry, so it travels folded into the stats snapshot instead. It feeds
+      // the dartboard heatmap and the top doubles.
+      expect(b.segmentHits,     a.segmentHits,     reason: 'segment hits');
     }
 
     test('a one week range carries the same lifetime numbers as everything',
@@ -140,6 +144,29 @@ void main() {
 
       expectSameLifetime(sent, full);
       expectSameLifetime(sent, week);
+    });
+
+    test('the dartboard segments arrive whatever the range', () async {
+      await playLeg();
+      await ageEverythingBy(40);
+      await playLeg();
+
+      final sender = await reload(players.first);
+      final sent   = await loadPlayerStats(sender);
+      expect(sent.segmentHits, isNotEmpty,
+          reason: 'the games above were played on the board, not typed in');
+
+      final receivers = await insertPlayers(['Full', 'Day']);
+
+      // The short range pushes most throws into the snapshot, the long one
+      // sends them all as throws. Both have to end up with the same board.
+      final full = await importInto(receivers[0],
+          await buildSyncPacket(sender, 'Test', SyncRange.all));
+      final day = await importInto(receivers[1],
+          await buildSyncPacket(sender, 'Test', SyncRange.day));
+
+      expect(full.segmentHits, sent.segmentHits);
+      expect(day.segmentHits, sent.segmentHits);
     });
 
     test('the shorter range really does send fewer throws', () async {

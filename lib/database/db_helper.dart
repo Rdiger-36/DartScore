@@ -578,26 +578,13 @@ class DbHelper {
   static Map<String, dynamic> _computeStatsFromThrows(List<DartThrow> throws) {
     final stats = ThrowStats.fromThrows(throws);
 
-    final segmentHits  = <String, Map<String, int>>{};
+    final segmentHits  = segmentHitsOf(throws);
     final scoreDistrib = <String, int>{};
     // date → {scored, darts, visits, s180} for week-comparison reconstruction
     final dailyStats   = <String, Map<String, int>>{};
     final gameIds = throws.map((t) => t.gameId).toSet();
 
     for (final t in throws) {
-      // Heatmap
-      if (t.hitsJson != null) {
-        try {
-          final hits = jsonDecode(t.hitsJson!) as List<dynamic>;
-          for (final h in hits) {
-            final field = (h['f'] as int).toString();
-            final mul   = (h['m'] as int).toString();
-            segmentHits.putIfAbsent(field, () => {});
-            segmentHits[field]![mul] = (segmentHits[field]![mul] ?? 0) + 1;
-          }
-        } catch (_) {}
-      }
-
       // Daily stats (all throws, bust or not, for activity heat and week windows)
       final day = '${t.thrownAt.year}-'
           '${t.thrownAt.month.toString().padLeft(2, '0')}-'
@@ -652,6 +639,46 @@ class DbHelper {
       'daily_stats':        dailyStats,
       'recent_throws':      recentThrows,
     };
+  }
+
+  /// Counts the dartboard segments [throws] hit, as field to multiplier to
+  /// count, skipping the throws that were entered as a plain score.
+  static Map<String, Map<String, int>> segmentHitsOf(List<DartThrow> throws) {
+    final hits = <String, Map<String, int>>{};
+
+    for (final t in throws) {
+      if (t.hitsJson == null) continue;
+      try {
+        for (final h in jsonDecode(t.hitsJson!) as List<dynamic>) {
+          final field = (h['f'] as int).toString();
+          final mul   = (h['m'] as int).toString();
+          hits.putIfAbsent(field, () => {});
+          hits[field]![mul] = (hits[field]![mul] ?? 0) + 1;
+        }
+      } catch (_) {}
+    }
+
+    return hits;
+  }
+
+  /// Adds the segments [throws] hit to [snapshot], leaving every other counter
+  /// in it untouched, and returns null when there is nothing to add.
+  ///
+  /// Which segment a dart landed on is the one thing a synced throw cannot
+  /// carry: the wire format holds a visit's score but not the three darts
+  /// behind it. Without this the dartboard heatmap and the top doubles would
+  /// stay empty on the receiving device for everything that travelled as
+  /// throws, and would fill in only for whatever a shorter range happened to
+  /// push into the snapshot instead.
+  ///
+  /// Adding them here cannot double count: the throws travelling alongside
+  /// arrive without their darts, so they contribute nothing to the segments on
+  /// the other side.
+  static Map<String, dynamic>? addSegmentHits(
+      Map<String, dynamic>? snapshot, List<DartThrow> throws) {
+    final hits = segmentHitsOf(throws);
+    if (hits.isEmpty) return snapshot;
+    return _mergeStats(snapshot ?? {}, {'segment_hits': hits});
   }
 
   /// Merges two stats maps, summing counts and recomputing maxima/averages, so

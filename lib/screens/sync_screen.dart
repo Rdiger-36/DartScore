@@ -138,8 +138,12 @@ Future<SyncPacket> buildSyncPacket(
     }
   }
 
-  final snapshot =
+  // The throws left out travel as aggregated stats. The ones travelling as
+  // throws still need their dartboard segments folded in, because that is the
+  // one thing the wire format cannot carry per throw.
+  final folded =
       await db.foldThrowsIntoSnapshot(player.localStatsJson, excluded);
+  final snapshot = DbHelper.addSegmentHits(folded, included);
 
   return SyncPacket(
     version:         2,
