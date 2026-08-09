@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/dart_throw.dart';
-import '../utils/live_stats.dart';
+import '../utils/throw_stats.dart';
 import 'stat_row.dart';
 
 /// One member of a team card: their name and the visits they threw themselves.
@@ -44,7 +44,7 @@ class SummaryPlayerCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
     final l     = context.l10n;
-    final stats = LiveThrowStats.fromThrows(throws);
+    final stats = ThrowStats.fromThrows(throws);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -129,7 +129,7 @@ class _MemberRow extends StatelessWidget {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
     final l     = context.l10n;
-    final stats = LiveThrowStats.fromThrows(throws);
+    final stats = ThrowStats.fromThrows(throws);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),

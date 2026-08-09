@@ -10,7 +10,7 @@ import '../providers/game_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
-import '../utils/live_stats.dart';
+import '../utils/throw_stats.dart';
 import '../widgets/final_ranking_card.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';

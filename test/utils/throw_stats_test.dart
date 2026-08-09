@@ -1,5 +1,5 @@
 import 'package:dartscore_app/models/dart_throw.dart';
-import 'package:dartscore_app/utils/live_stats.dart';
+import 'package:dartscore_app/utils/throw_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A single visit; everything that is not under test gets a harmless default.
@@ -25,9 +25,9 @@ DartThrow _visit(
     );
 
 void main() {
-  group('LiveThrowStats.fromThrows', () {
+  group('ThrowStats.fromThrows', () {
     test('an empty list yields zeros instead of NaN', () {
-      final s = LiveThrowStats.fromThrows([]);
+      final s = ThrowStats.fromThrows([]);
 
       expect(s.totalVisits, 0);
       expect(s.totalDarts, 0);
@@ -41,7 +41,7 @@ void main() {
     });
 
     test('a bust adds darts but no score', () {
-      final s = LiveThrowStats.fromThrows([
+      final s = ThrowStats.fromThrows([
         _visit(140),
         _visit(180, remainingBefore: 361, bust: true),
       ]);
@@ -58,7 +58,7 @@ void main() {
     });
 
     test('a busted visit from a finishable remaining is still an attempt', () {
-      final s = LiveThrowStats.fromThrows([
+      final s = ThrowStats.fromThrows([
         _visit(60, remainingBefore: 41, bust: true),
       ]);
 
@@ -70,7 +70,7 @@ void main() {
     });
 
     test('a finishing visit counts as attempt and success', () {
-      final s = LiveThrowStats.fromThrows([
+      final s = ThrowStats.fromThrows([
         _visit(101, remainingBefore: 101, dartsUsed: 2),
         _visit(40, remainingBefore: 40),
       ]);
@@ -82,7 +82,7 @@ void main() {
     });
 
     test('checkout ranges split at 40, 60, 100 and 170', () {
-      final s = LiveThrowStats.fromThrows([
+      final s = ThrowStats.fromThrows([
         _visit(0, remainingBefore: 40),
         _visit(0, remainingBefore: 41),
         _visit(0, remainingBefore: 60),
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('score thresholds are inclusive', () {
-      final s = LiveThrowStats.fromThrows([
+      final s = ThrowStats.fromThrows([
         _visit(180),
         _visit(140),
         _visit(139),
@@ -116,7 +116,7 @@ void main() {
 
     group('first 9', () {
       test('takes only the opening three visits of a leg', () {
-        final s = LiveThrowStats.fromThrows([
+        final s = ThrowStats.fromThrows([
           _visit(60),
           _visit(60),
           _visit(60),
@@ -130,7 +130,7 @@ void main() {
       });
 
       test('sums the opening visits of every leg', () {
-        final s = LiveThrowStats.fromThrows([
+        final s = ThrowStats.fromThrows([
           _visit(60, leg: 1),
           _visit(60, leg: 1),
           _visit(60, leg: 1),
@@ -145,7 +145,7 @@ void main() {
       });
 
       test('keeps legs of the same number apart across sets', () {
-        final s = LiveThrowStats.fromThrows([
+        final s = ThrowStats.fromThrows([
           _visit(60, leg: 1, set: 1),
           _visit(60, leg: 1, set: 1),
           _visit(60, leg: 1, set: 1),
@@ -157,7 +157,7 @@ void main() {
       });
 
       test('counts a short finishing visit with its real dart count', () {
-        final s = LiveThrowStats.fromThrows([
+        final s = ThrowStats.fromThrows([
           _visit(180, remainingBefore: 501),
           _visit(180, remainingBefore: 321),
           _visit(141, remainingBefore: 141, dartsUsed: 3),
@@ -169,7 +169,7 @@ void main() {
       });
 
       test('a bust among the opening visits contributes darts but no score', () {
-        final s = LiveThrowStats.fromThrows([
+        final s = ThrowStats.fromThrows([
           _visit(60),
           _visit(60, bust: true),
           _visit(60),
@@ -181,14 +181,14 @@ void main() {
     });
 
     test('standard deviation ignores busts', () {
-      final even = LiveThrowStats.fromThrows([
+      final even = ThrowStats.fromThrows([
         _visit(60),
         _visit(60),
         _visit(60),
       ]);
       expect(even.scoreStdDev, closeTo(0, 0.001));
 
-      final spread = LiveThrowStats.fromThrows([
+      final spread = ThrowStats.fromThrows([
         _visit(100),
         _visit(20),
       ]);

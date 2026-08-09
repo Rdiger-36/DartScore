@@ -117,7 +117,7 @@ lib/
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
-│   ├── live_stats.dart         # Live per slot and per member stat aggregation over recorded throws
+│   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
