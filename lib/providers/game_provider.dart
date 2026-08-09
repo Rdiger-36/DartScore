@@ -685,6 +685,7 @@ class GameProvider extends ChangeNotifier {
       teams:        game.teams,
       handicaps:    game.handicaps,
       placementMode: game.placementMode,
+      startingOrder: game.startingOrder,
     );
 
     if (game.isTeamGame) {
@@ -730,9 +731,15 @@ class GameProvider extends ChangeNotifier {
   /// in/out, legs/sets, placement mode, teams and handicaps) and the given
   /// [players]. The template's id and timestamps are not carried over, so a
   /// new game row is persisted and the finished one stays untouched. The
-  /// throwing order is reshuffled, mirroring how a game is set up normally.
+  /// throwing order follows the template's [StartingOrder]: drawn again for
+  /// [StartingOrder.random], kept as it is for a fixed order.
   Future<void> startRematch(Game template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = Game(
       startScore:    template.startScore,
       gameMode:      template.gameMode,
@@ -740,11 +747,12 @@ class GameProvider extends ChangeNotifier {
       legs:          template.legs,
       sets:          template.sets,
       createdAt:     DateTime.now(),
-      teams:         template.teams,
+      teams:         teams,
       handicaps:     template.handicaps,
       placementMode: template.placementMode,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Submit visit ──────────────────────────────────────────────────────────

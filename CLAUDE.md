@@ -55,6 +55,7 @@ lib/
 │   ├── shanghai_game.dart           # Shanghai entity; ShanghaiVariant enum
 │   ├── around_the_clock_game.dart   # Around the Clock entity; AroundTheClockVariant enum, target order
 │   ├── team_config.dart             # Shared TeamConfig + JSON encode/decode for the team_config_json columns
+│   ├── starting_order.dart          # Shared StartingOrder enum for the starting_order columns (random/fixed)
 │   └── dart_throw.dart              # Single throw record (value, multiplier, bust flag)
 ├── providers/
 │   ├── players_provider.dart          # Player CRUD; loads from DB, notifies listeners
@@ -104,6 +105,7 @@ lib/
 │   ├── finish_suggestion_widget.dart  # Checkout hint display
 │   ├── favorite_double_picker.dart    # Picks a player's favorite doubles
 │   ├── team_section.dart              # Shared team setup block (naming, add/remove, assignment) for every mode
+│   ├── starting_order_section.dart    # Shared starting-order block (random vs. fixed + drag-to-sort list)
 │   ├── game_info_card.dart            # Shared card listing a finished game's settings
 │   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
 │   └── player_dialog.dart             # Create/edit player dialog
@@ -132,7 +134,7 @@ lib/
 - All code comments, doc comments, commit messages, and PR descriptions must be in **English**
 - Every function, method, and class must have a proper doc comment (`///`) describing what it does
 - Doc comments should be detailed where it matters: go in depth for complex logic, keep it short for self-explanatory members. Do not over-comment - describe purpose, non-obvious behavior, parameters, and return value only when they add value
-- Never use em dashes (`—`) in commit messages or PR titles/descriptions; use a hyphen (`-`) or rephrase
+- Never use a dash as punctuation anywhere: not the em dash (`—`) and not a standalone hyphen (` - `). This covers UI strings, doc comments, inline comments, commit messages and PR titles/descriptions. Rephrase, or use a comma, colon or full stop. Hyphens inside compound words (`cut-throat`, `Co-Authored-By`) are fine
 - Always create a **new branch** before making changes when the current branch is `main`
 - Both platforms (Android and iOS) must be considered for every change; flag platform-specific implications when relevant
 - GUI/design changes and larger changes that touch many references must be discussed and approved first before they are applied
@@ -145,6 +147,8 @@ lib/
 ## Key Conventions
 
 - Each game mode keeps its enums in its own model file: `GameMode`/`CheckoutMode` in `game.dart`, `CricketVariant`/`CricketScoringMode` in `cricket_game.dart`, `ShanghaiVariant` in `shanghai_game.dart`, `AroundTheClockVariant` in `around_the_clock_game.dart`
+- Settings that every mode shares live in their own model file and are re-exported by each game model, so screens need no extra import: `TeamConfig` in `team_config.dart`, `StartingOrder` in `starting_order.dart`
+- `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
 - Finish/checkout logic is isolated in `FinishCalculator` — do not inline checkout logic elsewhere
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes

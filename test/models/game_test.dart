@@ -97,4 +97,44 @@ void main() {
       expect(finished.handicaps![7]!.checkIn, GameMode.doubleIn);
     });
   });
+
+  group('Game starting order persistence', () {
+    final createdAt = DateTime.fromMillisecondsSinceEpoch(1700000000000);
+
+    test('defaults to a random order', () {
+      final game = Game(startScore: 501, createdAt: createdAt);
+
+      expect(game.startingOrder, StartingOrder.random);
+      expect(game.toMap()['starting_order'], 0);
+    });
+
+    test('round-trips a fixed order through the row map', () {
+      final game = Game(
+        startScore: 501,
+        createdAt: createdAt,
+        startingOrder: StartingOrder.fixed,
+      );
+
+      expect(Game.fromMap(game.toMap()).startingOrder, StartingOrder.fixed);
+    });
+
+    test('reads rows written before the starting order column existed', () {
+      final map = Game(startScore: 301, createdAt: createdAt).toMap()
+        ..remove('starting_order');
+
+      // Those games were always shuffled, so random is the honest default.
+      expect(Game.fromMap(map).startingOrder, StartingOrder.random);
+    });
+
+    test('carries the starting order through copyWith', () {
+      final game = Game(
+        startScore: 501,
+        createdAt: createdAt,
+        startingOrder: StartingOrder.fixed,
+      );
+
+      expect(game.copyWith(finishedAt: createdAt).startingOrder,
+          StartingOrder.fixed);
+    });
+  });
 }

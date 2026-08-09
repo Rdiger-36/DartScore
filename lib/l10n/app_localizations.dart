@@ -316,6 +316,20 @@ class AppLocalizations {
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
 
+  // ── Starting order ───────────────────────────────────────────────────────
+  String get startingOrder       => _t('Starting order', 'Startreihenfolge');
+  String get startingOrderFixed  => _t('Fixed', 'Festgelegt');
+  String get startingOrderRandom => _t('Random', 'Zufällig');
+  String get startingOrderFixedHint => _t(
+      'Throw for the bull and sort the list by it: whoever lands closest starts the round.',
+      'Wirf aufs Bull und sortiere die Liste danach: Wer am nächsten dran ist, beginnt die Runde.');
+  String get startingOrderTeamHint => _t(
+      'Throw for the bull and sort the teams by it: whoever lands closest starts the round. Only one player per team throws.',
+      'Wirf aufs Bull und sortiere die Teams danach: Wer am nächsten dran ist, beginnt die Runde. Pro Team wirft nur einer.');
+  String get startingOrderRandomHint => _t(
+      'The order is drawn randomly when the game starts.',
+      'Die Reihenfolge wird beim Start zufällig ausgelost.');
+
   // ── Settings ─────────────────────────────────────────────────────────────
   String get settingsTitle     => _t('Settings', 'Einstellungen');
   String get language          => _t('Language', 'Sprache');
@@ -605,7 +619,7 @@ class AppLocalizations {
   String get guest          => _t('Guest', 'Gast');
   String get addTeam        => _t('Add team', 'Team hinzufügen');
   String get removeTeam     => _t('Remove team', 'Team entfernen');
-  String teamN(int n)       => _t('Team $n', 'Team $n');
+  String get teamNameLabel  => _t('Team name', 'Teamname');
   String get doublesLabel   => _t('Doubles', 'Doubles');
 
   // ── Cricket History ──────────────────────────────────────────────────────────

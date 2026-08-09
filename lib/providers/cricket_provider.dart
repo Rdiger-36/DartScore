@@ -153,6 +153,7 @@ class CricketProvider extends ChangeNotifier {
       createdAt:   game.createdAt,
       playerIds:   game.playerIds,
       teams:       game.teams,
+      startingOrder: game.startingOrder,
     );
 
     _playerStates = _buildSlots(players, game.teams);
@@ -168,20 +169,27 @@ class CricketProvider extends ChangeNotifier {
   /// Starts a fresh Cricket game that reuses [template]'s settings (variant,
   /// scoring mode, legs/sets, teams) and the given [players]. The template's id
   /// and timestamps are not carried over, so a new game row is persisted and
-  /// the finished one stays untouched. The throwing order is reshuffled,
-  /// mirroring how a game is set up normally.
+  /// the finished one stays untouched. The throwing order follows the
+  /// template's [StartingOrder]: drawn again for [StartingOrder.random], kept
+  /// as it is for a fixed order.
   Future<void> startRematch(CricketGame template, List<Player> players) async {
-    final shuffled = List.of(players)..shuffle(Random());
+    final isRandom = template.startingOrder == StartingOrder.random;
+    final ordered  = isRandom ? (List.of(players)..shuffle(Random()))
+                              : List.of(players);
+    final teams    = isRandom && template.teams != null
+        ? (List.of(template.teams!)..shuffle(Random()))
+        : template.teams;
     final game = CricketGame(
       variant:     template.variant,
       scoringMode: template.scoringMode,
       legs:        template.legs,
       sets:        template.sets,
       createdAt:   DateTime.now(),
-      playerIds:   shuffled.map((p) => p.id!).toList(),
-      teams:       template.teams,
+      playerIds:   ordered.map((p) => p.id!).toList(),
+      teams:       teams,
+      startingOrder: template.startingOrder,
     );
-    await startGame(game, shuffled);
+    await startGame(game, ordered);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────
