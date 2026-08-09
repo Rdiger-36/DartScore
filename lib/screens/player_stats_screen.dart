@@ -8,6 +8,7 @@ import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../models/game.dart';
 import '../providers/game_provider.dart' show minimumDartsForScore;
+import '../utils/throw_stats.dart';
 import '../services/sync_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/stat_row.dart';
@@ -15,11 +16,15 @@ import '../utils/layout.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
-/// Aggregated lifetime statistics for one player, computed by [_loadStats] from
-/// stored games, throws, and any persisted historical stats snapshot. Covers
-/// totals, averages, score distribution, segment hits, weekly comparison, and
-/// checkout breakdown by remaining bracket.
-class _PlayerStats {
+/// Aggregated lifetime statistics for one player, computed by [loadPlayerStats]
+/// from stored games, throws, and any persisted historical stats snapshot.
+/// Covers totals, averages, score distribution, segment hits, weekly comparison,
+/// and checkout breakdown by remaining bracket.
+///
+/// Public only so the merge of live throws and snapshot can be tested; the
+/// screen is the sole caller in the app.
+@visibleForTesting
+class PlayerStats {
   final int gamesPlayed;
   final int gamesFinished;
   final int totalVisits;
@@ -55,7 +60,7 @@ class _PlayerStats {
   final int coAttemptSub100;  final int coSuccessSub100;
   final int coAttemptSub170;  final int coSuccessSub170;
 
-  const _PlayerStats({
+  const PlayerStats({
     required this.gamesPlayed,
     required this.gamesFinished,
     required this.totalVisits,
@@ -98,7 +103,11 @@ class _PlayerStats {
 
 /// Loads and aggregates a player's lifetime statistics from the database,
 /// merging live game data with any persisted historical snapshot.
-Future<_PlayerStats> _loadStats(Player player) async {
+///
+/// Public only so the merge can be tested; the screen is the sole caller in
+/// the app.
+@visibleForTesting
+Future<PlayerStats> loadPlayerStats(Player player) async {
   final playerId = player.id!;
   final db = DbHelper.instance;
 
@@ -115,16 +124,30 @@ Future<_PlayerStats> _loadStats(Player player) async {
     }
   }
 
-  // ── Accumulators for live throws ──────────────────────────────────────────
-  int totalScored = 0, busts = 0, legsWon = 0;
-  int highestVisit = 0, highestCheckout = 0;
-  int count180 = 0, count140plus = 0, count100plus = 0;
-  int checkoutAttempts = 0, checkoutSuccess = 0, perfectLegs = 0;
-  int scoreSumSquares = 0;
-  int coAtSub40 = 0, coOkSub40 = 0;
-  int coAtSub60 = 0, coOkSub60 = 0;
-  int coAtSub100 = 0, coOkSub100 = 0;
-  int coAtSub170 = 0, coOkSub170 = 0;
+  // ── Counters from the games still on the device ───────────────────────────
+  // The snapshot of deleted games is added on top further down, so these start
+  // at the live values instead of at zero and stay mutable.
+  final live = ThrowStats.fromThrows(throws);
+
+  int totalScored      = live.totalScored;
+  int busts            = live.busts;
+  // A leg is won by finishing it, so a successful checkout is a leg.
+  int legsWon          = live.checkoutSuccesses;
+  int highestVisit     = live.highestVisit;
+  int highestCheckout  = live.highestCheckout;
+  int count180         = live.count180;
+  int count140plus     = live.count140plus;
+  int count100plus     = live.count100plus;
+  int checkoutAttempts = live.checkoutAttempts;
+  int checkoutSuccess  = live.checkoutSuccesses;
+  int scoreSumSquares  = live.scoreSumSquares;
+  int coAtSub40  = live.coAttemptSub40,  coOkSub40  = live.coSuccessSub40;
+  int coAtSub60  = live.coAttemptSub60,  coOkSub60  = live.coSuccessSub60;
+  int coAtSub100 = live.coAttemptSub100, coOkSub100 = live.coSuccessSub100;
+  int coAtSub170 = live.coAttemptSub170, coOkSub170 = live.coSuccessSub170;
+
+  // ── Accumulators the shared record does not carry ─────────────────────────
+  int perfectLegs = 0;
   final scoreDistribution = <int, int>{};
   final segmentHits       = <int, Map<int, int>>{};
   // daily_stats: date → {scored, darts, visits, s180}
@@ -151,66 +174,34 @@ Future<_PlayerStats> _loadStats(Player player) async {
     final ds = dailyStats.putIfAbsent(day, () => {'scored': 0, 'darts': 0, 'visits': 0, 's180': 0});
     ds['darts'] = (ds['darts'] ?? 0) + t.dartsUsed;
 
-    if (t.bust) {
-      busts++;
-    } else {
-      totalScored     += t.score;
-      scoreSumSquares += t.score * t.score;
-      if (t.score > highestVisit) highestVisit = t.score;
-      if (t.score == 180) count180++;
-      if (t.score >= 140) count140plus++;
-      if (t.score >= 100) count100plus++;
-
+    if (!t.bust) {
       final bucket = (t.score ~/ 20) * 20;
       scoreDistribution[bucket] = (scoreDistribution[bucket] ?? 0) + 1;
 
       ds['scored'] = (ds['scored'] ?? 0) + t.score;
       ds['visits'] = (ds['visits'] ?? 0) + 1;
       if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
-
     }
 
-    // Counted for busts too: a visit that started on a finishable remaining
-    // was an attempt at the finish, whether or not it overshot.
-    if (t.remainingBefore <= 170) {
-      checkoutAttempts++;
-      final success = !t.bust && t.remainingBefore - t.score == 0;
-      if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
-      else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
-      else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
-      else                               { coAtSub170++; if (success) coOkSub170++; }
-      if (success) {
-        legsWon++;
-        checkoutSuccess++;
-        if (t.score > highestCheckout) highestCheckout = t.score;
-        final legDarts = throws
-            .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
-            .fold(0, (s, x) => s + x.dartsUsed);
-        final startForGame = games[t.gameId]?.startScore;
-        final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
-        if (minD != null && legDarts <= minD) perfectLegs++;
-      }
+    // Perfect legs: a leg finished within the fewest darts its start score
+    // allows. Needs the leg's whole dart count and that game's start score, so
+    // it cannot come from the shared record.
+    if (!t.bust && t.remainingBefore - t.score == 0) {
+      final legDarts = throws
+          .where((x) => x.leg == t.leg && x.set == t.set && x.gameId == t.gameId)
+          .fold(0, (s, x) => s + x.dartsUsed);
+      final startForGame = games[t.gameId]?.startScore;
+      final minD = startForGame != null ? minimumDartsForScore[startForGame] : null;
+      if (minD != null && legDarts <= minD) perfectLegs++;
     }
   }
 
   int gamesFinished      = games.values.where((g) => g.finishedAt != null).length;
-  int liveTotalDarts     = throws.fold(0, (s, t) => s + t.dartsUsed);
-  int liveTotalVisits    = throws.length;
-  int liveNonBustVisits  = liveTotalVisits - busts;
+  final liveTotalDarts    = live.totalDarts;
+  final liveTotalVisits   = live.totalVisits;
+  final liveNonBustVisits = live.totalVisits - live.busts;
 
-  // ── Highest single-game average (live throws, grouped by game) ───────────
-  final gameDarts  = <int, int>{};
-  final gameScored = <int, int>{};
-  for (final t in throws) {
-    gameDarts[t.gameId] = (gameDarts[t.gameId] ?? 0) + t.dartsUsed;
-    if (!t.bust) gameScored[t.gameId] = (gameScored[t.gameId] ?? 0) + t.score;
-  }
-  double highestGameAvg = 0;
-  for (final entry in gameDarts.entries) {
-    if (entry.value == 0) continue;
-    final avg = (gameScored[entry.key] ?? 0) / entry.value * 3;
-    if (avg > highestGameAvg) highestGameAvg = avg;
-  }
+  double highestGameAvg = bestGameAverage(throws);
 
   // ── Merge persistent snapshot (deleted games) ─────────────────────────────
   int persistentTotalDarts  = 0;
@@ -371,7 +362,7 @@ Future<_PlayerStats> _loadStats(Player player) async {
   final thisWeekAvg3 = thisWeekDarts == 0 ? 0.0 : (thisWeekScored / thisWeekDarts) * 3;
   final lastWeekAvg3 = lastWeekDarts == 0 ? 0.0 : (lastWeekScored / lastWeekDarts) * 3;
 
-  return _PlayerStats(
+  return PlayerStats(
     gamesPlayed:    gameIds.length + persistentGamesPlayed,
     gamesFinished:  gamesFinished,
     totalVisits:    liveTotalVisits + persistentTotalVisits,
@@ -423,8 +414,8 @@ class PlayerStatsScreen extends StatelessWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-          child: FutureBuilder<_PlayerStats>(
-        future: _loadStats(player),
+          child: FutureBuilder<PlayerStats>(
+        future: loadPlayerStats(player),
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -465,10 +456,10 @@ class PlayerStatsScreen extends StatelessWidget {
 
 // ── Body ──────────────────────────────────────────────────────────────────────
 
-/// Assembles the full stats layout from the loaded [_PlayerStats] sections.
+/// Assembles the full stats layout from the loaded [PlayerStats] sections.
 class _StatsBody extends StatelessWidget {
   final Player player;
-  final _PlayerStats stats;
+  final PlayerStats stats;
 
   const _StatsBody({required this.player, required this.stats});
 
@@ -664,7 +655,7 @@ class _StatsBody extends StatelessWidget {
 
 /// Hero summary card showing the player's headline stats (average, games, etc.).
 class _HeroCard extends StatelessWidget {
-  final _PlayerStats stats;
+  final PlayerStats stats;
   const _HeroCard({required this.stats});
 
   @override
@@ -1295,7 +1286,7 @@ class _DartboardPainter extends CustomPainter {
 
 /// Card listing the doubles hit most often, ranked by hit count (top 3).
 class _TopDoublesCard extends StatelessWidget {
-  final _PlayerStats stats;
+  final PlayerStats stats;
   const _TopDoublesCard({required this.stats});
 
   @override
@@ -1323,7 +1314,7 @@ class _TopDoublesCard extends StatelessWidget {
 
 /// Card showing scoring consistency (standard deviation of visit scores).
 class _StabilityCard extends StatelessWidget {
-  final _PlayerStats stats;
+  final PlayerStats stats;
   const _StabilityCard({required this.stats});
 
   @override
@@ -1387,7 +1378,7 @@ class _StabilityCard extends StatelessWidget {
 
 /// Card breaking down checkout success rate by remaining-score bracket.
 class _CheckoutBreakdownCard extends StatelessWidget {
-  final _PlayerStats stats;
+  final PlayerStats stats;
   const _CheckoutBreakdownCard({required this.stats});
 
   @override
@@ -1489,7 +1480,7 @@ class _CheckoutBracketRow extends StatelessWidget {
 
 /// Card comparing this week's performance to last week's (average, visits, 180s).
 class _WeekComparisonCard extends StatelessWidget {
-  final _PlayerStats stats;
+  final PlayerStats stats;
   const _WeekComparisonCard({required this.stats});
 
   @override
