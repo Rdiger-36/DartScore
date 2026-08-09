@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,7 +8,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
 import '../database/db_helper.dart';
+import '../models/dart_throw.dart';
 import '../models/player.dart';
+import '../services/sync_codec.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
 
@@ -15,9 +18,24 @@ import '../utils/layout.dart';
 /// existing local player.
 enum _NameResolution { useExisting }
 
-/// Builds a [SyncPacket] for [player] using all live throws plus the
-/// persisted [local_stats_json] snapshot (covers cleared game history).
-Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
+/// The localized label for a range given in days, with null meaning the
+/// player's whole history. Shared by the sender's picker and the receiver's
+/// confirmation dialog, which only ever sees the day count.
+String _rangeLabelForDays(AppLocalizations l, int? days) => switch (days) {
+      1  => l.syncRangeDay,
+      7  => l.syncRangeWeek,
+      30 => l.syncRangeMonth,
+      _  => l.syncRangeAll,
+    };
+
+/// Builds a [SyncPacket] for [player] covering [range], using the live throws
+/// plus the persisted [local_stats_json] snapshot (covers cleared game history).
+///
+/// The aggregate stats always describe the player's whole history, whatever
+/// [range] is: the throws it leaves out are folded into the snapshot that
+/// travels along, so a short range costs individual throws and nothing else.
+Future<SyncPacket> buildSyncPacket(
+    Player player, String senderDevice, SyncRange range) async {
   final db        = DbHelper.instance;
   final allThrows = await db.getThrowsForPlayer(player.id!);
 
@@ -60,13 +78,35 @@ Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
   final total180     = live180    + pers180;
   final avg = totalDarts == 0 ? 0.0 : (totalScored / totalDarts) * 3;
 
+  // Split the history at the range's cutoff. What falls outside still has to
+  // reach the other device, just as aggregated numbers instead of throws.
+  final cutoff = range.days == null
+      ? null
+      : DateTime.now()
+          .subtract(Duration(days: range.days!))
+          .millisecondsSinceEpoch;
+
+  final included = <DartThrow>[];
+  final excluded = <DartThrow>[];
+  for (final t in allThrows) {
+    if (cutoff == null || t.thrownAt.millisecondsSinceEpoch >= cutoff) {
+      included.add(t);
+    } else {
+      excluded.add(t);
+    }
+  }
+
+  final snapshot =
+      await db.foldThrowsIntoSnapshot(player.localStatsJson, excluded);
+
   return SyncPacket(
-    version:         1,
+    version:         2,
     senderDevice:    senderDevice,
     playerUuid:      player.uuid,
     playerName:      player.name,
     favoriteDoubles: player.favoriteDoubles,
-    localStatsJson:  player.localStatsJson,
+    localStatsJson:  snapshot == null ? null : jsonEncode(snapshot),
+    rangeDays:       range.days,
     stats: SyncStats(
       totalDarts:   totalDarts,
       totalVisits:  totalVisits,
@@ -76,12 +116,9 @@ Future<SyncPacket> _buildSyncPacket(Player player, String senderDevice) async {
       busts:        totalBusts,
       count180:     total180,
     ),
-    throws: allThrows.map(SyncThrow.fromDartThrow).toList(),
+    throws: included.map(SyncThrow.fromDartThrow).toList(),
   );
 }
-
-// Prefix that marks a QR code as containing embedded data (not IP:port).
-const _kQrPrefix = 'QR1:';
 
 /// QR/Wi-Fi device-to-device sync screen with Send and Receive tabs for
 /// transferring a player's stats between devices.
@@ -154,11 +191,8 @@ class _SyncScreenState extends State<SyncScreen>
 
 // ── Sender ────────────────────────────────────────────────────────────────────
 
-/// Transfer method on the sender side: a single quick QR code, or a Wi-Fi
-/// HTTP transfer for larger payloads.
-enum _SenderMode { quickQr, wifi }
-
-/// Send tab: pick a player and share their stats as a QR code or over Wi-Fi.
+/// Send tab: pick a player and a range, then hand their stats over by whichever
+/// transport the resulting payload calls for.
 class _SenderTab extends StatefulWidget {
   final Player? initialPlayer;
   const _SenderTab({this.initialPlayer});
@@ -168,124 +202,143 @@ class _SenderTab extends StatefulWidget {
 }
 
 class _SenderTabState extends State<_SenderTab> {
-  // shared
   Player? _selectedPlayer;
-  _SenderMode _mode = _SenderMode.quickQr;
+  SyncRange _range = SyncRange.all;
 
-  // Quick-QR state
-  String? _quickQrData;
-  bool _qrTooLarge = false;
-  bool _generatingQr = false;
-  int _newThrowsCount = 0;
+  // Prepared payload
+  SyncPacket? _packet;
+  String? _payload;
+  List<String> _frames = const [];
+  SyncTransport _transport = SyncTransport.staticQr;
+  bool _preparing = false;
 
-  // WiFi state
+  // Animated QR
+  Timer? _frameTimer;
+  int _frameIndex = 0;
+
+  // Server transport, only started when the user asks for it
   final _server = SyncServer();
   String? _ip;
   int? _port;
-  bool _wifiStarting = false;
+  bool _serverStarting = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialPlayer != null) {
       _selectedPlayer = widget.initialPlayer;
+      // A player who has synced before rarely needs their whole history again.
+      _range = widget.initialPlayer!.lastSyncedAt == null
+          ? SyncRange.all
+          : SyncRange.week;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _generateQuickQr();
+        if (mounted) _prepare();
       });
     }
   }
 
   @override
   void dispose() {
+    _frameTimer?.cancel();
     _server.stop();
     super.dispose();
   }
 
-  // ── Quick QR ──────────────────────────────────────────────────────────────
+  // ── Preparing the payload ─────────────────────────────────────────────────
 
-  /// Builds the selected player's sync packet and encodes it as a QR code,
-  /// flagging when the payload is too large for a single QR.
-  Future<void> _generateQuickQr() async {
-    if (_selectedPlayer == null) return;
+  /// Builds and encodes the packet for the current player and range, then picks
+  /// the transport from how large it turned out.
+  Future<void> _prepare() async {
+    final player = _selectedPlayer;
+    if (player == null) return;
+
+    _frameTimer?.cancel();
+    if (_server.isRunning) await _server.stop();
+
     setState(() {
-      _generatingQr = true;
-      _quickQrData = null;
-      _qrTooLarge = false;
+      _preparing = true;
+      _payload = null;
+      _packet = null;
+      _frames = const [];
+      _ip = null;
+      _port = null;
     });
 
-    final packet = await _buildSyncPacket(
-      _selectedPlayer!,
-      Platform.isIOS ? 'iPhone' : 'Android',
-    );
-    _newThrowsCount = packet.stats.totalVisits;
-
-    // gzip → base64url
-    final jsonBytes  = utf8.encode(jsonEncode(packet.toJson()));
-    final compressed = gzip.encode(jsonBytes);
-    final encoded    = '$_kQrPrefix${base64Url.encode(compressed)}';
+    final packet = await buildSyncPacket(
+        player, Platform.isIOS ? 'iPhone' : 'Android', _range);
+    final payload   = encodeSyncPayload(packet);
+    final transport = transportFor(payload);
 
     if (!mounted) return;
-    if (encoded.length > 4000) {
-      setState(() { _qrTooLarge = true; _generatingQr = false; });
-    } else {
-      setState(() { _quickQrData = encoded; _qrTooLarge = false; _generatingQr = false; });
-    }
+    setState(() {
+      _packet    = packet;
+      _payload   = payload;
+      _transport = transport;
+      _frames    = transport == SyncTransport.animatedQr
+          ? splitIntoFrames(payload)
+          : const [];
+      _frameIndex = 0;
+      _preparing  = false;
+    });
+
+    if (transport == SyncTransport.animatedQr) _startFrameLoop();
   }
 
-  // ── WiFi Sync ─────────────────────────────────────────────────────────────
+  /// Cycles through the frames of an animated QR code, looping forever so the
+  /// receiver can pick up whatever it missed on the pass before.
+  void _startFrameLoop() {
+    _frameTimer?.cancel();
+    _frameTimer = Timer.periodic(kChunkFrameDuration, (_) {
+      if (!mounted || _frames.isEmpty) return;
+      setState(() => _frameIndex = (_frameIndex + 1) % _frames.length);
+    });
+  }
 
-  /// Starts the local HTTP server serving the player's packet and shows its
-  /// IP/port (as a connection QR) for the receiver.
-  Future<void> _startWifi() async {
-    if (_selectedPlayer == null) return;
-    setState(() => _wifiStarting = true);
+  /// Seconds one full pass of the animated QR code takes.
+  int get _passSeconds =>
+      (_frames.length * kChunkFrameDuration.inMilliseconds / 1000).ceil();
 
-    final packet = await _buildSyncPacket(
-      _selectedPlayer!,
-      Platform.isIOS ? 'iPhone' : 'Android',
-    );
+  // ── Server transport ──────────────────────────────────────────────────────
+
+  /// Starts the local HTTP server serving the prepared packet and shows its
+  /// IP and port as a connection QR for the receiver.
+  Future<void> _startServer() async {
+    final packet = _packet;
+    if (packet == null) return;
+    setState(() => _serverStarting = true);
 
     if (_server.isRunning) await _server.stop();
     final (ip, port) = await _server.start(packet);
 
     if (!mounted) return;
-    setState(() { _ip = ip; _port = port; _wifiStarting = false; });
+    setState(() { _ip = ip; _port = port; _serverStarting = false; });
   }
 
-  /// Stops the Wi-Fi transfer server and clears its connection details.
-  Future<void> _stopWifi() async {
+  /// Stops the transfer server and clears its connection details.
+  Future<void> _stopServer() async {
     await _server.stop();
-    setState(() { _ip = null; _port = null; });
+    if (mounted) setState(() { _ip = null; _port = null; });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// Handles selecting a different player to send: stops any running server,
-  /// resets to quick-QR mode, and regenerates the QR.
-  void _onPlayerChanged(Player? p) async {
-    if (_server.isRunning) await _server.stop();
-    setState(() {
-      _selectedPlayer = p;
-      _mode = _SenderMode.quickQr;
-      _quickQrData = null;
-      _qrTooLarge = false;
-      _ip = null;
-      _port = null;
-    });
-    if (p != null) _generateQuickQr();
+  /// Switches to a different player and prepares their payload.
+  void _onPlayerChanged(Player? p) {
+    if (p == null || p.id == _selectedPlayer?.id) return;
+    setState(() => _selectedPlayer = p);
+    _prepare();
   }
 
-  /// Switches between quick-QR and Wi-Fi transfer modes, preparing the new mode.
-  void _onModeChanged(_SenderMode mode) {
-    if (mode == _mode) return;
-    setState(() {
-      _mode = mode;
-      _quickQrData = null;
-      _qrTooLarge = false;
-    });
-    if (mode == _SenderMode.quickQr && _selectedPlayer != null) _generateQuickQr();
-    if (mode == _SenderMode.wifi && _server.isRunning) _stopWifi();
+  /// Switches the range and prepares the payload again.
+  void _onRangeChanged(SyncRange range) {
+    if (range == _range) return;
+    setState(() => _range = range);
+    _prepare();
   }
+
+  /// The localized label for [range].
+  String _rangeLabel(AppLocalizations l, SyncRange range) =>
+      _rangeLabelForDays(l, range.days);
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -311,7 +364,7 @@ class _SenderTabState extends State<_SenderTab> {
       children: [
         // ── Description ───────────────────────────────────────────────────
         Text(
-          _mode == _SenderMode.quickQr ? l.quickQrDesc : l.syncSendDesc,
+          l.syncSendDesc,
           style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
@@ -351,211 +404,221 @@ class _SenderTabState extends State<_SenderTab> {
         ),
         const SizedBox(height: 12),
 
-        // ── Mode content ──────────────────────────────────────────────────
-        if (_mode == _SenderMode.quickQr)
-          _buildQuickQrContent(l, cs, theme)
-        else
-          _buildWifiContent(l, cs, theme),
+        // ── Range picker ──────────────────────────────────────────────────
+        _buildRangePicker(l, cs, theme),
+        const SizedBox(height: 12),
+
+        // ── Transport content ─────────────────────────────────────────────
+        _buildTransportContent(l, cs, theme),
       ],
     );
   }
 
-  /// Builds the quick-QR mode UI (the QR code or a too-large fallback message).
-  Widget _buildQuickQrContent(AppLocalizations l, ColorScheme cs, ThemeData theme) {
+  /// Builds the range chips plus the line that translates the current choice
+  /// into throws and the transport they call for.
+  Widget _buildRangePicker(AppLocalizations l, ColorScheme cs, ThemeData theme) {
+    final packet = _packet;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l.syncRangeLabel,
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: SyncRange.values
+                  .map((range) => ChoiceChip(
+                        label: Text(_rangeLabel(l, range)),
+                        selected: _range == range,
+                        onSelected: _preparing || _server.isRunning
+                            ? null
+                            : (_) => _onRangeChanged(range),
+                      ))
+                  .toList(),
+            ),
+            if (packet != null && !_preparing) ...[
+              const SizedBox(height: 10),
+              Text(
+                '${l.syncThrowCount(packet.throws.length)} · ${_transportLabel(l)}',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              if (_range != SyncRange.all) ...[
+                const SizedBox(height: 6),
+                Text(
+                  l.syncRangeNote,
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// How the current payload will travel, in words.
+  String _transportLabel(AppLocalizations l) => switch (_transport) {
+        SyncTransport.staticQr   => l.syncViaStaticQr,
+        SyncTransport.animatedQr => l.syncViaAnimatedQr(_passSeconds),
+        SyncTransport.server     => l.syncViaServer,
+      };
+
+  /// Builds whichever transport the prepared payload ended up needing.
+  Widget _buildTransportContent(
+      AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (_selectedPlayer == null) return const SizedBox.shrink();
 
-    if (_generatingQr) {
+    if (_preparing || _payload == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 32),
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (_qrTooLarge) {
-      return Column(
+    return switch (_transport) {
+      SyncTransport.staticQr   => _buildStaticQr(l, cs, theme),
+      SyncTransport.animatedQr => _buildAnimatedQr(l, cs, theme),
+      SyncTransport.server     => _buildServer(l, cs, theme),
+    };
+  }
+
+  /// Shows the whole packet as one still QR code.
+  Widget _buildStaticQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
+      Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cs.errorContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.warning_amber_rounded,
-                    color: cs.onErrorContainer, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    l.qrTooLargeWarning,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: cs.onErrorContainer),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => _onModeChanged(_SenderMode.wifi),
-            icon: const Icon(Icons.wifi_tethering),
-            label: Text(l.wifiSync),
-            style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14)),
+          _qrCard(_payload!),
+          const SizedBox(height: 8),
+          Text(
+            l.profileAndStats,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
       );
-    }
 
-    if (_quickQrData == null) return const SizedBox.shrink();
-
-    // Info chip: how many throws
-    final infoText = _newThrowsCount == 0
-        ? l.noNewThrowsQr
-        : l.allThrowsFirstSync;
-
-    return Column(
-      children: [
-        // Info badge
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: cs.secondaryContainer,
-            borderRadius: BorderRadius.circular(10),
+  /// Shows the packet as a looping sequence of QR codes.
+  ///
+  /// The codes are rendered as large as the column allows: split across this
+  /// many frames each one is denser than a static code, and a small rendering
+  /// is what makes an animated transfer stall.
+  Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
+      Column(
+        children: [
+          _qrCard(_frames[_frameIndex]),
+          const SizedBox(height: 10),
+          LinearProgressIndicator(
+            value: (_frameIndex + 1) / _frames.length,
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check_circle_outline,
-                  size: 16, color: cs.onSecondaryContainer),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  infoText,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSecondaryContainer),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            l.syncScanProgress(_frameIndex + 1, _frames.length),
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: cs.onSurfaceVariant),
           ),
-        ),
-        const SizedBox(height: 16),
-        // QR code
-        Center(
-          child: Column(
-            children: [
-              Text(
-                _selectedPlayer!.name,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: QrImageView(
-                  data: _quickQrData!,
-                  version: QrVersions.auto,
-                  size: 220,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFFB71C1C),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l.profileAndStats,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
+          const SizedBox(height: 4),
+          Text(
+            l.syncAnimatedHint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
 
-  /// Builds the Wi-Fi mode UI (start/stop server and the connection QR).
-  Widget _buildWifiContent(AppLocalizations l, ColorScheme cs, ThemeData theme) {
+  /// Offers the Wi-Fi transfer for payloads no QR code can carry.
+  Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
     if (!_server.isRunning) {
-      return FilledButton.icon(
-        onPressed: _wifiStarting || _selectedPlayer == null ? null : _startWifi,
-        icon: _wifiStarting
-            ? const SizedBox(width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.wifi_tethering),
-        label: Text(l.startServer),
-        style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16)),
+      return Column(
+        children: [
+          Text(
+            l.syncServerHint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _serverStarting ? null : _startServer,
+            icon: _serverStarting
+                ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.wifi_tethering),
+            label: Text(l.startServer),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16)),
+          ),
+        ],
       );
     }
 
     return Column(
       children: [
         OutlinedButton.icon(
-          onPressed: _stopWifi,
+          onPressed: _stopServer,
           icon: const Icon(Icons.stop_circle_outlined),
           label: Text(l.stopServer),
           style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14)),
         ),
         const SizedBox(height: 20),
-        Center(
-          child: Column(
-            children: [
-              Text(
-                _selectedPlayer!.name,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                '$_ip:$_port',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: QrImageView(
-                  data: jsonEncode({'ip': _ip, 'port': _port}),
-                  version: QrVersions.auto,
-                  size: 220,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFFB71C1C),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l.profileAndStats,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
+        Text(
+          '$_ip:$_port',
+          style: theme.textTheme.labelSmall
+              ?.copyWith(color: cs.onSurfaceVariant),
         ),
+        const SizedBox(height: 12),
+        _qrCard(jsonEncode({'ip': _ip, 'port': _port})),
       ],
     );
   }
+
+  /// The white card every QR code sits on, with the player's name above it.
+  ///
+  /// The code fills the available width instead of a fixed size, so a dense
+  /// payload still renders modules large enough for another phone to read.
+  Widget _qrCard(String data) => Column(
+        children: [
+          Text(
+            _selectedPlayer!.name,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: QrImageView(
+              data: data,
+              version: QrVersions.auto,
+              errorCorrectionLevel: QrErrorCorrectLevel.M,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Color(0xFFB71C1C),
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+          ),
+        ],
+      );
 }
 
 // ── Receiver ──────────────────────────────────────────────────────────────────
@@ -573,6 +636,23 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   bool _scanning = false;
   bool _fetching = false;
   String? _error;
+
+  /// Collects the frames of an animated QR code across many camera detections.
+  final _collector = SyncFrameCollector();
+
+  /// Set once a payload is complete, so the detections that keep arriving while
+  /// the confirmation dialog opens are ignored.
+  bool _handled = false;
+
+  /// Starts a fresh scan, dropping anything a previous attempt collected.
+  void _startScanning() {
+    _collector.reset();
+    setState(() {
+      _scanning = true;
+      _handled  = false;
+      _error    = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -606,14 +686,26 @@ class _ReceiverTabState extends State<_ReceiverTab> {
           ],
           if (_fetching)
             const Center(child: CircularProgressIndicator())
-          else if (_scanning)
-            Expanded(child: _QrScanner(onScanned: _onScanned))
-          else
+          else if (_scanning) ...[
+            Expanded(child: _QrScanner(onScanned: _onScanned)),
+            if (_collector.total > 0) ...[
+              const SizedBox(height: 12),
+              LinearProgressIndicator(
+                value: _collector.received / _collector.total,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${context.l10n.syncKeepHolding}\n'
+                '${context.l10n.syncScanProgress(_collector.received, _collector.total)}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ] else
             FilledButton.icon(
-              onPressed: () => setState(() {
-                _scanning = true;
-                _error = null;
-              }),
+              onPressed: _startScanning,
               icon: const Icon(Icons.qr_code_scanner),
               label: Text(context.l10n.scanQr),
               style: FilledButton.styleFrom(
@@ -624,32 +716,48 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     );
   }
 
-  /// Handles a scanned QR payload: decodes an embedded quick-QR packet directly,
-  /// or connects over Wi-Fi to fetch the packet, then hands it to [_handlePacket].
+  /// Handles one camera detection.
+  ///
+  /// The camera keeps firing while an animated code plays, so most detections
+  /// only add a frame and update the progress. Anything that is not a frame is
+  /// a whole payload or a connection QR, and finishes the scan right away.
   void _onScanned(String raw) async {
-    setState(() { _scanning = false; _fetching = true; _error = null; });
+    if (_handled) return;
 
-    try {
-      // ── Quick QR (embedded data) ────────────────────────────────────────
-      if (raw.startsWith(_kQrPrefix)) {
-        final encoded    = raw.substring(_kQrPrefix.length);
-        final compressed = base64Url.decode(encoded);
-        final jsonStr    = utf8.decode(gzip.decode(compressed));
-        final packet     = SyncPacket.fromJson(
-            jsonDecode(jsonStr) as Map<String, dynamic>);
+    if (SyncFrameCollector.isFrame(raw)) {
+      if (_collector.add(raw) && mounted) setState(() {});
+      if (!_collector.isComplete) return;
 
-        await _handlePacket(packet);
-        return;
+      _handled = true;
+      final payload = _collector.assemble();
+      _collector.reset();
+      await _finishScan(() async => decodeSyncPayload(payload));
+      return;
+    }
+
+    _handled = true;
+    await _finishScan(() async {
+      // ── Whole packet in one code ────────────────────────────────────────
+      if (raw.startsWith(kSyncPrefixV2) || raw.startsWith(kSyncPrefixV1)) {
+        return decodeSyncPayload(raw);
       }
 
-      // ── WiFi Sync (IP:port) ─────────────────────────────────────────────
+      // ── Wi-Fi transfer (IP:port) ────────────────────────────────────────
       final map  = jsonDecode(raw) as Map<String, dynamic>;
       final ip   = map['ip'] as String;
       final port = map['port'] as int;
+      return SyncClient().fetch(ip, port);
+    });
+  }
 
-      final packet = await SyncClient().fetch(ip, port);
+  /// Closes the camera, resolves [read] into a packet and imports it, turning
+  /// any failure into the error banner.
+  Future<void> _finishScan(Future<SyncPacket> Function() read) async {
+    setState(() { _scanning = false; _fetching = true; _error = null; });
+
+    try {
+      final packet = await read();
       if (!mounted) return;
-
       await _handlePacket(packet);
     } catch (e) {
       if (mounted) {
@@ -684,7 +792,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         } else if (resolution == _NameResolution.useExisting) {
           existing = sameNamePlayer;
         } else if (resolution is String) {
-          await _doImport(_renamePacket(packet, resolution), null);
+          await _doImport(packet.withName(resolution), null);
           if (mounted) setState(() => _fetching = false);
           return;
         }
@@ -696,16 +804,6 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     if (confirmed) await _doImport(packet, existing);
     if (mounted) setState(() => _fetching = false);
   }
-
-  SyncPacket _renamePacket(SyncPacket p, String newName) => SyncPacket(
-        version: p.version,
-        senderDevice: p.senderDevice,
-        playerUuid: p.playerUuid,
-        playerName: newName,
-        favoriteDoubles: p.favoriteDoubles,
-        stats: p.stats,
-        throws: p.throws,
-      );
 
   /// Prompts the user to resolve a same-name conflict (merge into the existing
   /// player or import under a different name), returning their choice.
@@ -816,6 +914,11 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         playerId = newPlayer.id!;
       }
 
+      // What an earlier sync brought in is replaced, not added to: this packet's
+      // snapshot may already account for those throws, and keeping both would
+      // count the same legs twice. Locally played games are not affected.
+      await db.deleteSyncedThrowsForPlayer(playerId);
+
       if (packet.throws.isNotEmpty) {
         final existingTs = await db.getThrowTimestampsForPlayer(playerId);
         final newThrows  = packet.throws
@@ -920,6 +1023,12 @@ class _ConfirmDialog extends StatelessWidget {
                         style: theme.textTheme.labelSmall
                             ?.copyWith(color: cs.onSurfaceVariant),
                       ),
+                      Text(
+                        l.syncRangeInPacket(
+                            _rangeLabelForDays(l, packet.rangeDays)),
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
                     ],
                   ),
                 ),
@@ -987,7 +1096,11 @@ class _StatLine extends StatelessWidget {
 
 // ── QR Scanner ────────────────────────────────────────────────────────────────
 
-/// Camera QR scanner that reports the first decoded payload via a callback.
+/// Camera QR scanner that reports every decoded payload via a callback.
+///
+/// It keeps reporting rather than stopping after the first hit, because an
+/// animated transfer arrives as a long series of codes. Deciding when enough
+/// has been read is the caller's job.
 class _QrScanner extends StatefulWidget {
   final void Function(String) onScanned;
   const _QrScanner({required this.onScanned});
@@ -997,7 +1110,9 @@ class _QrScanner extends StatefulWidget {
 }
 
 class _QrScannerState extends State<_QrScanner> {
-  bool _done = false;
+  /// The last payload handed on, so the same code sitting in front of the
+  /// camera is not reported dozens of times a second.
+  String? _lastReported;
 
   @override
   Widget build(BuildContext context) {
@@ -1008,10 +1123,9 @@ class _QrScannerState extends State<_QrScanner> {
         children: [
           MobileScanner(
             onDetect: (capture) {
-              if (_done) return;
               final raw = capture.barcodes.firstOrNull?.rawValue;
-              if (raw == null) return;
-              _done = true;
+              if (raw == null || raw == _lastReported) return;
+              _lastReported = raw;
               widget.onScanned(raw);
             },
           ),

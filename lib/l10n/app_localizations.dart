@@ -401,27 +401,39 @@ class AppLocalizations {
   String get syncSend          => _t('Send', 'Senden');
   String get syncReceive       => _t('Receive', 'Empfangen');
 
-  // Quick QR
-  String get quickQr           => _t('Quick QR', 'Schnell-QR');
-  String get wifiSync          => _t('WiFi Sync', 'WLAN-Sync');
-  String get quickQrDesc       =>
-      _t('Transfer your profile & new throws directly via QR code. No network needed.',
-         'Übertrage dein Profil & neue Würfe direkt über einen QR-Code. Kein Netzwerk nötig.');
-  String get qrTooLargeWarning =>
-      _t('Too many throws for a QR code.\nUse WiFi Sync to transfer all data.',
-         'Zu viele Würfe für einen QR-Code.\nNutze WLAN-Sync um alle Daten zu übertragen.');
-  String newThrowsSinceSync(int n) =>
-      _t('$n new throw${n != 1 ? 's' : ''} since last sync',
-         '$n neue${n != 1 ? '' : 'r'} ${n != 1 ? 'Würfe' : 'Wurf'} seit letztem Sync');
-  String get allThrowsFirstSync =>
-      _t('All throws included, first sync', 'Alle Würfe enthalten, erster Sync');
-  String get noNewThrowsQr    =>
-      _t('No new throws, stats snapshot updated.',
-         'Keine neuen Würfe, Statistik-Snapshot aktualisiert.');
+  // How far back a sync reaches
+  String get syncRangeLabel    => _t('Include throws from', 'Würfe übertragen aus');
+  String get syncRangeDay      => _t('1 day', '1 Tag');
+  String get syncRangeWeek     => _t('7 days', '7 Tage');
+  String get syncRangeMonth    => _t('30 days', '30 Tage');
+  String get syncRangeAll      => _t('Everything', 'Alles');
+  String get syncRangeNote     =>
+      _t('Older throws travel as statistics, so no lifetime number is lost. Only their individual entries stay behind.',
+         'Ältere Würfe gehen als Statistik mit, es geht also keine Lebenszeit-Zahl verloren. Nur ihre Einzeleinträge bleiben zurück.');
+  String syncThrowCount(int n) =>
+      _t('$n throw${n != 1 ? 's' : ''}', '$n ${n != 1 ? 'Würfe' : 'Wurf'}');
+  String syncRangeInPacket(String range) =>
+      _t('Range: $range', 'Zeitraum: $range');
+
+  // How the data gets across, chosen from its size
+  String get syncViaStaticQr   =>
+      _t('fits into one QR code', 'passt in einen QR-Code');
+  String syncViaAnimatedQr(int seconds) =>
+      _t('sent as a moving QR code, about $seconds seconds',
+         'läuft als bewegter QR-Code, etwa $seconds Sekunden');
+  String get syncViaServer     =>
+      _t('too much for a QR code, transferred over Wi-Fi',
+         'zu viel für einen QR-Code, geht über WLAN');
+  String get syncAnimatedHint  =>
+      _t('Hold both phones still until the receiver is done.',
+         'Halte beide Handys ruhig bis der Empfänger fertig ist.');
+  String get syncServerHint    =>
+      _t('Both devices must be on the same Wi-Fi for this.',
+         'Dafür müssen beide Geräte im selben WLAN sein.');
 
   String get syncSendDesc      =>
-      _t('Select a player and start the server. The receiver scans the QR code. Both devices must be on the same Wi-Fi.',
-         'Wähle deinen Spieler und starte den Server. Der Empfänger scannt den QR-Code. Beide Geräte müssen im selben WLAN sein.');
+      _t('Pick a player and how far back to go. The app picks the quickest way to get the data across.',
+         'Wähle Spieler und Zeitraum. Den schnellsten Weg für die Daten sucht die App selbst aus.');
   String get syncReceiveDesc   =>
       _t('Scan the sender\'s QR code to import their profile.',
          'Scanne den QR-Code des Senders um sein Profil zu importieren.');
@@ -431,6 +443,11 @@ class AppLocalizations {
   String get scanQr            => _t('Scan QR Code', 'QR-Code scannen');
   String get profileAndStats   => _t('Profile · Stats · all throws', 'Profil · Statistiken · alle Würfe');
   String get qrScanHint        => _t('Hold sender\'s QR code in frame', 'QR-Code des Senders halten');
+  String get syncKeepHolding   =>
+      _t('Keep holding, the code is still coming in',
+         'Weiter halten, der Code kommt noch rein');
+  String syncScanProgress(int received, int total) =>
+      _t('$received of $total parts', '$received von $total Teilen');
   String get connectionFailed  =>
       _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
          'Verbindung fehlgeschlagen.\nPrüfe ob beide Geräte im selben WLAN sind.');
