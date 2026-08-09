@@ -206,8 +206,10 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     final db = DbHelper.instance;
     for (final e in toDelete) {
-      if (!e.isCricket && !e.isShanghai && !e.isAroundTheClock &&
-          e.finishedAt != null) {
+      // Every X01 game, finished or not: the statistics screen counts throws
+      // from open games too, so skipping them here would drop those from the
+      // lifetime totals. Deleting a single game does the same.
+      if (!e.isCricket && !e.isShanghai && !e.isAroundTheClock) {
         await db.snapshotGameStats(e.x01Game!.id!);
       }
     }

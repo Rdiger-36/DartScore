@@ -23,6 +23,27 @@ Map<int, int> legPlacements(
   };
 }
 
+/// [legPlacements] completed by the rule that ends a leg as soon as the
+/// second-to-last participant checks out: the one participant left then takes
+/// last place without a checkout throw of its own, so it has no entry to read
+/// back from the throws.
+///
+/// While more than one participant is still playing, the leg is unfinished and
+/// the raw placements are returned unchanged.
+Map<int, int> completedLegPlacements(
+  Map<int, List<DartThrow>> throwsById,
+  int leg,
+  int set,
+) {
+  final placements = legPlacements(throwsById, leg, set);
+  final ids = throwsById.keys.toList();
+  if (ids.isNotEmpty && placements.length == ids.length - 1) {
+    final missing = ids.firstWhere((id) => !placements.containsKey(id));
+    return {...placements, missing: ids.length};
+  }
+  return placements;
+}
+
 /// Per-id legs won (1st place finishes) and the cumulative sum of per-leg
 /// finishing positions across legs `1..upToLeg` of [set], used to rank
 /// players/teams at the end of a placement-mode game.
@@ -35,7 +56,7 @@ Map<int, int> legPlacements(
   final placementSum = <int, int>{for (final id in throwsById.keys) id: 0};
 
   for (var leg = 1; leg <= upToLeg; leg++) {
-    final placements = legPlacements(throwsById, leg, set);
+    final placements = completedLegPlacements(throwsById, leg, set);
     for (final entry in placements.entries) {
       placementSum[entry.key] = (placementSum[entry.key] ?? 0) + entry.value;
       if (entry.value == 1) {
@@ -64,7 +85,8 @@ Map<int, Map<int, int>> legPlacementsTable(
   int set,
 ) {
   return {
-    for (var leg = 1; leg <= upToLeg; leg++) leg: legPlacements(throwsById, leg, set),
+    for (var leg = 1; leg <= upToLeg; leg++)
+      leg: completedLegPlacements(throwsById, leg, set),
   };
 }
 
@@ -77,7 +99,7 @@ Map<int, int> placementPointsTotal(
   final totals = <int, int>{for (final id in throwsById.keys) id: 0};
   final participantCount = throwsById.length;
   for (var leg = 1; leg <= upToLeg; leg++) {
-    final placements = legPlacements(throwsById, leg, set);
+    final placements = completedLegPlacements(throwsById, leg, set);
     for (final entry in placements.entries) {
       totals[entry.key] =
           (totals[entry.key] ?? 0) + placementPoints(entry.value, participantCount);
