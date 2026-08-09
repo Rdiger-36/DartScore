@@ -43,7 +43,18 @@ const int kChunkFrameMaxChars = 600;
 const int kMaxChunkFrames = 120;
 
 /// How long a single frame of an animated QR code stays on screen.
-const Duration kChunkFrameDuration = Duration(milliseconds: 250);
+///
+/// The floor here is not the sender but the camera reading it. The receiver
+/// samples every [kScannerDetectionTimeout], so frames have to last longer
+/// than that to be caught reliably, and at 60Hz a frame this long still covers
+/// six display refreshes, which keeps the camera from catching a transition.
+const Duration kChunkFrameDuration = Duration(milliseconds: 100);
+
+/// How often the receiver's camera is allowed to report a decoded code.
+///
+/// Kept below [kChunkFrameDuration] so that every frame the sender shows falls
+/// inside at least one sampling window, whatever the phase between the two.
+const Duration kScannerDetectionTimeout = Duration(milliseconds: 50);
 
 /// How a packet gets to the other device, chosen from its encoded size.
 enum SyncTransport {

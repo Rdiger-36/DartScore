@@ -24,6 +24,19 @@ void main() {
       expect(qr.errorCorrectLevel, QrErrorCorrectLevel.M);
     });
 
+    test('frames of equal length all resolve to the same version', () {
+      // What lets the version be resolved once per transfer instead of once
+      // per shown frame, which at ten frames a second is the difference
+      // between one QR code built and fifteen thrown away.
+      final versions = {
+        for (var seq = 0; seq < 3; seq++)
+          buildQrCode('DS2C:$seq:120:ZZZZZZZ:${'W' * kChunkPayloadChars}')
+              .typeNumber,
+      };
+
+      expect(versions, hasLength(1));
+    });
+
     test('the largest static payload still renders', () {
       final qr = buildQrCode(payloadOf(kStaticQrMaxChars));
       expect(qr.typeNumber, lessThanOrEqualTo(40));

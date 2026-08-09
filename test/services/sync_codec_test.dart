@@ -402,6 +402,23 @@ void main() {
     });
   });
 
+  group('animation timing', () {
+    test('the camera samples faster than the sender changes frames', () {
+      // If these two are equal, both sides run at the same rate with no fixed
+      // phase between them, and a good share of the frames is never sampled.
+      // A transfer then needs several passes for no visible reason.
+      expect(kScannerDetectionTimeout, lessThan(kChunkFrameDuration));
+    });
+
+    test('a frame outlasts several display refreshes', () {
+      // Below about three refreshes at 60Hz the camera starts catching frames
+      // mid change, which decodes to nothing.
+      const refreshesAt60Hz = 1000 / 60;
+      expect(kChunkFrameDuration.inMilliseconds / refreshesAt60Hz,
+          greaterThanOrEqualTo(3));
+    });
+  });
+
   group('transport choice', () {
     test('grows from one code to a loop to the server', () {
       expect(transportFor('DS2:${'x' * 100}'), SyncTransport.staticQr);
