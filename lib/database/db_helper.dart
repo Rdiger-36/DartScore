@@ -588,18 +588,21 @@ class DbHelper {
         ds['visits']  = (ds['visits']  ?? 0) + 1;
         if (t.score == 180) ds['s180'] = (ds['s180'] ?? 0) + 1;
 
-        if (t.remainingBefore <= 170) {
-          checkoutAttempts++;
-          final success = t.remainingBefore - t.score == 0;
-          if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
-          else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
-          else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
-          else                               { coAtSub170++; if (success) coOkSub170++; }
-          if (success) {
-            legsWon++;
-            checkoutSuccesses++;
-            if (t.score > highestCheckout) highestCheckout = t.score;
-          }
+      }
+
+      // Counted for busts too: a visit that started on a finishable remaining
+      // was an attempt at the finish, whether or not it overshot.
+      if (t.remainingBefore <= 170) {
+        checkoutAttempts++;
+        final success = !t.bust && t.remainingBefore - t.score == 0;
+        if (t.remainingBefore <= 40)       { coAtSub40++;  if (success) coOkSub40++;  }
+        else if (t.remainingBefore <= 60)  { coAtSub60++;  if (success) coOkSub60++;  }
+        else if (t.remainingBefore <= 100) { coAtSub100++; if (success) coOkSub100++; }
+        else                               { coAtSub170++; if (success) coOkSub170++; }
+        if (success) {
+          legsWon++;
+          checkoutSuccesses++;
+          if (t.score > highestCheckout) highestCheckout = t.score;
         }
       }
     }
