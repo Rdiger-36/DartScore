@@ -37,7 +37,7 @@ dart run flutter_launcher_icons
 - `share_plus` + `gal` + `image_picker` + `path_provider` — export/share functionality
 - `in_app_purchase` — donation / supporter in-app purchases
 - `package_info_plus` + `url_launcher` — app metadata and external links (about screen)
-- `intl` + `flutter_localizations` — i18n (English/German)
+- `intl` + `flutter_localizations` — i18n (English/German); strings are maintained by hand, see Key Conventions
 
 ## Architecture
 
@@ -54,6 +54,7 @@ lib/
 │   ├── cricket_game.dart            # Cricket entity; CricketVariant/CricketScoringMode enums, cricketFields
 │   ├── shanghai_game.dart           # Shanghai entity; ShanghaiVariant enum
 │   ├── around_the_clock_game.dart   # Around the Clock entity; AroundTheClockVariant enum, target order
+│   ├── team_config.dart             # Shared TeamConfig + JSON encode/decode for the team_config_json columns
 │   └── dart_throw.dart              # Single throw record (value, multiplier, bust flag)
 ├── providers/
 │   ├── players_provider.dart          # Player CRUD; loads from DB, notifies listeners
@@ -101,13 +102,21 @@ lib/
 │   ├── dartboard_target_painter.dart  # Paints a dartboard with a target segment highlighted
 │   ├── cricket_marks_widget.dart      # Renders Cricket marks (slash / X / circle-X) for a field
 │   ├── finish_suggestion_widget.dart  # Checkout hint display
+│   ├── favorite_double_picker.dart    # Picks a player's favorite doubles
+│   ├── team_section.dart              # Shared team setup block (naming, add/remove, assignment) for every mode
+│   ├── game_info_card.dart            # Shared card listing a finished game's settings
+│   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
 │   └── player_dialog.dart             # Create/edit player dialog
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
+│   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
+│   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
+│   ├── placement.dart          # Placement-mode ranking and points helpers
+│   ├── team_color.dart         # Shared team accent palette
 │   ├── triple_color.dart       # Shared blue tones for triple-field UI across all game modes
 │   └── layout.dart             # Shared layout helpers/constants
 └── l10n/
-    └── app_localizations.dart  # Generated localization strings
+    └── app_localizations.dart  # Hand-written localization strings (no .arb, no codegen)
 ```
 
 ### Data flow
@@ -141,4 +150,6 @@ lib/
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
+- `app_localizations.dart` is hand-written, not generated — there are no `.arb` files and no codegen step. A new string is one getter in `class AppLocalizations` using `_t('<en>', '<de>')`, placed under the matching `// ── Section ──` banner; parameterized strings become methods instead of getters
+- Never run `dart format` — the codebase aligns constructor arguments and the `=>` of the localization getters in columns by hand, and the formatter collapses all of it
 - Donation / supporter state lives in `DonationProvider`; never call `in_app_purchase` directly from a screen
