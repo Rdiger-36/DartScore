@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import '../models/dart_throw.dart';
 
 /// Aggregated statistics derived from a list of X01 visits.
@@ -47,7 +45,8 @@ class ThrowStats {
   /// Attempts that actually finished the leg.
   final int checkoutSuccesses;
 
-  /// Sum of the squared visit scores, used for [scoreStdDev].
+  /// Sum of the squared visit scores. Only the snapshot needs it, to keep the
+  /// lifetime standard deviation computable after games have been deleted.
   final int scoreSumSquares;
 
   /// Darts used in the opening three visits of every leg.
@@ -213,16 +212,6 @@ class ThrowStats {
   /// Share of checkout attempts that finished a leg, in percent.
   double get checkoutRate =>
       checkoutAttempts == 0 ? 0 : (checkoutSuccesses / checkoutAttempts) * 100;
-
-  /// Standard deviation of the scored visits, as a measure of consistency.
-  /// Busts are excluded so a single overshoot does not read as inconsistency.
-  double get scoreStdDev {
-    final scoredVisits = totalVisits - busts;
-    if (scoredVisits <= 1 || scoreSumSquares == 0) return 0;
-    final mean     = totalScored / scoredVisits;
-    final variance = (scoreSumSquares / scoredVisits) - mean * mean;
-    return variance > 0 ? sqrt(variance) : 0;
-  }
 }
 
 /// Legs won according to the throws alone: visits that took the slot to exactly

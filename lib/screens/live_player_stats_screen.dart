@@ -292,13 +292,11 @@ class _HeaderCard extends StatelessWidget {
 
     final showBust  = isActiveSlot && liveBust;
     final remaining = isActiveSlot && !liveBust ? liveRemaining : state.remaining;
-    // Placement mode keeps its own leg counter; otherwise a leg win is a visit
-    // that took the slot to exactly zero.
+    // Placement mode keeps its own leg counter, because there every slot checks
+    // out every leg.
     final legsWon = game.placementMode
         ? state.legsWon
-        : state.throws
-            .where((t) => !t.bust && t.remainingBefore - t.score == 0)
-            .length;
+        : legsWonFromThrows(state.throws);
 
     return Card(
       color: showBust ? cs.errorContainer : null,

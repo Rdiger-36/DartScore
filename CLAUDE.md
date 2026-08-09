@@ -159,6 +159,10 @@ lib/
 - `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
 - Finish/checkout logic is isolated in `FinishCalculator` — do not inline checkout logic elsewhere
+- Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
+- The X01 summary and the X01 history detail render the same result through `SummaryPlayerCard`, `FinalRankingCard` and `ThrowLogCard`; a change to one view belongs in the shared widget, not in one screen
+- `GameInfoCard` is deliberately `dense: true` in all four history detail screens and default in all four post-game summaries. It looks like an oversight per mode but is a convention across both sets; change it for all eight or for none
+- The live game screens answer the system back with their quit dialog via `PopScope(canPop: false)`. That also suppresses the iOS edge swipe for as long as the game runs, which is the point: Flutter only installs the Cupertino back gesture on a route that may pop, so a confirmation cannot be shown from the gesture itself
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
