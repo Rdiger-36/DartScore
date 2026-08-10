@@ -123,12 +123,17 @@ void main() {
         }
         await closeField(25);
         expect(provider.gameOver, isTrue);
+        final gameId = provider.game!.id!;
+        expect(await storedCricketFinishedAt(gameId), isNotNull,
+            reason: 'winning has to close the stored game');
 
         await provider.undoLastDart();
 
         expect(provider.gameOver, isFalse);
         expect(provider.winnerId, isNull);
         expect(provider.playerStates[0].hasClosedField(25), isFalse);
+        expect(await storedCricketFinishedAt(gameId), isNull,
+            reason: 'history has to list the game as open again');
       });
 
       test('undoing the winning dart keeps a fixed starting order', () async {
