@@ -163,6 +163,14 @@ class DartScoreApp extends StatelessWidget {
     surfaceTint: Colors.transparent,
   );
 
+  /// The two themes, built once instead of on every rebuild of the root.
+  ///
+  /// [ThemeData] assembles a good number of sub-themes on construction, and
+  /// the schemes it is built from never change, so there is nothing to gain
+  /// from doing that again whenever the theme mode or the locale changes.
+  static final _lightTheme = _build(_lightScheme);
+  static final _darkTheme  = _build(_darkScheme);
+
   /// Builds the shared [ThemeData] for the given [cs] color scheme (cards,
   /// app bar, and chips tuned to the dartboard palette).
   static ThemeData _build(ColorScheme cs) => ThemeData(
@@ -205,8 +213,8 @@ class DartScoreApp extends StatelessWidget {
           title: 'DartScore',
           debugShowCheckedModeBanner: false,
           themeMode: tp.mode,
-          theme: _build(_lightScheme),
-          darkTheme: _build(_darkScheme),
+          theme: _lightTheme,
+          darkTheme: _darkTheme,
           locale: lp.locale, // null = follow system
           // On Android: wrap every route in SafeArea(top:false) so the
           // 3-button navigation bar never overlaps interactive content.
