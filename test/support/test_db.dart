@@ -69,6 +69,37 @@ Future<int> seedThrows(int playerId, int count) async {
   return gameId;
 }
 
+// ── Stored finish times ───────────────────────────────────────────────────────
+//
+// The finish time of a game exists in its row and nowhere else: every provider
+// writes `finishedAt` straight to the database and leaves its own copy of the
+// game untouched, so `provider.game!.finishedAt` is null even for a game that
+// is over. History reads the row, which is what these helpers read too.
+
+/// The finish time the X01 game [gameId] carries in the database.
+Future<DateTime?> storedX01FinishedAt(int gameId) async =>
+    (await DbHelper.instance.getGames())
+        .firstWhere((g) => g.id == gameId)
+        .finishedAt;
+
+/// The finish time the Cricket game [gameId] carries in the database.
+Future<DateTime?> storedCricketFinishedAt(int gameId) async =>
+    (await DbHelper.instance.getCricketGames())
+        .firstWhere((g) => g.id == gameId)
+        .finishedAt;
+
+/// The finish time the Shanghai game [gameId] carries in the database.
+Future<DateTime?> storedShanghaiFinishedAt(int gameId) async =>
+    (await DbHelper.instance.getShanghaiGames())
+        .firstWhere((g) => g.id == gameId)
+        .finishedAt;
+
+/// The finish time the Around the Clock game [gameId] carries in the database.
+Future<DateTime?> storedAroundTheClockFinishedAt(int gameId) async =>
+    (await DbHelper.instance.getAroundTheClockGames())
+        .firstWhere((g) => g.id == gameId)
+        .finishedAt;
+
 /// Inserts [names] as players and returns them with their assigned ids, in the
 /// given order.
 Future<List<Player>> insertPlayers(List<String> names) async {

@@ -109,6 +109,25 @@ void main() {
       expect(provider.activeTarget, 2, reason: 'a miss does not advance');
     });
 
+    test('the winning dart closes the stored game, and undo reopens it',
+        () async {
+      await provider.startGame(game(), players);
+
+      // A triples every dart, B misses every one, over all nine rounds.
+      while (!provider.gameOver) {
+        await provider.recordDart(provider.currentPlayerIndex == 0 ? 3 : 0);
+      }
+      final gameId = provider.game!.id!;
+      expect(await storedShanghaiFinishedAt(gameId), isNotNull);
+
+      await provider.undoLastDart();
+
+      expect(provider.gameOver, isFalse);
+      expect(provider.winnerId, isNull);
+      expect(await storedShanghaiFinishedAt(gameId), isNull,
+          reason: 'history has to list the game as open again');
+    });
+
     test('resuming rebuilds scores and the turn', () async {
       await provider.startGame(game(), players);
       await throwDarts(2, count: 3);   // A: three doubles of 1
@@ -219,12 +238,16 @@ void main() {
         }
       }
       expect(provider.gameOver, isTrue);
+      final gameId = provider.game!.id!;
+      expect(await storedAroundTheClockFinishedAt(gameId), isNotNull,
+          reason: 'winning has to close the stored game');
 
       await provider.undoLastDart();
 
       expect(provider.gameOver, isFalse);
       expect(provider.winnerId, isNull);
-      expect(provider.game!.finishedAt, isNull);
+      expect(await storedAroundTheClockFinishedAt(gameId), isNull,
+          reason: 'history has to list the game as open again');
     });
 
     test('resuming rebuilds the progress and the turn', () async {
