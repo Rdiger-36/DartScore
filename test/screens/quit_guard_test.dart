@@ -67,9 +67,8 @@ void main() {
       testWidgets('asks the same thing from the close button', (tester) async {
         await pumpLive(tester);
 
-        // These three carry Icons.close_rounded where the X01 screen carries
-        // Icons.close. Scoped to the app bar either way, because the dartboard
-        // input below has a Miss button with a close icon of its own.
+        // Scoped to the app bar, because the dartboard input below has a Miss
+        // button with a close icon of its own.
         await tester.tap(find.descendant(
           of: find.byType(AppBar),
           matching: find.byIcon(Icons.close_rounded),
