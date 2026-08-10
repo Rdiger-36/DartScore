@@ -57,18 +57,24 @@ class _OrientationLock extends StatefulWidget {
 }
 
 class _OrientationLockState extends State<_OrientationLock> {
+  /// What was last handed to the system, so the same thing is not sent again.
+  ///
+  /// [didChangeDependencies] runs on every change to the MediaQuery, which
+  /// includes the keyboard opening and closing and every rotation, while the
+  /// answer only ever changes when the app moves between a phone sized and a
+  /// tablet sized window.
+  bool? _lockedToPortrait;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final isTablet = MediaQuery.sizeOf(context).shortestSide >= 600;
-    if (isTablet) {
-      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
-    }
+    final portraitOnly = MediaQuery.sizeOf(context).shortestSide < 600;
+    if (portraitOnly == _lockedToPortrait) return;
+    _lockedToPortrait = portraitOnly;
+
+    SystemChrome.setPreferredOrientations(portraitOnly
+        ? const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]
+        : DeviceOrientation.values);
   }
 
   @override
