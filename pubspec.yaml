@@ -38,6 +38,10 @@ dev_dependencies:
   # Runs SQLite in the Dart VM so provider tests can drive a real database
   # instead of mocking DbHelper away.
   sqflite_common_ffi: ^2.3.4
+  # Lets the donation test stand in for the store, so it can assert that
+  # starting the app asks it for nothing.
+  in_app_purchase_platform_interface: ^1.4.0
+  plugin_platform_interface: ^2.1.8
 
 flutter_launcher_icons:
   android: true
