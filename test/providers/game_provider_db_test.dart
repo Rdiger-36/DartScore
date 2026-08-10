@@ -153,12 +153,17 @@ void main() {
 
         await _visit(provider, const [(17, 3), (25, 2)]);
         expect(provider.gameOver, isTrue);
+        final gameId = provider.game!.id!;
+        expect(await storedX01FinishedAt(gameId), isNotNull,
+            reason: 'checking out has to close the stored game');
 
         await provider.undoLastDart();
 
         expect(provider.gameOver, isFalse);
         expect(provider.winnerId, isNull);
         expect(provider.playerStates[0].legsWon, 0);
+        expect(await storedX01FinishedAt(gameId), isNull,
+            reason: 'history has to list the game as open again');
       });
     });
 
