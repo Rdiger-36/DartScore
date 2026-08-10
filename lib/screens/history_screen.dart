@@ -92,13 +92,15 @@ class _HistoryScreenState extends State<HistoryScreen>
     final entries = <_HistoryEntry>[];
     // Resolved once for the whole list instead of once per player per game.
     final byId    = await db.getPlayersById();
+    // Same reasoning for the X01 line-ups, which live in their own table.
+    final byGame  = await db.getGamePlayerIdsByGame();
 
     List<Player> resolve(List<int> ids) =>
         [for (final id in ids) if (byId[id] != null) byId[id]!];
 
     for (final g in await db.getGames()) {
       entries.add(
-          _HistoryEntry.x01(g, resolve(await db.getGamePlayerIds(g.id!))));
+          _HistoryEntry.x01(g, resolve(byGame[g.id!] ?? const [])));
     }
     for (final g in await db.getCricketGames()) {
       entries.add(_HistoryEntry.cricket(g, resolve(g.playerIds)));

@@ -248,7 +248,7 @@ class _SenderTab extends StatefulWidget {
   State<_SenderTab> createState() => _SenderTabState();
 }
 
-class _SenderTabState extends State<_SenderTab> {
+class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   Player? _selectedPlayer;
   SyncRange _range = SyncRange.all;
 
@@ -260,7 +260,12 @@ class _SenderTabState extends State<_SenderTab> {
   // Animated QR
   SyncFountainEncoder? _encoder;
   Timer? _frameTimer;
-  int _frameIndex = 0;
+
+  /// The frame counter is a notifier rather than plain state because it moves
+  /// ten times a second. Through `setState` every tick would rebuild the whole
+  /// tab, dropdown and range picker included, when the only thing that changed
+  /// is the code itself.
+  final _frameIndex = ValueNotifier<int>(0);
 
   // Server transport, only started when the user asks for it
   final _server = SyncServer();
@@ -277,6 +282,7 @@ class _SenderTabState extends State<_SenderTab> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.initialPlayer != null) {
       _selectedPlayer = widget.initialPlayer;
       // A player who has synced before rarely needs their whole history again.
@@ -291,11 +297,41 @@ class _SenderTabState extends State<_SenderTab> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _frameTimer?.cancel();
+    _frameIndex.dispose();
     _server.state.removeListener(_onServerState);
     _server.stop();
     _server.dispose();
     super.dispose();
+  }
+
+  /// Takes the running transfer down when the app goes to the background and
+  /// picks the animated code back up on return.
+  ///
+  /// A sender nobody can see is pure waste: the frame loop would keep encoding
+  /// ten codes a second into a surface that is never drawn, and the server
+  /// would keep a socket open with the payload behind it. The server does not
+  /// come back on its own, because its pairing number and token belong to the
+  /// session that just ended, so the user starts a fresh one from the button.
+  /// An approval dialog is dismissed along with it, otherwise it would return
+  /// asking about a peer that can no longer be let in.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _frameTimer?.cancel();
+        if (_askingApproval) {
+          Navigator.of(context, rootNavigator: true).pop(false);
+        }
+        if (_server.isRunning) _stopServer();
+      case AppLifecycleState.resumed:
+        if (_encoder != null) _startFrameLoop();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
+    }
   }
 
   /// Follows the transfer: asks the user about a waiting peer, and shuts the
@@ -373,9 +409,9 @@ class _SenderTabState extends State<_SenderTab> {
       _encoder      = transmission.transport == SyncTransport.animatedQr
           ? SyncFountainEncoder(transmission.data)
           : null;
-      _frameIndex = 0;
       _preparing  = false;
     });
+    _frameIndex.value = 0;
 
     if (_encoder != null) _startFrameLoop();
   }
@@ -389,7 +425,7 @@ class _SenderTabState extends State<_SenderTab> {
     _frameTimer?.cancel();
     _frameTimer = Timer.periodic(kChunkFrameDuration, (_) {
       if (!mounted || _encoder == null) return;
-      setState(() => _frameIndex++);
+      _frameIndex.value++;
     });
   }
 
@@ -616,7 +652,10 @@ class _SenderTabState extends State<_SenderTab> {
   Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
       Column(
         children: [
-          _qrCard(_encoder!.frameAt(_frameIndex)),
+          ValueListenableBuilder<int>(
+            valueListenable: _frameIndex,
+            builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+          ),
           const SizedBox(height: 10),
           LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
           const SizedBox(height: 8),
@@ -1478,7 +1517,7 @@ class _QrScanner extends StatefulWidget {
   State<_QrScanner> createState() => _QrScannerState();
 }
 
-class _QrScannerState extends State<_QrScanner> {
+class _QrScannerState extends State<_QrScanner> with WidgetsBindingObserver {
   /// The last payload handed on, so the same code sitting in front of the
   /// camera is not reported dozens of times a second.
   String? _lastReported;
@@ -1495,9 +1534,43 @@ class _QrScannerState extends State<_QrScanner> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Shuts the camera down while the app is away and brings it back on return.
+  ///
+  /// [MobileScanner] only manages this itself when it creates its own
+  /// controller; passing one in, as this screen does for the detection
+  /// throttle, hands the job over. Without it the camera goes on running and
+  /// decoding in the background, which is both the most expensive thing this
+  /// screen does and a light the user did not ask to leave on.
+  ///
+  /// The states mirror what the package does with its own controller:
+  /// `inactive` already precedes `paused` and `hidden` on both platforms, so
+  /// stopping there covers all three, and the permission check keeps a resume
+  /// from starting a camera the user has not granted.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_controller.value.hasCameraPermission) return;
+    switch (state) {
+      case AppLifecycleState.inactive:
+        unawaited(_controller.stop());
+      case AppLifecycleState.resumed:
+        unawaited(_controller.start());
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        break;
+    }
   }
 
   @override

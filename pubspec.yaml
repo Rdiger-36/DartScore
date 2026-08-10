@@ -12,7 +12,6 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   sqflite: ^2.4.2
   path: ^1.9.0
   provider: ^6.1.2
@@ -39,6 +38,10 @@ dev_dependencies:
   # Runs SQLite in the Dart VM so provider tests can drive a real database
   # instead of mocking DbHelper away.
   sqflite_common_ffi: ^2.3.4
+  # Lets the donation test stand in for the store, so it can assert that
+  # starting the app asks it for nothing.
+  in_app_purchase_platform_interface: ^1.4.0
+  plugin_platform_interface: ^2.1.8
 
 flutter_launcher_icons:
   android: true
@@ -49,5 +52,6 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/icon/
+  # assets/icon/app_icon.png is deliberately not bundled: flutter_launcher_icons
+  # reads it from the source tree when generating the launcher icons, and
+  # nothing loads it at runtime. Declaring it would ship 270 KB unused.

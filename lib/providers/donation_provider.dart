@@ -9,6 +9,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// starts purchases, listens to the purchase stream, and persists whether the
 /// user has ever donated. Donations are consumables but supporter status is
 /// sticky once granted.
+///
+/// Talking to the store is deliberately separate from creating the provider.
+/// The home screen and the settings screen read [isSupporter], which comes from
+/// shared_preferences, so building the provider must not cost a store
+/// connection and a network round trip on a launch where nobody goes near the
+/// donation screen. [connectToStore] is what does that, and only the donation
+/// screen calls it.
 class DonationProvider extends ChangeNotifier {
   static const _supporterKey = 'is_supporter';
 
@@ -26,6 +33,10 @@ class DonationProvider extends ChangeNotifier {
   List<ProductDetails> _products = [];
   String? _errorMessage;
   StreamSubscription<List<PurchaseDetails>>? _sub;
+
+  /// Whether [connectToStore] has already run, so reopening the donation
+  /// screen reuses the connection and the prices instead of asking again.
+  bool _storeRequested = false;
 
   /// Whether the user has donated at least once (persisted).
   bool get isSupporter => _isSupporter;
@@ -45,28 +56,51 @@ class DonationProvider extends ChangeNotifier {
   /// The last purchase error message, or null if none.
   String? get errorMessage => _errorMessage;
 
-  /// Creates the provider and asynchronously initializes the purchase flow.
+  /// Creates the provider, reads the persisted supporter status and starts
+  /// listening for purchases. Nothing is asked of the store here, see
+  /// [connectToStore].
+  ///
+  /// The subscription belongs here rather than in [connectToStore] because the
+  /// plugin delivers a purchase that was never completed in the last session on
+  /// the next subscription, and only then. A purchase nobody is listening for
+  /// is one the user paid for without being credited. It costs a stream
+  /// listener, not a store connection.
   DonationProvider() {
-    _init();
-  }
-
-  /// Loads persisted supporter status, checks store availability, subscribes to
-  /// the purchase stream, and fetches product details.
-  Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isSupporter = prefs.getBool(_supporterKey) ?? false;
-    notifyListeners();
-
-    _available = await InAppPurchase.instance.isAvailable();
-    if (!_available) {
-      notifyListeners();
-      return;
-    }
-
+    _loadSupporterStatus();
     _sub = InAppPurchase.instance.purchaseStream.listen(
       _onPurchases,
       onDone: () => _sub?.cancel(),
     );
+  }
+
+  /// Reads whether the user has donated before out of shared_preferences.
+  Future<void> _loadSupporterStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isSupporter = prefs.getBool(_supporterKey) ?? false;
+    notifyListeners();
+  }
+
+  /// Checks store availability and fetches the product details. Runs at most
+  /// once per launch.
+  ///
+  /// Deliberately not called at startup: asking the store for the prices is a
+  /// network round trip, and it is wasted on every launch where nobody opens
+  /// the donation screen. Only the products need it. [isSupporter], which the
+  /// home and settings screens read, comes from shared_preferences.
+  Future<void> connectToStore() async {
+    if (_storeRequested) return;
+    _storeRequested = true;
+    // Set without notifying: the caller is a screen that has not had its first
+    // build yet, and notifying into a build is an error. That build reads the
+    // flag directly and shows the spinner.
+    _loading = true;
+
+    _available = await InAppPurchase.instance.isAvailable();
+    if (!_available) {
+      _loading = false;
+      notifyListeners();
+      return;
+    }
 
     await _loadProducts();
   }
