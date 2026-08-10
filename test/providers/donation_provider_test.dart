@@ -1,72 +1,8 @@
-import 'dart:async';
-
 import 'package:dartscore_app/providers/donation_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// A store that answers instantly and writes down what it was asked.
-///
-/// The point of most of these tests is what is *not* on [calls] after the app
-/// has started, so the stand-in records rather than verifies.
-class _FakeStore extends InAppPurchasePlatform with MockPlatformInterfaceMixin {
-  final List<String> calls = [];
-  final purchases = StreamController<List<PurchaseDetails>>.broadcast();
-
-  /// What [queryProductDetails] hands back.
-  List<ProductDetails> products = const [];
-
-  /// What [isAvailable] answers.
-  bool availability = true;
-
-  @override
-  Stream<List<PurchaseDetails>> get purchaseStream {
-    calls.add('purchaseStream');
-    return purchases.stream;
-  }
-
-  @override
-  Future<bool> isAvailable() async {
-    calls.add('isAvailable');
-    return availability;
-  }
-
-  @override
-  Future<ProductDetailsResponse> queryProductDetails(
-      Set<String> identifiers) async {
-    calls.add('queryProductDetails');
-    return ProductDetailsResponse(
-        productDetails: products, notFoundIDs: const []);
-  }
-
-  @override
-  Future<void> completePurchase(PurchaseDetails purchase) async {
-    calls.add('completePurchase');
-  }
-}
-
-/// A donation tier as the store would describe it.
-ProductDetails _product(String id, double price) => ProductDetails(
-      id: id,
-      title: id,
-      description: id,
-      price: '$price',
-      rawPrice: price,
-      currencyCode: 'EUR',
-    );
-
-/// A purchase the store reports back, paid for and still to be completed.
-PurchaseDetails _purchase() => PurchaseDetails(
-      productID: 'donation_coffee',
-      verificationData: PurchaseVerificationData(
-          localVerificationData: '',
-          serverVerificationData: '',
-          source: 'test'),
-      transactionDate: null,
-      status: PurchaseStatus.purchased,
-    )..pendingCompletePurchase = true;
+import '../support/fake_store.dart';
 
 /// The provider loads from shared_preferences in its constructor, so a test
 /// that read it straight away would see the default.
@@ -79,21 +15,10 @@ Future<DonationProvider> _created() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late _FakeStore store;
+  final store = useFakeStore();
 
   setUp(() {
-    // InAppPurchase.instance registers the real Android or StoreKit platform
-    // on first access, depending on defaultTargetPlatform, which would put the
-    // stand-in straight back out again and reach for a method channel that is
-    // not there. A platform with no store keeps the fake in place.
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-    store = _FakeStore();
-    InAppPurchasePlatform.instance = store;
     SharedPreferences.setMockInitialValues({});
-  });
-
-  tearDown(() {
-    debugDefaultTargetPlatformOverride = null;
   });
 
   group('starting the app', () {
@@ -128,7 +53,7 @@ void main() {
         () async {
       final provider = await _created();
 
-      store.purchases.add([_purchase()]);
+      store.purchases.add([fakePurchase()]);
       await Future<void>.delayed(Duration.zero);
 
       expect(provider.isSupporter, isTrue);
@@ -139,7 +64,7 @@ void main() {
 
   group('opening the donation screen', () {
     test('is what fetches the prices', () async {
-      store.products = [_product('donation_coffee', 1.99)];
+      store.products = [fakeProduct('donation_coffee', 1.99)];
       final provider = await _created();
 
       await provider.connectToStore();
@@ -152,9 +77,9 @@ void main() {
 
     test('sorts the tiers cheapest first', () async {
       store.products = [
-        _product('donation_pizza', 9.99),
-        _product('donation_coffee', 1.99),
-        _product('donation_beer', 4.99),
+        fakeProduct('donation_pizza', 9.99),
+        fakeProduct('donation_coffee', 1.99),
+        fakeProduct('donation_beer', 4.99),
       ];
       final provider = await _created();
 
