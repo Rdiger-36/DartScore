@@ -1,2 +1,1 @@
-#include? "Pods/Target Support Files/Pods-DartScore/Pods-DartScore.release.xcconfig"
 #include "Generated.xcconfig"
