@@ -17,18 +17,25 @@ dependencies:
   provider: ^6.1.2
   intl: ^0.20.2
   shared_preferences: ^2.3.5
-  share_plus: ^13.1.0
+  # Deliberately NOT on 13.3.0. From 13.2 on, share_plus stops applying the
+  # Kotlin Gradle Plugin at AGP 9 and expects AGP's built-in Kotlin to compile
+  # it instead. This project cannot turn that on yet (see
+  # android/gradle.properties), so its Kotlin never gets compiled and the build
+  # dies on an unresolved SharePlusPendingIntent. Same story for
+  # package_info_plus. Raise both once built-in Kotlin is on.
+  share_plus: '>=13.1.0 <13.2.0'
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.0.0
+  # 7.4.0 decides by the actual setting whether to apply the Kotlin Gradle
+  # Plugin, so it builds both before and after the built-in Kotlin migration.
+  # That makes it the one of the three that can be raised today.
+  mobile_scanner: ^7.4.0
   image_picker: ^1.1.2
   gal: ^2.3.2
   path_provider: ^2.1.5
-  package_info_plus: ^10.1.0
+  # Held back for the same reason as share_plus.
+  package_info_plus: '>=10.1.0 <10.2.0'
   url_launcher: ^6.3.2
   in_app_purchase: ^3.2.0
-
-dependency_overrides:
-  path_provider_foundation: 2.4.0
 
 dev_dependencies:
   flutter_test:
