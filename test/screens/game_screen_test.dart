@@ -100,11 +100,12 @@ void main() {
         (tester) async {
       await pumpGame(tester);
 
-      // Scoped to the app bar: the Miss button on the dartboard carries the
-      // same icon, and tapping that would score instead of asking anything.
+      // Scoped to the app bar: the Miss button on the dartboard carries a
+      // close icon of its own, and tapping that would score instead of asking
+      // anything.
       await tester.tap(find.descendant(
         of: find.byType(AppBar),
-        matching: find.byIcon(Icons.close),
+        matching: find.byIcon(Icons.close_rounded),
       ));
       await tester.pumpAndSettle();
 

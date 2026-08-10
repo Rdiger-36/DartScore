@@ -134,7 +134,7 @@ class _GameScreenState extends State<GameScreen> {
                     ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.close, size: 22),
+                  icon: const Icon(Icons.close_rounded, size: 22),
                   tooltip: context.l10n.quitGame,
                   onPressed: () => _confirmQuit(context),
                 ),
