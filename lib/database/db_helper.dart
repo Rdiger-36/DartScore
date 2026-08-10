@@ -49,7 +49,7 @@ class DbHelper {
         debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 18,
+      version: 19,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -209,6 +209,38 @@ class DbHelper {
             'ALTER TABLE $table ADD COLUMN starting_order INTEGER NOT NULL DEFAULT 0');
       }
     }
+    if (oldVersion < 19) {
+      await _createIndexes(db);
+    }
+  }
+
+  /// Creates the indexes behind the three lookups the app repeats most: every
+  /// throw of one game, every throw of one player, and the games a player took
+  /// part in.
+  ///
+  /// Without them SQLite reads the whole throw table for each of those, which
+  /// is what opening a statistics or a history screen costs. The column order
+  /// is chosen so one index serves several queries: `thrown_at` trails
+  /// `player_id` because the player lookups also sort by it, and SQLite still
+  /// uses the leftmost prefix for the plain `player_id = ?` case. The same
+  /// holds for `player_id` behind `game_id`.
+  ///
+  /// `game_players` already has an index over `(game_id, player_id)` from its
+  /// primary key, but a prefix index cannot answer a lookup by `player_id`
+  /// alone, so that one gets its own.
+  Future<void> _createIndexes(Database db) async {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_dart_throws_player '
+        'ON dart_throws(player_id, thrown_at)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_dart_throws_game '
+        'ON dart_throws(game_id, player_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_game_players_player '
+        'ON game_players(player_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_cricket_throws_game '
+        'ON cricket_throws(game_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_shanghai_throws_game '
+        'ON shanghai_throws(game_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_atc_throws_game '
+        'ON around_the_clock_throws(game_id)');
   }
 
   /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
@@ -357,6 +389,7 @@ class DbHelper {
         thrown_at INTEGER NOT NULL
       )
     ''');
+    await _createIndexes(db);
   }
 
   // Players
@@ -778,6 +811,23 @@ class DbHelper {
       orderBy: 'sort_order ASC',
     );
     return rows.map((r) => r['player_id'] as int).toList();
+  }
+
+  /// The player ids of every X01 game at once, keyed by game id and each list
+  /// in turn order.
+  ///
+  /// The history screen lists all games, and asking per game turns one read
+  /// into one per row. Games without an entry are simply absent from the map.
+  Future<Map<int, List<int>>> getGamePlayerIdsByGame() async {
+    final d = await db;
+    final rows = await d.query('game_players', orderBy: 'sort_order ASC');
+    final byGame = <int, List<int>>{};
+    for (final r in rows) {
+      byGame
+          .putIfAbsent(r['game_id'] as int, () => [])
+          .add(r['player_id'] as int);
+    }
+    return byGame;
   }
 
   // Throws
