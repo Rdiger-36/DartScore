@@ -55,6 +55,19 @@ void main() {
       expect((await DbHelper.instance.getPrimaryPlayer())?.name, 'Zoe');
     });
 
+    test('leaves only one player primary when a new one is added as primary',
+        () async {
+      final ada = await provider.addPlayer('Ada');
+      await provider.setPrimary(ada);
+
+      final zoe = await provider.addPlayer('Zoe', isPrimary: true);
+
+      expect(provider.players.where((p) => p.isPrimary).map((p) => p.id),
+          [zoe.id]);
+      expect((await DbHelper.instance.getPrimaryPlayer())?.id, zoe.id);
+      expect(provider.primaryPlayer?.id, zoe.id);
+    });
+
     test('keeps a deleted player out of the list without losing the row',
         () async {
       final ada = await provider.addPlayer('Ada');

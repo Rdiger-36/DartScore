@@ -39,7 +39,12 @@ class PlayersProvider extends ChangeNotifier {
       name: name,
       isPrimary: isPrimary,
     );
-    _players = [..._players, saved];
+    // setPrimaryPlayer cleared the flag on every other row, so the list has to
+    // follow or primaryPlayer keeps returning the old one until the next load.
+    final existing = isPrimary
+        ? _players.map((p) => p.copyWith(isPrimary: false)).toList()
+        : _players;
+    _players = [...existing, saved];
     _sort();
     notifyListeners();
     return saved;
