@@ -55,11 +55,16 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            // Disable R8 shrinking — Flutter's Dart code is already compiled to
-            // native ARM; Java-level minification breaks plugin reflection bridges
-            // (sqflite, mobile_scanner, etc.) and gains almost nothing here.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // The Dart code is already native, but the plugins bring roughly
+            // 15 MB of Java and Kotlin with them, which is what R8 shrinks. The
+            // plugins in use all ship their own consumer rules; proguard-rules.pro
+            // holds the few this app has to state itself.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
