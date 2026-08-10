@@ -29,7 +29,6 @@ dependencies:
   # Plugin, so it builds both before and after the built-in Kotlin migration.
   # That makes it the one of the three that can be raised today.
   mobile_scanner: ^7.4.0
-  image_picker: ^1.1.2
   gal: ^2.3.2
   path_provider: ^2.1.5
   # Held back for the same reason as share_plus.
