@@ -55,17 +55,7 @@ void main() {
     Future<void> pumpHistory(WidgetTester tester) async {
       usePhoneSurface(tester, size: const Size(400, 1200));
       await tester.pumpWidget(testApp(const HistoryScreen()));
-
-      // Wait for the read rather than for a guessed duration: settling on the
-      // spinner would wait on an animation that only stops once the future is
-      // done, and a fixed delay is either flaky or slow.
-      for (var i = 0; i < 60; i++) {
-        await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 50)));
-        await tester.pump();
-        if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
-      }
-      await tester.pumpAndSettle();
+      await pumpUntilLoaded(tester);
     }
 
     testWidgets('names both players of a game, in turn order', (tester) async {

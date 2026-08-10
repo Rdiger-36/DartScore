@@ -45,6 +45,23 @@ Widget testApp(
   );
 }
 
+/// Lets a screen's database read through and settles once it is done.
+///
+/// A widget test runs in fake async, where real I/O never completes, so a
+/// screen whose body is a `FutureBuilder` over a query would sit on its
+/// spinner forever. Waiting for the spinner to go rather than for a guessed
+/// duration keeps this neither flaky nor slow: settling straight away would
+/// wait on an animation that only stops once the future is done.
+Future<void> pumpUntilLoaded(WidgetTester tester) async {
+  for (var i = 0; i < 60; i++) {
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
+  }
+  await tester.pumpAndSettle();
+}
+
 /// Gives the widget a surface tall enough that the screens under test lay out
 /// without overflowing, and undoes it afterwards.
 ///
