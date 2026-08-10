@@ -16,6 +16,14 @@ class DonationScreen extends StatefulWidget {
 
 class _DonationScreenState extends State<DonationScreen> {
   @override
+  void initState() {
+    super.initState();
+    // The one place that needs the store. Everywhere else only reads the
+    // persisted supporter flag, so this is where the connection is paid for.
+    context.read<DonationProvider>().connectToStore();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dp = context.watch<DonationProvider>();
     final l = context.l10n;

@@ -31,6 +31,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- The barcode model is not bundled with the app (see useUnbundled in
+             gradle.properties). This asks Play Services to fetch it right after
+             the install, so the first scan does not have to wait for it. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

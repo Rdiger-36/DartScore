@@ -97,14 +97,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
-  cupertino_icons:
-    dependency: "direct main"
-    description:
-      name: cupertino_icons
-      sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.9"
   fake_async:
     dependency: transitive
     description:
@@ -350,7 +342,7 @@ packages:
     source: hosted
     version: "0.5.0+2"
   in_app_purchase_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: in_app_purchase_platform_interface
       sha256: "0b0076cac8ce4fa7048f01e76af8b123aeb6a7c4e0dea2a5206d6664454f3e36"
@@ -590,7 +582,7 @@ packages:
     source: hosted
     version: "3.1.6"
   plugin_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: plugin_platform_interface
       sha256: "4820fbfdb9478b1ebae27888254d445073732dae3d6ea81f0b7e06d5dedc3f02"
