@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../database/db_helper.dart';
@@ -100,8 +101,41 @@ class PlayerStats {
       totalVisits == 0 ? 0 : (busts / totalVisits) * 100;
 }
 
+/// Everything [aggregatePlayerStats] needs, and nothing that would drag the
+/// database or the UI along into another isolate.
+///
+/// The games are reduced to the three things the aggregation actually asks of
+/// them, so a player with hundreds of games does not pay to have them all
+/// copied across.
+@visibleForTesting
+class PlayerStatsInput {
+  final int playerId;
+  final List<DartThrow> throws;
+  /// Start score per game, for the dart count a perfect leg would take.
+  final Map<int, int> startScoreByGame;
+  final int gamesPlayed;
+  final int gamesFinished;
+  /// The snapshot of games that were deleted, still counted in the lifetime
+  /// numbers. See the sync notes in CLAUDE.md.
+  final String? localStatsJson;
+
+  const PlayerStatsInput({
+    required this.playerId,
+    required this.throws,
+    required this.startScoreByGame,
+    required this.gamesPlayed,
+    required this.gamesFinished,
+    required this.localStatsJson,
+  });
+}
+
 /// Loads and aggregates a player's lifetime statistics from the database,
 /// merging live game data with any persisted historical snapshot.
+///
+/// Reads on this isolate, because sqflite lives here, then hands the counting
+/// to [aggregatePlayerStats] on another one. That part walks every throw the
+/// player has ever made and decodes the dart hits of each, which is the sort of
+/// work that shows up as a stutter when the screen opens.
 ///
 /// Public only so the merge can be tested; the screen is the sole caller in
 /// the app.
@@ -122,6 +156,31 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
     for (final g in await db.getGames())
       if (gameIds.contains(g.id)) g.id!: g,
   };
+
+  return compute(
+    aggregatePlayerStats,
+    PlayerStatsInput(
+      playerId:         playerId,
+      throws:           throws,
+      startScoreByGame: {
+        for (final e in games.entries) e.key: e.value.startScore,
+      },
+      gamesPlayed:      gameIds.length,
+      gamesFinished:    games.values.where((g) => g.finishedAt != null).length,
+      localStatsJson:   player.localStatsJson,
+    ),
+  );
+}
+
+/// Counts a player's lifetime statistics out of [input].
+///
+/// Pure and top level so it can run in another isolate. Nothing here may reach
+/// for the database, a binding or the widget tree.
+@visibleForTesting
+PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
+  final playerId        = input.playerId;
+  final throws          = input.throws;
+  final localStatsJson  = input.localStatsJson;
 
   // ── Counters from the games still on the device ───────────────────────────
   // The snapshot of deleted games is added on top further down, so these start
@@ -186,11 +245,11 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
   // Perfect legs need the leg's whole dart count and its game's start score,
   // so they cannot come from the shared record and are counted separately.
   perfectLegs = perfectLegsFromThrows(throws, (gameId) {
-    final startScore = games[gameId]?.startScore;
+    final startScore = input.startScoreByGame[gameId];
     return startScore == null ? null : minimumDartsForScore[startScore];
   });
 
-  int gamesFinished      = games.values.where((g) => g.finishedAt != null).length;
+  int gamesFinished      = input.gamesFinished;
   final liveTotalDarts    = live.totalDarts;
   final liveTotalVisits   = live.totalVisits;
   final liveNonBustVisits = live.totalVisits - live.busts;
@@ -205,9 +264,9 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
   // Snapshot recent throws: compact maps from deleted games
   var snapRecentThrows = <Map<String, dynamic>>[];
 
-  if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
+  if (localStatsJson != null && localStatsJson.isNotEmpty) {
     try {
-      final p   = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
+      final p   = jsonDecode(localStatsJson) as Map<String, dynamic>;
       int pi(String k) => p[k] as int? ?? 0;
       double pd(String k) => (p[k] as num?)?.toDouble() ?? 0;
 
@@ -357,7 +416,7 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
   final lastWeekAvg3 = lastWeekDarts == 0 ? 0.0 : (lastWeekScored / lastWeekDarts) * 3;
 
   return PlayerStats(
-    gamesPlayed:    gameIds.length + persistentGamesPlayed,
+    gamesPlayed:    input.gamesPlayed + persistentGamesPlayed,
     gamesFinished:  gamesFinished,
     totalVisits:    liveTotalVisits + persistentTotalVisits,
     totalDarts:     liveTotalDarts  + persistentTotalDarts,
