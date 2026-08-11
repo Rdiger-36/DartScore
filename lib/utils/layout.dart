@@ -65,6 +65,11 @@ const double kMinPaneWidth = 300.0;
 /// score cards and a checkout hint need more width than the input alone.
 const double kMinGamePaneWidth = 420.0;
 
+/// Share of the width the list takes in a master detail layout, and the floor
+/// under it. A list of dates and names needs less room than what it opens.
+const double kListPaneFraction = 0.38;
+const double kMinListPaneWidth = 320.0;
+
 /// Width of the draggable divider between two panes. Wide enough to grab,
 /// while the line drawn inside it stays hairline thin.
 const double kDividerHitWidth = 16.0;

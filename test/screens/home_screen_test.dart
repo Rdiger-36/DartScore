@@ -1,4 +1,3 @@
-import 'package:dartscore_app/l10n/app_localizations.dart';
 import 'package:dartscore_app/providers/donation_provider.dart';
 import 'package:dartscore_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';

@@ -19,19 +19,23 @@ class CricketHistorySummaryScreen extends StatelessWidget {
   final CricketGame game;
   final List<Player> players;
 
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the history does on a tablet. Embedded it renders
+  /// its content alone, without a screen around it.
+  final bool embedded;
+
   const CricketHistorySummaryScreen({
     super.key,
     required this.game,
     required this.players,
+    this.embedded = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<_CricketHistoryData>(
@@ -51,6 +55,17 @@ class CricketHistorySummaryScreen extends StatelessWidget {
       ),
     );
   }
+
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
+          ),
+          body: content,
+        );
 
   /// Loads the game's throws and reconstructs each slot's final marks, score,
   /// and the winning slot. A slot is one team (if [game.isTeamGame]) or one
