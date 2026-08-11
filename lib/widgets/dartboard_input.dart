@@ -73,6 +73,10 @@ class _DartboardInputState extends State<DartboardInput> {
   /// Horizontal padding around the grid and the action row.
   static const double _sidePadding = 10;
 
+  /// Pane width from which the actions move beside the grid. Below it the
+  /// column they would take comes straight off the width of the numbers.
+  static const double _sideActionsMinWidth = 520;
+
   static const _fields = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -82,6 +86,69 @@ class _DartboardInputState extends State<DartboardInput> {
   void _tapField(int field) {
     context.read<GameProvider>().tapField(field, _modifier);
     setState(() => _modifier = 1);
+  }
+
+  /// Miss, Bull and Done, either as the row under the grid or as the column
+  /// beside it.
+  ///
+  /// Bull takes twice the share of the other two in the row, where it is also
+  /// the widest label. Stacked it gets an equal share: three buttons of the
+  /// same size read as one control, and the height is not scarce there.
+  Widget _actions({required bool vertical, required double verticalPadding}) {
+    final cs = Theme.of(context).colorScheme;
+    final provider = context.read<GameProvider>();
+    final dartCount = provider.currentVisitDarts.length;
+
+    final miss = _ActionButton(
+      label: context.l10n.miss,
+      icon: Icons.close,
+      color: cs.errorContainer,
+      textColor: cs.onErrorContainer,
+      disabled: dartCount >= 3,
+      verticalPadding: verticalPadding,
+      onTap: () => _tapField(0),
+    );
+    final bull = _ActionButton(
+      label: context.l10n.bullLabel(_modifier == 2),
+      icon: Icons.adjust,
+      color: cs.secondaryContainer,
+      textColor: cs.onSecondaryContainer,
+      disabled: dartCount >= 3 || _modifier == 3,
+      verticalPadding: verticalPadding,
+      onTap: () => _tapField(25),
+    );
+    final done = _ActionButton(
+      label: context.l10n.done_,
+      icon: Icons.check,
+      color: Colors.amber,
+      textColor: Colors.black,
+      disabled: dartCount == 0,
+      verticalPadding: verticalPadding,
+      onTap: provider.finishVisitEarly,
+    );
+
+    if (vertical) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: miss),
+          const SizedBox(height: 6),
+          Expanded(child: bull),
+          const SizedBox(height: 6),
+          Expanded(child: done),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: miss),
+        const SizedBox(width: 6),
+        Expanded(flex: 2, child: bull),
+        const SizedBox(width: 6),
+        Expanded(child: done),
+      ],
+    );
   }
 
   /// The number grid at its preferred size, as tall as its aspect ratio makes it.
@@ -152,7 +219,6 @@ class _DartboardInputState extends State<DartboardInput> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final provider = context.watch<GameProvider>();
     final darts = provider.currentVisitDarts;
     final dartCount = darts.length;
@@ -166,6 +232,10 @@ class _DartboardInputState extends State<DartboardInput> {
         // Both a short screen and a tall pane want the grid to take the height
         // that is left; they differ only in how far a button may grow.
         final fitted  = compact || widget.fillHeight;
+        // Beside the grid the actions cost width, which only a wide pane has
+        // to spare, and give back the height the row under the grid took.
+        final sideActions =
+            widget.fillHeight && constraints.maxWidth >= _sideActionsMinWidth;
         final gridSpacing = compact ? 4.0 : 6.0;
         final segmentVPadding = compact ? 4.0 : 8.0;
         final gapAfterProgress = compact ? 6.0 : 10.0;
@@ -213,17 +283,35 @@ class _DartboardInputState extends State<DartboardInput> {
               ),
             ),
             SizedBox(height: gapAfterSegment),
-            // Number grid
+            // Number grid, with the actions beside it where the pane is wide
+            // enough that moving them there does not cost the numbers width.
             if (fitted)
               Flexible(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-                  child: _fittedGrid(
-                    spacing: gridSpacing,
-                    disabled: dartCount >= 3,
-                    maxAspectRatio: widget.fillHeight
-                        ? _filledAspectRatio
-                        : _preferredAspectRatio,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _fittedGrid(
+                          spacing: gridSpacing,
+                          disabled: dartCount >= 3,
+                          maxAspectRatio: widget.fillHeight
+                              ? _filledAspectRatio
+                              : _preferredAspectRatio,
+                        ),
+                      ),
+                      if (sideActions) ...[
+                        SizedBox(width: gridSpacing + 2),
+                        SizedBox(
+                          width: (constraints.maxWidth * 0.2).clamp(100, 140),
+                          child: _actions(
+                            vertical: true,
+                            verticalPadding: actionVPadding,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               )
@@ -237,57 +325,22 @@ class _DartboardInputState extends State<DartboardInput> {
                   disabled: dartCount >= 3,
                 ),
               ),
-            SizedBox(height: gapBeforeActions),
-            // Miss | Bull | Fertig
-            Padding(
-              padding: EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      label: context.l10n.miss,
-                      icon: Icons.close,
-                      color: cs.errorContainer,
-                      textColor: cs.onErrorContainer,
-                      disabled: dartCount >= 3,
-                      verticalPadding: actionVPadding,
-                      onTap: () => _tapField(0),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    flex: 2,
-                    child: _ActionButton(
-                      label: context.l10n.bullLabel(_modifier == 2),
-                      icon: Icons.adjust,
-                      color: cs.secondaryContainer,
-                      textColor: cs.onSecondaryContainer,
-                      disabled: dartCount >= 3 || _modifier == 3,
-                      verticalPadding: actionVPadding,
-                      onTap: () => _tapField(25),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _ActionButton(
-                      label: context.l10n.done_,
-                      icon: Icons.check,
-                      color: Colors.amber,
-                      textColor: Colors.black,
-                      disabled: dartCount == 0,
-                      verticalPadding: actionVPadding,
-                      onTap: provider.finishVisitEarly,
-                    ),
-                  ),
-                ],
+            if (!sideActions) ...[
+              SizedBox(height: gapBeforeActions),
+              // Miss | Bull | Fertig
+              Padding(
+                padding:
+                    EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
+                child: _actions(vertical: false, verticalPadding: actionVPadding),
               ),
-            ),
+            ] else
+              SizedBox(height: bottomPad),
           ],
         );
 
         final sized = Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
+            constraints: BoxConstraints(maxWidth: widget.fillHeight ? 760 : 500),
             child: column,
           ),
         );
