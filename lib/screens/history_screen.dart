@@ -397,12 +397,14 @@ class _HistoryScreenState extends State<HistoryScreen>
 
           return SidePaneLayout(
             side: InputSide.left,
-            fraction: layout!.splitFraction(landscape: landscape),
+            fraction: layout!.splitFraction(SplitPane.history, landscape: landscape),
             minPaneWidth: kMinListPaneWidth,
             onFractionChanged: (f) =>
-                layout.setSplitFraction(f, landscape: landscape),
+                layout.setSplitFraction(SplitPane.history, f,
+                    landscape: landscape),
             onFractionSettled: () {
-              layout.persistSplitFraction(landscape: landscape);
+              layout.persistSplitFraction(SplitPane.history,
+                  landscape: landscape);
             },
             primary: tabs,
             secondary: stillThere

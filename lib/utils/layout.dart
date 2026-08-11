@@ -47,6 +47,10 @@ const InputSide kDefaultInputSide = InputSide.left;
 bool isTabletLayout(BuildContext context) =>
     MediaQuery.sizeOf(context).shortestSide >= kTabletBreakpoint;
 
+/// The screens that divide themselves into two panes. Each keeps its own
+/// divider position, because each divides something different.
+enum SplitPane { game, history, players }
+
 /// Share of the width the pane holding the input starts with, and the range a
 /// drag of the divider may move it to.
 const double kDefaultSplitFraction = 0.5;

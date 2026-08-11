@@ -185,10 +185,10 @@ void main() {
       expect(find.textContaining('Pick a game'), findsOneWidget);
     });
 
-    testWidgets('shares the divider position with the rest of the app',
+    testWidgets('keeps a divider position of its own',
         (tester) async {
-      // Set elsewhere, in the game, and read here.
-      layout.setSplitFraction(0.62, landscape: true);
+      // Its own key, so a divider dragged in the game does not move this one.
+      layout.setSplitFraction(SplitPane.history, 0.62, landscape: true);
 
       await pumpHistory(tester, size: const Size(1180, 820));
       await openFinished(tester);
@@ -198,12 +198,13 @@ void main() {
       final divider = tester.getRect(find.byKey(kPaneDividerKey));
       expect(divider.left, closeTo(1180 * 0.62, 4));
 
-      // And a drag here writes back to the same setting.
+      // And a drag here writes back to that key.
       await tester.drag(find.byKey(kPaneDividerKey), const Offset(-120, 0),
           touchSlopX: 0);
       await tester.pumpAndSettle();
 
-      expect(layout.splitFraction(landscape: true), lessThan(0.62));
+      expect(layout.splitFraction(SplitPane.history, landscape: true),
+          lessThan(0.62));
     });
   });
 }
