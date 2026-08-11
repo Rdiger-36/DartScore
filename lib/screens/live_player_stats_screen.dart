@@ -276,6 +276,14 @@ class _SlotStatsPage extends StatelessWidget {
             dartsInVisit:  dartsInVisit,
           ),
           const SizedBox(height: 10),
+        ] else ...[
+          _PanelTitle(
+            state:        state,
+            game:         game,
+            isActiveSlot: isActiveSlot,
+            isNextSlot:   isNextSlot,
+          ),
+          const SizedBox(height: 10),
         ],
         _RulesCard(state: state, game: game),
         const SizedBox(height: 10),
@@ -412,6 +420,68 @@ class _HeaderCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Names the slot the panel describes, for a layout that shows the score card
+/// itself elsewhere.
+///
+/// Everything the header card carries beyond the name is on that card already,
+/// so this keeps only what the stats below it would otherwise be missing: whose
+/// numbers these are, and whether they are the ones at the board.
+class _PanelTitle extends StatelessWidget {
+  final PlayerState state;
+  final Game game;
+  final bool isActiveSlot;
+  final bool isNextSlot;
+
+  const _PanelTitle({
+    required this.state,
+    required this.game,
+    required this.isActiveSlot,
+    required this.isNextSlot,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  state.displayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (state.isTeam)
+                  Text(
+                    state.player.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _StatusChip(
+            state:        state,
+            game:         game,
+            isActiveSlot: isActiveSlot,
+            isNextSlot:   isNextSlot,
+          ),
+        ],
       ),
     );
   }
