@@ -65,6 +65,57 @@ const double kMinPaneWidth = 300.0;
 /// score cards and a checkout hint need more width than the input alone.
 const double kMinGamePaneWidth = 420.0;
 
+/// Grows the text of a subtree with the size of the device it is read on.
+///
+/// A tablet is held further away than a phone and its screens are mostly text,
+/// so the same point size reads smaller there. The factor follows the shortest
+/// side of the window: a phone keeps exactly what it had, a 10 inch tablet
+/// gains about a sixth, and past that it stops, because the column the text
+/// sits in does not keep growing either.
+class TabletTextScale extends StatelessWidget {
+  final Widget child;
+
+  const TabletTextScale({super.key, required this.child});
+
+  /// The factor for the current window. 1.0 on anything phone sized.
+  static double factorOf(BuildContext context) {
+    final shortest = MediaQuery.sizeOf(context).shortestSide;
+    if (shortest < kTabletBreakpoint) return 1.0;
+    return (1 + (shortest - kTabletBreakpoint) / 1200).clamp(1.0, 1.3);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final factor = factorOf(context);
+    if (factor == 1.0) return child;
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: _ScaledTextScaler(MediaQuery.textScalerOf(context), factor),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Multiplies a text scaler by a factor, on top of the size the system asks
+/// for rather than instead of it.
+class _ScaledTextScaler extends TextScaler {
+  final TextScaler base;
+  final double factor;
+
+  const _ScaledTextScaler(this.base, this.factor);
+
+  @override
+  double scale(double fontSize) => base.scale(fontSize) * factor;
+
+  // Still abstract on TextScaler, and still what a widget reads when it asks
+  // for a plain factor, so it has to answer even though it is deprecated.
+  @Deprecated('Superseded by scale, which TextScaler itself deprecated it for')
+  @override
+  double get textScaleFactor => scale(14) / 14;
+}
+
 /// Share of the width the list takes in a master detail layout, and the floor
 /// under it. A list of dates and names needs less room than what it opens.
 const double kListPaneFraction = 0.38;
