@@ -2,6 +2,7 @@ import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/cricket_game.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/screens/history_game_summary_screen.dart';
 import 'package:dartscore_app/screens/history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,10 +53,17 @@ void main() {
     /// The body is a FutureBuilder over a database read, which is real I/O the
     /// fake clock never reaches, so it has to be let through before anything
     /// settles on the spinner standing in for it.
-    Future<void> pumpHistory(WidgetTester tester) async {
-      usePhoneSurface(tester, size: const Size(400, 1200));
+    Future<void> pumpHistory(WidgetTester tester,
+        {Size size = const Size(400, 1200)}) async {
+      usePhoneSurface(tester, size: size);
       await tester.pumpWidget(testApp(const HistoryScreen()));
       await pumpUntilLoaded(tester);
+    }
+
+    /// Opens the Finished tab, where the detail of a game can be reached.
+    Future<void> openFinished(WidgetTester tester) async {
+      await tester.tap(find.text('Finished'));
+      await tester.pumpAndSettle();
     }
 
     testWidgets('names both players of a game, in turn order', (tester) async {
@@ -101,6 +109,52 @@ void main() {
 
       expect(find.textContaining('501'), findsNothing);
       expect(find.text('Ada vs Zoe'), findsOneWidget);
+    });
+
+    testWidgets('opens a game beside the list on a tablet', (tester) async {
+      await pumpHistory(tester, size: const Size(1180, 820));
+      await openFinished(tester);
+
+      // Nothing picked yet, so the pane says what to do.
+      expect(find.textContaining('Pick a game'), findsOneWidget);
+
+      await tester.tap(find.textContaining('301'));
+      // Bounded on purpose: what is asserted is where the detail is put, and
+      // the pane header is there a frame later, long before the throws it
+      // reads for the body have arrived.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The list is still there, so nothing was pushed over it, and the date
+      // now reads twice: once on the tile, once as the title of the pane.
+      expect(find.text('Finished'), findsOneWidget);
+      expect(find.textContaining('Pick a game'), findsNothing);
+
+      final dates = tester.widgetList<Text>(find.textContaining('01.02.26'));
+      expect(dates.length, 2);
+
+      // Rendered bare, because the pane around it carries the title.
+      final detail = tester.widget<HistoryGameSummaryScreen>(
+          find.byType(HistoryGameSummaryScreen));
+      expect(detail.embedded, isTrue);
+
+      final list = tester.getRect(find.byType(ListView).first);
+      final title = tester.getRect(find.textContaining('01.02.26').last);
+      expect(title.left, greaterThan(list.right));
+    });
+
+    testWidgets('opens it on top of the list on a phone', (tester) async {
+      await pumpHistory(tester);
+      await openFinished(tester);
+
+      await tester.tap(find.textContaining('301'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Pushed as its own screen, with the bars that belong to one.
+      final detail = tester.widget<HistoryGameSummaryScreen>(
+          find.byType(HistoryGameSummaryScreen));
+      expect(detail.embedded, isFalse);
     });
   });
 }
