@@ -54,7 +54,7 @@ void main() {
         if (side != null) await inputSide.setSide(side);
       });
       if (fraction != null) {
-        inputSide.setSplitFraction(fraction,
+        inputSide.setSplitFraction(SplitPane.game, fraction,
             landscape: surface.width >= surface.height);
       }
 
@@ -252,7 +252,7 @@ void main() {
 
       final after = tester.getRect(find.byType(DartboardInput)).width;
       expect(after - before, closeTo(120, 4));
-      expect(inputSide.splitFraction(landscape: true),
+      expect(inputSide.splitFraction(SplitPane.game, landscape: true),
           greaterThan(kDefaultSplitFraction));
     });
 

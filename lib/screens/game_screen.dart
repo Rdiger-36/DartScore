@@ -336,13 +336,14 @@ class _TabletBody extends StatelessWidget {
     if (landscape) {
       return SidePaneLayout(
         side: side,
-        fraction: layout.splitFraction(landscape: true),
+        fraction: layout.splitFraction(SplitPane.game, landscape: true),
         // This pane carries the scoreboard as well, so it needs more width
         // before it stops being worth looking at.
         minPaneWidth: kMinGamePaneWidth,
-        onFractionChanged: (f) => layout.setSplitFraction(f, landscape: true),
+        onFractionChanged: (f) =>
+            layout.setSplitFraction(SplitPane.game, f, landscape: true),
         onFractionSettled: () {
-          layout.persistSplitFraction(landscape: true);
+          layout.persistSplitFraction(SplitPane.game, landscape: true);
         },
         primary: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -362,11 +363,11 @@ class _TabletBody extends StatelessWidget {
         Expanded(
           child: SidePaneLayout(
             side: side,
-            fraction: layout.splitFraction(landscape: false),
+            fraction: layout.splitFraction(SplitPane.game, landscape: false),
             onFractionChanged: (f) =>
-                layout.setSplitFraction(f, landscape: false),
+                layout.setSplitFraction(SplitPane.game, f, landscape: false),
             onFractionSettled: () {
-              layout.persistSplitFraction(landscape: false);
+              layout.persistSplitFraction(SplitPane.game, landscape: false);
             },
             primary: const DartboardInput(fillHeight: true),
             secondary: stats,

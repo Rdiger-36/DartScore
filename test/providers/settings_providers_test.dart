@@ -108,37 +108,44 @@ void main() {
   });
 
   group('TabletLayoutProvider', () {
-    test('keeps the two orientations apart', () async {
+    test('keeps the screens and orientations apart', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = await _loaded(TabletLayoutProvider());
 
-      provider.setSplitFraction(0.65, landscape: true);
+      provider.setSplitFraction(SplitPane.game, 0.65, landscape: true);
 
-      expect(provider.splitFraction(landscape: true), 0.65);
-      expect(provider.splitFraction(landscape: false), kDefaultSplitFraction);
+      expect(provider.splitFraction(SplitPane.game, landscape: true), 0.65);
+      expect(provider.splitFraction(SplitPane.game, landscape: false),
+          kDefaultSplitFraction);
+      // And the other screens are untouched by it.
+      expect(provider.splitFraction(SplitPane.history, landscape: true),
+          kDefaultSplitFraction);
     });
 
     test('comes back on the split each orientation was left on', () async {
       SharedPreferences.setMockInitialValues({});
       final first = await _loaded(TabletLayoutProvider());
-      first.setSplitFraction(0.65, landscape: true);
-      first.setSplitFraction(0.38, landscape: false);
-      await first.persistSplitFraction(landscape: true);
-      await first.persistSplitFraction(landscape: false);
+      first.setSplitFraction(SplitPane.game, 0.65, landscape: true);
+      first.setSplitFraction(SplitPane.players, 0.38, landscape: false);
+      await first.persistSplitFraction(SplitPane.game, landscape: true);
+      await first.persistSplitFraction(SplitPane.players, landscape: false);
 
       final next = await _loaded(TabletLayoutProvider());
 
-      expect(next.splitFraction(landscape: true), 0.65);
-      expect(next.splitFraction(landscape: false), 0.38);
+      expect(next.splitFraction(SplitPane.game, landscape: true), 0.65);
+      expect(next.splitFraction(SplitPane.players, landscape: false), 0.38);
+      expect(next.splitFraction(SplitPane.game, landscape: false),
+          kDefaultSplitFraction);
     });
 
     test('refuses a split that would leave a pane unusable', () async {
       SharedPreferences.setMockInitialValues({});
       final provider = await _loaded(TabletLayoutProvider());
 
-      provider.setSplitFraction(0.95, landscape: true);
+      provider.setSplitFraction(SplitPane.game, 0.95, landscape: true);
 
-      expect(provider.splitFraction(landscape: true), kMaxSplitFraction);
+      expect(provider.splitFraction(SplitPane.game, landscape: true),
+          kMaxSplitFraction);
     });
   });
 }
