@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
-import '../providers/tablet_layout_provider.dart';
 import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
@@ -25,12 +24,6 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 20),
           const _LanguageSection(),
           const SizedBox(height: 20),
-          // Only a tablet ever puts the input beside a second pane. On a phone
-          // the setting would have nothing to move.
-          if (isTabletLayout(context)) ...[
-            const _InputSideSection(),
-            const SizedBox(height: 20),
-          ],
           const _SupportSection(),
           const SizedBox(height: 20),
           const _AboutSection(),
@@ -206,47 +199,6 @@ class _LangTile extends StatelessWidget {
       trailing:
           selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
       onTap: onTap,
-    );
-  }
-}
-
-// ── Input side ────────────────────────────────────────────────────────────────
-
-/// Settings section to choose the side the score input sits on, shown only on
-/// screens wide enough to place it beside a second pane.
-class _InputSideSection extends StatelessWidget {
-  const _InputSideSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<TabletLayoutProvider>();
-    final cs = Theme.of(context).colorScheme;
-    final l = context.l10n;
-
-    return _Card(
-      title: l.inputSide,
-      icon: Icons.swap_horiz_rounded,
-      child: Column(
-        children: [
-          _ChoiceTile(
-            label: l.inputSideRight,
-            subtitle: l.inputSideRightDesc,
-            icon: Icons.align_horizontal_right_rounded,
-            selected: provider.side == InputSide.right,
-            onTap: () => provider.setSide(InputSide.right),
-            cs: cs,
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            label: l.inputSideLeft,
-            subtitle: l.inputSideLeftDesc,
-            icon: Icons.align_horizontal_left_rounded,
-            selected: provider.side == InputSide.left,
-            onTap: () => provider.setSide(InputSide.left),
-            cs: cs,
-          ),
-        ],
-      ),
     );
   }
 }

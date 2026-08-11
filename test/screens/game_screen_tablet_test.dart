@@ -113,6 +113,26 @@ void main() {
       expect(input, greaterThan(stats));
     });
 
+    testWidgets('swaps the panes from the app bar', (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+      final (inputBefore, statsBefore) = paneCentres(tester);
+      expect(inputBefore, lessThan(statsBefore));
+
+      await tester.tap(find.byIcon(Icons.swap_horiz_rounded));
+      await tester.pumpAndSettle();
+
+      final (inputAfter, statsAfter) = paneCentres(tester);
+      expect(inputAfter, greaterThan(statsAfter));
+      expect(inputSide.side, InputSide.right);
+    });
+
+    testWidgets('offers the swap only where there are two panes',
+        (tester) async {
+      await pumpGame(tester, surface: const Size(375, 812));
+
+      expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+    });
+
     testWidgets('splits only the space below the scoreboard in portrait',
         (tester) async {
       await pumpGame(tester, surface: _tabletPortrait);
