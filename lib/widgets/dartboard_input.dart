@@ -211,6 +211,7 @@ class _DartboardInputState extends State<DartboardInput> {
             modifier: _modifier,
             disabled: disabled,
             compact: rowHeight < _twoLineFieldHeight,
+            scale: (rowHeight / 48).clamp(1.0, 2.0).toDouble(),
             onTap: () => _tapField(f),
           )).toList(),
         );
@@ -248,7 +249,13 @@ class _DartboardInputState extends State<DartboardInput> {
             constraints.maxHeight / constraints.maxWidth > 1.6;
         final rowScale = tallPane ? 1.35 : 1.0;
         final gridSpacing = compact ? 4.0 : 6.0;
-        final segmentVPadding = compact ? 4.0 : (tallPane ? 16.0 : 8.0);
+        final segmentVPadding = compact
+            ? 4.0
+            : tallPane
+                ? 16.0
+                : widget.fillHeight
+                    ? 14.0
+                    : 8.0;
         final gapAfterProgress = compact ? 6.0 : 10.0;
         final gapAfterSegment = compact ? 6.0 : 12.0;
         final gapBeforeActions = compact ? 10.0 : 16.0;
@@ -290,7 +297,7 @@ class _DartboardInputState extends State<DartboardInput> {
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: segmentVPadding)),
-                  textStyle: WidgetStateProperty.all(tallPane
+                  textStyle: WidgetStateProperty.all(widget.fillHeight
                       ? theme.textTheme.titleMedium
                       : theme.textTheme.labelMedium),
                 ),
@@ -607,6 +614,9 @@ class _FieldButton extends StatelessWidget {
   final int modifier;
   final bool disabled;
   final bool compact;
+  /// How much larger than on a phone the label renders, following the size of
+  /// the button itself.
+  final double scale;
   final VoidCallback onTap;
 
   const _FieldButton({
@@ -614,6 +624,7 @@ class _FieldButton extends StatelessWidget {
     required this.modifier,
     required this.disabled,
     this.compact = false,
+    this.scale = 1.0,
     required this.onTap,
   });
 
@@ -661,6 +672,7 @@ class _FieldButton extends StatelessWidget {
               Text(
                 modifier > 1 ? notation : '$field',
                 style: t.titleMedium?.copyWith(
+                  fontSize: (t.titleMedium?.fontSize ?? 16) * scale,
                   fontWeight: FontWeight.bold,
                   color: _fg(context),
                 ),
@@ -670,6 +682,7 @@ class _FieldButton extends StatelessWidget {
               Text(
                 '$field',
                 style: t.titleMedium?.copyWith(
+                  fontSize: (t.titleMedium?.fontSize ?? 16) * scale,
                   fontWeight: FontWeight.bold,
                   color: _fg(context),
                 ),
@@ -678,6 +691,7 @@ class _FieldButton extends StatelessWidget {
                 Text(
                   '$score',
                   style: t.labelSmall?.copyWith(
+                    fontSize: (t.labelSmall?.fontSize ?? 11) * scale,
                     color: _fg(context).withValues(alpha: 0.65),
                     fontWeight: FontWeight.bold,
                   ),
@@ -725,21 +739,43 @@ class _ActionButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: disabled ? null : onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: verticalPadding),
-          child: Column(
-            children: [
-              Icon(icon, size: 17, color: effectiveFg),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: t.labelSmall?.copyWith(
-                  color: effectiveFg,
-                  fontWeight: FontWeight.bold,
-                ),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // Stacked beside the grid the button is given a height far past the
+            // one its content needs, so it takes its size from that: label and
+            // icon in the middle of the button rather than at its top edge.
+            final tall = box.hasBoundedHeight && box.maxHeight > 80;
+            final scale =
+                tall ? (box.maxHeight / 54).clamp(1.0, 1.9).toDouble() : 1.0;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: verticalPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: tall ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 17 * scale, color: effectiveFg),
+                  SizedBox(height: 2 * scale),
+                  // Scaled down rather than wrapped: the widest label is
+                  // "Bull (50)", and a second line is what pushed this button
+                  // past its own height.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: t.labelSmall?.copyWith(
+                        fontSize: (t.labelSmall?.fontSize ?? 11) * scale,
+                        color: effectiveFg,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
