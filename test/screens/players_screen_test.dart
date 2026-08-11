@@ -2,6 +2,7 @@ import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/player_stats_screen.dart';
 import 'package:dartscore_app/screens/players_screen.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -85,6 +86,19 @@ void main() {
       final stats = tester.widget<PlayerStatsScreen>(
           find.byType(PlayerStatsScreen));
       expect(stats.embedded, isFalse);
+    });
+
+    testWidgets('keeps its two buttons over the list', (tester) async {
+      await pumpPlayers(tester, const Size(1180, 820));
+
+      // Both act on the list, so they belong on its side of the divider and
+      // not over the statistics, which is where a scaffold would float them.
+      final divider = tester.getRect(find.byKey(kPaneDividerKey));
+      for (final label in ['Add Player', 'Sync Profile']) {
+        final button = tester.getRect(find.widgetWithText(
+            FloatingActionButton, label));
+        expect(button.right, lessThan(divider.left));
+      }
     });
   });
 }
