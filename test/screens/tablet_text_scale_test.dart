@@ -1,8 +1,11 @@
 import 'package:dartscore_app/providers/players_provider.dart';
+import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/players_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/test_app.dart';
 import '../support/test_db.dart';
@@ -14,12 +17,17 @@ void main() {
     /// Renders the players screen at [size] and returns the height its title
     /// takes, which is the text size the reader gets.
     Future<double> titleHeight(WidgetTester tester, Size size) async {
+      SharedPreferences.setMockInitialValues({});
       final players = PlayersProvider();
       await tester.runAsync(players.load);
 
       usePhoneSurface(tester, size: size);
       await tester.pumpWidget(
-          testApp(const PlayersScreen(), players: players));
+        ChangeNotifierProvider<TabletLayoutProvider>(
+          create: (_) => TabletLayoutProvider(),
+          child: testApp(const PlayersScreen(), players: players),
+        ),
+      );
       await tester.pumpAndSettle();
 
       return tester.getRect(find.text('Players').first).height;

@@ -367,6 +367,9 @@ class AppLocalizations {
   String get importFromLibDesc => _t('Select a saved QR code image', 'Gespeichertes QR-Code Bild auswählen');
   String get noPlayersSettings => _t('No players added yet.', 'Noch keine Spieler angelegt.');
   String get swapInputSide     => _t('Swap sides', 'Seiten tauschen');
+  String get playersPickOne    =>
+      _t('Pick a player to see their statistics.',
+         'Wähle einen Spieler, um seine Statistik zu sehen.');
   String get historyPickGame   =>
       _t('Pick a game to see how it went.',
          'Wähle ein Spiel, um den Verlauf zu sehen.');
