@@ -99,7 +99,6 @@ lib/
 │   ├── sync_codec.dart        # Sync wire format: binary packet, base45, fountain coded frames
 │   └── sync_service.dart      # Sync payload types, the Wi-Fi server and its client
 ├── widgets/
-│   ├── numpad.dart                    # Numeric input pad for score entry
 │   ├── dartboard_input.dart           # Dartboard-style tap input
 │   ├── dartboard_icon.dart            # Decorative dartboard SVG widget
 │   ├── dartboard_target_painter.dart  # Paints a dartboard with a target segment highlighted
