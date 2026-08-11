@@ -12,8 +12,13 @@ import '../support/test_db.dart';
 /// targets and the one the input used to run off the bottom of.
 const _seSurface = Size(375, 667);
 
+/// The screen of a current, rounded phone, together with the insets its notch
+/// and its home indicator claim.
+const _roundedSurface = Size(402, 874);
+const _roundedInsets = EdgeInsets.only(top: 59, bottom: 34);
+
 void main() {
-  group('the live X01 screen on a short phone', () {
+  group('the live X01 screen layout', () {
     useInMemoryDatabase();
 
     late GameProvider provider;
@@ -34,6 +39,7 @@ void main() {
       WidgetTester tester,
       List<String> names, {
       Size surface = _seSurface,
+      EdgeInsets insets = EdgeInsets.zero,
       List<TeamConfig> Function(List<Player>)? teams,
     }) async {
       await tester.runAsync(() async {
@@ -51,21 +57,27 @@ void main() {
         );
       });
 
-      usePhoneSurface(tester, size: surface);
+      usePhoneSurface(tester, size: surface, safeArea: insets);
       await tester.pumpWidget(testApp(const GameScreen(), game: provider));
       await tester.pumpAndSettle();
     }
 
-    /// Fails unless every button of the action row is fully on screen.
+    /// Fails unless every button of the action row is fully on screen, clear of
+    /// whatever the system claims at the bottom.
     ///
     /// Geometry, not a plain `findsOneWidget`: the row used to be laid out
     /// below the bottom edge inside a scroll view, where it is built and found
     /// like any other widget while the player cannot see or reach it.
-    void expectActionRowVisible(WidgetTester tester, Size surface) {
+    void expectActionRowVisible(
+      WidgetTester tester,
+      Size surface, {
+      EdgeInsets insets = EdgeInsets.zero,
+    }) {
+      final limit = surface.height - insets.bottom;
       for (final label in ['Miss', 'Bull (25)', 'Done']) {
         final rect = tester.getRect(find.widgetWithText(InkWell, label).first);
-        expect(rect.bottom, lessThanOrEqualTo(surface.height),
-            reason: '"$label" runs past the bottom of the screen');
+        expect(rect.bottom, lessThanOrEqualTo(limit),
+            reason: '"$label" reaches into the bottom system inset');
       }
     }
 
@@ -109,6 +121,52 @@ void main() {
             reason: 'field $field is missing from the compact grid');
       }
       expect(find.text('Triple'), findsOneWidget);
+    });
+
+    testWidgets('leaves the bottom inset of a rounded phone to the system',
+        (tester) async {
+      await pumpGame(
+        tester,
+        ['Ada', 'Zoe', 'Ben', 'Cleo'],
+        surface: _roundedSurface,
+        insets: _roundedInsets,
+      );
+
+      expectActionRowVisible(tester, _roundedSurface, insets: _roundedInsets);
+    });
+
+    testWidgets('opens no gap between the grid and the action row',
+        (tester) async {
+      // A GridView without a padding of its own helps itself to the vertical
+      // MediaQuery padding. Unconsumed, the home indicator inset therefore used
+      // to end up inside the grid, as dead space above the action row.
+      await pumpGame(
+        tester,
+        ['Ada', 'Zoe', 'Ben', 'Cleo'],
+        surface: _roundedSurface,
+        insets: _roundedInsets,
+      );
+
+      final grid = tester.getRect(find.byType(GridView));
+      final lastRow = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      expect(grid.bottom - lastRow.bottom, lessThan(1),
+          reason: 'the grid reserves space below its last row');
+    });
+
+    testWidgets('fits on a phone that is both short and rounded',
+        (tester) async {
+      // The compact layout derives its row height from the box it is given, so
+      // an inset the grid quietly claims for itself would overflow it. Pumping
+      // is the assertion: an overflow fails the test on its own.
+      await pumpGame(
+        tester,
+        ['Ada', 'Zoe', 'Ben', 'Cleo'],
+        surface: const Size(375, 740),
+        insets: _roundedInsets,
+      );
+
+      expectActionRowVisible(tester, const Size(375, 740),
+          insets: _roundedInsets);
     });
 
     testWidgets('a field button stays large enough to hit', (tester) async {
