@@ -86,6 +86,9 @@ class _GameScreenState extends State<GameScreen> {
             mq.padding.bottom -
             (tablet ? 56 : 44);
         final scale = tablet ? (bodyHeight / 560).clamp(1.0, 1.9) : 1.0;
+        // The checkout hint grows with the card but more slowly: it is a line
+        // of text, not a number read from the other side of the room.
+        final hintScale = scale.clamp(1.0, 1.5).toDouble();
 
         // Scoreboard and checkout hint travel together in every layout: the
         // hint belongs to the score above it and is useless apart from it.
@@ -110,10 +113,10 @@ class _GameScreenState extends State<GameScreen> {
               onSlotTap: (i) => Navigator.of(context)
                   .push(LivePlayerStatsRoute<void>(slotIndex: i)),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6 * scale),
             // Fixed-height area for the checkout hint so buttons never shift
             SizedBox(
-              height: 62,
+              height: 62 * hintScale,
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: FinishSuggestionWidget(
@@ -124,6 +127,7 @@ class _GameScreenState extends State<GameScreen> {
                   favoriteDouble: current.player.favoriteDouble,
                   dartsThrown: liveDartsInVisit,
                   checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
+                  scale: hintScale,
                 ),
               ),
             ),
@@ -319,6 +323,9 @@ class _TabletBody extends StatelessWidget {
       return SidePaneLayout(
         side: side,
         fraction: layout.splitFraction,
+        // This pane carries the scoreboard as well, so it needs more width
+        // before it stops being worth looking at.
+        minPaneWidth: kMinGamePaneWidth,
         onFractionChanged: layout.setSplitFraction,
         onFractionSettled: layout.persistSplitFraction,
         primary: Column(
