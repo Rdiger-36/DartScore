@@ -11,18 +11,25 @@ import '../utils/layout.dart';
 /// a tablet. A phone is portrait only and stacks its rows, so the values are
 /// loaded but never read there.
 class TabletLayoutProvider extends ChangeNotifier {
-  static const _sideKey  = 'input_side';
-  static const _splitKey = 'tablet_split_fraction';
+  static const _sideKey           = 'input_side';
+  static const _splitPortraitKey  = 'tablet_split_fraction';
+  static const _splitLandscapeKey = 'tablet_split_fraction_landscape';
 
   InputSide _side = kDefaultInputSide;
-  double _splitFraction = kDefaultSplitFraction;
+  double _splitPortrait  = kDefaultSplitFraction;
+  double _splitLandscape = kDefaultSplitFraction;
 
   /// The side the input sits on.
   InputSide get side => _side;
 
-  /// Share of the width the pane holding the input takes, between
-  /// [kMinSplitFraction] and [kMaxSplitFraction].
-  double get splitFraction => _splitFraction;
+  /// Share of the width the first pane takes, between [kMinSplitFraction] and
+  /// [kMaxSplitFraction].
+  ///
+  /// Kept per orientation: the two are different screens to divide, and a
+  /// split that reads well across a landscape tablet leaves an upright one
+  /// with two columns too narrow for what is in them.
+  double splitFraction({required bool landscape}) =>
+      landscape ? _splitLandscape : _splitPortrait;
 
   /// Creates the provider and asynchronously loads both settings.
   TabletLayoutProvider() {
@@ -42,13 +49,20 @@ class TabletLayoutProvider extends ChangeNotifier {
       );
     }
 
-    final savedSplit = prefs.getDouble(_splitKey);
-    if (savedSplit != null) {
-      _splitFraction =
-          savedSplit.clamp(kMinSplitFraction, kMaxSplitFraction).toDouble();
+    final savedPortrait  = prefs.getDouble(_splitPortraitKey);
+    final savedLandscape = prefs.getDouble(_splitLandscapeKey);
+    if (savedPortrait != null) {
+      _splitPortrait =
+          savedPortrait.clamp(kMinSplitFraction, kMaxSplitFraction).toDouble();
+    }
+    if (savedLandscape != null) {
+      _splitLandscape =
+          savedLandscape.clamp(kMinSplitFraction, kMaxSplitFraction).toDouble();
     }
 
-    if (savedSide != null || savedSplit != null) notifyListeners();
+    if (savedSide != null || savedPortrait != null || savedLandscape != null) {
+      notifyListeners();
+    }
   }
 
   /// Moves the input to [side], notifies listeners and persists the choice.
@@ -62,21 +76,29 @@ class TabletLayoutProvider extends ChangeNotifier {
     await prefs.setString(_sideKey, side.name);
   }
 
-  /// Moves the divider so the input pane takes [fraction] of the width.
+  /// Moves the divider of the given orientation so the first pane takes
+  /// [fraction] of the width.
   ///
   /// A drag calls this on every frame, so it only notifies; the result reaches
   /// disk through [persistSplitFraction] once the gesture is over.
-  void setSplitFraction(double fraction) {
+  void setSplitFraction(double fraction, {required bool landscape}) {
     final clamped =
         fraction.clamp(kMinSplitFraction, kMaxSplitFraction).toDouble();
-    if (clamped == _splitFraction) return;
-    _splitFraction = clamped;
+    if (clamped == splitFraction(landscape: landscape)) return;
+    if (landscape) {
+      _splitLandscape = clamped;
+    } else {
+      _splitPortrait = clamped;
+    }
     notifyListeners();
   }
 
-  /// Writes the split down as it currently stands.
-  Future<void> persistSplitFraction() async {
+  /// Writes the split of the given orientation down as it currently stands.
+  Future<void> persistSplitFraction({required bool landscape}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_splitKey, _splitFraction);
+    await prefs.setDouble(
+      landscape ? _splitLandscapeKey : _splitPortraitKey,
+      splitFraction(landscape: landscape),
+    );
   }
 }

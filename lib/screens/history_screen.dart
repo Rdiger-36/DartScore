@@ -309,6 +309,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     // The divider is one setting for the whole app: wherever two panes share a
     // screen, they share the position the player dragged them to.
     final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
+    final landscape =
+        MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
 
     return Scaffold(
       appBar: AppBar(
@@ -395,10 +397,13 @@ class _HistoryScreenState extends State<HistoryScreen>
 
           return SidePaneLayout(
             side: InputSide.left,
-            fraction: layout!.splitFraction,
+            fraction: layout!.splitFraction(landscape: landscape),
             minPaneWidth: kMinListPaneWidth,
-            onFractionChanged: layout.setSplitFraction,
-            onFractionSettled: layout.persistSplitFraction,
+            onFractionChanged: (f) =>
+                layout.setSplitFraction(f, landscape: landscape),
+            onFractionSettled: () {
+              layout.persistSplitFraction(landscape: landscape);
+            },
             primary: tabs,
             secondary: stillThere
                 ? _DetailPane(
