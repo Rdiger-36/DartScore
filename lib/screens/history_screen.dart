@@ -304,6 +304,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    final tablet = isTabletLayout(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.historyTitle),
@@ -317,9 +319,23 @@ class _HistoryScreenState extends State<HistoryScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
+          // A tablet reads its tabs from further away, and there is height to
+          // spare for them.
+          labelStyle: tablet
+              ? Theme.of(context).textTheme.titleLarge
+              : null,
+          unselectedLabelStyle: tablet
+              ? Theme.of(context).textTheme.titleLarge
+              : null,
           tabs: [
-            Tab(text: context.l10n.open),
-            Tab(text: context.l10n.finished),
+            Tab(
+              height: tablet ? 56 : null,
+              text: context.l10n.open,
+            ),
+            Tab(
+              height: tablet ? 56 : null,
+              text: context.l10n.finished,
+            ),
           ],
         ),
       ),
@@ -364,7 +380,10 @@ class _HistoryScreenState extends State<HistoryScreen>
             ],
           );
 
-          if (!isTabletLayout(context)) return tabs;
+          // Only finished games have anything to show beside the list. An
+          // open one is resumed, not read, so on its tab the list keeps the
+          // whole width instead of standing next to an empty half.
+          if (!tablet || _tabController.index != 1) return tabs;
 
           // A game the list no longer holds must not stay open beside it.
           final stillThere = _selected != null &&
