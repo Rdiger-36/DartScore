@@ -68,9 +68,27 @@ Future<void> pumpUntilLoaded(WidgetTester tester) async {
 /// The default test surface is 800x600, which is shorter than any phone these
 /// screens were built for, so a scoreboard plus a numpad does not fit and every
 /// assertion drowns in overflow errors.
-void usePhoneSurface(WidgetTester tester, {Size size = const Size(400, 900)}) {
+///
+/// [safeArea] describes the insets of a phone with a notch and a home
+/// indicator. It defaults to none, which is the flat rectangle most tests want;
+/// a layout test that cares where the system bars sit passes its own.
+void usePhoneSurface(
+  WidgetTester tester, {
+  Size size = const Size(400, 900),
+  EdgeInsets safeArea = EdgeInsets.zero,
+}) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
+  final padding = FakeViewPadding(
+    top:    safeArea.top,
+    bottom: safeArea.bottom,
+    left:   safeArea.left,
+    right:  safeArea.right,
+  );
+  tester.view.padding     = padding;
+  tester.view.viewPadding = padding;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPadding);
+  addTearDown(tester.view.resetViewPadding);
 }
