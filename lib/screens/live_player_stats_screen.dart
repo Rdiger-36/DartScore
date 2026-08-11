@@ -79,18 +79,7 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
         final l      = context.l10n;
         final states = provider.playerStates;
         final slot   = states[_page.clamp(0, states.length - 1)];
-
-        // The slot that throws after the current one, mirroring the scoreboard:
-        // slots that already finished the leg are skipped in placement mode.
-        final activeIndices = [
-          for (var i = 0; i < states.length; i++)
-            if (!game.placementMode || states[i].legPlacement == null) i,
-        ];
-        var nextIdx = provider.currentPlayerIndex;
-        if (activeIndices.length > 1) {
-          final pos = activeIndices.indexOf(provider.currentPlayerIndex);
-          if (pos >= 0) nextIdx = activeIndices[(pos + 1) % activeIndices.length];
-        }
+        final nextIdx = provider.nextSlotIndex;
 
         return Scaffold(
           backgroundColor: theme.colorScheme.surface,
@@ -167,6 +156,57 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
   }
 }
 
+// ── Embeddable panel ──────────────────────────────────────────────────────────
+
+/// The live info of a single slot without the screen around it.
+///
+/// The tablet layout of the game screen keeps this beside the input, where a
+/// phone has no room and opens [LivePlayerStatsRoute] on top of the game
+/// instead. Both render the same page, so the two never drift apart.
+class LivePlayerStatsPanel extends StatelessWidget {
+  /// The slot to describe. The tablet layout passes the slot that is throwing,
+  /// so the panel follows the turn on its own.
+  final int slotIndex;
+
+  const LivePlayerStatsPanel({super.key, required this.slotIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, provider, _) {
+        final game = provider.game;
+        if (game == null || provider.gameOver) return const SizedBox.shrink();
+
+        final states = provider.playerStates;
+        final index  = slotIndex.clamp(0, states.length - 1);
+
+        return LayoutBuilder(
+          builder: (context, box) {
+            // Measured against the pane, not the window: a wide pane keeps the
+            // rows together in the middle instead of stretching them.
+            final side =
+                ((box.maxWidth - kStatsPaneMaxWidth) / 2).clamp(12.0, 200.0);
+
+            return _SlotStatsPage(
+              padding:       EdgeInsets.fromLTRB(side, 8, side, 20),
+              state:         states[index],
+              game:          game,
+              isActiveSlot:  index == provider.currentPlayerIndex,
+              isNextSlot:    index != provider.currentPlayerIndex &&
+                             index == provider.nextSlotIndex,
+              currentLeg:    provider.currentLeg,
+              currentSet:    provider.currentSet,
+              liveRemaining: provider.liveDisplayRemaining,
+              liveBust:      provider.liveBust,
+              dartsInVisit:  provider.dartsInVisit,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 // ── Slot page ─────────────────────────────────────────────────────────────────
 
 /// One page of the live info screen: everything known about a single slot.
@@ -184,6 +224,10 @@ class _SlotStatsPage extends StatelessWidget {
   final int liveRemaining;
   final bool liveBust;
   final int dartsInVisit;
+  /// Padding around the list. The full screen centres its column with
+  /// [contentPadding], which measures the whole window and would therefore
+  /// overshoot inside a pane that is only a part of it.
+  final EdgeInsetsGeometry? padding;
 
   const _SlotStatsPage({
     required this.state,
@@ -195,6 +239,7 @@ class _SlotStatsPage extends StatelessWidget {
     required this.liveRemaining,
     required this.liveBust,
     required this.dartsInVisit,
+    this.padding,
   });
 
   @override
@@ -206,7 +251,7 @@ class _SlotStatsPage extends StatelessWidget {
         throwsInLeg(state.throws, currentLeg, currentSet));
 
     return ListView(
-      padding: contentPadding(context, top: 8, bottom: 24, innerH: 12),
+      padding: padding ?? contentPadding(context, top: 8, bottom: 24, innerH: 12),
       children: [
         _HeaderCard(
           state:         state,

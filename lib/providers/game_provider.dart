@@ -253,6 +253,24 @@ class GameProvider extends ChangeNotifier {
   /// Whether a previously undone dart (or legacy visit) can be restored.
   bool               get canRedoDart        => _redoStack.isNotEmpty;
 
+  /// The slot that throws after the current one.
+  ///
+  /// In placement mode a slot that already checked out this leg is skipped, the
+  /// same way the scoreboard drops it to a chip. Falls back to the current slot
+  /// when nobody else is left to throw.
+  int get nextSlotIndex {
+    final active = [
+      for (var i = 0; i < _playerStates.length; i++)
+        if (!(_game?.placementMode ?? false) ||
+            _playerStates[i].legPlacement == null)
+          i,
+    ];
+    if (active.length < 2) return _currentPlayerIndex;
+    final pos = active.indexOf(_currentPlayerIndex);
+    if (pos < 0) return active.first;
+    return active[(pos + 1) % active.length];
+  }
+
   /// Whether check-in rules apply: only in the very first leg of the game.
   bool get _checkInActive => _currentLeg == 1 && _currentSet == 1;
 
