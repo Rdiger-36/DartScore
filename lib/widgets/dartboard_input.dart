@@ -179,44 +179,92 @@ class _DartboardInputState extends State<DartboardInput> {
     );
   }
 
-  /// The number grid sized to the box it is given: the row height follows from
-  /// the space left over, clamped so the buttons stay tappable and never grow
-  /// past their preferred size. Only if the clamp binds does the grid scroll.
-  Widget _fittedGrid({
+  /// How the grid divides a box: the size of one button, and whether even the
+  /// shortest allowed row is taller than the box can hold.
+  ({double buttonWidth, double rowHeight, bool scrolls}) _gridMetrics({
+    required double width,
+    required double height,
+    required double spacing,
+    required double maxAspectRatio,
+  }) {
+    final buttonWidth = (width - 4 * spacing) / 5;
+    final leftover    = (height - 3 * spacing) / 4;
+    final rowHeight   = leftover
+        .clamp(_minFieldHeight, buttonWidth / maxAspectRatio)
+        .toDouble();
+    return (
+      buttonWidth: buttonWidth,
+      rowHeight: rowHeight,
+      scrolls: rowHeight > leftover,
+    );
+  }
+
+  /// The number grid sized to the box it is given, with the actions beside it
+  /// when [sideActions] says the pane is wide enough for them.
+  ///
+  /// The result is exactly as tall as the grid turns out to be, never as tall
+  /// as the box: a taller one would stretch the action column to a height the
+  /// numbers next to it do not have, and hide the difference inside the grid.
+  /// What the grid does not need belongs to the spacing of the column above.
+  Widget _fittedGridArea({
     required double spacing,
     required bool disabled,
     required double maxAspectRatio,
+    required bool sideActions,
+    required double actionWidth,
+    required double actionVPadding,
   }) {
     return LayoutBuilder(
       builder: (context, box) {
-        final buttonWidth = (box.maxWidth - 4 * spacing) / 5;
-        final leftover    = (box.maxHeight - 3 * spacing) / 4;
-        final rowHeight   = leftover.clamp(
-          _minFieldHeight,
-          buttonWidth / maxAspectRatio,
+        final gap = sideActions ? spacing + 2 : 0.0;
+        final m = _gridMetrics(
+          width: box.maxWidth - actionWidth - gap,
+          height: box.maxHeight,
+          spacing: spacing,
+          maxAspectRatio: maxAspectRatio,
         );
-        final scrolls = rowHeight > leftover;
 
         final grid = GridView.count(
           crossAxisCount: 5,
-          shrinkWrap: !scrolls,
-          physics: scrolls
+          shrinkWrap: !m.scrolls,
+          physics: m.scrolls
               ? const ClampingScrollPhysics()
               : const NeverScrollableScrollPhysics(),
           mainAxisSpacing: spacing,
           crossAxisSpacing: spacing,
-          childAspectRatio: buttonWidth / rowHeight,
+          childAspectRatio: m.buttonWidth / m.rowHeight,
           children: _fields.map((f) => _FieldButton(
             field: f,
             modifier: _modifier,
             disabled: disabled,
-            compact: rowHeight < _twoLineFieldHeight,
-            scale: (rowHeight / 48).clamp(1.0, 2.0).toDouble(),
+            compact: m.rowHeight < _twoLineFieldHeight,
+            scale: (m.rowHeight / 48).clamp(1.0, 2.0).toDouble(),
             onTap: () => _tapField(f),
           )).toList(),
         );
 
-        return grid;
+        final height =
+            m.scrolls ? box.maxHeight : 4 * m.rowHeight + 3 * spacing;
+
+        return SizedBox(
+          height: height,
+          child: sideActions
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: grid),
+                    SizedBox(width: gap),
+                    SizedBox(
+                      width: actionWidth,
+                      child: _actions(
+                        vertical: true,
+                        verticalPadding: actionVPadding,
+                      ),
+                    ),
+                  ],
+                )
+              : grid,
+        );
       },
     );
   }
@@ -288,9 +336,12 @@ class _DartboardInputState extends State<DartboardInput> {
               padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
               child: SegmentedButton<int>(
                 segments: [
-                  ButtonSegment(value: 1, label: Text(context.l10n.single)),
-                  ButtonSegment(value: 2, label: Text(context.l10n.double_)),
-                  ButtonSegment(value: 3, label: Text(context.l10n.triple)),
+                  // Scaled down rather than wrapped: dragging the divider can
+                  // make this pane narrow enough that "Single" would otherwise
+                  // break across two lines.
+                  ButtonSegment(value: 1, label: _SegmentLabel(context.l10n.single)),
+                  ButtonSegment(value: 2, label: _SegmentLabel(context.l10n.double_)),
+                  ButtonSegment(value: 3, label: _SegmentLabel(context.l10n.triple)),
                 ],
                 selected: {_modifier},
                 onSelectionChanged: (s) => setState(() => _modifier = s.first),
@@ -310,38 +361,20 @@ class _DartboardInputState extends State<DartboardInput> {
               Flexible(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-                  child: Builder(builder: (context) {
-                    final grid = _fittedGrid(
-                      spacing: gridSpacing,
-                      disabled: dartCount >= 3,
-                      maxAspectRatio: !widget.fillHeight
-                          ? _preferredAspectRatio
-                          : sideActions
-                              ? _filledAspectRatio
-                              : _narrowFilledAspectRatio,
-                    );
-                    // Without the actions beside it the grid stands alone, and
-                    // it must be allowed to end where its last row ends: a Row
-                    // that stretches would hand it the whole box and park the
-                    // difference inside the grid, out of reach of the spacing
-                    // the column would otherwise give it.
-                    if (!sideActions) return grid;
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: grid),
-                        SizedBox(width: gridSpacing + 2),
-                        SizedBox(
-                          width: (constraints.maxWidth * 0.2).clamp(100, 140),
-                          child: _actions(
-                            vertical: true,
-                            verticalPadding: actionVPadding,
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
+                  child: _fittedGridArea(
+                    spacing: gridSpacing,
+                    disabled: dartCount >= 3,
+                    maxAspectRatio: !widget.fillHeight
+                        ? _preferredAspectRatio
+                        : sideActions
+                            ? _filledAspectRatio
+                            : _narrowFilledAspectRatio,
+                    sideActions: sideActions,
+                    actionWidth: sideActions
+                        ? (constraints.maxWidth * 0.2).clamp(100, 140).toDouble()
+                        : 0,
+                    actionVPadding: actionVPadding,
+                  ),
                 ),
               )
             else
@@ -386,6 +419,20 @@ class _DartboardInputState extends State<DartboardInput> {
       },
     );
   }
+}
+
+/// One label of the modifier switch, kept on a single line at whatever width
+/// the pane leaves it.
+class _SegmentLabel extends StatelessWidget {
+  final String text;
+
+  const _SegmentLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(text, maxLines: 1, softWrap: false),
+      );
 }
 
 // ── Dart progress row ────────────────────────────────────────────────────────
