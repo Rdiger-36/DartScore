@@ -15,7 +15,7 @@ import 'cricket_screen.dart';
 
 /// Detailed view of a finished Cricket game from history, with final marks and
 /// scores reconstructed from its stored throws.
-class CricketHistorySummaryScreen extends StatelessWidget {
+class CricketHistorySummaryScreen extends StatefulWidget {
   final CricketGame game;
   final List<Player> players;
 
@@ -32,6 +32,26 @@ class CricketHistorySummaryScreen extends StatelessWidget {
   });
 
   @override
+  State<CricketHistorySummaryScreen> createState() =>
+      _CricketHistorySummaryScreenState();
+}
+
+class _CricketHistorySummaryScreenState extends State<CricketHistorySummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<_CricketHistoryData> _future = _load();
+
+  @override
+  void didUpdateWidget(CricketHistorySummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return _wrap(
       context,
@@ -39,7 +59,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<_CricketHistoryData>(
-            future: _load(),
+            future: _future,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
@@ -48,7 +68,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
               if (data == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, players: players, data: data);
+              return _Body(game: widget.game, players: widget.players, data: data);
             },
           ),
         ),
@@ -57,38 +77,38 @@ class CricketHistorySummaryScreen extends StatelessWidget {
   }
 
   /// Puts the screen around [content], or hands it over bare when this view is
-  /// embedded in a pane that already has a title bar of its own.
-  Widget _wrap(BuildContext context, Widget content) => embedded
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
       ? content
       : Scaffold(
           appBar: AppBar(
-            title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
           ),
           body: content,
         );
 
-  /// Loads the game's throws and reconstructs each slot's final marks, score,
-  /// and the winning slot. A slot is one team (if [game.isTeamGame]) or one
+  /// Loads the widget.game's throws and reconstructs each slot's final marks, score,
+  /// and the winning slot. A slot is one team (if [widget.game.isTeamGame]) or one
   /// player, mirroring `CricketProvider._buildSlots`.
   Future<_CricketHistoryData> _load() async {
-    final throws = await DbHelper.instance.getCricketThrowsForGame(game.id!);
+    final throws = await DbHelper.instance.getCricketThrowsForGame(widget.game.id!);
 
-    final slots = game.isTeamGame
-        ? game.teams!
+    final slots = widget.game.isTeamGame
+        ? widget.game.teams!
             .map((team) => team.playerIds
-                .map((id) => players.firstWhere((p) => p.id == id))
+                .map((id) => widget.players.firstWhere((p) => p.id == id))
                 .toList())
             .toList()
-        : players.map((p) => [p]).toList();
-    final slotNames = game.isTeamGame
-        ? game.teams!.map((t) => t.name).toList()
-        : players.map((p) => p.name).toList();
+        : widget.players.map((p) => [p]).toList();
+    final slotNames = widget.game.isTeamGame
+        ? widget.game.teams!.map((t) => t.name).toList()
+        : widget.players.map((p) => p.name).toList();
 
     final marks  = List.generate(slots.length, (_) => <int, int>{});
     final scores = List.filled(slots.length, 0);
 
-    final isCT     = game.variant == CricketVariant.cutThroat;
-    final isSimple = game.scoringMode == CricketScoringMode.simple;
+    final isCT     = widget.game.variant == CricketVariant.cutThroat;
+    final isSimple = widget.game.scoringMode == CricketScoringMode.simple;
 
     for (final t in throws) {
       if (t.isMiss) continue;
@@ -122,7 +142,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
 
     // Determine winner from DB (finished_at set + score condition)
     int? winnerSlotIndex;
-    if (game.finishedAt != null) {
+    if (widget.game.finishedAt != null) {
       if (isCT) {
         final minScore = scores.fold(999999, (a, b) => a < b ? a : b);
         winnerSlotIndex = scores.indexOf(minScore);
@@ -147,7 +167,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
       slots: List.generate(slots.length, (i) => _CricketSlot(
             displayName: slotNames[i],
             players:     slots[i],
-            isTeamSlot:  game.isTeamGame,
+            isTeamSlot:  widget.game.isTeamGame,
             marks:       marks[i],
             score:       scores[i],
           )),
