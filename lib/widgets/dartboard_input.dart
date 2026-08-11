@@ -44,6 +44,17 @@ class DartboardInput extends StatefulWidget {
 
   const DartboardInput({super.key, this.fillHeight = false});
 
+  /// Pane width from which the actions move beside the grid. Below it the
+  /// column they would take comes straight off the width of the numbers.
+  static const double _sideActionsMinWidth = 520;
+
+  /// Whether a pane [width] wide is one where the actions sit beside the grid.
+  ///
+  /// Public because the layout around the input arranges itself differently in
+  /// that case: with the actions beside the numbers the column is short enough
+  /// to take the checkout hint on top of it.
+  static bool usesSideActions(double width) => width >= _sideActionsMinWidth;
+
   @override
   State<DartboardInput> createState() => _DartboardInputState();
 }
@@ -76,10 +87,6 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Horizontal padding around the grid and the action row.
   static const double _sidePadding = 10;
-
-  /// Pane width from which the actions move beside the grid. Below it the
-  /// column they would take comes straight off the width of the numbers.
-  static const double _sideActionsMinWidth = 520;
 
   /// Share of a tablet pane the action row under the grid takes, and the range
   /// it may end up in. Left at its phone height the row reads small next to
@@ -295,7 +302,8 @@ class _DartboardInputState extends State<DartboardInput> {
         // Beside the grid the actions cost width, which only a wide pane has
         // to spare, and give back the height the row under the grid took.
         final sideActions =
-            widget.fillHeight && constraints.maxWidth >= _sideActionsMinWidth;
+            widget.fillHeight &&
+                DartboardInput.usesSideActions(constraints.maxWidth);
         // A pane far taller than it is wide cannot spend its height on the
         // grid: four rows of five buttons would have to stretch out of shape.
         // The visit display and the modifier take it instead, where a tablet

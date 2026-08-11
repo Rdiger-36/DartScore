@@ -312,5 +312,42 @@ void main() {
       expect(find.byType(LivePlayerStatsPanel), findsNothing);
       expect(find.byType(DartboardInput), findsOneWidget);
     });
+
+    testWidgets('moves the checkout hint over the input once it is wide',
+        (tester) async {
+      // Wide enough for the actions beside the grid, which is where the column
+      // above them becomes short enough to carry the hint.
+      await pumpGame(
+        tester,
+        surface: const Size(1024, 1366),
+        fraction: 0.7,
+      );
+
+      final hint = tester.getRect(find.byType(FinishSuggestionWidget));
+      final board = tester.getRect(find.text('501').first);
+      final input = tester.getRect(find.byType(DartboardInput));
+
+      // Below the scoreboard it used to hang under, and inside the pane the
+      // input has to itself.
+      expect(hint.top, greaterThan(board.bottom));
+      expect(hint.bottom, lessThan(input.top));
+      expect(hint.left, greaterThanOrEqualTo(input.left - 1));
+      expect(hint.right, lessThanOrEqualTo(input.right + 1));
+    });
+
+    testWidgets('keeps the checkout hint under the score while it is narrow',
+        (tester) async {
+      await pumpGame(
+        tester,
+        surface: const Size(1024, 1366),
+        fraction: kMinSplitFraction,
+      );
+
+      final hint = tester.getRect(find.byType(FinishSuggestionWidget));
+      final input = tester.getRect(find.byType(DartboardInput));
+
+      // Spanning the width above both panes, not sitting in one of them.
+      expect(hint.width, greaterThan(input.width));
+    });
   });
 }
