@@ -35,7 +35,7 @@ void main() {
     Future<void> pumpGame(
       WidgetTester tester, {
       required Size surface,
-      InputSide side = InputSide.right,
+      InputSide? side,
     }) async {
       await tester.runAsync(() async {
         final players = await insertPlayers(['Ada', 'Zoe']);
@@ -49,7 +49,7 @@ void main() {
           ),
           players,
         );
-        await inputSide.setSide(side);
+        if (side != null) await inputSide.setSide(side);
       });
 
       usePhoneSurface(tester, size: surface, safeArea: _tabletInsets);
@@ -95,20 +95,19 @@ void main() {
       expect(panel.slotIndex, 1);
     });
 
-    testWidgets('keeps the input on the chosen side in landscape',
-        (tester) async {
+    testWidgets('starts with the input on the left', (tester) async {
       await pumpGame(tester, surface: _tabletLandscape);
 
       final (input, stats) = paneCentres(tester);
-      expect(input, greaterThan(stats));
+      expect(input, lessThan(stats));
     });
 
-    testWidgets('mirrors both panes when the input is set to the left',
+    testWidgets('moves the input over when the setting says right',
         (tester) async {
-      await pumpGame(tester, surface: _tabletLandscape, side: InputSide.left);
+      await pumpGame(tester, surface: _tabletLandscape, side: InputSide.right);
 
       final (input, stats) = paneCentres(tester);
-      expect(input, lessThan(stats));
+      expect(input, greaterThan(stats));
     });
 
     testWidgets('splits only the space below the scoreboard in portrait',
@@ -116,7 +115,7 @@ void main() {
       await pumpGame(tester, surface: _tabletPortrait);
 
       final (input, stats) = paneCentres(tester);
-      expect(input, greaterThan(stats));
+      expect(input, lessThan(stats));
 
       // The scoreboard spans the full width above both panes rather than
       // sharing a row with them.
@@ -136,6 +135,16 @@ void main() {
       // the middle of it, and the buttons grew with the room they were given.
       expect(pane.bottom - done.bottom, lessThan(30));
       expect(field.height, greaterThan(60));
+    });
+
+    testWidgets('fits the larger cards on a small tablet', (tester) async {
+      // The tablet sizes are the tallest the scoreboard gets, so the smallest
+      // tablet on its side is where they run out of room first. An overflow
+      // fails the test on its own.
+      await pumpGame(tester, surface: const Size(1133, 744));
+
+      expect(find.byType(LivePlayerStatsPanel), findsOneWidget);
+      expect(find.widgetWithText(InkWell, 'Done'), findsOneWidget);
     });
 
     testWidgets('stays a single column on a phone sized window',

@@ -96,7 +96,7 @@ class _GameScreenState extends State<GameScreen> {
               playerCheckIns: playerCheckIns,
               playerCheckOuts: playerCheckOuts,
               playerCheckedIn: playerCheckedIn,
-              scoreFontSize: tablet ? 76 : 52,
+              tablet: tablet,
               onSlotTap: (i) => Navigator.of(context)
                   .push(LivePlayerStatsRoute<void>(slotIndex: i)),
             ),
@@ -346,9 +346,9 @@ class _Scoreboard extends StatelessWidget {
   final List<GameMode> playerCheckIns;
   final List<CheckoutMode> playerCheckOuts;
   final List<bool> playerCheckedIn;
-  /// Point size of the remaining score. A tablet is read from across the room
-  /// rather than at arm's length, so it carries a larger one.
-  final double scoreFontSize;
+  /// Whether the tablet sizes apply. A tablet is read from across the room
+  /// rather than at arm's length, so every part of the card carries more.
+  final bool tablet;
   /// Opens the live info view for the slot at the given index.
   final void Function(int slotIndex) onSlotTap;
 
@@ -365,7 +365,7 @@ class _Scoreboard extends StatelessWidget {
     required this.playerCheckIns,
     required this.playerCheckOuts,
     required this.playerCheckedIn,
-    required this.scoreFontSize,
+    required this.tablet,
     required this.onSlotTap,
   });
 
@@ -410,23 +410,27 @@ class _Scoreboard extends StatelessWidget {
             : cs.onSurface;
     final onCardMuted = onCard.withValues(alpha: 0.65);
 
+    final radius = tablet ? 22.0 : 16.0;
+
     return Expanded(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        margin: EdgeInsets.symmetric(horizontal: tablet ? 6 : 4),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius),
         ),
         // The ink has to sit inside the opaque container, otherwise the splash
         // is painted underneath the card colour and stays invisible.
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(radius),
             onTap: () => onSlotTap(i),
             child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          padding: tablet
+              ? const EdgeInsets.fromLTRB(18, 20, 18, 18)
+              : const EdgeInsets.fromLTRB(12, 14, 12, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -436,7 +440,10 @@ class _Scoreboard extends StatelessWidget {
                 s.displayName,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: (tablet
+                        ? theme.textTheme.headlineSmall
+                        : theme.textTheme.titleSmall)
+                    ?.copyWith(
                   color: onCard,
                   fontWeight: FontWeight.bold,
                 ),
@@ -446,7 +453,10 @@ class _Scoreboard extends StatelessWidget {
                   s.player.name,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
+                  style: (tablet
+                          ? theme.textTheme.titleMedium
+                          : theme.textTheme.labelSmall)
+                      ?.copyWith(
                     color: onCard.withValues(alpha: 0.75),
                   ),
                 ),
@@ -458,6 +468,7 @@ class _Scoreboard extends StatelessWidget {
                   checkOut: playerCheckOuts[i],
                   checkedIn: playerCheckedIn[i],
                   onCard: onCard,
+                  tablet: tablet,
                 ),
               ),
               const SizedBox(height: 2),
@@ -469,7 +480,7 @@ class _Scoreboard extends StatelessWidget {
                   key: ValueKey('$i-$displayValue-$showBust'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: scoreFontSize,
+                    fontSize: tablet ? 96 : 52,
                     fontWeight: FontWeight.bold,
                     color: onCard,
                     height: 1,
@@ -485,7 +496,7 @@ class _Scoreboard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Icon(
                       Icons.bar_chart_rounded,
-                      size: 14,
+                      size: tablet ? 22 : 14,
                       color: onCardMuted,
                     ),
                   ),
@@ -497,12 +508,16 @@ class _Scoreboard extends StatelessWidget {
                           game.sets > 1
                               ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
                               : '${context.l10n.legs}: ${s.legsWon}',
-                          style: theme.textTheme.bodySmall
+                          style: (tablet
+                                  ? theme.textTheme.titleMedium
+                                  : theme.textTheme.bodySmall)
                               ?.copyWith(color: onCardMuted),
                         ),
                       Text(
                         'Ø ${s.average.toStringAsFixed(1)}',
-                        style: theme.textTheme.bodySmall
+                        style: (tablet
+                                ? theme.textTheme.titleMedium
+                                : theme.textTheme.bodySmall)
                             ?.copyWith(color: onCardMuted),
                       ),
                     ],
@@ -511,17 +526,18 @@ class _Scoreboard extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerRight,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: tablet ? 11 : 7,
+                            vertical: tablet ? 5 : 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFB300),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(tablet ? 9 : 6),
                         ),
                         child: Text(
                           '$minDarts',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.black,
-                            fontSize: 12,
+                            fontSize: tablet ? 18 : 12,
                             fontWeight: FontWeight.bold,
                             height: 1,
                           ),
@@ -586,7 +602,7 @@ class _Scoreboard extends StatelessWidget {
 
           // ── Other players: compact score strip ────────────────────
           if (otherIndices.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: tablet ? 10 : 6),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -601,52 +617,59 @@ class _Scoreboard extends StatelessWidget {
                   final chipFg =
                       finished ? cs.onSecondaryContainer : cs.onSurface;
                   return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    margin: EdgeInsets.symmetric(horizontal: tablet ? 6 : 4),
                     decoration: BoxDecoration(
                       color: chipBg,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: Material(
                       type: MaterialType.transparency,
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                         onTap: () => onSlotTap(i),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: tablet ? 16 : 10,
+                              vertical: tablet ? 9 : 4),
                           child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: 9,
+                          radius: tablet ? 15 : 9,
                           backgroundColor: cs.outline.withValues(alpha: 0.3),
                           child: Text(
                             s.player.name.isNotEmpty
                                 ? s.player.name[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: tablet ? 15 : 9,
                               fontWeight: FontWeight.bold,
                               color: cs.onSurface,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        SizedBox(width: tablet ? 9 : 5),
                         Text(
                           s.displayName.split(' ').first,
-                          style: theme.textTheme.labelSmall?.copyWith(
+                          style: (tablet
+                                  ? theme.textTheme.titleMedium
+                                  : theme.textTheme.labelSmall)
+                              ?.copyWith(
                             color: finished
                                 ? chipFg.withValues(alpha: 0.85)
                                 : cs.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: tablet ? 10 : 6),
                         Text(
                           finished
                               ? context.l10n.placementBadge(s.legPlacement!)
                               : '${s.remaining}',
-                          style: theme.textTheme.labelMedium?.copyWith(
+                          style: (tablet
+                                  ? theme.textTheme.headlineSmall
+                                  : theme.textTheme.labelMedium)
+                              ?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: chipFg,
                           ),
@@ -681,6 +704,8 @@ class _ModeBadge extends StatelessWidget {
   final CheckoutMode checkOut;
   final bool checkedIn;
   final Color onCard;
+  /// Whether the tablet sizes apply, matching the card around it.
+  final bool tablet;
 
   const _ModeBadge({
     required this.remaining,
@@ -688,6 +713,7 @@ class _ModeBadge extends StatelessWidget {
     required this.checkOut,
     required this.checkedIn,
     required this.onCard,
+    required this.tablet,
   });
 
   @override
@@ -698,15 +724,16 @@ class _ModeBadge extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: EdgeInsets.symmetric(
+              horizontal: tablet ? 12 : 8, vertical: tablet ? 4 : 2),
           decoration: BoxDecoration(
             color: const Color(0xFFFFB300).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 9,
+            style: TextStyle(
+              fontSize: tablet ? 14 : 9,
               fontWeight: FontWeight.bold,
               color: Colors.black,
               letterSpacing: 0.8,
@@ -729,7 +756,7 @@ class _ModeBadge extends StatelessWidget {
           '→ $label',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: tablet ? 16 : 10,
             fontWeight: FontWeight.w600,
             color: onCard.withValues(alpha: 0.7),
             letterSpacing: 0.5,
