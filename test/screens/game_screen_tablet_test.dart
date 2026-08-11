@@ -5,6 +5,7 @@ import 'package:dartscore_app/screens/game_screen.dart';
 import 'package:dartscore_app/screens/live_player_stats_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:dartscore_app/widgets/dartboard_input.dart';
+import 'package:dartscore_app/widgets/finish_suggestion_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -153,6 +154,28 @@ void main() {
       expect((done.bottom - field.bottom).abs(), lessThan(2));
       // The height the row under the grid used to take went to the numbers.
       expect(field.height, greaterThan(70));
+    });
+
+    testWidgets('names the slot its stats belong to', (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      // Twice: once on the score card, once as the heading over the stats.
+      expect(find.text('Ada'), findsNWidgets(2));
+      // And only once for what the card already carries, which is what the
+      // header card of the full screen would have repeated.
+      expect(find.byType(FinishSuggestionWidget), findsOneWidget);
+    });
+
+    testWidgets('leaves no dead space under the numbers in portrait',
+        (tester) async {
+      // A grid stretched to a box taller than it needs parks the difference
+      // inside its own viewport, where no spacing can reach it.
+      await pumpGame(tester, surface: _tabletPortrait);
+
+      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+
+      expect(miss.top - field.bottom, lessThan(80));
     });
 
     testWidgets('keeps the actions under the numbers in portrait',
