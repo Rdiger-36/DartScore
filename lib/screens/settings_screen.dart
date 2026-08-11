@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
-import '../providers/input_side_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
@@ -219,7 +219,7 @@ class _InputSideSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<InputSideProvider>();
+    final provider = context.watch<TabletLayoutProvider>();
     final cs = Theme.of(context).colorScheme;
     final l = context.l10n;
 

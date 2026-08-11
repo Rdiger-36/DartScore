@@ -1,6 +1,6 @@
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
-import 'package:dartscore_app/providers/input_side_provider.dart';
+import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/game_screen.dart';
 import 'package:dartscore_app/screens/live_player_stats_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
@@ -24,12 +24,12 @@ void main() {
     useInMemoryDatabase();
 
     late GameProvider game;
-    late InputSideProvider inputSide;
+    late TabletLayoutProvider inputSide;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       game = GameProvider();
-      inputSide = InputSideProvider();
+      inputSide = TabletLayoutProvider();
     });
 
     /// Starts a two player game and renders it at the given size.
@@ -55,7 +55,7 @@ void main() {
 
       usePhoneSurface(tester, size: surface, safeArea: _tabletInsets);
       await tester.pumpWidget(
-        ChangeNotifierProvider<InputSideProvider>.value(
+        ChangeNotifierProvider<TabletLayoutProvider>.value(
           value: inputSide,
           child: testApp(const GameScreen(), game: game),
         ),
@@ -188,6 +188,31 @@ void main() {
       final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
 
       expect(miss.top, greaterThan(field.bottom));
+    });
+
+    testWidgets('starts with the divider in the middle', (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      final input = tester.getRect(find.byType(DartboardInput));
+      final stats = tester.getRect(find.byType(LivePlayerStatsPanel));
+
+      expect((input.width - stats.width).abs(), lessThan(kDividerHitWidth + 2));
+    });
+
+    testWidgets('rebalances the panes when the divider is dragged',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+      final before = tester.getRect(find.byType(DartboardInput)).width;
+
+      // The input sits on the left, so dragging the divider right grows it.
+      // No touch slop, so the pane moves by exactly what the drag says.
+      await tester.drag(find.byKey(kPaneDividerKey), const Offset(120, 0),
+          touchSlopX: 0);
+      await tester.pumpAndSettle();
+
+      final after = tester.getRect(find.byType(DartboardInput)).width;
+      expect(after - before, closeTo(120, 4));
+      expect(inputSide.splitFraction, greaterThan(kDefaultSplitFraction));
     });
 
     testWidgets('fits the larger cards on a small tablet', (tester) async {

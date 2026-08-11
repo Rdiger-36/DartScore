@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
-import '../providers/input_side_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
@@ -308,7 +308,8 @@ class _TabletBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final side  = context.watch<InputSideProvider>().side;
+    final layout = context.watch<TabletLayoutProvider>();
+    final side   = layout.side;
     // No header: the score card right above it already says who is throwing,
     // what they need and what they average, and a second copy of that in the
     // pane next to it is noise rather than information.
@@ -317,7 +318,9 @@ class _TabletBody extends StatelessWidget {
     if (landscape) {
       return SidePaneLayout(
         side: side,
-        preferredWidth: kGamePaneWidth,
+        fraction: layout.splitFraction,
+        onFractionChanged: layout.setSplitFraction,
+        onFractionSettled: layout.persistSplitFraction,
         primary: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -336,6 +339,9 @@ class _TabletBody extends StatelessWidget {
         Expanded(
           child: SidePaneLayout(
             side: side,
+            fraction: layout.splitFraction,
+            onFractionChanged: layout.setSplitFraction,
+            onFractionSettled: layout.persistSplitFraction,
             primary: const DartboardInput(fillHeight: true),
             secondary: stats,
           ),
