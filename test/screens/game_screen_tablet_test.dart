@@ -268,13 +268,16 @@ void main() {
         fraction: 0.7,
       );
 
-      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
-      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
-      final done  = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+      final firstRow = tester.getRect(find.widgetWithText(InkWell, '1').first);
+      final lastRow  = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      final miss     = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final done     = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
 
-      expect(miss.left, greaterThan(field.right));
-      expect((done.bottom - field.bottom).abs(), lessThan(2));
-      expect(miss.height, lessThan(200));
+      // Pinned at both ends: the column starts where the numbers start and
+      // ends where they end, whatever height the grid turns out to have.
+      expect(miss.left, greaterThan(lastRow.right));
+      expect((miss.top - firstRow.top).abs(), lessThan(2));
+      expect((done.bottom - lastRow.bottom).abs(), lessThan(2));
     });
 
     testWidgets('stops the drag before a pane stops being usable',
