@@ -1,4 +1,4 @@
-import 'dart:math' show min;
+import 'dart:math' show max, min;
 import 'package:flutter/material.dart';
 
 /// Screen width threshold (dp) above which tablet layout is applied.
@@ -47,6 +47,18 @@ const double kDefaultSplitFraction = 0.5;
 const double kMinSplitFraction     = 0.3;
 const double kMaxSplitFraction     = 0.7;
 
+/// Narrowest either pane may be dragged to, whatever the share says.
+///
+/// A share alone is not enough of a guard: 30 percent of a small tablet leaves
+/// the input with 230 dp, where the number buttons fall to 37 dp wide and the
+/// stats wrap every second label. This is the point where both panes stop
+/// being usable, so it is where the drag stops.
+const double kMinPaneWidth = 300.0;
+
+/// The same floor for a pane that carries the scoreboard above the input. Two
+/// score cards and a checkout hint need more width than the input alone.
+const double kMinGamePaneWidth = 420.0;
+
 /// Width of the draggable divider between two panes. Wide enough to grab,
 /// while the line drawn inside it stays hairline thin.
 const double kDividerHitWidth = 16.0;
@@ -74,6 +86,9 @@ class SidePaneLayout extends StatelessWidget {
   /// Share of the width [primary] takes.
   final double fraction;
 
+  /// Narrowest either pane may become, whatever [fraction] says.
+  final double minPaneWidth;
+
   /// Called with the new share while the divider is dragged.
   final ValueChanged<double>? onFractionChanged;
 
@@ -88,6 +103,7 @@ class SidePaneLayout extends StatelessWidget {
     required this.secondary,
     required this.side,
     this.fraction = kDefaultSplitFraction,
+    this.minPaneWidth = kMinPaneWidth,
     this.onFractionChanged,
     this.onFractionSettled,
   });
@@ -97,10 +113,15 @@ class SidePaneLayout extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final total = constraints.maxWidth;
+        // On a window too narrow for two full panes the dp floor would cross
+        // itself, so it never claims more than half.
+        final floor = min(minPaneWidth, total / 2);
+        // The divider sits between the two, so what one pane leaves the other
+        // is the rest minus its width.
         final width = (total * fraction).clamp(
-          total * kMinSplitFraction,
-          total * kMaxSplitFraction,
-        );
+          max(total * kMinSplitFraction, floor),
+          min(total * kMaxSplitFraction, total - floor - kDividerHitWidth),
+        ).toDouble();
 
         // A drag moves the divider itself, so the sign follows the side the
         // input is on: dragging right grows a pane on the left and shrinks one

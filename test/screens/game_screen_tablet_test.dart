@@ -37,6 +37,7 @@ void main() {
       WidgetTester tester, {
       required Size surface,
       InputSide? side,
+      double? fraction,
     }) async {
       await tester.runAsync(() async {
         final players = await insertPlayers(['Ada', 'Zoe']);
@@ -52,6 +53,7 @@ void main() {
         );
         if (side != null) await inputSide.setSide(side);
       });
+      if (fraction != null) inputSide.setSplitFraction(fraction);
 
       usePhoneSurface(tester, size: surface, safeArea: _tabletInsets);
       await tester.pumpWidget(
@@ -152,8 +154,9 @@ void main() {
       // floating next to it.
       expect(miss.left, greaterThan(field.right));
       expect((done.bottom - field.bottom).abs(), lessThan(2));
-      // The height the row under the grid used to take went to the numbers.
-      expect(field.height, greaterThan(70));
+      // The height the row under the grid used to take went to the numbers,
+      // which are well past their phone size of 37 to 51.
+      expect(field.height, greaterThan(60));
     });
 
     testWidgets('names the slot its stats belong to', (tester) async {
@@ -213,6 +216,45 @@ void main() {
       final after = tester.getRect(find.byType(DartboardInput)).width;
       expect(after - before, closeTo(120, 4));
       expect(inputSide.splitFraction, greaterThan(kDefaultSplitFraction));
+    });
+
+    testWidgets('keeps the action column as tall as the numbers beside it',
+        (tester) async {
+      // Dragged wide enough, portrait puts the actions beside the grid too,
+      // which on a 12.9 inch tablet is a pane over 700 dp wide and 900 tall.
+      // Stretched to the pane instead of to the grid the buttons would be
+      // 300 dp tall and the grid would hide the difference inside itself.
+      await pumpGame(
+        tester,
+        surface: const Size(1024, 1366),
+        fraction: 0.7,
+      );
+
+      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final done  = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+
+      expect(miss.left, greaterThan(field.right));
+      expect((done.bottom - field.bottom).abs(), lessThan(2));
+      expect(miss.height, lessThan(200));
+    });
+
+    testWidgets('stops the drag before a pane stops being usable',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletPortrait);
+
+      // Far past the end of the range, in both directions.
+      await tester.drag(find.byKey(kPaneDividerKey), const Offset(-600, 0),
+          touchSlopX: 0);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(DartboardInput)).width,
+          greaterThanOrEqualTo(kMinPaneWidth));
+
+      await tester.drag(find.byKey(kPaneDividerKey), const Offset(600, 0),
+          touchSlopX: 0);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(LivePlayerStatsPanel)).width,
+          greaterThanOrEqualTo(kMinPaneWidth));
     });
 
     testWidgets('fits the larger cards on a small tablet', (tester) async {
