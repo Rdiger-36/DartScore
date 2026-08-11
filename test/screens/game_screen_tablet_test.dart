@@ -201,6 +201,20 @@ void main() {
       expect(miss.top - field.bottom, lessThan(80));
     });
 
+    testWidgets('gives the action row a tablet height in portrait',
+        (tester) async {
+      // Under the grid the row would otherwise keep the height its content
+      // needs, which is the phone height, next to number buttons twice that
+      // size. The grid gives up what the row takes.
+      await pumpGame(tester, surface: _tabletPortrait);
+
+      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final label = tester.getRect(find.text('Miss'));
+
+      expect(miss.height, greaterThan(70));
+      expect(label.height, greaterThan(18));
+    });
+
     testWidgets('keeps the actions under the numbers in portrait',
         (tester) async {
       // Half of a portrait tablet is too narrow to give a column away: the
