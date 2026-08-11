@@ -19,6 +19,37 @@ class HomeScreen extends StatelessWidget {
     final cs = theme.colorScheme;
     final l = context.l10n;
     final isSupporter = context.watch<DonationProvider>().isSupporter;
+    final tablet = isTabletLayout(context);
+
+    final secondary = [
+      _HomeButton(
+        stacked: tablet,
+        icon: Icons.people_outlined,
+        label: l.managePlayers,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PlayersScreen()),
+        ),
+      ),
+      _HomeButton(
+        stacked: tablet,
+        icon: Icons.history_rounded,
+        label: l.gameHistory,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const HistoryScreen()),
+        ),
+      ),
+      _HomeButton(
+        stacked: tablet,
+        icon: Icons.settings_outlined,
+        label: l.settings,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        ),
+      ),
+    ];
 
     return Scaffold(
       body: SafeArea(
@@ -57,35 +88,23 @@ class HomeScreen extends StatelessWidget {
                     primary: true,
                   ),
                   const SizedBox(height: 14),
-                  _HomeButton(
-                    icon: Icons.people_outlined,
-                    label: l.managePlayers,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const PlayersScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _HomeButton(
-                    icon: Icons.history_rounded,
-                    label: l.gameHistory,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const HistoryScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _HomeButton(
-                    icon: Icons.settings_outlined,
-                    label: l.settings,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const SettingsScreen()),
-                    ),
-                  ),
+                  // The three that are not starting a game sit side by side
+                  // where there is width for it, so the column does not read
+                  // as a phone screen stretched tall.
+                  if (tablet)
+                    Row(
+                      children: [
+                        for (final entry in secondary) ...[
+                          if (entry != secondary.first) const SizedBox(width: 14),
+                          Expanded(child: entry),
+                        ],
+                      ],
+                    )
+                  else
+                    for (final entry in secondary) ...[
+                      entry,
+                      if (entry != secondary.last) const SizedBox(height: 14),
+                    ],
                 ],
               ),
             ),
@@ -97,22 +116,49 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// A large labeled icon button on the home screen.
+///
+/// [stacked] puts the icon above the label instead of beside it, which is what
+/// lets three of them share a row: the labels are long enough that side by side
+/// they would each need most of a phone width.
 class _HomeButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool primary;
+  final bool stacked;
 
   const _HomeButton({
     required this.icon,
     required this.label,
     required this.onTap,
     this.primary = false,
+    this.stacked = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (stacked) {
+      return OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 30),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: theme.textTheme.titleMedium,
+            ),
+          ],
+        ),
+      );
+    }
     if (primary) {
       return FilledButton.icon(
         onPressed: onTap,
