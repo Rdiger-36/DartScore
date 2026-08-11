@@ -12,9 +12,9 @@ import '../utils/layout.dart';
 class InputSideProvider extends ChangeNotifier {
   static const _key = 'input_side';
 
-  InputSide _side = InputSide.right;
+  InputSide _side = kDefaultInputSide;
 
-  /// The side the input sits on. Defaults to the right hand side.
+  /// The side the input sits on.
   InputSide get side => _side;
 
   /// Creates the provider and asynchronously loads the persisted side.
@@ -30,7 +30,7 @@ class InputSideProvider extends ChangeNotifier {
     if (saved == null) return;
     _side = InputSide.values.firstWhere(
       (s) => s.name == saved,
-      orElse: () => InputSide.right,
+      orElse: () => kDefaultInputSide,
     );
     notifyListeners();
   }

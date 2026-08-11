@@ -31,9 +31,12 @@ const double kStatsPaneMaxWidth = 600.0;
 /// Which side of the screen the score input sits on when a second pane shares
 /// it with them.
 ///
-/// [right] is index 0 because it is the default and describes how the layout
-/// looked before the setting existed.
+/// The order is not the default and never was: [kDefaultInputSide] decides
+/// that, and the values are stored by name, so this list stays free to grow.
 enum InputSide { right, left }
+
+/// The side the input starts on until the player says otherwise.
+const InputSide kDefaultInputSide = InputSide.left;
 
 /// Whether the window is wide enough for the two pane layouts.
 ///
