@@ -156,5 +156,21 @@ void main() {
           find.byType(HistoryGameSummaryScreen));
       expect(detail.embedded, isFalse);
     });
+
+    testWidgets('leaves the open tab the whole width on a tablet',
+        (tester) async {
+      await pumpHistory(tester, size: const Size(1180, 820));
+
+      // An open game is resumed, not read: there is nothing to put beside the
+      // list, so the list keeps the width instead of facing an empty half.
+      expect(find.textContaining('Pick a game'), findsNothing);
+      // The list keeps its readable width but sits in the middle of the
+      // window rather than pushed into a third of it.
+      final list = tester.getRect(find.byType(ListView).first);
+      expect(list.center.dx, closeTo(1180 / 2, 20));
+
+      await openFinished(tester);
+      expect(find.textContaining('Pick a game'), findsOneWidget);
+    });
   });
 }
