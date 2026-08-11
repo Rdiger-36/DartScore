@@ -169,6 +169,21 @@ class _DartboardInputState extends State<DartboardInput> {
     );
   }
 
+  /// Background the number buttons take under the active modifier, and what
+  /// the switch shows for it.
+  Color? _modifierColor(BuildContext context) => switch (_modifier) {
+        2 => Theme.of(context).colorScheme.secondaryContainer,
+        3 => tripleContainerColor(context),
+        _ => null,
+      };
+
+  /// Foreground for [_modifierColor].
+  Color? _onModifierColor(BuildContext context) => switch (_modifier) {
+        2 => Theme.of(context).colorScheme.onSecondaryContainer,
+        3 => onTripleContainerColor(context),
+        _ => null,
+      };
+
   /// The number grid at its preferred size, as tall as its aspect ratio makes it.
   Widget _grid({
     required double spacing,
@@ -311,6 +326,9 @@ class _DartboardInputState extends State<DartboardInput> {
         final tallPane = widget.fillHeight &&
             constraints.maxHeight / constraints.maxWidth > 1.6;
         final rowScale = tallPane ? 1.35 : 1.0;
+        final actionColumnWidth = sideActions
+            ? (constraints.maxWidth * 0.2).clamp(100, 140).toDouble()
+            : 0.0;
         final gridSpacing = compact ? 4.0 : 6.0;
         final segmentVPadding = compact
             ? 4.0
@@ -319,8 +337,10 @@ class _DartboardInputState extends State<DartboardInput> {
                 : widget.fillHeight
                     ? 14.0
                     : 8.0;
-        final gapAfterProgress = compact ? 6.0 : 10.0;
-        final gapAfterSegment = compact ? 6.0 : 12.0;
+        // More air above the switch than below it, so it reads with the grid
+        // it changes rather than with the visit above it.
+        final gapAfterProgress = compact ? 6.0 : (widget.fillHeight ? 20.0 : 10.0);
+        final gapAfterSegment = compact ? 6.0 : (widget.fillHeight ? 8.0 : 12.0);
         final gapBeforeActions = compact ? 10.0 : 16.0;
         final actionVPadding = compact ? 7.0 : 11.0;
         final bottomPad = compact ? 8.0 : 14.0;
@@ -346,9 +366,18 @@ class _DartboardInputState extends State<DartboardInput> {
               onRedo: provider.redoLastDart,
             ),
             SizedBox(height: gapAfterProgress),
-            // Modifier
+            // Modifier. Padded to the grid rather than to the pane: with the
+            // actions beside the numbers the two have different widths, and a
+            // switch that reaches past what it switches reads as belonging to
+            // nothing.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+              padding: EdgeInsets.fromLTRB(
+                _sidePadding,
+                0,
+                _sidePadding +
+                    (sideActions ? actionColumnWidth + gridSpacing + 2 : 0),
+                0,
+              ),
               child: SegmentedButton<int>(
                 segments: [
                   // Scaled down rather than wrapped: dragging the divider can
@@ -366,6 +395,17 @@ class _DartboardInputState extends State<DartboardInput> {
                   textStyle: WidgetStateProperty.all(widget.fillHeight
                       ? theme.textTheme.titleMedium
                       : theme.textTheme.labelMedium),
+                  // The chosen segment wears the colour the number buttons are
+                  // about to take, so the switch shows what it does rather
+                  // than only naming it.
+                  backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? _modifierColor(context)
+                          : null),
+                  foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? _onModifierColor(context)
+                          : null),
                 ),
               ),
             ),
@@ -385,9 +425,7 @@ class _DartboardInputState extends State<DartboardInput> {
                             ? _filledAspectRatio
                             : _narrowFilledAspectRatio,
                     sideActions: sideActions,
-                    actionWidth: sideActions
-                        ? (constraints.maxWidth * 0.2).clamp(100, 140).toDouble()
-                        : 0,
+                    actionWidth: actionColumnWidth,
                     actionVPadding: actionVPadding,
                   ),
                 ),

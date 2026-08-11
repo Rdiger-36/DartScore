@@ -349,5 +349,20 @@ void main() {
       // Spanning the width above both panes, not sitting in one of them.
       expect(hint.width, greaterThan(input.width));
     });
+
+    testWidgets('lines the modifier switch up with the numbers',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      final segment = tester.getRect(find.byType(SegmentedButton<int>));
+      final field5  = tester.getRect(find.widgetWithText(InkWell, '5').first);
+      final miss    = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+
+      // It ends where the last column of numbers ends, not where the pane
+      // does, so it does not reach across the actions it has nothing to do
+      // with.
+      expect(segment.right, closeTo(field5.right, 12));
+      expect(segment.right, lessThan(miss.left));
+    });
   });
 }
