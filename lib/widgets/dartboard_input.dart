@@ -81,6 +81,13 @@ class _DartboardInputState extends State<DartboardInput> {
   /// column they would take comes straight off the width of the numbers.
   static const double _sideActionsMinWidth = 520;
 
+  /// Share of a tablet pane the action row under the grid takes, and the range
+  /// it may end up in. Left at its phone height the row reads small next to
+  /// number buttons twice its size; the grid gives up the difference.
+  static const double _actionRowHeightFactor = 0.13;
+  static const double _minActionRowHeight = 72;
+  static const double _maxActionRowHeight = 110;
+
   static const _fields = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -393,7 +400,15 @@ class _DartboardInputState extends State<DartboardInput> {
               Padding(
                 padding:
                     EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
-                child: _actions(vertical: false, verticalPadding: actionVPadding),
+                child: SizedBox(
+                  height: widget.fillHeight
+                      ? (constraints.maxHeight * _actionRowHeightFactor)
+                          .clamp(_minActionRowHeight, _maxActionRowHeight)
+                          .toDouble()
+                      : null,
+                  child: _actions(
+                      vertical: false, verticalPadding: actionVPadding),
+                ),
               ),
             ] else
               SizedBox(height: bottomPad),
@@ -788,10 +803,10 @@ class _ActionButton extends StatelessWidget {
         onTap: disabled ? null : onTap,
         child: LayoutBuilder(
           builder: (context, box) {
-            // Stacked beside the grid the button is given a height far past the
-            // one its content needs, so it takes its size from that: label and
-            // icon in the middle of the button rather than at its top edge.
-            final tall = box.hasBoundedHeight && box.maxHeight > 80;
+            // Given a height rather than taking one from its content, the
+            // button reads its size off that: label and icon in the middle
+            // rather than at the top edge, and both grown to match.
+            final tall = box.hasBoundedHeight && box.maxHeight > 64;
             final scale =
                 tall ? (box.maxHeight / 54).clamp(1.0, 1.9).toDouble() : 1.0;
 
