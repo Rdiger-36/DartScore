@@ -456,15 +456,22 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
 class PlayerStatsScreen extends StatelessWidget {
   final Player player;
 
-  const PlayerStatsScreen({super.key, required this.player});
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the player list does on a tablet. Embedded it
+  /// renders its content alone, without a screen around it.
+  final bool embedded;
+
+  const PlayerStatsScreen({
+    super.key,
+    required this.player,
+    this.embedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${player.name} · ${context.l10n.statistics}'),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<PlayerStats>(
@@ -505,6 +512,17 @@ class PlayerStatsScreen extends StatelessWidget {
       ),
     );
   }
+
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text('${player.name} · ${context.l10n.statistics}'),
+          ),
+          body: content,
+        );
 }
 
 // ── Body ──────────────────────────────────────────────────────────────────────
