@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
+import '../providers/input_side_provider.dart';
 import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
@@ -72,6 +73,53 @@ class _GameScreenState extends State<GameScreen> {
         final currentCheckOut = playerCheckOuts[currentIdx];
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
 
+        final tablet    = isTabletLayout(context);
+        final size      = MediaQuery.sizeOf(context);
+        final landscape = size.width >= size.height;
+
+        // Scoreboard and checkout hint travel together in every layout: the
+        // hint belongs to the score above it and is useless apart from it.
+        final scoreboardBlock = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Scoreboard(
+              states: states,
+              currentIdx: currentIdx,
+              game: game,
+              isSolo: isSolo,
+              liveRemaining: displayRemaining,
+              liveBust: liveBust,
+              currentLeg: provider.currentLeg,
+              currentSet: provider.currentSet,
+              liveDartsInVisit: liveDartsInVisit,
+              playerCheckIns: playerCheckIns,
+              playerCheckOuts: playerCheckOuts,
+              playerCheckedIn: playerCheckedIn,
+              scoreFontSize: tablet ? 76 : 52,
+              onSlotTap: (i) => Navigator.of(context)
+                  .push(LivePlayerStatsRoute<void>(slotIndex: i)),
+            ),
+            const SizedBox(height: 6),
+            // Fixed-height area for the checkout hint so buttons never shift
+            SizedBox(
+              height: 62,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: FinishSuggestionWidget(
+                  key: ValueKey(
+                    '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
+                  ),
+                  remaining: liveBust ? current.remaining : displayRemaining,
+                  favoriteDouble: current.player.favoriteDouble,
+                  dartsThrown: liveDartsInVisit,
+                  checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
+                ),
+              ),
+            ),
+          ],
+        );
+
         return PopScope(
           // A running game must not be lost to a stray back gesture; the system
           // back asks the same question the close button in the app bar asks.
@@ -83,7 +131,7 @@ class _GameScreenState extends State<GameScreen> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             appBar: AppBar(
               backgroundColor: Theme.of(context).colorScheme.surface,
-              toolbarHeight: 44,
+              toolbarHeight: tablet ? 56 : 44,
               centerTitle: true,
               title: isSolo
                   ? Column(
@@ -94,14 +142,15 @@ class _GameScreenState extends State<GameScreen> {
                           game.legs > 1
                               ? '${context.l10n.openPlay} · ${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)}'
                               : '${context.l10n.openPlay} · ${game.startScore}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: tablet ? 19 : 15),
                         ),
                         if (game.legs > 1)
                           Text(
                             context.l10n.legsSetsShort(game.legs, game.sets),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: tablet ? 13 : 11,
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurfaceVariant,
@@ -115,8 +164,9 @@ class _GameScreenState extends State<GameScreen> {
                       children: [
                         Text(
                           '${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)} · ${context.l10n.setLabel(provider.currentSet)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: tablet ? 19 : 15),
                         ),
                         Text(
                           game.placementMode
@@ -124,7 +174,7 @@ class _GameScreenState extends State<GameScreen> {
                               : '${context.l10n.matchFormatLabel(MatchFormatLookup.fromValues(game.legs, game.sets))}'
                                 ' (${context.l10n.legsSetsShort(game.legs, game.sets)})',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: tablet ? 13 : 11,
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurfaceVariant,
@@ -134,7 +184,7 @@ class _GameScreenState extends State<GameScreen> {
                     ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 22),
+                  icon: Icon(Icons.close_rounded, size: tablet ? 26 : 22),
                   tooltip: context.l10n.quitGame,
                   onPressed: () => _confirmQuit(context),
                 ),
@@ -146,63 +196,13 @@ class _GameScreenState extends State<GameScreen> {
             // opens a gap above the action row instead of below it.
             body: SafeArea(
               top: false,
-              child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction, maxWidth: kMaxGameWidth)),
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Scoreboard + reserved checkout area ───────────
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Scoreboard(
-                      states: states,
+              child: tablet
+                  ? _TabletBody(
+                      scoreboardBlock: scoreboardBlock,
                       currentIdx: currentIdx,
-                      game: game,
-                      isSolo: isSolo,
-                      liveRemaining: displayRemaining,
-                      liveBust: liveBust,
-                      currentLeg: provider.currentLeg,
-                      currentSet: provider.currentSet,
-                      liveDartsInVisit: liveDartsInVisit,
-                      playerCheckIns: playerCheckIns,
-                      playerCheckOuts: playerCheckOuts,
-                      playerCheckedIn: playerCheckedIn,
-                      onSlotTap: (i) => Navigator.of(context)
-                          .push(LivePlayerStatsRoute<void>(slotIndex: i)),
-                    ),
-                    const SizedBox(height: 6),
-                    // Fixed-height area for the checkout hint so buttons never shift
-                    SizedBox(
-                      height: 62,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: FinishSuggestionWidget(
-                          key: ValueKey(
-                            '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
-                          ),
-                          remaining: liveBust ? current.remaining : displayRemaining,
-                          favoriteDouble: current.player.favoriteDouble,
-                          dartsThrown: liveDartsInVisit,
-                          checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
-                        ),
-                      ),
-                    ),
-                  ],
-                    ),
-                  ),
-                ),
-                // ── Dartboard input ─────────────────────────────────────────
-                const Expanded(child: DartboardInput()),
-              ],
-            ),
-              ),
-            ),
+                      landscape: landscape,
+                    )
+                  : _PhoneBody(scoreboardBlock: scoreboardBlock),
             ),
           ),
         );
@@ -244,6 +244,91 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
+// ── Bodies ────────────────────────────────────────────────────────────────────
+
+/// The phone layout: scoreboard on top, input filling what is left below it.
+class _PhoneBody extends StatelessWidget {
+  final Widget scoreboardBlock;
+
+  const _PhoneBody({required this.scoreboardBlock});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: contentMaxWidth(context,
+              fraction: kGameWidthFraction, maxWidth: kMaxGameWidth),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: scoreboardBlock,
+              ),
+            ),
+            const Expanded(child: DartboardInput()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tablet layout: the input keeps its size on the side the user chose and
+/// the width that is won goes to the live stats of whoever is throwing.
+///
+/// Landscape puts the scoreboard above those stats, so the input has the full
+/// height for itself. Portrait keeps the scoreboard across the top, where it
+/// reads from across the room, and splits only the space below it.
+class _TabletBody extends StatelessWidget {
+  final Widget scoreboardBlock;
+  final int currentIdx;
+  final bool landscape;
+
+  const _TabletBody({
+    required this.scoreboardBlock,
+    required this.currentIdx,
+    required this.landscape,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final side  = context.watch<InputSideProvider>().side;
+    final stats = LivePlayerStatsPanel(slotIndex: currentIdx);
+
+    if (landscape) {
+      return SidePaneLayout(
+        side: side,
+        input: const DartboardInput(fillHeight: true),
+        info: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            scoreboardBlock,
+            Expanded(child: stats),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        scoreboardBlock,
+        Expanded(
+          child: SidePaneLayout(
+            side: side,
+            input: const DartboardInput(fillHeight: true),
+            info: stats,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
 /// The X01 scoreboard: one card per player/team showing remaining score (live
@@ -261,6 +346,9 @@ class _Scoreboard extends StatelessWidget {
   final List<GameMode> playerCheckIns;
   final List<CheckoutMode> playerCheckOuts;
   final List<bool> playerCheckedIn;
+  /// Point size of the remaining score. A tablet is read from across the room
+  /// rather than at arm's length, so it carries a larger one.
+  final double scoreFontSize;
   /// Opens the live info view for the slot at the given index.
   final void Function(int slotIndex) onSlotTap;
 
@@ -277,6 +365,7 @@ class _Scoreboard extends StatelessWidget {
     required this.playerCheckIns,
     required this.playerCheckOuts,
     required this.playerCheckedIn,
+    required this.scoreFontSize,
     required this.onSlotTap,
   });
 
@@ -380,7 +469,7 @@ class _Scoreboard extends StatelessWidget {
                   key: ValueKey('$i-$displayValue-$showBust'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 52,
+                    fontSize: scoreFontSize,
                     fontWeight: FontWeight.bold,
                     color: onCard,
                     height: 1,
