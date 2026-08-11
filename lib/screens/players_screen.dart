@@ -125,12 +125,35 @@ class _PlayersScreenState extends State<PlayersScreen> {
       },
     );
 
-    final list = Center(child: ConstrainedBox(
+    final tablet = isTabletLayout(context);
+
+    final buttons = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [addFab, const SizedBox(height: fabSpacing), syncFab],
+    );
+
+    Widget list = Center(child: ConstrainedBox(
       constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
       child: listContent,
     ));
 
-    final tablet = isTabletLayout(context);
+    // Both buttons act on the list, so on a tablet they belong over the list
+    // and not over the statistics in the pane beside it, which is where the
+    // scaffold would float them.
+    if (tablet) {
+      list = Stack(
+        children: [
+          Positioned.fill(child: list),
+          Positioned(
+            right: fabMargin,
+            bottom: fabMargin + bottomInset,
+            child: buttons,
+          ),
+        ],
+      );
+    }
+
     final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
     final landscape =
         MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
@@ -150,12 +173,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
           ? list
           : SidePaneLayout(
               side: InputSide.left,
-              fraction: layout!.splitFraction(landscape: landscape),
+              fraction: layout!.splitFraction(SplitPane.players, landscape: landscape),
               minPaneWidth: kMinListPaneWidth,
               onFractionChanged: (f) =>
-                  layout.setSplitFraction(f, landscape: landscape),
+                  layout.setSplitFraction(SplitPane.players, f,
+                    landscape: landscape),
               onFractionSettled: () {
-                layout.persistSplitFraction(landscape: landscape);
+                layout.persistSplitFraction(SplitPane.players,
+                  landscape: landscape);
               },
               primary: list,
               secondary: selected == null
@@ -167,11 +192,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     ),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [addFab, const SizedBox(height: fabSpacing), syncFab],
-      ),
+      floatingActionButton: tablet ? null : buttons,
     );
   }
 
