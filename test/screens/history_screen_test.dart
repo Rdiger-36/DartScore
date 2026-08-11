@@ -188,7 +188,7 @@ void main() {
     testWidgets('shares the divider position with the rest of the app',
         (tester) async {
       // Set elsewhere, in the game, and read here.
-      layout.setSplitFraction(0.62);
+      layout.setSplitFraction(0.62, landscape: true);
 
       await pumpHistory(tester, size: const Size(1180, 820));
       await openFinished(tester);
@@ -203,7 +203,7 @@ void main() {
           touchSlopX: 0);
       await tester.pumpAndSettle();
 
-      expect(layout.splitFraction, lessThan(0.62));
+      expect(layout.splitFraction(landscape: true), lessThan(0.62));
     });
   });
 }

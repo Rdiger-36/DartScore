@@ -53,7 +53,10 @@ void main() {
         );
         if (side != null) await inputSide.setSide(side);
       });
-      if (fraction != null) inputSide.setSplitFraction(fraction);
+      if (fraction != null) {
+        inputSide.setSplitFraction(fraction,
+            landscape: surface.width >= surface.height);
+      }
 
       usePhoneSurface(tester, size: surface, safeArea: _tabletInsets);
       await tester.pumpWidget(
@@ -249,7 +252,8 @@ void main() {
 
       final after = tester.getRect(find.byType(DartboardInput)).width;
       expect(after - before, closeTo(120, 4));
-      expect(inputSide.splitFraction, greaterThan(kDefaultSplitFraction));
+      expect(inputSide.splitFraction(landscape: true),
+          greaterThan(kDefaultSplitFraction));
     });
 
     testWidgets('keeps the action column as tall as the numbers beside it',
