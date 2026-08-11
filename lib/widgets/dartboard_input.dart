@@ -59,9 +59,13 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// The same ratio for a pane that hands the input more height than it needs.
   /// A button may grow past square there, because a tablet has the room and a
-  /// taller button is an easier target. What is still left over after this goes
-  /// into the gaps between the rows rather than into a hole around the grid.
+  /// taller button is an easier target.
   static const double _filledAspectRatio = 0.8;
+
+  /// And further still in a pane too narrow for the actions to sit beside the
+  /// grid: that pane is tall and thin, so without this the height the actions
+  /// do not take would stand around as a hole under the numbers.
+  static const double _narrowFilledAspectRatio = 0.62;
 
   /// Shortest a field button may get. If even that does not fit, the grid
   /// scrolls inside its box rather than pushing the action row off screen.
@@ -236,8 +240,15 @@ class _DartboardInputState extends State<DartboardInput> {
         // to spare, and give back the height the row under the grid took.
         final sideActions =
             widget.fillHeight && constraints.maxWidth >= _sideActionsMinWidth;
+        // A pane far taller than it is wide cannot spend its height on the
+        // grid: four rows of five buttons would have to stretch out of shape.
+        // The visit display and the modifier take it instead, where a tablet
+        // gains something from the size anyway.
+        final tallPane = widget.fillHeight &&
+            constraints.maxHeight / constraints.maxWidth > 1.6;
+        final rowScale = tallPane ? 1.35 : 1.0;
         final gridSpacing = compact ? 4.0 : 6.0;
-        final segmentVPadding = compact ? 4.0 : 8.0;
+        final segmentVPadding = compact ? 4.0 : (tallPane ? 16.0 : 8.0);
         final gapAfterProgress = compact ? 6.0 : 10.0;
         final gapAfterSegment = compact ? 6.0 : 12.0;
         final gapBeforeActions = compact ? 10.0 : 16.0;
@@ -260,6 +271,7 @@ class _DartboardInputState extends State<DartboardInput> {
               canUndo: provider.canUndoDart,
               canRedo: provider.canRedoDart,
               compact: compact,
+              scale: rowScale,
               onUndo: provider.undoLastDart,
               onRedo: provider.redoLastDart,
             ),
@@ -278,7 +290,9 @@ class _DartboardInputState extends State<DartboardInput> {
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: segmentVPadding)),
-                  textStyle: WidgetStateProperty.all(theme.textTheme.labelMedium),
+                  textStyle: WidgetStateProperty.all(tallPane
+                      ? theme.textTheme.titleMedium
+                      : theme.textTheme.labelMedium),
                 ),
               ),
             ),
@@ -289,19 +303,27 @@ class _DartboardInputState extends State<DartboardInput> {
               Flexible(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _fittedGrid(
-                          spacing: gridSpacing,
-                          disabled: dartCount >= 3,
-                          maxAspectRatio: widget.fillHeight
+                  child: Builder(builder: (context) {
+                    final grid = _fittedGrid(
+                      spacing: gridSpacing,
+                      disabled: dartCount >= 3,
+                      maxAspectRatio: !widget.fillHeight
+                          ? _preferredAspectRatio
+                          : sideActions
                               ? _filledAspectRatio
-                              : _preferredAspectRatio,
-                        ),
-                      ),
-                      if (sideActions) ...[
+                              : _narrowFilledAspectRatio,
+                    );
+                    // Without the actions beside it the grid stands alone, and
+                    // it must be allowed to end where its last row ends: a Row
+                    // that stretches would hand it the whole box and park the
+                    // difference inside the grid, out of reach of the spacing
+                    // the column would otherwise give it.
+                    if (!sideActions) return grid;
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: grid),
                         SizedBox(width: gridSpacing + 2),
                         SizedBox(
                           width: (constraints.maxWidth * 0.2).clamp(100, 140),
@@ -311,8 +333,8 @@ class _DartboardInputState extends State<DartboardInput> {
                           ),
                         ),
                       ],
-                    ],
-                  ),
+                    );
+                  }),
                 ),
               )
             else
@@ -364,13 +386,15 @@ class _DartboardInputState extends State<DartboardInput> {
 /// The three-dart progress strip with undo/redo buttons shown above the grid.
 ///
 /// [compact] lays each slot out on one line instead of three, which is the
-/// cheapest 25 dp a short screen can give back to the number grid.
+/// cheapest 25 dp a short screen can give back to the number grid. [scale] does
+/// the opposite where a pane has height to spare.
 class _DartProgressRow extends StatelessWidget {
   final List<DartEntry> darts;
   final bool isNegative;
   final bool canUndo;
   final bool canRedo;
   final bool compact;
+  final double scale;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
 
@@ -382,6 +406,7 @@ class _DartProgressRow extends StatelessWidget {
     required this.compact,
     required this.onUndo,
     required this.onRedo,
+    this.scale = 1.0,
   });
 
   @override
@@ -391,7 +416,8 @@ class _DartProgressRow extends StatelessWidget {
 
     return Container(
       margin: EdgeInsets.fromLTRB(10, compact ? 6 : 8, 10, 0),
-      padding: EdgeInsets.fromLTRB(6, compact ? 4 : 5, 4, compact ? 4 : 5),
+      padding: EdgeInsets.fromLTRB(
+          6, (compact ? 4 : 5) * scale, 4, (compact ? 4 : 5) * scale),
       decoration: BoxDecoration(
         color: isNegative ? cs.errorContainer : cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
@@ -402,6 +428,7 @@ class _DartProgressRow extends StatelessWidget {
           _UndoRedoBtn(
             icon: Icons.undo_rounded,
             enabled: canUndo,
+            scale: scale,
             onTap: onUndo,
           ),
           // Three dart slots
@@ -413,12 +440,13 @@ class _DartProgressRow extends StatelessWidget {
                 isActive: i == darts.length,
                 isNegative: isNegative,
                 compact: compact,
+                scale: scale,
               ),
             ),
             if (i < 2)
               Container(
                 width: 1,
-                height: compact ? 18 : 26,
+                height: (compact ? 18 : 26) * scale,
                 color: cs.outlineVariant,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
               ),
@@ -427,6 +455,7 @@ class _DartProgressRow extends StatelessWidget {
           _UndoRedoBtn(
             icon: Icons.redo_rounded,
             enabled: canRedo,
+            scale: scale,
             onTap: onRedo,
           ),
         ],
@@ -439,12 +468,14 @@ class _DartProgressRow extends StatelessWidget {
 class _UndoRedoBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
+  final double scale;
   final VoidCallback onTap;
 
   const _UndoRedoBtn({
     required this.icon,
     required this.enabled,
     required this.onTap,
+    this.scale = 1.0,
   });
 
   @override
@@ -456,10 +487,10 @@ class _UndoRedoBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: enabled ? onTap : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 4 * scale),
           child: Icon(
             icon,
-            size: 20,
+            size: 20 * scale,
             color: enabled
                 ? cs.onSurface
                 : cs.onSurface.withValues(alpha: 0.25),
@@ -484,6 +515,7 @@ class _DartSlot extends StatelessWidget {
   final bool isActive;
   final bool isNegative;
   final bool compact;
+  final double scale;
 
   const _DartSlot({
     required this.index,
@@ -491,6 +523,7 @@ class _DartSlot extends StatelessWidget {
     required this.isActive,
     required this.isNegative,
     required this.compact,
+    this.scale = 1.0,
   });
 
   @override
@@ -533,27 +566,32 @@ class _DartSlot extends StatelessWidget {
       );
     }
 
+    /// The phone size of [style], grown by [scale].
+    TextStyle? sized(TextStyle? style) =>
+        style?.copyWith(fontSize: (style.fontSize ?? 12) * scale);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Dart ${index + 1}',
-          style: theme.textTheme.labelSmall?.copyWith(
+          style: sized(theme.textTheme.labelSmall)?.copyWith(
             color: accent.withValues(alpha: isActive ? 1.0 : 0.55),
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        const SizedBox(height: 1),
+        SizedBox(height: 1 * scale),
         Text(
           entry?.label ?? (isActive ? '▶' : '—'),
-          style: theme.textTheme.titleSmall?.copyWith(
+          style: sized(theme.textTheme.titleSmall)?.copyWith(
             fontWeight: FontWeight.bold,
             color: valueColor,
           ),
         ),
         Text(
           entry != null ? '+${entry!.score}' : ' ',
-          style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          style: sized(theme.textTheme.labelSmall)
+              ?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
     );
