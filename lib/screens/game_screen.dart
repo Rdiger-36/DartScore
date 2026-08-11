@@ -74,6 +74,7 @@ class _GameScreenState extends State<GameScreen> {
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
 
         final tablet    = isTabletLayout(context);
+        final layout    = tablet ? context.watch<TabletLayoutProvider>() : null;
         final mq        = MediaQuery.of(context);
         final landscape = mq.size.width >= mq.size.height;
 
@@ -197,6 +198,19 @@ class _GameScreenState extends State<GameScreen> {
                       ],
                     ),
               actions: [
+                // Which hand holds the tablet changes between games and even
+                // between players, so the swap belongs here rather than three
+                // screens away in the settings.
+                if (layout != null)
+                  IconButton(
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 26),
+                    tooltip: context.l10n.swapInputSide,
+                    onPressed: () => layout.setSide(
+                      layout.side == InputSide.left
+                          ? InputSide.right
+                          : InputSide.left,
+                    ),
+                  ),
                 IconButton(
                   icon: Icon(Icons.close_rounded, size: tablet ? 26 : 22),
                   tooltip: context.l10n.quitGame,

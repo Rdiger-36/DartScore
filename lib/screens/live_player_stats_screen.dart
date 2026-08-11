@@ -158,6 +158,27 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
 
 // ── Embeddable panel ──────────────────────────────────────────────────────────
 
+/// How much larger the embedded stats read than on a phone.
+const double kPanelTextScale = 1.15;
+
+/// Grows every label in the panel by a factor, on top of the size the system
+/// asks for rather than instead of it.
+class _PanelTextScaler extends TextScaler {
+  final TextScaler base;
+  final double factor;
+
+  const _PanelTextScaler(this.base, this.factor);
+
+  @override
+  double scale(double fontSize) => base.scale(fontSize) * factor;
+
+  // Still abstract on TextScaler, and still what a widget reads when it asks
+  // for a plain factor, so it has to answer even though it is deprecated.
+  @Deprecated('Superseded by scale, which TextScaler itself deprecated it for')
+  @override
+  double get textScaleFactor => scale(14) / 14;
+}
+
 /// The live info of a single slot without the screen around it.
 ///
 /// The tablet layout of the game screen keeps this beside the input, where a
@@ -195,7 +216,15 @@ class LivePlayerStatsPanel extends StatelessWidget {
             final side =
                 ((box.maxWidth - kStatsPaneMaxWidth) / 2).clamp(12.0, 200.0);
 
-            return _SlotStatsPage(
+            // A tablet is read from further away than a phone, and this pane
+            // is nothing but text. Scaling the subtree beats touching every
+            // label, and it keeps whatever the system already asks for.
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: _PanelTextScaler(
+                    MediaQuery.textScalerOf(context), kPanelTextScale),
+              ),
+              child: _SlotStatsPage(
               padding:       EdgeInsets.fromLTRB(side, 8, side, 20),
               showHeader:    showHeader,
               state:         states[index],
@@ -208,6 +237,7 @@ class LivePlayerStatsPanel extends StatelessWidget {
               liveRemaining: provider.liveDisplayRemaining,
               liveBust:      provider.liveBust,
               dartsInVisit:  provider.dartsInVisit,
+              ),
             );
           },
         );

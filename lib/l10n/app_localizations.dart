@@ -366,15 +366,7 @@ class AppLocalizations {
   String get importFromLibrary => _t('Import from Photo Library', 'Aus Foto-Bibliothek importieren');
   String get importFromLibDesc => _t('Select a saved QR code image', 'Gespeichertes QR-Code Bild auswählen');
   String get noPlayersSettings => _t('No players added yet.', 'Noch keine Spieler angelegt.');
-  String get inputSide         => _t('Input side', 'Eingabeseite');
-  String get inputSideRight    => _t('Right', 'Rechts');
-  String get inputSideLeft     => _t('Left', 'Links');
-  String get inputSideRightDesc =>
-      _t('Number pad on the right, scoreboard and stats on the left',
-         'Zahlenfeld rechts, Punktestand und Statistik links');
-  String get inputSideLeftDesc =>
-      _t('Number pad on the left, scoreboard and stats on the right',
-         'Zahlenfeld links, Punktestand und Statistik rechts');
+  String get swapInputSide     => _t('Swap sides', 'Seiten tauschen');
 
   // ── Donation ─────────────────────────────────────────────────────────────
   String get donationTitle      => _t('Support Developer', 'Entwickler unterstützen');
