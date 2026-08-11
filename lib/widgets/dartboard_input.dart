@@ -58,9 +58,10 @@ class _DartboardInputState extends State<DartboardInput> {
   static const double _preferredAspectRatio = 1.4;
 
   /// The same ratio for a pane that hands the input more height than it needs.
-  /// Nearly square, because a tablet has the room and a taller button is an
-  /// easier target.
-  static const double _filledAspectRatio = 1.05;
+  /// A button may grow past square there, because a tablet has the room and a
+  /// taller button is an easier target. What is still left over after this goes
+  /// into the gaps between the rows rather than into a hole around the grid.
+  static const double _filledAspectRatio = 0.8;
 
   /// Shortest a field button may get. If even that does not fit, the grid
   /// scrolls inside its box rather than pushing the action row off screen.
@@ -143,7 +144,7 @@ class _DartboardInputState extends State<DartboardInput> {
           )).toList(),
         );
 
-        return scrolls ? grid : Center(child: grid);
+        return grid;
       },
     );
   }
@@ -175,6 +176,12 @@ class _DartboardInputState extends State<DartboardInput> {
 
         final column = Column(
           mainAxisSize: fitted ? MainAxisSize.max : MainAxisSize.min,
+          // A box taller than the input needs spreads what is left over the
+          // gaps, keeping the dart row at the top and the actions at the
+          // bottom where the hands are.
+          mainAxisAlignment: fitted
+              ? MainAxisAlignment.spaceBetween
+              : MainAxisAlignment.start,
           children: [
             // Dart progress row with undo/redo
             _DartProgressRow(
@@ -208,7 +215,7 @@ class _DartboardInputState extends State<DartboardInput> {
             SizedBox(height: gapAfterSegment),
             // Number grid
             if (fitted)
-              Expanded(
+              Flexible(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
                   child: _fittedGrid(

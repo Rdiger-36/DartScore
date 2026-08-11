@@ -47,42 +47,52 @@ const InputSide kDefaultInputSide = InputSide.left;
 bool isTabletLayout(BuildContext context) =>
     MediaQuery.sizeOf(context).shortestSide >= kTabletBreakpoint;
 
-/// Places the score input beside a second pane, on the side the user chose.
+/// Preferred width of the column that holds the scoreboard above the input.
+/// It carries the score that is read from across the room, so it needs more
+/// than the input alone would.
+const double kGamePaneWidth = 640.0;
+
+/// Places the column holding the score input beside a second pane, on the side
+/// the user chose.
 ///
-/// The input keeps [kInputPaneWidth] where the window allows it and never takes
-/// more than half, so a narrow tablet ends up with two even panes instead of an
-/// input that crowds out what it sits next to.
+/// [primary] keeps [preferredWidth] where the window allows it and never takes
+/// more than half, so a narrow tablet ends up with two even panes instead of
+/// one that crowds out the other.
 class SidePaneLayout extends StatelessWidget {
-  /// The pane that gets whatever width the input leaves over.
-  final Widget info;
+  /// The column the input lives in. Sits on the chosen side.
+  final Widget primary;
 
-  /// The score input.
-  final Widget input;
+  /// The pane that gets whatever width [primary] leaves over.
+  final Widget secondary;
 
-  /// The side the input sits on.
+  /// The side [primary] sits on.
   final InputSide side;
+
+  /// Width [primary] takes where there is room for it.
+  final double preferredWidth;
 
   const SidePaneLayout({
     super.key,
-    required this.info,
-    required this.input,
+    required this.primary,
+    required this.secondary,
     required this.side,
+    this.preferredWidth = kInputPaneWidth,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final inputWidth = min(kInputPaneWidth, constraints.maxWidth / 2);
-        final inputPane  = SizedBox(width: inputWidth, child: input);
-        final infoPane   = Expanded(child: info);
+        final width      = min(preferredWidth, constraints.maxWidth / 2);
+        final fixedPane  = SizedBox(width: width, child: primary);
+        final restPane   = Expanded(child: secondary);
         const divider    = VerticalDivider(width: 1, thickness: 1);
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: side == InputSide.right
-              ? [infoPane, divider, inputPane]
-              : [inputPane, divider, infoPane],
+              ? [restPane, divider, fixedPane]
+              : [fixedPane, divider, restPane],
         );
       },
     );

@@ -129,12 +129,14 @@ void main() {
 
       final pane = tester.getRect(find.byType(DartboardInput));
       final done = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
-      final field = tester.getSize(find.widgetWithText(InkWell, '20').first);
+      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
 
       // The action row ends at the bottom of the pane instead of floating in
-      // the middle of it, and the buttons grew with the room they were given.
+      // the middle of it, the buttons grew past their phone size, and no hole
+      // is left between the last row of numbers and the actions.
       expect(pane.bottom - done.bottom, lessThan(30));
-      expect(field.height, greaterThan(60));
+      expect(field.height, greaterThan(45));
+      expect(done.top - field.bottom, lessThan(80));
     });
 
     testWidgets('fits the larger cards on a small tablet', (tester) async {
