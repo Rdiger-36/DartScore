@@ -155,7 +155,12 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   static const _scoreOptions = [101, 170, 201, 301, 501, 701, 1001];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final theme = Theme.of(context);
     final allPlayers = context.watch<PlayersProvider>().players;
 
