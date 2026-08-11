@@ -74,8 +74,18 @@ class _GameScreenState extends State<GameScreen> {
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
 
         final tablet    = isTabletLayout(context);
-        final size      = MediaQuery.sizeOf(context);
-        final landscape = size.width >= size.height;
+        final mq        = MediaQuery.of(context);
+        final landscape = mq.size.width >= mq.size.height;
+
+        // How much bigger than a phone the score card may be. The card shares
+        // its column with the input, so what it may spend follows from the
+        // height both have: a large tablet reads from across the room, a small
+        // one in landscape has barely more room than a phone.
+        final bodyHeight = mq.size.height -
+            mq.padding.top -
+            mq.padding.bottom -
+            (tablet ? 56 : 44);
+        final scale = tablet ? (bodyHeight / 560).clamp(1.0, 1.9) : 1.0;
 
         // Scoreboard and checkout hint travel together in every layout: the
         // hint belongs to the score above it and is useless apart from it.
@@ -96,7 +106,7 @@ class _GameScreenState extends State<GameScreen> {
               playerCheckIns: playerCheckIns,
               playerCheckOuts: playerCheckOuts,
               playerCheckedIn: playerCheckedIn,
-              tablet: tablet,
+              scale: scale,
               onSlotTap: (i) => Navigator.of(context)
                   .push(LivePlayerStatsRoute<void>(slotIndex: i)),
             ),
@@ -277,12 +287,14 @@ class _PhoneBody extends StatelessWidget {
   }
 }
 
-/// The tablet layout: the input keeps its size on the side the user chose and
-/// the width that is won goes to the live stats of whoever is throwing.
+/// The tablet layout: score and input stay together in one column, the way a
+/// player already knows them, and the width that is won goes to the live stats
+/// of whoever is throwing.
 ///
-/// Landscape puts the scoreboard above those stats, so the input has the full
-/// height for itself. Portrait keeps the scoreboard across the top, where it
-/// reads from across the room, and splits only the space below it.
+/// Landscape stands that column beside the stats. Portrait keeps the scoreboard
+/// across the full width, where it reads from across the room, and splits only
+/// the space below it, because half of a portrait tablet is too narrow for a
+/// score card that size.
 class _TabletBody extends StatelessWidget {
   final Widget scoreboardBlock;
   final int currentIdx;
@@ -297,19 +309,23 @@ class _TabletBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final side  = context.watch<InputSideProvider>().side;
-    final stats = LivePlayerStatsPanel(slotIndex: currentIdx);
+    // No header: the score card right above it already says who is throwing,
+    // what they need and what they average, and a second copy of that in the
+    // pane next to it is noise rather than information.
+    final stats = LivePlayerStatsPanel(slotIndex: currentIdx, showHeader: false);
 
     if (landscape) {
       return SidePaneLayout(
         side: side,
-        input: const DartboardInput(fillHeight: true),
-        info: Column(
+        preferredWidth: kGamePaneWidth,
+        primary: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             scoreboardBlock,
-            Expanded(child: stats),
+            const Expanded(child: DartboardInput(fillHeight: true)),
           ],
         ),
+        secondary: stats,
       );
     }
 
@@ -320,8 +336,8 @@ class _TabletBody extends StatelessWidget {
         Expanded(
           child: SidePaneLayout(
             side: side,
-            input: const DartboardInput(fillHeight: true),
-            info: stats,
+            primary: const DartboardInput(fillHeight: true),
+            secondary: stats,
           ),
         ),
       ],
@@ -346,9 +362,10 @@ class _Scoreboard extends StatelessWidget {
   final List<GameMode> playerCheckIns;
   final List<CheckoutMode> playerCheckOuts;
   final List<bool> playerCheckedIn;
-  /// Whether the tablet sizes apply. A tablet is read from across the room
-  /// rather than at arm's length, so every part of the card carries more.
-  final bool tablet;
+  /// How much larger than on a phone the card renders. A tablet is read from
+  /// across the room rather than at arm's length, and how much room the card
+  /// may spend on that depends on the height it shares with the input.
+  final double scale;
   /// Opens the live info view for the slot at the given index.
   final void Function(int slotIndex) onSlotTap;
 
@@ -365,7 +382,7 @@ class _Scoreboard extends StatelessWidget {
     required this.playerCheckIns,
     required this.playerCheckOuts,
     required this.playerCheckedIn,
-    required this.tablet,
+    required this.scale,
     required this.onSlotTap,
   });
 
@@ -410,12 +427,15 @@ class _Scoreboard extends StatelessWidget {
             : cs.onSurface;
     final onCardMuted = onCard.withValues(alpha: 0.65);
 
-    final radius = tablet ? 22.0 : 16.0;
+    final radius = 16.0 * scale;
+    /// The phone size of [style], grown by [scale].
+    TextStyle? sized(TextStyle? style) =>
+        style?.copyWith(fontSize: (style.fontSize ?? 14) * scale);
 
     return Expanded(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        margin: EdgeInsets.symmetric(horizontal: tablet ? 6 : 4),
+        margin: EdgeInsets.symmetric(horizontal: 4 * scale),
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(radius),
@@ -428,9 +448,8 @@ class _Scoreboard extends StatelessWidget {
             borderRadius: BorderRadius.circular(radius),
             onTap: () => onSlotTap(i),
             child: Padding(
-          padding: tablet
-              ? const EdgeInsets.fromLTRB(18, 20, 18, 18)
-              : const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          padding: EdgeInsets.fromLTRB(
+              12 * scale, 14 * scale, 12 * scale, 12 * scale),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -440,10 +459,7 @@ class _Scoreboard extends StatelessWidget {
                 s.displayName,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: (tablet
-                        ? theme.textTheme.headlineSmall
-                        : theme.textTheme.titleSmall)
-                    ?.copyWith(
+                style: sized(theme.textTheme.titleSmall)?.copyWith(
                   color: onCard,
                   fontWeight: FontWeight.bold,
                 ),
@@ -453,10 +469,7 @@ class _Scoreboard extends StatelessWidget {
                   s.player.name,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: (tablet
-                          ? theme.textTheme.titleMedium
-                          : theme.textTheme.labelSmall)
-                      ?.copyWith(
+                  style: sized(theme.textTheme.labelSmall)?.copyWith(
                     color: onCard.withValues(alpha: 0.75),
                   ),
                 ),
@@ -468,7 +481,7 @@ class _Scoreboard extends StatelessWidget {
                   checkOut: playerCheckOuts[i],
                   checkedIn: playerCheckedIn[i],
                   onCard: onCard,
-                  tablet: tablet,
+                  scale: scale,
                 ),
               ),
               const SizedBox(height: 2),
@@ -480,7 +493,7 @@ class _Scoreboard extends StatelessWidget {
                   key: ValueKey('$i-$displayValue-$showBust'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: tablet ? 96 : 52,
+                    fontSize: 52 * scale,
                     fontWeight: FontWeight.bold,
                     color: onCard,
                     height: 1,
@@ -496,7 +509,7 @@ class _Scoreboard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Icon(
                       Icons.bar_chart_rounded,
-                      size: tablet ? 22 : 14,
+                      size: 14 * scale,
                       color: onCardMuted,
                     ),
                   ),
@@ -508,16 +521,12 @@ class _Scoreboard extends StatelessWidget {
                           game.sets > 1
                               ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
                               : '${context.l10n.legs}: ${s.legsWon}',
-                          style: (tablet
-                                  ? theme.textTheme.titleMedium
-                                  : theme.textTheme.bodySmall)
+                          style: sized(theme.textTheme.bodySmall)
                               ?.copyWith(color: onCardMuted),
                         ),
                       Text(
                         'Ø ${s.average.toStringAsFixed(1)}',
-                        style: (tablet
-                                ? theme.textTheme.titleMedium
-                                : theme.textTheme.bodySmall)
+                        style: sized(theme.textTheme.bodySmall)
                             ?.copyWith(color: onCardMuted),
                       ),
                     ],
@@ -527,17 +536,16 @@ class _Scoreboard extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       child: Container(
                         padding: EdgeInsets.symmetric(
-                            horizontal: tablet ? 11 : 7,
-                            vertical: tablet ? 5 : 3),
+                            horizontal: 7 * scale, vertical: 3 * scale),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFB300),
-                          borderRadius: BorderRadius.circular(tablet ? 9 : 6),
+                          borderRadius: BorderRadius.circular(6 * scale),
                         ),
                         child: Text(
                           '$minDarts',
                           style: TextStyle(
                             color: Colors.black,
-                            fontSize: tablet ? 18 : 12,
+                            fontSize: 12 * scale,
                             fontWeight: FontWeight.bold,
                             height: 1,
                           ),
@@ -602,7 +610,7 @@ class _Scoreboard extends StatelessWidget {
 
           // ── Other players: compact score strip ────────────────────
           if (otherIndices.isNotEmpty) ...[
-            SizedBox(height: tablet ? 10 : 6),
+            SizedBox(height: 6 * scale),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -617,7 +625,7 @@ class _Scoreboard extends StatelessWidget {
                   final chipFg =
                       finished ? cs.onSecondaryContainer : cs.onSurface;
                   return Container(
-                    margin: EdgeInsets.symmetric(horizontal: tablet ? 6 : 4),
+                    margin: EdgeInsets.symmetric(horizontal: 4 * scale),
                     decoration: BoxDecoration(
                       color: chipBg,
                       borderRadius: BorderRadius.circular(24),
@@ -629,47 +637,46 @@ class _Scoreboard extends StatelessWidget {
                         onTap: () => onSlotTap(i),
                         child: Padding(
                           padding: EdgeInsets.symmetric(
-                              horizontal: tablet ? 16 : 10,
-                              vertical: tablet ? 9 : 4),
+                              horizontal: 10 * scale, vertical: 4 * scale),
                           child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: tablet ? 15 : 9,
+                          radius: 9 * scale,
                           backgroundColor: cs.outline.withValues(alpha: 0.3),
                           child: Text(
                             s.player.name.isNotEmpty
                                 ? s.player.name[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
-                              fontSize: tablet ? 15 : 9,
+                              fontSize: 9 * scale,
                               fontWeight: FontWeight.bold,
                               color: cs.onSurface,
                             ),
                           ),
                         ),
-                        SizedBox(width: tablet ? 9 : 5),
+                        SizedBox(width: 5 * scale),
                         Text(
                           s.displayName.split(' ').first,
-                          style: (tablet
-                                  ? theme.textTheme.titleMedium
-                                  : theme.textTheme.labelSmall)
+                          style: theme.textTheme.labelSmall
                               ?.copyWith(
+                            fontSize:
+                                (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
                             color: finished
                                 ? chipFg.withValues(alpha: 0.85)
                                 : cs.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(width: tablet ? 10 : 6),
+                        SizedBox(width: 6 * scale),
                         Text(
                           finished
                               ? context.l10n.placementBadge(s.legPlacement!)
                               : '${s.remaining}',
-                          style: (tablet
-                                  ? theme.textTheme.headlineSmall
-                                  : theme.textTheme.labelMedium)
+                          style: theme.textTheme.labelMedium
                               ?.copyWith(
+                            fontSize:
+                                (theme.textTheme.labelMedium?.fontSize ?? 12) * scale,
                             fontWeight: FontWeight.bold,
                             color: chipFg,
                           ),
@@ -704,8 +711,8 @@ class _ModeBadge extends StatelessWidget {
   final CheckoutMode checkOut;
   final bool checkedIn;
   final Color onCard;
-  /// Whether the tablet sizes apply, matching the card around it.
-  final bool tablet;
+  /// How much larger than on a phone the badge renders, matching its card.
+  final double scale;
 
   const _ModeBadge({
     required this.remaining,
@@ -713,7 +720,7 @@ class _ModeBadge extends StatelessWidget {
     required this.checkOut,
     required this.checkedIn,
     required this.onCard,
-    required this.tablet,
+    required this.scale,
   });
 
   @override
@@ -725,7 +732,7 @@ class _ModeBadge extends StatelessWidget {
         padding: const EdgeInsets.only(top: 3),
         child: Container(
           padding: EdgeInsets.symmetric(
-              horizontal: tablet ? 12 : 8, vertical: tablet ? 4 : 2),
+              horizontal: 8 * scale, vertical: 2 * scale),
           decoration: BoxDecoration(
             color: const Color(0xFFFFB300).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
@@ -733,7 +740,7 @@ class _ModeBadge extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: tablet ? 14 : 9,
+              fontSize: 9 * scale,
               fontWeight: FontWeight.bold,
               color: Colors.black,
               letterSpacing: 0.8,
@@ -756,7 +763,7 @@ class _ModeBadge extends StatelessWidget {
           '→ $label',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: tablet ? 16 : 10,
+            fontSize: 10 * scale,
             fontWeight: FontWeight.w600,
             color: onCard.withValues(alpha: 0.7),
             letterSpacing: 0.5,

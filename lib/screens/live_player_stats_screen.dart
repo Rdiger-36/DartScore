@@ -168,7 +168,15 @@ class LivePlayerStatsPanel extends StatelessWidget {
   /// so the panel follows the turn on its own.
   final int slotIndex;
 
-  const LivePlayerStatsPanel({super.key, required this.slotIndex});
+  /// Whether to keep the header card that repeats name, score and checkout.
+  /// A layout that already shows the score card beside this panel turns it off.
+  final bool showHeader;
+
+  const LivePlayerStatsPanel({
+    super.key,
+    required this.slotIndex,
+    this.showHeader = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +197,7 @@ class LivePlayerStatsPanel extends StatelessWidget {
 
             return _SlotStatsPage(
               padding:       EdgeInsets.fromLTRB(side, 8, side, 20),
+              showHeader:    showHeader,
               state:         states[index],
               game:          game,
               isActiveSlot:  index == provider.currentPlayerIndex,
@@ -228,6 +237,8 @@ class _SlotStatsPage extends StatelessWidget {
   /// [contentPadding], which measures the whole window and would therefore
   /// overshoot inside a pane that is only a part of it.
   final EdgeInsetsGeometry? padding;
+  /// Whether the header card is part of the page.
+  final bool showHeader;
 
   const _SlotStatsPage({
     required this.state,
@@ -240,6 +251,7 @@ class _SlotStatsPage extends StatelessWidget {
     required this.liveBust,
     required this.dartsInVisit,
     this.padding,
+    this.showHeader = true,
   });
 
   @override
@@ -253,16 +265,18 @@ class _SlotStatsPage extends StatelessWidget {
     return ListView(
       padding: padding ?? contentPadding(context, top: 8, bottom: 24, innerH: 12),
       children: [
-        _HeaderCard(
-          state:         state,
-          game:          game,
-          isActiveSlot:  isActiveSlot,
-          isNextSlot:    isNextSlot,
-          liveRemaining: liveRemaining,
-          liveBust:      liveBust,
-          dartsInVisit:  dartsInVisit,
-        ),
-        const SizedBox(height: 10),
+        if (showHeader) ...[
+          _HeaderCard(
+            state:         state,
+            game:          game,
+            isActiveSlot:  isActiveSlot,
+            isNextSlot:    isNextSlot,
+            liveRemaining: liveRemaining,
+            liveBust:      liveBust,
+            dartsInVisit:  dartsInVisit,
+          ),
+          const SizedBox(height: 10),
+        ],
         _RulesCard(state: state, game: game),
         const SizedBox(height: 10),
         _SectionCard(
