@@ -178,15 +178,11 @@ class SidePaneLayout extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final total = constraints.maxWidth;
-        // On a window too narrow for two full panes the dp floor would cross
-        // itself, so it never claims more than half.
-        final floor = min(minPaneWidth, total / 2);
-        // The divider sits between the two, so what one pane leaves the other
-        // is the rest minus its width.
-        final width = (total * fraction).clamp(
-          max(total * kMinSplitFraction, floor),
-          min(total * kMaxSplitFraction, total - floor - kDividerHitWidth),
-        ).toDouble();
+        final width = paneWidthFor(
+          total: total,
+          fraction: fraction,
+          minPaneWidth: minPaneWidth,
+        );
 
         // A drag moves the divider itself, so the sign follows the side the
         // input is on: dragging right grows a pane on the left and shrinks one
@@ -213,6 +209,26 @@ class SidePaneLayout extends StatelessWidget {
       },
     );
   }
+}
+
+/// How wide the first pane of a [SidePaneLayout] ends up, for a caller that
+/// has to know before the layout runs.
+///
+/// The share alone does not answer it: neither pane may fall below
+/// [minPaneWidth], and the divider takes its own width out of what is left, so
+/// what one pane leaves the other is the rest minus that.
+double paneWidthFor({
+  required double total,
+  required double fraction,
+  required double minPaneWidth,
+}) {
+  // On a window too narrow for two full panes the dp floor would cross itself,
+  // so it never claims more than half.
+  final floor = min(minPaneWidth, total / 2);
+  return (total * fraction).clamp(
+    max(total * kMinSplitFraction, floor),
+    min(total * kMaxSplitFraction, total - floor - kDividerHitWidth),
+  ).toDouble();
 }
 
 /// The line between two panes, and the grip that drags it.

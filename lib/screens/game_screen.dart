@@ -91,13 +91,7 @@ class _GameScreenState extends State<GameScreen> {
         // of text, not a number read from the other side of the room.
         final hintScale = scale.clamp(1.0, 1.5).toDouble();
 
-        // Scoreboard and checkout hint travel together in every layout: the
-        // hint belongs to the score above it and is useless apart from it.
-        final scoreboardBlock = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Scoreboard(
+        final scoreboard = _Scoreboard(
               states: states,
               currentIdx: currentIdx,
               game: game,
@@ -110,28 +104,38 @@ class _GameScreenState extends State<GameScreen> {
               playerCheckIns: playerCheckIns,
               playerCheckOuts: playerCheckOuts,
               playerCheckedIn: playerCheckedIn,
-              scale: scale,
-              onSlotTap: (i) => Navigator.of(context)
-                  .push(LivePlayerStatsRoute<void>(slotIndex: i)),
-            ),
-            SizedBox(height: 6 * scale),
-            // Fixed-height area for the checkout hint so buttons never shift
-            SizedBox(
-              height: 62 * hintScale,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: FinishSuggestionWidget(
-                  key: ValueKey(
-                    '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
-                  ),
-                  remaining: liveBust ? current.remaining : displayRemaining,
-                  favoriteDouble: current.player.favoriteDouble,
-                  dartsThrown: liveDartsInVisit,
-                  checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
-                  scale: hintScale,
-                ),
+          scale: scale,
+          onSlotTap: (i) => Navigator.of(context)
+              .push(LivePlayerStatsRoute<void>(slotIndex: i)),
+        );
+
+        // Fixed-height area for the checkout hint so buttons never shift
+        final checkoutHint = SizedBox(
+          height: 62 * hintScale,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: FinishSuggestionWidget(
+              key: ValueKey(
+                '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
               ),
+              remaining: liveBust ? current.remaining : displayRemaining,
+              favoriteDouble: current.player.favoriteDouble,
+              dartsThrown: liveDartsInVisit,
+              checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
+              scale: hintScale,
             ),
+          ),
+        );
+
+        // The hint belongs to the score, and travels with it unless a layout
+        // finds it a better place.
+        final scoreboardBlock = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            scoreboard,
+            SizedBox(height: 6 * scale),
+            checkoutHint,
           ],
         );
 
@@ -227,6 +231,9 @@ class _GameScreenState extends State<GameScreen> {
               child: tablet
                   ? _TabletBody(
                       scoreboardBlock: scoreboardBlock,
+                      scoreboard: scoreboard,
+                      checkoutHint: checkoutHint,
+                      scoreboardGap: 6 * scale,
                       currentIdx: currentIdx,
                       landscape: landscape,
                     )
@@ -315,11 +322,18 @@ class _PhoneBody extends StatelessWidget {
 /// score card that size.
 class _TabletBody extends StatelessWidget {
   final Widget scoreboardBlock;
+  /// The two halves of that block, for the portrait layout that separates them.
+  final Widget scoreboard;
+  final Widget checkoutHint;
+  final double scoreboardGap;
   final int currentIdx;
   final bool landscape;
 
   const _TabletBody({
     required this.scoreboardBlock,
+    required this.scoreboard,
+    required this.checkoutHint,
+    required this.scoreboardGap,
     required this.currentIdx,
     required this.landscape,
   });
@@ -356,24 +370,52 @@ class _TabletBody extends StatelessWidget {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        scoreboardBlock,
-        Expanded(
-          child: SidePaneLayout(
-            side: side,
-            fraction: layout.splitFraction(SplitPane.game, landscape: false),
-            onFractionChanged: (f) =>
-                layout.setSplitFraction(SplitPane.game, f, landscape: false),
-            onFractionSettled: () {
-              layout.persistSplitFraction(SplitPane.game, landscape: false);
-            },
-            primary: const DartboardInput(fillHeight: true),
-            secondary: stats,
-          ),
-        ),
-      ],
+    final fraction = layout.splitFraction(SplitPane.game, landscape: false);
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Dragged wide enough, the input puts its actions beside the grid and
+        // the column above them is short enough to carry the checkout hint. It
+        // reads better there, right over the field the player is aiming at,
+        // than across the top of the screen.
+        final paneWidth = paneWidthFor(
+          total: box.maxWidth,
+          fraction: fraction,
+          minPaneWidth: kMinPaneWidth,
+        );
+        final hintOverInput = DartboardInput.usesSideActions(paneWidth);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (hintOverInput) scoreboard else scoreboardBlock,
+            Expanded(
+              child: SidePaneLayout(
+                side: side,
+                fraction: fraction,
+                onFractionChanged: (f) => layout
+                    .setSplitFraction(SplitPane.game, f, landscape: false),
+                onFractionSettled: () {
+                  layout.persistSplitFraction(SplitPane.game,
+                      landscape: false);
+                },
+                primary: hintOverInput
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: scoreboardGap),
+                          checkoutHint,
+                          const Expanded(
+                              child: DartboardInput(fillHeight: true)),
+                        ],
+                      )
+                    : const DartboardInput(fillHeight: true),
+                secondary: stats,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
