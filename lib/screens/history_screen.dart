@@ -10,6 +10,7 @@ import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../providers/shanghai_provider.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/game_labels.dart';
@@ -305,6 +306,9 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   Widget build(BuildContext context) {
     final tablet = isTabletLayout(context);
+    // The divider is one setting for the whole app: wherever two panes share a
+    // screen, they share the position the player dragged them to.
+    final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -391,8 +395,10 @@ class _HistoryScreenState extends State<HistoryScreen>
 
           return SidePaneLayout(
             side: InputSide.left,
-            fraction: kListPaneFraction,
+            fraction: layout!.splitFraction,
             minPaneWidth: kMinListPaneWidth,
+            onFractionChanged: layout.setSplitFraction,
+            onFractionSettled: layout.persistSplitFraction,
             primary: tabs,
             secondary: stillThere
                 ? _DetailPane(

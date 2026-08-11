@@ -5,7 +5,11 @@ import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/screens/history_game_summary_screen.dart';
 import 'package:dartscore_app/screens/history_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:dartscore_app/providers/tablet_layout_provider.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/test_app.dart';
 import '../support/test_db.dart';
@@ -17,8 +21,11 @@ void main() {
     useInMemoryDatabase();
 
     late List<Player> players;
+    late TabletLayoutProvider layout;
 
     setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      layout = TabletLayoutProvider();
       players = await insertPlayers(['Ada', 'Zoe']);
       final ids = players.map((p) => p.id!).toList();
       final db = DbHelper.instance;
@@ -56,7 +63,12 @@ void main() {
     Future<void> pumpHistory(WidgetTester tester,
         {Size size = const Size(400, 1200)}) async {
       usePhoneSurface(tester, size: size);
-      await tester.pumpWidget(testApp(const HistoryScreen()));
+      await tester.pumpWidget(
+        ChangeNotifierProvider<TabletLayoutProvider>.value(
+          value: layout,
+          child: testApp(const HistoryScreen()),
+        ),
+      );
       await pumpUntilLoaded(tester);
     }
 
@@ -171,6 +183,27 @@ void main() {
 
       await openFinished(tester);
       expect(find.textContaining('Pick a game'), findsOneWidget);
+    });
+
+    testWidgets('shares the divider position with the rest of the app',
+        (tester) async {
+      // Set elsewhere, in the game, and read here.
+      layout.setSplitFraction(0.62);
+
+      await pumpHistory(tester, size: const Size(1180, 820));
+      await openFinished(tester);
+
+      // Measured at the divider: the list inside the pane keeps its own
+      // readable width and sits centred in whatever the pane gives it.
+      final divider = tester.getRect(find.byKey(kPaneDividerKey));
+      expect(divider.left, closeTo(1180 * 0.62, 4));
+
+      // And a drag here writes back to the same setting.
+      await tester.drag(find.byKey(kPaneDividerKey), const Offset(-120, 0),
+          touchSlopX: 0);
+      await tester.pumpAndSettle();
+
+      expect(layout.splitFraction, lessThan(0.62));
     });
   });
 }

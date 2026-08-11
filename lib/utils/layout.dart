@@ -116,9 +116,8 @@ class _ScaledTextScaler extends TextScaler {
   double get textScaleFactor => scale(14) / 14;
 }
 
-/// Share of the width the list takes in a master detail layout, and the floor
-/// under it. A list of dates and names needs less room than what it opens.
-const double kListPaneFraction = 0.38;
+/// Narrowest the list of a master detail layout may be dragged to. A list of
+/// dates and names needs less room than what it opens, but not much less.
 const double kMinListPaneWidth = 320.0;
 
 /// Width of the draggable divider between two panes. Wide enough to grab,
