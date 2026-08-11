@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
+import '../providers/input_side_provider.dart';
 import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
@@ -19,14 +20,20 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: Text(l.settingsTitle)),
       body: ListView(
         padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
-        children: const [
-          _ThemeSection(),
-          SizedBox(height: 20),
-          _LanguageSection(),
-          SizedBox(height: 20),
-          _SupportSection(),
-          SizedBox(height: 20),
-          _AboutSection(),
+        children: [
+          const _ThemeSection(),
+          const SizedBox(height: 20),
+          const _LanguageSection(),
+          const SizedBox(height: 20),
+          // Only a tablet ever puts the input beside a second pane. On a phone
+          // the setting would have nothing to move.
+          if (isTabletLayout(context)) ...[
+            const _InputSideSection(),
+            const SizedBox(height: 20),
+          ],
+          const _SupportSection(),
+          const SizedBox(height: 20),
+          const _AboutSection(),
         ],
       ),
     );
@@ -50,7 +57,7 @@ class _ThemeSection extends StatelessWidget {
       icon: Icons.palette_outlined,
       child: Column(
         children: [
-          _ThemeTile(
+          _ChoiceTile(
             label: l.system,
             subtitle: l.systemDesc,
             icon: Icons.brightness_auto_rounded,
@@ -59,7 +66,7 @@ class _ThemeSection extends StatelessWidget {
             cs: cs,
           ),
           const Divider(height: 1),
-          _ThemeTile(
+          _ChoiceTile(
             label: l.light,
             subtitle: l.lightDesc,
             icon: Icons.light_mode_rounded,
@@ -68,7 +75,7 @@ class _ThemeSection extends StatelessWidget {
             cs: cs,
           ),
           const Divider(height: 1),
-          _ThemeTile(
+          _ChoiceTile(
             label: l.dark,
             subtitle: l.darkDesc,
             icon: Icons.dark_mode_rounded,
@@ -82,8 +89,9 @@ class _ThemeSection extends StatelessWidget {
   }
 }
 
-/// A selectable radio tile for one theme option.
-class _ThemeTile extends StatelessWidget {
+/// A selectable tile for one option of a settings section, marked with a
+/// check when it is the active choice.
+class _ChoiceTile extends StatelessWidget {
   final String label;
   final String subtitle;
   final IconData icon;
@@ -91,7 +99,7 @@ class _ThemeTile extends StatelessWidget {
   final VoidCallback onTap;
   final ColorScheme cs;
 
-  const _ThemeTile({
+  const _ChoiceTile({
     required this.label,
     required this.subtitle,
     required this.icon,
@@ -198,6 +206,47 @@ class _LangTile extends StatelessWidget {
       trailing:
           selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
       onTap: onTap,
+    );
+  }
+}
+
+// ── Input side ────────────────────────────────────────────────────────────────
+
+/// Settings section to choose the side the score input sits on, shown only on
+/// screens wide enough to place it beside a second pane.
+class _InputSideSection extends StatelessWidget {
+  const _InputSideSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<InputSideProvider>();
+    final cs = Theme.of(context).colorScheme;
+    final l = context.l10n;
+
+    return _Card(
+      title: l.inputSide,
+      icon: Icons.swap_horiz_rounded,
+      child: Column(
+        children: [
+          _ChoiceTile(
+            label: l.inputSideRight,
+            subtitle: l.inputSideRightDesc,
+            icon: Icons.align_horizontal_right_rounded,
+            selected: provider.side == InputSide.right,
+            onTap: () => provider.setSide(InputSide.right),
+            cs: cs,
+          ),
+          const Divider(height: 1),
+          _ChoiceTile(
+            label: l.inputSideLeft,
+            subtitle: l.inputSideLeftDesc,
+            icon: Icons.align_horizontal_left_rounded,
+            selected: provider.side == InputSide.left,
+            onTap: () => provider.setSide(InputSide.left),
+            cs: cs,
+          ),
+        ],
+      ),
     );
   }
 }
