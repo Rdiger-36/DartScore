@@ -13,7 +13,7 @@ import 'shanghai_screen.dart';
 
 /// Detailed view of a finished Shanghai game from history, rebuilt by replaying
 /// its stored throws through a fresh provider.
-class ShanghaiHistorySummaryScreen extends StatelessWidget {
+class ShanghaiHistorySummaryScreen extends StatefulWidget {
   final ShanghaiGame game;
   final List<Player> players;
 
@@ -30,6 +30,26 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
   });
 
   @override
+  State<ShanghaiHistorySummaryScreen> createState() =>
+      _ShanghaiHistorySummaryScreenState();
+}
+
+class _ShanghaiHistorySummaryScreenState extends State<ShanghaiHistorySummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<ShanghaiProvider> _future = _load();
+
+  @override
+  void didUpdateWidget(ShanghaiHistorySummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return _wrap(
       context,
@@ -37,7 +57,7 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<ShanghaiProvider>(
-            future: _load(),
+            future: _future,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
@@ -46,7 +66,7 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
               if (provider == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, players: players, provider: provider);
+              return _Body(game: widget.game, players: widget.players, provider: provider);
             },
           ),
         ),
@@ -55,21 +75,21 @@ class ShanghaiHistorySummaryScreen extends StatelessWidget {
   }
 
   /// Puts the screen around [content], or hands it over bare when this view is
-  /// embedded in a pane that already has a title bar of its own.
-  Widget _wrap(BuildContext context, Widget content) => embedded
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
       ? content
       : Scaffold(
           appBar: AppBar(
-            title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
           ),
           body: content,
         );
 
-  /// Replays the game's throws via a standalone provider instance, reusing
+  /// Replays the widget.game's throws via a standalone provider instance, reusing
   /// its variant-aware scoring/winner logic instead of duplicating it here.
   Future<ShanghaiProvider> _load() async {
     final provider = ShanghaiProvider();
-    await provider.resumeGame(game, players);
+    await provider.resumeGame(widget.game, widget.players);
     return provider;
   }
 }

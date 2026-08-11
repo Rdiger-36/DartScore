@@ -100,5 +100,23 @@ void main() {
         expect(button.right, lessThan(divider.left));
       }
     });
+
+    testWidgets('does not start over while the divider is dragged',
+        (tester) async {
+      await pumpPlayers(tester, const Size(1180, 820));
+      await openStats(tester, 'Zoe');
+      await pumpUntilLoaded(tester);
+
+      // Loaded once: no spinner left.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      // A drag rebuilds the pane on every frame. Reading the database again
+      // for each of them would put the spinner back for the whole gesture.
+      await tester.drag(find.byKey(kPaneDividerKey), const Offset(80, 0),
+          touchSlopX: 0);
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
   });
 }

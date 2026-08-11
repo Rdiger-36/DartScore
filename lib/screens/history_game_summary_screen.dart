@@ -20,7 +20,7 @@ import 'game_screen.dart';
 
 /// Detailed view of a finished X01 game from history: per-player stats and the
 /// full throw log, loaded from the stored throws.
-class HistoryGameSummaryScreen extends StatelessWidget {
+class HistoryGameSummaryScreen extends StatefulWidget {
   final Game game;
   final List<Player> players;
 
@@ -37,6 +37,26 @@ class HistoryGameSummaryScreen extends StatelessWidget {
   });
 
   @override
+  State<HistoryGameSummaryScreen> createState() =>
+      _HistoryGameSummaryScreenState();
+}
+
+class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<_GameData> _future = _load();
+
+  @override
+  void didUpdateWidget(HistoryGameSummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return _wrap(
       context,
@@ -44,7 +64,7 @@ class HistoryGameSummaryScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<_GameData>(
-        future: _load(),
+        future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -53,7 +73,7 @@ class HistoryGameSummaryScreen extends StatelessWidget {
           if (data == null || data.playerThrows.isEmpty) {
             return Center(child: Text(context.l10n.noThrowData));
           }
-          return _SummaryBody(game: game, data: data, players: players);
+          return _SummaryBody(game: widget.game, data: data, players: widget.players);
         },
       ),
         ),
@@ -62,20 +82,20 @@ class HistoryGameSummaryScreen extends StatelessWidget {
   }
 
   /// Puts the screen around [content], or hands it over bare when this view is
-  /// embedded in a pane that already has a title bar of its own.
-  Widget _wrap(BuildContext context, Widget content) => embedded
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
       ? content
       : Scaffold(
           appBar: AppBar(
-            title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
           ),
           body: content,
         );
 
-  /// Loads the game's throws and groups them by player.
+  /// Loads the widget.game's throws and groups them by player.
   Future<_GameData> _load() async {
     final db = DbHelper.instance;
-    final allThrows = await db.getThrowsForGame(game.id!);
+    final allThrows = await db.getThrowsForGame(widget.game.id!);
     final Map<int, List<DartThrow>> byPlayer = {};
     for (final t in allThrows) {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
