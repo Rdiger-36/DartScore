@@ -15,12 +15,18 @@ class FinishSuggestionWidget extends StatelessWidget {
   /// Checkout rule for the current player.
   final CheckoutMode checkoutMode;
 
+  /// How much larger than on a phone the hint renders. A tablet is read from
+  /// across the room, and the route to the double is one of the two things on
+  /// the screen a player actually looks up mid visit.
+  final double scale;
+
   const FinishSuggestionWidget({
     super.key,
     required this.remaining,
     this.favoriteDouble,
     this.dartsThrown = 0,
     this.checkoutMode = CheckoutMode.doubleOut,
+    this.scale = 1.0,
   });
 
   @override
@@ -48,11 +54,12 @@ class FinishSuggestionWidget extends StatelessWidget {
         final bgColor = tripleContainerColor(context);
         final fgColor = onTripleContainerColor(context);
         return Container(
-          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: EdgeInsets.fromLTRB(12, 4 * scale, 12, 0),
+          padding: EdgeInsets.symmetric(
+              horizontal: 12 * scale, vertical: 8 * scale),
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(10 * scale),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -62,14 +69,16 @@ class FinishSuggestionWidget extends StatelessWidget {
                 route: routes.primary!,
                 color: fgColor,
                 bold: true,
+                scale: scale,
               ),
               // ── Alternative route ────────────────────────────────────
               if (routes.alternative != null) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4 * scale),
                 _RouteRow(
                   route: routes.alternative!,
                   color: fgColor.withValues(alpha: 0.65),
                   bold: false,
+                  scale: scale,
                 ),
               ],
             ],
@@ -81,11 +90,12 @@ class FinishSuggestionWidget extends StatelessWidget {
       // toward the favorite double exists for the next visit.
       if (routes.alternative != null) {
         return Container(
-          margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: EdgeInsets.fromLTRB(12, 4 * scale, 12, 0),
+          padding: EdgeInsets.symmetric(
+              horizontal: 12 * scale, vertical: 8 * scale),
           decoration: BoxDecoration(
             color: cs.tertiaryContainer,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(10 * scale),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -93,14 +103,16 @@ class FinishSuggestionWidget extends StatelessWidget {
               Text(
                 l10n.noCheckoutPossible,
                 style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
                   color: cs.onTertiaryContainer,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4 * scale),
               _RouteRow(
                 route: routes.alternative!,
                 color: cs.onTertiaryContainer.withValues(alpha: 0.75),
                 bold: false,
+                scale: scale,
               ),
             ],
           ),
@@ -110,11 +122,12 @@ class FinishSuggestionWidget extends StatelessWidget {
 
     // No checkout possible: same red container as checkout hint, same sizing behaviour
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: EdgeInsets.fromLTRB(12, 4 * scale, 12, 0),
+      padding:
+          EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 8 * scale),
       decoration: BoxDecoration(
         color: cs.tertiaryContainer,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(10 * scale),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -122,6 +135,7 @@ class FinishSuggestionWidget extends StatelessWidget {
           Text(
             l10n.noCheckoutPossible,
             style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
               color: cs.onTertiaryContainer,
             ),
           ),
@@ -136,11 +150,13 @@ class _RouteRow extends StatelessWidget {
   final List<String> route;
   final Color color;
   final bool bold;
+  final double scale;
 
   const _RouteRow({
     required this.route,
     required this.color,
     required this.bold,
+    this.scale = 1.0,
   });
 
   @override
@@ -154,10 +170,10 @@ class _RouteRow extends StatelessWidget {
         for (int i = 0; i < route.length; i++) ...[
           if (i > 0)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              padding: EdgeInsets.symmetric(horizontal: 6 * scale),
               child: Icon(
                 Icons.arrow_forward_rounded,
-                size: 13,
+                size: 13 * scale,
                 color: color.withValues(alpha: 0.7),
               ),
             ),
@@ -167,6 +183,7 @@ class _RouteRow extends StatelessWidget {
             isLast: i == route.length - 1,
             bold: bold,
             theme: theme,
+            scale: scale,
           ),
         ],
       ],
@@ -181,6 +198,7 @@ class _DartChip extends StatelessWidget {
   final bool isLast;
   final bool bold;
   final ThemeData theme;
+  final double scale;
 
   const _DartChip({
     required this.label,
@@ -188,6 +206,7 @@ class _DartChip extends StatelessWidget {
     required this.isLast,
     required this.bold,
     required this.theme,
+    this.scale = 1.0,
   });
 
   @override
@@ -196,6 +215,7 @@ class _DartChip extends StatelessWidget {
     return Text(
       label,
       style: theme.textTheme.bodySmall?.copyWith(
+        fontSize: (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
         color: color,
         fontWeight: bold ? FontWeight.bold : FontWeight.normal,
         decoration: isLast ? TextDecoration.underline : null,
