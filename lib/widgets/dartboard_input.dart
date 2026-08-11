@@ -32,8 +32,17 @@ class DartEntry {
 /// [_compactHeight] the grid instead takes exactly what the other rows leave,
 /// so the Miss/Bull/Done row stays on screen on a short phone no matter how far
 /// the scoreboard above has grown.
+///
+/// [fillHeight] asks for the second behaviour whatever the height, which is
+/// what a tablet pane wants: there the input is given far more height than it
+/// needs, and a column that keeps its phone size would float in the middle of
+/// it. The buttons then grow towards square rather than staying flat.
 class DartboardInput extends StatefulWidget {
-  const DartboardInput({super.key});
+  /// Whether the column should fill the height it is given rather than keep its
+  /// preferred size.
+  final bool fillHeight;
+
+  const DartboardInput({super.key, this.fillHeight = false});
 
   @override
   State<DartboardInput> createState() => _DartboardInputState();
@@ -47,6 +56,11 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Width to height ratio of a field button when there is room for it.
   static const double _preferredAspectRatio = 1.4;
+
+  /// The same ratio for a pane that hands the input more height than it needs.
+  /// Nearly square, because a tablet has the room and a taller button is an
+  /// easier target.
+  static const double _filledAspectRatio = 1.05;
 
   /// Shortest a field button may get. If even that does not fit, the grid
   /// scrolls inside its box rather than pushing the action row off screen.
@@ -96,14 +110,18 @@ class _DartboardInputState extends State<DartboardInput> {
   /// The number grid sized to the box it is given: the row height follows from
   /// the space left over, clamped so the buttons stay tappable and never grow
   /// past their preferred size. Only if the clamp binds does the grid scroll.
-  Widget _fittedGrid({required double spacing, required bool disabled}) {
+  Widget _fittedGrid({
+    required double spacing,
+    required bool disabled,
+    required double maxAspectRatio,
+  }) {
     return LayoutBuilder(
       builder: (context, box) {
         final buttonWidth = (box.maxWidth - 4 * spacing) / 5;
         final leftover    = (box.maxHeight - 3 * spacing) / 4;
         final rowHeight   = leftover.clamp(
           _minFieldHeight,
-          buttonWidth / _preferredAspectRatio,
+          buttonWidth / maxAspectRatio,
         );
         final scrolls = rowHeight > leftover;
 
@@ -144,6 +162,9 @@ class _DartboardInputState extends State<DartboardInput> {
         // absorb whatever the rows around it leave, so the layout fits by
         // construction instead of by a guessed row height.
         final compact = constraints.maxHeight < _compactHeight;
+        // Both a short screen and a tall pane want the grid to take the height
+        // that is left; they differ only in how far a button may grow.
+        final fitted  = compact || widget.fillHeight;
         final gridSpacing = compact ? 4.0 : 6.0;
         final segmentVPadding = compact ? 4.0 : 8.0;
         final gapAfterProgress = compact ? 6.0 : 10.0;
@@ -153,7 +174,7 @@ class _DartboardInputState extends State<DartboardInput> {
         final bottomPad = compact ? 8.0 : 14.0;
 
         final column = Column(
-          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: fitted ? MainAxisSize.max : MainAxisSize.min,
           children: [
             // Dart progress row with undo/redo
             _DartProgressRow(
@@ -186,13 +207,16 @@ class _DartboardInputState extends State<DartboardInput> {
             ),
             SizedBox(height: gapAfterSegment),
             // Number grid
-            if (compact)
+            if (fitted)
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
                   child: _fittedGrid(
                     spacing: gridSpacing,
                     disabled: dartCount >= 3,
+                    maxAspectRatio: widget.fillHeight
+                        ? _filledAspectRatio
+                        : _preferredAspectRatio,
                   ),
                 ),
               )
@@ -263,7 +287,7 @@ class _DartboardInputState extends State<DartboardInput> {
 
         // The fitted column already ends exactly at the bottom of its box. Only the
         // preferred layout can outgrow the space it was given, so only it scrolls.
-        if (compact) return sized;
+        if (fitted) return sized;
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
