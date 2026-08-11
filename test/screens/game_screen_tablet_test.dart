@@ -139,6 +139,34 @@ void main() {
       expect(done.top - field.bottom, lessThan(80));
     });
 
+    testWidgets('puts the actions beside the numbers in landscape',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final done  = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+
+      // Beside, not below, and the column ends where the grid ends rather than
+      // floating next to it.
+      expect(miss.left, greaterThan(field.right));
+      expect((done.bottom - field.bottom).abs(), lessThan(2));
+      // The height the row under the grid used to take went to the numbers.
+      expect(field.height, greaterThan(70));
+    });
+
+    testWidgets('keeps the actions under the numbers in portrait',
+        (tester) async {
+      // Half of a portrait tablet is too narrow to give a column away: the
+      // numbers would pay for it in width.
+      await pumpGame(tester, surface: _tabletPortrait);
+
+      final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
+      final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+
+      expect(miss.top, greaterThan(field.bottom));
+    });
+
     testWidgets('fits the larger cards on a small tablet', (tester) async {
       // The tablet sizes are the tallest the scoreboard gets, so the smallest
       // tablet on its side is where they run out of room first. An overflow
