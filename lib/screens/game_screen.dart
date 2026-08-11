@@ -140,7 +140,13 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ],
             ),
-            body: Center(
+            // The bottom inset has to be consumed here, at the bottom of the
+            // screen. Left to the scroll views further down, a GridView takes
+            // it for its own padding, which on a phone with a home indicator
+            // opens a gap above the action row instead of below it.
+            body: SafeArea(
+              top: false,
+              child: Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction, maxWidth: kMaxGameWidth)),
                 child: Column(
@@ -196,6 +202,7 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
               ),
+            ),
             ),
           ),
         );
