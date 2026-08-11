@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -69,14 +71,10 @@ class _DartboardInputState extends State<DartboardInput> {
   static const double _preferredAspectRatio = 1.4;
 
   /// The same ratio for a pane that hands the input more height than it needs.
-  /// A button may grow past square there, because a tablet has the room and a
-  /// taller button is an easier target.
-  static const double _filledAspectRatio = 0.8;
-
-  /// And further still in a pane too narrow for the actions to sit beside the
-  /// grid: that pane is tall and thin, so without this the height the actions
-  /// do not take would stand around as a hole under the numbers.
-  static const double _narrowFilledAspectRatio = 0.62;
+  /// A button may grow well past square there: a tablet has the room, a taller
+  /// button is an easier target, and the height a button does not take stands
+  /// around as a gap between the rows instead.
+  static const double _filledAspectRatio = 0.62;
 
   /// Shortest a field button may get. If even that does not fit, the grid
   /// scrolls inside its box rather than pushing the action row off screen.
@@ -325,18 +323,26 @@ class _DartboardInputState extends State<DartboardInput> {
         // gains something from the size anyway.
         final tallPane = widget.fillHeight &&
             constraints.maxHeight / constraints.maxWidth > 1.6;
-        final rowScale = tallPane ? 1.35 : 1.0;
         final actionColumnWidth = sideActions
             ? (constraints.maxWidth * 0.2).clamp(100, 140).toDouble()
             : 0.0;
+        // The visit display and the modifier follow the size of a number
+        // button, so a pane does not end up with buttons twice their phone
+        // size and two rows still at it, separated by the gaps that are left
+        // over. Width, not height: it is what decides how wide a button gets,
+        // and it does not depend on the rows being measured here.
+        final buttonWidth = (constraints.maxWidth -
+                2 * _sidePadding -
+                actionColumnWidth -
+                (sideActions ? _sidePadding : 0) -
+                4 * (compact ? 4.0 : 6.0)) /
+            5;
+        final rowScale = widget.fillHeight
+            ? max((buttonWidth / 68).clamp(1.0, 1.6), tallPane ? 1.35 : 1.0)
+            : 1.0;
         final gridSpacing = compact ? 4.0 : 6.0;
-        final segmentVPadding = compact
-            ? 4.0
-            : tallPane
-                ? 16.0
-                : widget.fillHeight
-                    ? 14.0
-                    : 8.0;
+        final segmentVPadding =
+            compact ? 4.0 : (widget.fillHeight ? 8.0 * rowScale : 8.0);
         // More air above the switch than below it, so it reads with the grid
         // it changes rather than with the visit above it.
         final gapAfterProgress = compact ? 6.0 : (widget.fillHeight ? 20.0 : 10.0);
@@ -392,9 +398,14 @@ class _DartboardInputState extends State<DartboardInput> {
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all(
                       EdgeInsets.symmetric(vertical: segmentVPadding)),
-                  textStyle: WidgetStateProperty.all(widget.fillHeight
-                      ? theme.textTheme.titleMedium
-                      : theme.textTheme.labelMedium),
+                  textStyle: WidgetStateProperty.all(
+                      (widget.fillHeight
+                              ? theme.textTheme.titleMedium
+                              : theme.textTheme.labelMedium)
+                          ?.copyWith(
+                    fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) *
+                        (widget.fillHeight ? rowScale * 1.15 : 1.0),
+                  )),
                   // The chosen segment wears the colour the number buttons are
                   // about to take, so the switch shows what it does rather
                   // than only naming it.
@@ -419,11 +430,9 @@ class _DartboardInputState extends State<DartboardInput> {
                   child: _fittedGridArea(
                     spacing: gridSpacing,
                     disabled: dartCount >= 3,
-                    maxAspectRatio: !widget.fillHeight
-                        ? _preferredAspectRatio
-                        : sideActions
-                            ? _filledAspectRatio
-                            : _narrowFilledAspectRatio,
+                    maxAspectRatio: widget.fillHeight
+                        ? _filledAspectRatio
+                        : _preferredAspectRatio,
                     sideActions: sideActions,
                     actionWidth: actionColumnWidth,
                     actionVPadding: actionVPadding,
