@@ -113,6 +113,7 @@ class _PlayerDialogState extends State<PlayerDialog> {
                         ),
                         const SizedBox(height: 16),
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(l.favDoublesTitle, style: theme.textTheme.titleSmall),
                             if (_selectedDouble != null) ...[

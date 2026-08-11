@@ -100,6 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                   // ── Favorite double (required) ────────────────────────────
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(l.favDoublesTitle, style: theme.textTheme.titleSmall),
                       if (_selectedDouble != null) ...[
