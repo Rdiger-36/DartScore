@@ -26,6 +26,12 @@ class DartEntry {
 /// modifier, miss and bull. Reads the current player's in-progress visit and
 /// undo/redo state from [GameProvider], which also enforces check-in/check-out
 /// rules and detects busts. Only the active modifier is local UI state.
+///
+/// Two layouts, picked from the height the scoreboard leaves over. With room to
+/// spare the rows keep their preferred size and the column is centred. Below
+/// [_compactHeight] the grid instead takes exactly what the other rows leave,
+/// so the Miss/Bull/Done row stays on screen on a short phone no matter how far
+/// the scoreboard above has grown.
 class DartboardInput extends StatefulWidget {
   const DartboardInput({super.key});
 
@@ -35,6 +41,22 @@ class DartboardInput extends StatefulWidget {
 
 class _DartboardInputState extends State<DartboardInput> {
   int _modifier = 1;
+
+  /// Available height below which the compact, fitted layout is used.
+  static const double _compactHeight = 420;
+
+  /// Width to height ratio of a field button when there is room for it.
+  static const double _preferredAspectRatio = 1.4;
+
+  /// Shortest a field button may get. If even that does not fit, the grid
+  /// scrolls inside its box rather than pushing the action row off screen.
+  static const double _minFieldHeight = 30;
+
+  /// Field button height below which the buttons drop their second line.
+  static const double _twoLineFieldHeight = 44;
+
+  /// Horizontal padding around the grid and the action row.
+  static const double _sidePadding = 10;
 
   static const _fields = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -47,6 +69,67 @@ class _DartboardInputState extends State<DartboardInput> {
     setState(() => _modifier = 1);
   }
 
+  /// The number grid at its preferred size, as tall as its aspect ratio makes it.
+  Widget _grid({
+    required double spacing,
+    required double aspectRatio,
+    required bool compactButtons,
+    required bool disabled,
+  }) {
+    return GridView.count(
+      crossAxisCount: 5,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: spacing,
+      crossAxisSpacing: spacing,
+      childAspectRatio: aspectRatio,
+      children: _fields.map((f) => _FieldButton(
+        field: f,
+        modifier: _modifier,
+        disabled: disabled,
+        compact: compactButtons,
+        onTap: () => _tapField(f),
+      )).toList(),
+    );
+  }
+
+  /// The number grid sized to the box it is given: the row height follows from
+  /// the space left over, clamped so the buttons stay tappable and never grow
+  /// past their preferred size. Only if the clamp binds does the grid scroll.
+  Widget _fittedGrid({required double spacing, required bool disabled}) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final buttonWidth = (box.maxWidth - 4 * spacing) / 5;
+        final leftover    = (box.maxHeight - 3 * spacing) / 4;
+        final rowHeight   = leftover.clamp(
+          _minFieldHeight,
+          buttonWidth / _preferredAspectRatio,
+        );
+        final scrolls = rowHeight > leftover;
+
+        final grid = GridView.count(
+          crossAxisCount: 5,
+          shrinkWrap: !scrolls,
+          physics: scrolls
+              ? const ClampingScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: spacing,
+          crossAxisSpacing: spacing,
+          childAspectRatio: buttonWidth / rowHeight,
+          children: _fields.map((f) => _FieldButton(
+            field: f,
+            modifier: _modifier,
+            disabled: disabled,
+            compact: rowHeight < _twoLineFieldHeight,
+            onTap: () => _tapField(f),
+          )).toList(),
+        );
+
+        return scrolls ? grid : Center(child: grid);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -57,130 +140,136 @@ class _DartboardInputState extends State<DartboardInput> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Compact mode for small screens (e.g. iPhone SE): reduce spacing and
-        // increase childAspectRatio so the grid takes less vertical space.
-        final compact = constraints.maxHeight < 420;
-        // Android reports less available height than iOS for the same visual
-        // space, which pushes it into compact mode more often. Keep the
-        // gap before the action row generous on Android even when compact.
-        final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+        // Short screens (e.g. iPhone SE) tighten the spacing and let the grid
+        // absorb whatever the rows around it leave, so the layout fits by
+        // construction instead of by a guessed row height.
+        final compact = constraints.maxHeight < _compactHeight;
         final gridSpacing = compact ? 4.0 : 6.0;
-        final gridAspectRatio = compact ? 1.7 : 1.4;
         final segmentVPadding = compact ? 4.0 : 8.0;
         final gapAfterProgress = compact ? 6.0 : 10.0;
         final gapAfterSegment = compact ? 6.0 : 12.0;
-        final gapBeforeActions = compact ? (isAndroid ? 16.0 : 10.0) : 16.0;
+        final gapBeforeActions = compact ? 10.0 : 16.0;
         final actionVPadding = compact ? 7.0 : 11.0;
         final bottomPad = compact ? 8.0 : 14.0;
 
-    return SingleChildScrollView(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: constraints.maxHeight),
-        child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-          // Dart progress row with undo/redo
-          _DartProgressRow(
-            darts: darts,
-            isNegative: provider.liveBust,
-            canUndo: provider.canUndoDart,
-            canRedo: provider.canRedoDart,
-            onUndo: provider.undoLastDart,
-            onRedo: provider.redoLastDart,
-          ),
-          SizedBox(height: gapAfterProgress),
-          // Modifier
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: SegmentedButton<int>(
-              segments: [
-                ButtonSegment(value: 1, label: Text(context.l10n.single)),
-                ButtonSegment(value: 2, label: Text(context.l10n.double_)),
-                ButtonSegment(value: 3, label: Text(context.l10n.triple)),
-              ],
-              selected: {_modifier},
-              onSelectionChanged: (s) => setState(() => _modifier = s.first),
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(
-                    EdgeInsets.symmetric(vertical: segmentVPadding)),
-                textStyle: WidgetStateProperty.all(theme.textTheme.labelMedium),
+        final column = Column(
+          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            // Dart progress row with undo/redo
+            _DartProgressRow(
+              darts: darts,
+              isNegative: provider.liveBust,
+              canUndo: provider.canUndoDart,
+              canRedo: provider.canRedoDart,
+              compact: compact,
+              onUndo: provider.undoLastDart,
+              onRedo: provider.redoLastDart,
+            ),
+            SizedBox(height: gapAfterProgress),
+            // Modifier
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+              child: SegmentedButton<int>(
+                segments: [
+                  ButtonSegment(value: 1, label: Text(context.l10n.single)),
+                  ButtonSegment(value: 2, label: Text(context.l10n.double_)),
+                  ButtonSegment(value: 3, label: Text(context.l10n.triple)),
+                ],
+                selected: {_modifier},
+                onSelectionChanged: (s) => setState(() => _modifier = s.first),
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(
+                      EdgeInsets.symmetric(vertical: segmentVPadding)),
+                  textStyle: WidgetStateProperty.all(theme.textTheme.labelMedium),
+                ),
               ),
             ),
-          ),
-          SizedBox(height: gapAfterSegment),
-          // Number grid
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: GridView.count(
-              crossAxisCount: 5,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: gridSpacing,
-              crossAxisSpacing: gridSpacing,
-              childAspectRatio: gridAspectRatio,
-              children: _fields.map((f) => _FieldButton(
-                field: f,
-                modifier: _modifier,
-                disabled: dartCount >= 3,
-                compact: compact,
-                onTap: () => _tapField(f),
-              )).toList(),
-            ),
-          ),
-          SizedBox(height: gapBeforeActions),
-          // Miss | Bull | Fertig
-          Padding(
-            padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPad),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: context.l10n.miss,
-                    icon: Icons.close,
-                    color: cs.errorContainer,
-                    textColor: cs.onErrorContainer,
+            SizedBox(height: gapAfterSegment),
+            // Number grid
+            if (compact)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+                  child: _fittedGrid(
+                    spacing: gridSpacing,
                     disabled: dartCount >= 3,
-                    verticalPadding: actionVPadding,
-                    onTap: () => _tapField(0),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  flex: 2,
-                  child: _ActionButton(
-                    label: context.l10n.bullLabel(_modifier == 2),
-                    icon: Icons.adjust,
-                    color: cs.secondaryContainer,
-                    textColor: cs.onSecondaryContainer,
-                    disabled: dartCount >= 3 || _modifier == 3,
-                    verticalPadding: actionVPadding,
-                    onTap: () => _tapField(25),
-                  ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+                child: _grid(
+                  spacing: gridSpacing,
+                  aspectRatio: _preferredAspectRatio,
+                  compactButtons: false,
+                  disabled: dartCount >= 3,
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _ActionButton(
-                    label: context.l10n.done_,
-                    icon: Icons.check,
-                    color: Colors.amber,
-                    textColor: Colors.black,
-                    disabled: dartCount == 0,
-                    verticalPadding: actionVPadding,
-                    onTap: provider.finishVisitEarly,
+              ),
+            SizedBox(height: gapBeforeActions),
+            // Miss | Bull | Fertig
+            Padding(
+              padding: EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      label: context.l10n.miss,
+                      icon: Icons.close,
+                      color: cs.errorContainer,
+                      textColor: cs.onErrorContainer,
+                      disabled: dartCount >= 3,
+                      verticalPadding: actionVPadding,
+                      onTap: () => _tapField(0),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 2,
+                    child: _ActionButton(
+                      label: context.l10n.bullLabel(_modifier == 2),
+                      icon: Icons.adjust,
+                      color: cs.secondaryContainer,
+                      textColor: cs.onSecondaryContainer,
+                      disabled: dartCount >= 3 || _modifier == 3,
+                      verticalPadding: actionVPadding,
+                      onTap: () => _tapField(25),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _ActionButton(
+                      label: context.l10n.done_,
+                      icon: Icons.check,
+                      color: Colors.amber,
+                      textColor: Colors.black,
+                      disabled: dartCount == 0,
+                      verticalPadding: actionVPadding,
+                      onTap: provider.finishVisitEarly,
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+        );
+
+        final sized = Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: column,
           ),
-            ],
+        );
+
+        // The fitted column already ends exactly at the bottom of its box. Only the
+        // preferred layout can outgrow the space it was given, so only it scrolls.
+        if (compact) return sized;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: sized,
           ),
-        ),
-        ),
-      ),
-    );
+        );
       },
     );
   }
@@ -189,11 +278,15 @@ class _DartboardInputState extends State<DartboardInput> {
 // ── Dart progress row ────────────────────────────────────────────────────────
 
 /// The three-dart progress strip with undo/redo buttons shown above the grid.
+///
+/// [compact] lays each slot out on one line instead of three, which is the
+/// cheapest 25 dp a short screen can give back to the number grid.
 class _DartProgressRow extends StatelessWidget {
   final List<DartEntry> darts;
   final bool isNegative;
   final bool canUndo;
   final bool canRedo;
+  final bool compact;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
 
@@ -202,6 +295,7 @@ class _DartProgressRow extends StatelessWidget {
     required this.isNegative,
     required this.canUndo,
     required this.canRedo,
+    required this.compact,
     required this.onUndo,
     required this.onRedo,
   });
@@ -212,8 +306,8 @@ class _DartProgressRow extends StatelessWidget {
     final cs = theme.colorScheme;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-      padding: const EdgeInsets.fromLTRB(6, 5, 4, 5),
+      margin: EdgeInsets.fromLTRB(10, compact ? 6 : 8, 10, 0),
+      padding: EdgeInsets.fromLTRB(6, compact ? 4 : 5, 4, compact ? 4 : 5),
       decoration: BoxDecoration(
         color: isNegative ? cs.errorContainer : cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
@@ -234,12 +328,13 @@ class _DartProgressRow extends StatelessWidget {
                 entry: i < darts.length ? darts[i] : null,
                 isActive: i == darts.length,
                 isNegative: isNegative,
+                compact: compact,
               ),
             ),
             if (i < 2)
               Container(
                 width: 1,
-                height: 26,
+                height: compact ? 18 : 26,
                 color: cs.outlineVariant,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
               ),
@@ -295,17 +390,23 @@ class _UndoRedoBtn extends StatelessWidget {
 
 /// One of the three dart slots in the progress strip, showing the thrown dart's
 /// label and points or a placeholder for the active/empty slot.
+///
+/// [compact] drops the points the dart scored and puts what is left on a single
+/// line. The score itself is not lost to the player: the card above counts down
+/// with every dart.
 class _DartSlot extends StatelessWidget {
   final int index;
   final DartEntry? entry;
   final bool isActive;
   final bool isNegative;
+  final bool compact;
 
   const _DartSlot({
     required this.index,
     this.entry,
     required this.isActive,
     required this.isNegative,
+    required this.compact,
   });
 
   @override
@@ -315,6 +416,38 @@ class _DartSlot extends StatelessWidget {
     final Color accent = isNegative
         ? cs.onErrorContainer
         : (isActive ? cs.primary : cs.onSurfaceVariant);
+    final valueColor = entry != null
+        ? (entry!.field == 0 ? cs.error : cs.onSurface)
+        : accent;
+
+    if (compact) {
+      // Scaled down rather than wrapped: a long label at a large text scale
+      // must not push the row onto a second line, which is what this layout
+      // exists to avoid.
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Dart ${index + 1}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: accent.withValues(alpha: isActive ? 1.0 : 0.55),
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              entry?.label ?? (isActive ? '▶' : '—'),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -331,9 +464,7 @@ class _DartSlot extends StatelessWidget {
           entry?.label ?? (isActive ? '▶' : '—'),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: entry != null
-                ? (entry!.field == 0 ? cs.error : cs.onSurface)
-                : accent,
+            color: valueColor,
           ),
         ),
         Text(

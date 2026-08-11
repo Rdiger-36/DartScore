@@ -343,7 +343,6 @@ lib/
 ├── l10n/
 │   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
 └── widgets/
-    ├── numpad.dart                         # Numeric score input pad
     ├── dartboard_input.dart                # Segment-level dartboard tap input
     ├── dartboard_icon.dart                 # Decorative dartboard SVG widget
     ├── dartboard_target_painter.dart       # Custom painter for Shanghai target view
