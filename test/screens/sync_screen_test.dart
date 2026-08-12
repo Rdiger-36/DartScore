@@ -26,8 +26,9 @@ void main() {
   /// that fake async never gets to, so it is let through explicitly. Nothing
   /// here settles: an animated transfer shows an indeterminate progress bar,
   /// and `pumpAndSettle` would wait on an animation that never ends.
-  Future<void> pumpSync(WidgetTester tester, {Player? initial}) async {
-    usePhoneSurface(tester, size: const Size(400, 1400));
+  Future<void> pumpSync(WidgetTester tester,
+      {Player? initial, Size size = const Size(400, 1400)}) async {
+    usePhoneSurface(tester, size: size);
     await tester.pumpWidget(
         testApp(SyncScreen(initialPlayer: initial), players: players));
 
@@ -61,6 +62,16 @@ void main() {
 
       expect(find.text('Scan QR code'), findsOneWidget);
       expect(find.byType(QrImageView), findsNothing);
+    });
+
+    testWidgets('is read at the size of the device it is on', (tester) async {
+      await pumpSync(tester, size: const Size(1180, 820));
+
+      // The screen is mostly text, so a tablet renders it larger, the way the
+      // other reading screens do.
+      final scaler = MediaQuery.textScalerOf(
+          tester.element(find.textContaining('QR').first));
+      expect(scaler.scale(14), greaterThan(14));
     });
 
     testWidgets('starts no camera until the user asks for one', (tester) async {
