@@ -1,3 +1,4 @@
+import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/screens/sync_screen.dart';
@@ -116,6 +117,13 @@ void main() {
       await pumpSync(tester, initial: player);
 
       expect(find.byType(ChoiceChip), findsNWidgets(SyncRange.values.length));
+    });
+
+    testWidgets('says nothing about earlier syncs when there were none',
+        (tester) async {
+      await pumpSync(tester, initial: player);
+
+      expect(find.textContaining('earlier syncs'), findsNothing);
     });
 
     testWidgets('a still code does not tick', (tester) async {
@@ -255,6 +263,38 @@ void main() {
       await letFramesRun(tester);
 
       expect(identical(code(tester), whileAway), isFalse);
+    });
+  });
+
+  group('the sync screen with a history from before this version', () {
+    useInMemoryDatabase();
+
+    setUp(() async {
+      player = (await insertPlayers(['Nik'])).single;
+      final gameId = await seedThrows(player.id!, 5);
+
+      // What the migration leaves behind: throws under no particular device,
+      // and a player that has been synced before.
+      final d = await DbHelper.instance.db;
+      await d.update('games', {'is_synced': 1, 'origin_device': ''},
+          where: 'id = ?', whereArgs: [gameId]);
+      await d.update('players', {'last_synced_at': 1000},
+          where: 'id = ?', whereArgs: [player.id]);
+
+      players = PlayersProvider();
+      await players.load();
+      player = players.players.first;
+    });
+
+    testWidgets('says how much of the payload the range has no say over',
+        (tester) async {
+      // A player that has synced before opens on a limited range, which is
+      // where the count stops answering the picker.
+      await pumpSync(tester, initial: player);
+
+      expect(find.textContaining('5 of them from earlier syncs'),
+          findsOneWidget);
+      expect(find.textContaining('always travel in full'), findsOneWidget);
     });
   });
 }

@@ -174,6 +174,43 @@ class SyncStats {
       );
 }
 
+// ── Sync origin ───────────────────────────────────────────────────────────────
+
+/// The device id standing for data that arrived before devices were told
+/// apart, whether it is stored locally or travelling in a packet.
+///
+/// It can never collide with a real [DeviceIdentity], which is always 16
+/// characters long.
+const String kLegacyOrigin = '';
+
+/// One device's aggregated history as it travels in a packet.
+///
+/// A packet carries one of these per device it knows about, the sender
+/// included. Keeping them apart is what lets a receiver drop its own
+/// contribution back out: without it, data a device sent earlier comes home
+/// folded into someone else's total and is counted twice.
+class SyncOrigin {
+  /// Which device the numbers were produced on, or [kLegacyOrigin].
+  final String device;
+
+  /// That device's stats snapshot, in the same shape as `local_stats_json`.
+  final String snapshotJson;
+
+  const SyncOrigin({required this.device, required this.snapshotJson});
+
+  /// Serializes this origin to its JSON wire representation.
+  Map<String, dynamic> toJson() => {
+        'device':   device,
+        'snapshot': snapshotJson,
+      };
+
+  /// Parses an origin from JSON.
+  factory SyncOrigin.fromJson(Map<String, dynamic> j) => SyncOrigin(
+        device:       j['device'] as String? ?? kLegacyOrigin,
+        snapshotJson: j['snapshot'] as String? ?? '',
+      );
+}
+
 // ── Sync packet ───────────────────────────────────────────────────────────────
 
 /// The full payload transferred for one player during a sync: identity,
@@ -182,12 +219,36 @@ class SyncStats {
 class SyncPacket {
   final int version;
   final String senderDevice;
+
+  /// The sending device's [DeviceIdentity], or empty when the packet came from
+  /// an app version that had none.
+  final String senderDeviceId;
+
   final String playerUuid;
   final String playerName;
   final String favoriteDoubles;
   final SyncStats stats;
   final List<SyncThrow> throws;
+
+  /// Every device's snapshot separately, the sender's included.
+  ///
+  /// Empty in packets from before devices were told apart; [localStatsJson] is
+  /// then the only snapshot there is.
+  final List<SyncOrigin> origins;
+
+  /// Which device produced each entry of [throws], in the same order.
+  ///
+  /// Empty when the packet does not say, which means the sender is the only
+  /// device the throws can be attributed to. A device passing on what it
+  /// received keeps the original attribution here, so the data can find its
+  /// way home without arriving as the passing device's own.
+  final List<String> throwOrigins;
+
   // Full historical stats snapshot (local_stats_json): includes data from cleared game history.
+  //
+  // Everything in [origins] added together. Kept because an app version that
+  // does not know about origins reads this field and nothing else; a receiver
+  // that does know ignores it in favour of the breakdown.
   final String? localStatsJson;
   /// How far back [throws] reaches, in days, or null when it holds every throw.
   ///
@@ -204,19 +265,32 @@ class SyncPacket {
     required this.favoriteDoubles,
     required this.stats,
     required this.throws,
+    this.senderDeviceId = '',
+    this.origins = const [],
+    this.throwOrigins = const [],
     this.localStatsJson,
     this.rangeDays,
   });
+
+  /// Which device the throw at [index] was played on, falling back to the
+  /// sender for a packet that does not attribute its throws.
+  String originOfThrow(int index) => index < throwOrigins.length
+      ? throwOrigins[index]
+      : senderDeviceId;
 
   /// Serializes this packet to its JSON wire representation.
   Map<String, dynamic> toJson() => {
         'version': version,
         'sender_device': senderDevice,
+        if (senderDeviceId.isNotEmpty) 'sender_device_id': senderDeviceId,
         'player_uuid': playerUuid,
         'player_name': playerName,
         'favorite_doubles': favoriteDoubles,
         'stats': stats.toJson(),
         'throws': throws.map((t) => t.toJson()).toList(),
+        if (origins.isNotEmpty)
+          'origins': origins.map((o) => o.toJson()).toList(),
+        if (throwOrigins.isNotEmpty) 'throw_origins': throwOrigins,
         if (localStatsJson != null) 'local_stats_json': localStatsJson,
         if (rangeDays != null) 'range_days': rangeDays,
       };
@@ -225,6 +299,7 @@ class SyncPacket {
   factory SyncPacket.fromJson(Map<String, dynamic> j) => SyncPacket(
         version: j['version'] as int,
         senderDevice: j['sender_device'] as String? ?? 'Unknown',
+        senderDeviceId: j['sender_device_id'] as String? ?? '',
         playerUuid: j['player_uuid'] as String,
         playerName: j['player_name'] as String,
         favoriteDoubles: j['favorite_doubles'] as String? ?? '',
@@ -232,6 +307,12 @@ class SyncPacket {
             j['stats'] as Map<String, dynamic>? ?? {}),
         throws: (j['throws'] as List? ?? [])
             .map((t) => SyncThrow.fromJson(t as Map<String, dynamic>))
+            .toList(),
+        origins: (j['origins'] as List? ?? [])
+            .map((o) => SyncOrigin.fromJson(o as Map<String, dynamic>))
+            .toList(),
+        throwOrigins: (j['throw_origins'] as List? ?? [])
+            .map((o) => o as String)
             .toList(),
         localStatsJson: j['local_stats_json'] as String?,
         rangeDays: j['range_days'] as int?,
@@ -242,11 +323,14 @@ class SyncPacket {
   SyncPacket withName(String name) => SyncPacket(
         version: version,
         senderDevice: senderDevice,
+        senderDeviceId: senderDeviceId,
         playerUuid: playerUuid,
         playerName: name,
         favoriteDoubles: favoriteDoubles,
         stats: stats,
         throws: throws,
+        origins: origins,
+        throwOrigins: throwOrigins,
         localStatsJson: localStatsJson,
         rangeDays: rangeDays,
       );

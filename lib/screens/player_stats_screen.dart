@@ -167,7 +167,10 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
       },
       gamesPlayed:      gameIds.length,
       gamesFinished:    games.values.where((g) => g.finishedAt != null).length,
-      localStatsJson:   player.localStatsJson,
+      // Every snapshot the player carries at once: this device's own cleared
+      // games plus one per device that ever synced here. Which is which only
+      // matters to the next sync, never to a lifetime number.
+      localStatsJson:   await db.combinedSnapshotJson(playerId),
     ),
   );
 }

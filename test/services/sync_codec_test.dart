@@ -64,6 +64,12 @@ void main() {
     expect(decoded.favoriteDoubles, packet.favoriteDoubles);
     expect(decoded.localStatsJson,  packet.localStatsJson);
     expect(decoded.rangeDays,       packet.rangeDays);
+    expect(decoded.senderDeviceId,  packet.senderDeviceId);
+
+    expect(decoded.origins.map((o) => o.device),
+        packet.origins.map((o) => o.device));
+    expect(decoded.origins.map((o) => o.snapshotJson),
+        packet.origins.map((o) => o.snapshotJson));
 
     expect(decoded.stats.totalDarts,   packet.stats.totalDarts);
     expect(decoded.stats.totalVisits,  packet.stats.totalVisits);
@@ -188,6 +194,111 @@ void main() {
       final decoded = decodeSyncPayload(encodeSyncPayload(packet));
       expect(decoded.throws.map((x) => x.thrownAt),
           [start, start + 40317, start + 91004]);
+    });
+  });
+
+  group('origins', () {
+    const start = 1770000000000;
+
+    /// A packet of [throws], each attributed to the matching entry of
+    /// [throwOrigins], sent by device A which also passes on device C.
+    SyncPacket attributed(List<SyncThrow> throws, List<String> throwOrigins) =>
+        SyncPacket(
+          version: 2,
+          senderDevice: 'iPhone',
+          senderDeviceId: 'DEVICEAAAAAAAAAA',
+          playerUuid: 'a1',
+          playerName: 'A',
+          favoriteDoubles: '',
+          origins: const [
+            SyncOrigin(
+                device: 'DEVICEAAAAAAAAAA', snapshotJson: '{"total_darts":9}'),
+            SyncOrigin(
+                device: 'DEVICECCCCCCCCCC', snapshotJson: '{"total_darts":3}'),
+          ],
+          throwOrigins: throwOrigins,
+          stats: const SyncStats(
+            totalDarts: 0, totalVisits: 0, average: 0,
+            legsWon: 0, highestVisit: 0, busts: 0, count180: 0,
+          ),
+          throws: throws,
+        );
+
+    test('carry one snapshot per device through a round trip', () {
+      expectRoundTrip(attributed(
+        [t(remainingBefore: 501, thrownAt: start)],
+        const ['DEVICEAAAAAAAAAA'],
+      ));
+    });
+
+    test('say which device each throw came from', () {
+      final packet = attributed(
+        [
+          t(remainingBefore: 501, thrownAt: start),
+          t(remainingBefore: 441, thrownAt: start + 40000),
+          t(remainingBefore: 381, thrownAt: start + 80000),
+        ],
+        const [
+          'DEVICEAAAAAAAAAA',
+          'DEVICECCCCCCCCCC',
+          'DEVICECCCCCCCCCC',
+        ],
+      );
+
+      final decoded = decodeSyncPayload(encodeSyncPayload(packet));
+
+      expect([for (var i = 0; i < 3; i++) decoded.originOfThrow(i)],
+          packet.throwOrigins);
+    });
+
+    test('cost nothing per throw when they are all the sender own', () {
+      final throws = [
+        for (var i = 0; i < 200; i++)
+          t(remainingBefore: 501 - i, thrownAt: start + i * 40000),
+      ];
+      final own = List.filled(200, 'DEVICEAAAAAAAAAA');
+
+      final attributedSize = encodeSyncBytes(attributed(throws, own)).length;
+      final plainSize =
+          encodeSyncBytes(attributed(throws, const [])).length;
+
+      expect(attributedSize, plainSize,
+          reason: 'the sender is who a throw belongs to unless stated');
+
+      // And it still reads back as the sender's own.
+      final decoded =
+          decodeSyncPayload(encodeSyncPayload(attributed(throws, own)));
+      expect(decoded.originOfThrow(0), 'DEVICEAAAAAAAAAA');
+    });
+
+    test('leave a packet from before them readable', () {
+      // No sender id and no origins is what an older app sends, and it has to
+      // stay importable rather than be refused as a format nobody knows.
+      final packet = packetOf([t(remainingBefore: 501, thrownAt: start)]);
+
+      final decoded = decodeSyncPayload(encodeSyncPayload(packet));
+
+      expect(decoded.senderDeviceId, isEmpty);
+      expect(decoded.origins, isEmpty);
+      expect(decoded.localStatsJson, packet.localStatsJson,
+          reason: 'the one snapshot such a packet has still arrives');
+      expect(decoded.originOfThrow(0), isEmpty);
+    });
+
+    test('are rejected when a throw names one that is not there', () {
+      final packet = attributed(
+        [t(remainingBefore: 501, thrownAt: start)],
+        const ['DEVICECCCCCCCCCC'],
+      );
+      final bytes = encodeSyncBytes(packet);
+
+      // The last byte is the single origin index. Pointing it past the end of
+      // the table is what a corrupted payload looks like.
+      final raw = Uint8List.fromList(gzip.decode(bytes));
+      raw[raw.length - 1] = 9;
+      final corrupted = Uint8List.fromList(gzip.encode(raw));
+
+      expect(() => decodeSyncBytes(corrupted), throwsFormatException);
     });
   });
 
