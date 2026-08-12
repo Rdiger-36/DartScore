@@ -11,6 +11,7 @@ import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'cricket_screen.dart';
 
 /// Detailed view of a finished Cricket game from history, with final marks and
@@ -234,7 +235,24 @@ class _Body extends StatelessWidget {
       });
     final sorted = sortedSlots.map((e) => e.$2).toList();
 
-    return ListView(
+    final rematch = RematchButton(
+      modeName: l.modeCricketName,
+      details: [
+        (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+        (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+      ],
+      slots: data.slots
+          .map((s) => s.isTeamSlot
+              ? RematchSlot.team(s.displayName,
+                  s.players.map((p) => RematchSlot.player(p.name)).toList())
+              : RematchSlot.player(s.displayName))
+          .toList(),
+      onRematch: () =>
+          context.read<CricketProvider>().startRematch(game, players),
+      destination: (_) => const CricketScreen(),
+    );
+
+    final list = ListView(
       // Fixed rather than measured: on a tablet this screen is rendered inside
       // a pane, and contentPadding measures the window, so it would put the
       // margin of a whole screen on either side of half of one.
@@ -279,23 +297,6 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
-        RematchButton(
-          modeName: l.modeCricketName,
-          details: [
-            (l.cricketVariant, cricketVariantLabel(l, game.variant)),
-            (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
-          ],
-          slots: data.slots
-              .map((s) => s.isTeamSlot
-                  ? RematchSlot.team(s.displayName,
-                      s.players.map((p) => RematchSlot.player(p.name)).toList())
-                  : RematchSlot.player(s.displayName))
-              .toList(),
-          onRematch: () =>
-              context.read<CricketProvider>().startRematch(game, players),
-          destination: (_) => const CricketScreen(),
-        ),
-        const SizedBox(height: 16),
 
         // Per-player score cards
         Card(
@@ -428,6 +429,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

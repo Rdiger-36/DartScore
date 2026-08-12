@@ -14,6 +14,7 @@ import '../widgets/final_ranking_card.dart';
 import '../widgets/game_info_card.dart';
 import '../utils/placement.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
 import 'game_screen.dart';
@@ -142,7 +143,58 @@ class _SummaryBody extends StatelessWidget {
     // lookup to list a team's members.
     final namesById = {for (final p in players) p.id: p.name};
 
-    return ListView(
+    final rematch = RematchButton(
+      modeName: context.l10n.modeX01Name,
+      details: [
+        (
+          context.l10n.matchFormat,
+          game.placementMode
+              ? context.l10n.placementMode
+              : context.l10n.standardMode
+        ),
+        (
+          context.l10n.gameMode_,
+          context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+              placementMode: game.placementMode)
+        ),
+        // With handicaps the game defaults say little, so the per-player
+        // rows below carry the rules instead.
+        if (!game.hasHandicaps) ...[
+          (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
+          (
+            context.l10n.checkOut,
+            checkOutLabel(context.l10n, game.checkoutMode)
+          ),
+        ],
+      ],
+      slots: game.isTeamGame
+          ? game.teams!
+              .map((t) => RematchSlot.team(
+                    t.name,
+                    [
+                      for (final id in t.playerIds)
+                        if (namesById[id] != null)
+                          RematchSlot.player(
+                            namesById[id]!,
+                            rules: handicapRulesLabel(
+                                context.l10n, game, id),
+                          ),
+                    ],
+                  ))
+              .toList()
+          : players
+              .map((p) => RematchSlot.player(
+                    p.name,
+                    rules:
+                        handicapRulesLabel(context.l10n, game, p.id),
+                  ))
+              .toList(),
+      onRematch: () =>
+          context.read<GameProvider>().startRematch(game, players),
+      destination: (_) => const GameScreen(),
+    );
+
+    final list = ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
         // Winner banner
@@ -192,57 +244,6 @@ class _SummaryBody extends StatelessWidget {
               startingOrderLabel(context.l10n, game.startingOrder)
             ),
         ]),
-        const SizedBox(height: 16),
-        RematchButton(
-          modeName: context.l10n.modeX01Name,
-          details: [
-            (
-              context.l10n.matchFormat,
-              game.placementMode
-                  ? context.l10n.placementMode
-                  : context.l10n.standardMode
-            ),
-            (
-              context.l10n.gameMode_,
-              context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
-                  placementMode: game.placementMode)
-            ),
-            // With handicaps the game defaults say little, so the per-player
-            // rows below carry the rules instead.
-            if (!game.hasHandicaps) ...[
-              (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
-              (
-                context.l10n.checkOut,
-                checkOutLabel(context.l10n, game.checkoutMode)
-              ),
-            ],
-          ],
-          slots: game.isTeamGame
-              ? game.teams!
-                  .map((t) => RematchSlot.team(
-                        t.name,
-                        [
-                          for (final id in t.playerIds)
-                            if (namesById[id] != null)
-                              RematchSlot.player(
-                                namesById[id]!,
-                                rules: handicapRulesLabel(
-                                    context.l10n, game, id),
-                              ),
-                        ],
-                      ))
-                  .toList()
-              : players
-                  .map((p) => RematchSlot.player(
-                        p.name,
-                        rules:
-                            handicapRulesLabel(context.l10n, game, p.id),
-                      ))
-                  .toList(),
-          onRematch: () =>
-              context.read<GameProvider>().startRematch(game, players),
-          destination: (_) => const GameScreen(),
-        ),
         const SizedBox(height: 16),
         // Final ranking (placement mode only). Slots are keyed by team index in
         // a team game and by player id otherwise, matching how the placement
@@ -320,6 +321,13 @@ class _SummaryBody extends StatelessWidget {
           playerName: (id) => namesById[id] ?? '',
           showSet: game.sets > 1,
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

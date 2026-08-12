@@ -98,6 +98,15 @@ void main() {
       expect(find.text('01.04.26  20:15'), findsOneWidget);
     });
 
+    testWidgets('offers the rematch on a bar under the game, not inside it',
+        (tester) async {
+      await pumpDetail(tester);
+
+      final again = tester.getRect(find.text('Play Again'));
+      final list  = tester.getRect(find.byType(ListView));
+      expect(again.top, greaterThan(list.bottom));
+    });
+
     testWidgets('rebuilds the winner and the throw log from the stored throws',
         (tester) async {
       await pumpDetail(tester);

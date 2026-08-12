@@ -10,9 +10,11 @@ import '../support/test_app.dart';
 void main() {
   group('a summary body', () {
     /// Renders a stand-in summary at [size]: one card of result, one of detail
-    /// and a button out.
-    Future<void> pumpBody(WidgetTester tester, Size size) async {
-      usePhoneSurface(tester, size: size);
+    /// and a button out. [safeArea] describes the insets of a device with a
+    /// home indicator under the bar.
+    Future<void> pumpBody(WidgetTester tester, Size size,
+        {EdgeInsets safeArea = EdgeInsets.zero}) async {
+      usePhoneSurface(tester, size: size, safeArea: safeArea);
       await tester.pumpWidget(testApp(Scaffold(
         body: SummaryBody(
           result:  const [Card(child: SizedBox(height: 200, child: Text('won'))) ],
@@ -39,6 +41,20 @@ void main() {
           lessThan(tester.getRect(find.text('home')).top));
       expect(tester.getRect(find.text('again')).left,
           greaterThan(tester.getRect(find.text('home')).right));
+    });
+
+    testWidgets('gives the buttons the same room above as below them',
+        (tester) async {
+      await pumpBody(tester, const Size(400, 900),
+          safeArea: const EdgeInsets.only(bottom: 20));
+
+      final bar    = tester.getRect(find.byType(SummaryActionBar));
+      final button = tester.getRect(find.byType(FilledButton).first);
+
+      // Below the buttons is the padding plus the home indicator; the same
+      // amount goes above them, or the bar reads as bottom heavy. The hairline
+      // the bar starts with is the one pixel of slack.
+      expect(button.top - bar.top, closeTo(bar.bottom - button.bottom, 1.5));
     });
 
     testWidgets('stays one column on a tablet held upright', (tester) async {
