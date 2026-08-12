@@ -74,7 +74,7 @@ void main() {
 
       // Beside: the list is still on screen, to the left of the pane.
       final list = tester.getRect(find.byType(ListView).first);
-      final title = tester.getRect(find.textContaining('Zoe ·').first);
+      final title = tester.getRect(find.text('Statistics of Zoe').first);
       expect(title.left, greaterThan(list.right));
     });
 

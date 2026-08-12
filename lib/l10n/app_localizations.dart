@@ -217,6 +217,8 @@ class AppLocalizations {
 
   // ── Player Stats ─────────────────────────────────────────────────────────
   String get statistics        => _t('Statistics', 'Statistik');
+  String statisticsOf(String name) =>
+      _t('Statistics of $name', 'Statistik von $name');
   String get statsX01Only      => _t('Statistics are collected in X01 mode only.', 'Statistiken werden nur im X01 Spielmodus erhoben.');
   String noGamesFor(String name) =>
       _t('No games for $name yet.', 'Noch keine Spiele für $name.');
