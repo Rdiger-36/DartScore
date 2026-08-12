@@ -3,27 +3,27 @@ import 'package:flutter/material.dart';
 /// Displays Cricket marks for a single field: nothing / slash / X / circle-X.
 class CricketMarksWidget extends StatelessWidget {
   final int marks;
-  const CricketMarksWidget({super.key, required this.marks});
+
+  /// Edge length of the square the mark is drawn in. The painters work off the
+  /// size they are given, so a board with taller rows only has to say so.
+  final double size;
+
+  const CricketMarksWidget({super.key, required this.marks, this.size = 36});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    if (marks == 0) return const SizedBox(width: 36, height: 36);
-
-    if (marks >= 3) {
-      return SizedBox(
-        width: 36,
-        height: 36,
-        child: CustomPaint(painter: _ClosedPainter(color: cs.primary)),
-      );
-    }
+    if (marks == 0) return SizedBox(width: size, height: size);
 
     return SizedBox(
-      width: 36,
-      height: 36,
+      width: size,
+      height: size,
       child: CustomPaint(
-          painter: _MarksPainter(marks: marks, color: cs.onSurface)),
+        painter: marks >= 3
+            ? _ClosedPainter(color: cs.primary)
+            : _MarksPainter(marks: marks, color: cs.onSurface),
+      ),
     );
   }
 }
@@ -38,7 +38,9 @@ class _MarksPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 2.5
+      // The stroke follows the box, so a mark drawn twice the size does not
+      // come out twice as thin.
+      ..strokeWidth = size.width / 14.4
       ..strokeCap = StrokeCap.round;
 
     final cx = size.width / 2;
@@ -65,7 +67,7 @@ class _ClosedPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 2.5
+      ..strokeWidth = size.width / 14.4
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 

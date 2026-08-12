@@ -89,8 +89,23 @@ class TabletTextScale extends StatelessWidget {
   }
 
   @override
+  Widget build(BuildContext context) =>
+      TextScaleBy(factor: factorOf(context), child: child);
+}
+
+/// Multiplies the text of a subtree by [factor].
+///
+/// For a layout that has already worked out how much bigger it may draw, where
+/// [TabletTextScale] reads that from the device instead. The factor lands on
+/// top of the size the system asks for rather than replacing it.
+class TextScaleBy extends StatelessWidget {
+  final double factor;
+  final Widget child;
+
+  const TextScaleBy({super.key, required this.factor, required this.child});
+
+  @override
   Widget build(BuildContext context) {
-    final factor = factorOf(context);
     if (factor == 1.0) return child;
 
     return MediaQuery(
