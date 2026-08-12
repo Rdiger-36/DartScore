@@ -1,4 +1,5 @@
 import 'package:dartscore_app/screens/about_screen.dart';
+import 'package:dartscore_app/screens/licenses_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,16 +50,16 @@ void main() {
     expect(notice.center.dx, closeTo(1180 / 2, 20));
   });
 
-  testWidgets('keeps the packaged licenses under their master detail width',
+  testWidgets('opens the packaged licenses in the app\'s own screen',
       (tester) async {
     await pumpAbout(tester, const Size(1180, 820));
 
     await tester.tap(find.text('Open Source Licenses').last);
     await tester.pumpAndSettle();
 
-    // Flutter's page divides itself into a list and a detail from 840 dp and
-    // stutters in that layout; under the threshold it stays one column.
-    expect(find.byType(LicensePage), findsOneWidget);
-    expect(tester.getRect(find.byType(LicensePage)).width, lessThan(840));
+    // Flutter's own page divides itself from 840 dp in a way that fights the
+    // scroll, so the app brings its own list and its own pane.
+    expect(find.byType(LicensePage), findsNothing);
+    expect(find.byType(LicensesScreen), findsOneWidget);
   });
 }

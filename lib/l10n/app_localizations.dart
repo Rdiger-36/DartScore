@@ -403,6 +403,12 @@ class AppLocalizations {
   String get licenseFullText   => _t('Read full license text', 'Vollständigen Lizenztext lesen');
   String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
+  String get licensesPickPackage    =>
+      _t('Pick a package to read its license.',
+         'Wähle ein Paket, um seine Lizenz zu lesen.');
+  String licenseCount(int n) => n == 1
+      ? _t('1 license', '1 Lizenz')
+      : _t('$n licenses', '$n Lizenzen');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
   // ── Sync ──────────────────────────────────────────────────────────────────
