@@ -319,6 +319,7 @@ class _StatsPane extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Text(
             '${player.name} · ${context.l10n.statistics}',
+            textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.bold),
           ),

@@ -232,12 +232,19 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
         ),
     ];
 
+    // Beside the numbers where there are two columns, right under the winner
+    // where there is one: it describes the game, not the players, and in a
+    // single column it reads as part of the result rather than of the log.
+    final twoColumns = SummaryBody.twoColumnsOn(context);
+
     final summary = SummaryBody(
       header: winnerBanner,
-      result: playerCards,
+      result: [
+        if (!twoColumns) infoCard,
+        ...playerCards,
+      ],
       details: [
-        // What the game was played with, over the log of how it went.
-        infoCard,
+        if (twoColumns) infoCard,
         ?rankingCard,
         ThrowLogCard(
           throws: provider.allThrows(),

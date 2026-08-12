@@ -14,6 +14,7 @@ import 'package:dartscore_app/screens/shanghai_summary_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:dartscore_app/widgets/game_info_card.dart';
 import 'package:dartscore_app/widgets/summary_player_card.dart';
+import 'package:dartscore_app/widgets/throw_log_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -95,6 +96,32 @@ void main() {
       expect(again.left, greaterThan(home.right));
       expect(home.top,
           greaterThan(tester.getRect(find.text('All Throws')).top));
+    });
+
+    testWidgets('keeps the settings under the winner in a single column',
+        (tester) async {
+      await pumpSummary(tester);
+
+      // On a phone the settings describe the result rather than the log, so
+      // they follow the winner instead of waiting under the player cards.
+      final winner = tester.getRect(find.text('🎯 Ada wins!'));
+      final info   = tester.getRect(find.byType(GameInfoCard));
+      final card   = tester.getRect(find.byType(SummaryPlayerCard).first);
+      expect(info.top, greaterThan(winner.bottom));
+      expect(info.bottom, lessThanOrEqualTo(card.top));
+    });
+
+    testWidgets('stacks every card at one width', (tester) async {
+      await pumpSummary(tester);
+
+      /// The surface of a card, which is its box less the margin around it.
+      double surface(Finder of) => tester
+          .getRect(find.descendant(of: of, matching: find.byType(Material)).first)
+          .width;
+
+      final info = surface(find.byType(GameInfoCard));
+      expect(surface(find.byType(SummaryPlayerCard).first), closeTo(info, 0.5));
+      expect(surface(find.byType(ThrowLogCard)), closeTo(info, 0.5));
     });
 
     testWidgets('stands the winner over both columns and the settings with '
