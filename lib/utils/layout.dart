@@ -131,13 +131,22 @@ const double kMinListPaneWidth = 320.0;
 /// to one per line and the legs and sets steppers stop fitting side by side.
 const double kMinSetupPaneWidth = 360.0;
 
-/// Whether [width] has room for two setup columns worth reading.
+/// Narrowest a column of a summary is worth showing.
 ///
-/// A tablet held upright is wide enough for two panes long before it is wide
-/// enough for these two: a settings card cut to 300 dp reads worse than the
-/// single centred column a phone gets, so below this the setup stays one.
-bool fitsSetupPanes(double width) =>
-    width >= 2 * kMinSetupPaneWidth + kDividerHitWidth;
+/// More than a setup column asks for: these cards carry rows of a label and a
+/// number, and a throw log carries four columns of them, which start colliding
+/// well before the card itself runs out of room. At this floor a tablet held
+/// upright keeps its single column and only a landscape one divides.
+const double kMinSummaryPaneWidth = 400.0;
+
+/// Whether [width] has room for two columns of [minPaneWidth] and the divider
+/// between them.
+///
+/// A tablet is wide enough for two panes by the breakpoint long before it is
+/// wide enough for two of a given kind: below this a screen is better off as
+/// the single centred column a phone gets.
+bool fitsTwoPanes(double width, double minPaneWidth) =>
+    width >= 2 * minPaneWidth + kDividerHitWidth;
 
 /// Width of the draggable divider between two panes. Wide enough to grab,
 /// while the line drawn inside it stays hairline thin.

@@ -36,13 +36,20 @@ void main() {
     });
   });
 
-  group('the setup screen', () {
-    test('divides only where both columns stay readable', () {
-      expect(fitsSetupPanes(2 * kMinSetupPaneWidth + kDividerHitWidth), isTrue);
-      expect(fitsSetupPanes(2 * kMinSetupPaneWidth), isFalse);
-      // An iPad upright divides, a small tablet upright does not.
-      expect(fitsSetupPanes(768), isTrue);
-      expect(fitsSetupPanes(600), isFalse);
+  group('two columns', () {
+    test('are shown only where both stay readable', () {
+      expect(
+        fitsTwoPanes(
+            2 * kMinSetupPaneWidth + kDividerHitWidth, kMinSetupPaneWidth),
+        isTrue,
+      );
+      expect(fitsTwoPanes(2 * kMinSetupPaneWidth, kMinSetupPaneWidth), isFalse);
+      // The setup divides on an iPad upright, but not on a small tablet.
+      expect(fitsTwoPanes(768, kMinSetupPaneWidth), isTrue);
+      expect(fitsTwoPanes(600, kMinSetupPaneWidth), isFalse);
+      // A summary asks for more, so it waits for the iPad to be turned.
+      expect(fitsTwoPanes(768, kMinSummaryPaneWidth), isFalse);
+      expect(fitsTwoPanes(1024, kMinSummaryPaneWidth), isTrue);
     });
   });
 }

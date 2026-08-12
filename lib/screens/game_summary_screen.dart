@@ -9,11 +9,11 @@ import 'dart:io';
 import '../providers/game_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/game_labels.dart';
-import '../utils/layout.dart';
 import '../utils/throw_stats.dart';
 import '../widgets/final_ranking_card.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
 import 'game_screen.dart';
@@ -134,9 +134,10 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
           ],
         ],
       ),
-      body: ListView(
-        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
-        children: [
+      // The captured card travels as one block: split across two columns, the
+      // saved image would lose whichever half did not go with it.
+      body: SummaryBody(
+        result: [
           // The card that gets captured as image
           RepaintBoundary(
             key: _cardKey,
@@ -336,7 +337,8 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+        ],
+        details: [
           // Throw history (outside captured area: too long for image)
           ThrowLogCard(
             throws: provider.allThrows(),
@@ -346,14 +348,13 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             playerName: (id) => throwerNames[id] ?? '',
             showSet: provider.game!.sets > 1,
           ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: Text(l.backToHome),
-          ),
         ],
+        footer: FilledButton(
+          onPressed: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+          child: Text(l.backToHome),
+        ),
       ),
     );
   }

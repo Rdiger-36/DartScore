@@ -4,9 +4,9 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/game_labels.dart';
-import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'cricket_screen.dart';
 
 /// Post-game summary for Cricket: the winner plus each player's final marks and
@@ -38,9 +38,10 @@ class CricketSummaryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(l.cricketSummaryTitle)),
-      body: ListView(
-        padding: contentPadding(context, top: 24, bottom: 24, innerH: 16),
-        children: [
+      body: SummaryBody(
+        top: 24,
+        bottom: 24,
+        result: [
           // ── Winner banner ────────────────────────────────────────────────
           if (winnerId != null) ...[
             Center(
@@ -102,8 +103,8 @@ class CricketSummaryScreen extends StatelessWidget {
             (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
             (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
           ]),
-          const SizedBox(height: 16),
-
+        ],
+        details: [
           // ── Player results ───────────────────────────────────────────────
           Card(
             child: Padding(
@@ -256,18 +257,16 @@ class CricketSummaryScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () =>
-                Navigator.popUntil(context, (route) => route.isFirst),
-            icon: const Icon(Icons.home_rounded),
-            label: Text(l.backToHome),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
         ],
+        footer: FilledButton.icon(
+          onPressed: () =>
+              Navigator.popUntil(context, (route) => route.isFirst),
+          icon: const Icon(Icons.home_rounded),
+          label: Text(l.backToHome),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
       ),
     );
   }
