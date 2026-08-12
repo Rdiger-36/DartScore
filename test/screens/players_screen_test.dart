@@ -104,6 +104,23 @@ void main() {
       expect(find.byType(PlayerStatsScreen), findsNothing);
     });
 
+    testWidgets('sends the button over the list into the pane as well',
+        (tester) async {
+      await pumpPlayers(tester, const Size(1180, 820));
+
+      await tester.tap(
+          find.widgetWithText(FloatingActionButton, 'Sync Profile'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The way in for a device about to receive a profile: sync in the pane,
+      // with nobody picked to send.
+      final sync = tester.widget<SyncScreen>(find.byType(SyncScreen));
+      expect(sync.embedded, isTrue);
+      expect(sync.initialPlayer, isNull);
+      expect(find.text('Profile Sync'), findsWidgets);
+    });
+
     testWidgets('opens them on top of the list on a phone', (tester) async {
       await pumpPlayers(tester, const Size(390, 844));
 

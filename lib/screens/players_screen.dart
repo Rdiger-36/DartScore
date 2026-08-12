@@ -41,10 +41,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
     final cs = Theme.of(context).colorScheme;
     final syncFab = FloatingActionButton.extended(
       heroTag: 'sync',
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SyncScreen()),
-      ),
+      onPressed: () => _openSync(context, null),
       backgroundColor: cs.secondary,
       foregroundColor: cs.onSecondary,
       icon: const Icon(Icons.sync_rounded),
@@ -190,18 +187,20 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   landscape: landscape);
               },
               primary: list,
-              secondary: selected == null
-                  ? _EmptyStatsPane(message: l.playersPickOne)
-                  : _view == _PaneView.sync
-                      ? _StatsPane(
-                          // Keyed by player, so switching to another one starts
-                          // their transfer over instead of handing the new name
-                          // to a code that is already running.
-                          key: ValueKey('sync-${selected.id}'),
-                          title: l.syncOf(selected.name),
-                          child: SyncScreen(
-                              initialPlayer: selected, embedded: true),
-                        )
+              secondary: _view == _PaneView.sync
+                  ? _StatsPane(
+                      // Keyed by player, so switching to another one starts
+                      // their transfer over instead of handing the new name to
+                      // a code that is already running.
+                      key: ValueKey('sync-${selected?.id}'),
+                      title: selected == null
+                          ? l.syncTitle
+                          : l.syncOf(selected.name),
+                      child: SyncScreen(
+                          initialPlayer: selected, embedded: true),
+                    )
+                  : selected == null
+                      ? _EmptyStatsPane(message: l.playersPickOne)
                       : _StatsPane(
                           title: l.statisticsOf(selected.name),
                           child: PlayerStatsScreen(
@@ -227,12 +226,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
         MaterialPageRoute(builder: (_) => PlayerStatsScreen(player: player)));
   }
 
-  /// Opens the device-to-device sync for [player]: in the pane beside the list
-  /// where there is room for it, on top of it where there is not.
+  /// Opens the device-to-device sync in the pane beside the list where there is
+  /// room for it, and on top of it where there is not.
   ///
-  /// The pane shows one thing at a time, so opening sync for a player replaces
-  /// their statistics rather than standing beside them.
-  void _openSync(BuildContext context, Player player) {
+  /// [player] is whose profile to send, or null for the button over the list,
+  /// which is the way in for a device that is about to receive one and has
+  /// nobody picked. The pane shows one thing at a time, so this replaces the
+  /// statistics rather than standing beside them.
+  void _openSync(BuildContext context, Player? player) {
     if (isTabletLayout(context)) {
       setState(() {
         _selected = player;
