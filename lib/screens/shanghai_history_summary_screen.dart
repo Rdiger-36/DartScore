@@ -184,11 +184,11 @@ class _Body extends StatelessWidget {
           (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
-        const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
 
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

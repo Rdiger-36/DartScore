@@ -84,6 +84,7 @@ class CricketSummaryScreen extends StatelessWidget {
         details: [
           // ── Player results ───────────────────────────────────────────────
           Card(
+            margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -166,8 +167,8 @@ class CricketSummaryScreen extends StatelessWidget {
           ),
 
           // ── Final field status ───────────────────────────────────────────
-          const SizedBox(height: 16),
           Card(
+            margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

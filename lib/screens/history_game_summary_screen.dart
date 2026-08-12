@@ -244,7 +244,6 @@ class _SummaryBody extends StatelessWidget {
               startingOrderLabel(context.l10n, game.startingOrder)
             ),
         ]),
-        const SizedBox(height: 16),
         // Final ranking (placement mode only). Slots are keyed by team index in
         // a team game and by player id otherwise, matching how the placement
         // helpers group the throws.
@@ -270,7 +269,6 @@ class _SummaryBody extends StatelessWidget {
                   }
                 : {for (final p in players) p.id!: p.name},
           ),
-          const SizedBox(height: 12),
         ],
         // Per-team or per-player stats
         if (game.isTeamGame)
@@ -315,7 +313,6 @@ class _SummaryBody extends StatelessWidget {
               legsWon: legsWonOverride ?? legsWonFromThrows(throws),
             );
           }),
-        const SizedBox(height: 14),
         ThrowLogCard(
           throws: data.allThrows,
           playerName: (id) => namesById[id] ?? '',

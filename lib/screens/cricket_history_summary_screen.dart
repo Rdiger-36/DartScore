@@ -294,12 +294,12 @@ class _Body extends StatelessWidget {
           (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
-        const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
 
         // Per-player score cards
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -363,10 +363,9 @@ class _Body extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 12),
-
         // Field marks overview
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
