@@ -126,7 +126,10 @@ class _Body extends StatelessWidget {
       });
 
     return ListView(
-      padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
+      // Fixed rather than measured: on a tablet this screen is rendered inside
+      // a pane, and contentPadding measures the window, so it would put the
+      // margin of a whole screen on either side of half of one.
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       children: [
         if (winnerId != null) ...[
           Center(
