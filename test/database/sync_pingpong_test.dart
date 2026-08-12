@@ -435,6 +435,50 @@ void main() {
           reason: 'only the last evening is still there throw by throw');
     });
 
+    test('play, sync, play on the other one, sync back', () async {
+      final ios     = opponents[0];
+      final android = opponents[1];
+
+      /// Darts cannot outnumber three per visit. A device whose two numbers
+      /// break that is adding them up from different sets of throws.
+      void expectPlausible(PlayerStats s, String where) {
+        expect(s.totalDarts, lessThanOrEqualTo(s.totalVisits * 3),
+            reason: '$where: ${s.totalDarts} darts over ${s.totalVisits} visits');
+      }
+
+      // A shared history to start from, sent over with the full range.
+      await playLeg(ios);
+      await playLeg(ios);
+      await ageEverythingBy(3);
+      await receive(await send(ios, 'IOS'), android, 'ANDROID');
+
+      // A round on the Android, then back to the iPhone: both level.
+      await playLeg(android);
+      await receive(await send(android, 'ANDROID'), ios, 'IOS');
+
+      final levelIos     = await statsOf(ios);
+      final levelAndroid = await statsOf(android);
+      expect(levelIos.totalVisits, levelAndroid.totalVisits, reason: 'level');
+      expect(levelIos.totalDarts,  levelAndroid.totalDarts,  reason: 'level');
+
+      // A game on the iPhone, then over to the Android.
+      await playLeg(ios);
+      await receive(await send(ios, 'IOS'), android, 'ANDROID');
+
+      final finalIos     = await statsOf(ios);
+      final finalAndroid = await statsOf(android);
+
+      expectPlausible(finalIos, 'iOS');
+      expectPlausible(finalAndroid, 'Android');
+
+      expect(finalIos.totalVisits, levelIos.totalVisits + 4,
+          reason: 'the iPhone only played one more leg');
+      expect(finalAndroid.totalVisits, finalIos.totalVisits, reason: 'visits');
+      expect(finalAndroid.totalDarts,  finalIos.totalDarts,  reason: 'darts');
+      expect(finalAndroid.average3Dart,
+          closeTo(finalIos.average3Dart, 0.01), reason: 'average');
+    });
+
     test('the range still cuts throws that came from another device',
         () async {
       final a = opponents[0];
