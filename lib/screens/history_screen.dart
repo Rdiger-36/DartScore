@@ -318,7 +318,8 @@ class _HistoryScreenState extends State<HistoryScreen>
         actions: [
           if (_visibleEntries.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
+              // Read and hit from further away than a phone is.
+              icon: Icon(Icons.delete_sweep_outlined, size: tablet ? 30 : null),
               tooltip: context.l10n.clearAll,
               onPressed: () => _confirmDeleteVisible(context),
             ),
@@ -355,9 +356,31 @@ class _HistoryScreenState extends State<HistoryScreen>
           final open     = entries.where((e) => e.finishedAt == null).toList();
           final finished = entries.where((e) => e.finishedAt != null).toList();
 
-          final tabs = TabBarView(
+          final finishedList = _TabContent(
+            entries: finished,
+            isOpenTab: false,
+            filter: _finishedFilter,
+            onFilterChanged: (f) => setState(() => _finishedFilter = f),
+            onDelete: _deleteEntry,
+            onResume: (_) {},
+            onShowSummary: (e) => _showSummary(context, e),
+            selected: _selected,
+          );
+
+          // A game the list no longer holds must not stay open beside it.
+          final stillThere = _selected != null &&
+              finished.any((e) => identical(e, _selected));
+
+          return TabBarView(
             controller: _tabController,
+            // A tablet switches tabs from the bar above them. Left swipeable,
+            // the page would take every horizontal drag on this tab, including
+            // the one that moves the divider it now carries.
+            physics: tablet ? const NeverScrollableScrollPhysics() : null,
             children: [
+              // Only finished games have anything to show beside the list. An
+              // open one is resumed, not read, so its tab keeps the whole
+              // width instead of standing next to an empty half.
               _TabContent(
                 entries: open,
                 isOpenTab: true,
@@ -373,46 +396,33 @@ class _HistoryScreenState extends State<HistoryScreen>
                             : _resumeX01(context, e),
                 onShowSummary: (_) {},
               ),
-              _TabContent(
-                entries: finished,
-                isOpenTab: false,
-                filter: _finishedFilter,
-                onFilterChanged: (f) => setState(() => _finishedFilter = f),
-                onDelete: _deleteEntry,
-                onResume: (_) {},
-                onShowSummary: (e) => _showSummary(context, e),
-                selected: _selected,
-              ),
+              // The pane belongs to this tab rather than to the screen. Around
+              // the whole TabBarView it would appear and disappear halfway
+              // through a swipe, which resizes both pages under the finger.
+              if (!tablet)
+                finishedList
+              else
+                SidePaneLayout(
+                  side: InputSide.left,
+                  fraction:
+                      layout!.splitFraction(SplitPane.history, landscape: landscape),
+                  minPaneWidth: kMinListPaneWidth,
+                  onFractionChanged: (f) =>
+                      layout.setSplitFraction(SplitPane.history, f,
+                          landscape: landscape),
+                  onFractionSettled: () {
+                    layout.persistSplitFraction(SplitPane.history,
+                        landscape: landscape);
+                  },
+                  primary: finishedList,
+                  secondary: stillThere
+                      ? _DetailPane(
+                          entry: _selected!,
+                          child: _detailFor(_selected!, embedded: true),
+                        )
+                      : _EmptyDetailPane(message: context.l10n.historyPickGame),
+                ),
             ],
-          );
-
-          // Only finished games have anything to show beside the list. An
-          // open one is resumed, not read, so on its tab the list keeps the
-          // whole width instead of standing next to an empty half.
-          if (!tablet || _tabController.index != 1) return tabs;
-
-          // A game the list no longer holds must not stay open beside it.
-          final stillThere = _selected != null &&
-              finished.any((e) => identical(e, _selected));
-
-          return SidePaneLayout(
-            side: InputSide.left,
-            fraction: layout!.splitFraction(SplitPane.history, landscape: landscape),
-            minPaneWidth: kMinListPaneWidth,
-            onFractionChanged: (f) =>
-                layout.setSplitFraction(SplitPane.history, f,
-                    landscape: landscape),
-            onFractionSettled: () {
-              layout.persistSplitFraction(SplitPane.history,
-                  landscape: landscape);
-            },
-            primary: tabs,
-            secondary: stillThere
-                ? _DetailPane(
-                    entry: _selected!,
-                    child: _detailFor(_selected!, embedded: true),
-                  )
-                : _EmptyDetailPane(message: context.l10n.historyPickGame),
           );
         },
       ),
