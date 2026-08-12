@@ -596,14 +596,19 @@ class DbHelper {
   /// totals silently read low and nobody can tell. Grouping by game mirrors
   /// [snapshotGameStats]: perfect legs and the finished-game count are
   /// properties of a game, not of a single throw.
+  /// [gameFacts] must be false for throws that arrived from another device.
+  /// They all share one hidden sync-game, so what looks like a game here is a
+  /// whole history in one heap: counting it as one game played, or reading a
+  /// best-game average off it, describes something that was never played that
+  /// way. Those numbers already travelled as part of the sending device's
+  /// snapshot, so they are simply left out here.
   Future<Map<String, dynamic>?> foldThrowsIntoSnapshot(
-      String? snapshotJson, List<DartThrow> excluded) async {
+      String? snapshotJson, List<DartThrow> excluded,
+      {bool gameFacts = true}) async {
     var merged = (snapshotJson != null && snapshotJson.isNotEmpty)
         ? jsonDecode(snapshotJson) as Map<String, dynamic>
         : null;
     if (excluded.isEmpty) return merged;
-
-    final d = await db;
 
     final byGame = <int, List<DartThrow>>{};
     for (final t in excluded) {
@@ -611,23 +616,85 @@ class DbHelper {
     }
 
     for (final entry in byGame.entries) {
-      final gameRows = await d.query('games',
-          columns: ['start_score', 'finished_at'],
-          where: 'id = ?',
-          whereArgs: [entry.key]);
-
-      final startScore =
-          gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
-      final minDarts = startScore != null ? _kMinDarts[startScore] : null;
-
       final stats = <String, dynamic>{
         ..._computeStatsFromThrows(entry.value),
-        'perfect_legs':   _perfectLegsFor(entry.value, minDarts),
-        'games_finished':
-            gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0,
+        if (gameFacts) ...await _gameFactsOf(entry.key, entry.value),
       };
+      if (!gameFacts) {
+        for (final key in _kGameFactKeys) {
+          stats.remove(key);
+        }
+      }
 
       merged = merged == null ? stats : _mergeStats(merged, stats);
+    }
+
+    return merged;
+  }
+
+  /// Snapshot counters that describe a game rather than a throw, and so cannot
+  /// be recomputed from throws once they have left the device they were played
+  /// on.
+  static const _kGameFactKeys = [
+    'perfect_legs',
+    'games_played',
+    'games_finished',
+    'highest_game_avg',
+  ];
+
+  /// What game [gameId] contributes about itself, given the [throws] of it that
+  /// are being accounted for.
+  Future<Map<String, dynamic>> _gameFactsOf(
+      int gameId, List<DartThrow> throws) async {
+    final d = await db;
+    final rows = await d.query('games',
+        columns: ['start_score', 'finished_at'],
+        where: 'id = ?',
+        whereArgs: [gameId]);
+
+    final startScore = rows.isEmpty ? null : rows.first['start_score'] as int?;
+    final minDarts = startScore != null ? _kMinDarts[startScore] : null;
+
+    return {
+      'perfect_legs':     _perfectLegsFor(throws, minDarts),
+      'games_played':     1,
+      'games_finished':   rows.isNotEmpty && rows.first['finished_at'] != null ? 1 : 0,
+      'highest_game_avg': bestGameAverage(throws),
+    };
+  }
+
+  /// Adds what the games behind [throws] say about themselves to [snapshot],
+  /// for throws that are travelling as throws rather than as aggregates.
+  ///
+  /// A synced throw arrives without its game: every one of them lands in a
+  /// single hidden sync-game on the other device, which has no start score of
+  /// its own and counts for no game played. So the receiver reads no perfect
+  /// leg off it, no game average worth the name, and no dartboard segment,
+  /// because the wire format carries a visit's score but not the three darts
+  /// behind it. Everything a game knows about itself has to travel here or not
+  /// at all.
+  ///
+  /// This cannot double count. On the other side these throws contribute
+  /// nothing to any of it: the sync-game is left out of the games a player has
+  /// played, its start score never reaches the perfect-leg count, and a best
+  /// game average taken over one heap of every game at once can only come out
+  /// below the real one, which the merge then discards in favour of this.
+  Future<Map<String, dynamic>?> addTravellingGameFacts(
+      Map<String, dynamic>? snapshot, List<DartThrow> throws) async {
+    if (throws.isEmpty) return snapshot;
+
+    final byGame = <int, List<DartThrow>>{};
+    for (final t in throws) {
+      byGame.putIfAbsent(t.gameId, () => []).add(t);
+    }
+
+    var merged = snapshot;
+    for (final entry in byGame.entries) {
+      final facts = <String, dynamic>{
+        ...await _gameFactsOf(entry.key, entry.value),
+        'segment_hits': segmentHitsOf(entry.value),
+      };
+      merged = merged == null ? facts : _mergeStats(merged, facts);
     }
 
     return merged;
@@ -726,26 +793,6 @@ class DbHelper {
     }
 
     return hits;
-  }
-
-  /// Adds the segments [throws] hit to [snapshot], leaving every other counter
-  /// in it untouched, and returns null when there is nothing to add.
-  ///
-  /// Which segment a dart landed on is the one thing a synced throw cannot
-  /// carry: the wire format holds a visit's score but not the three darts
-  /// behind it. Without this the dartboard heatmap and the top doubles would
-  /// stay empty on the receiving device for everything that travelled as
-  /// throws, and would fill in only for whatever a shorter range happened to
-  /// push into the snapshot instead.
-  ///
-  /// Adding them here cannot double count: the throws travelling alongside
-  /// arrive without their darts, so they contribute nothing to the segments on
-  /// the other side.
-  static Map<String, dynamic>? addSegmentHits(
-      Map<String, dynamic>? snapshot, List<DartThrow> throws) {
-    final hits = segmentHitsOf(throws);
-    if (hits.isEmpty) return snapshot;
-    return _mergeStats(snapshot ?? {}, {'segment_hits': hits});
   }
 
   /// Merges two stats maps, summing counts and recomputing maxima/averages, so

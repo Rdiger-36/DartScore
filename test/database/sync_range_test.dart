@@ -119,6 +119,11 @@ void main() {
       expect(b.checkoutPercent,
           closeTo(a.checkoutPercent, 0.001), reason: 'checkout percent');
       expect(b.perfectLegs,     a.perfectLegs,     reason: 'perfect legs');
+      // Both of these describe a game, not a throw, and a synced throw arrives
+      // without its game. They only add up because they travel folded into the
+      // snapshot alongside.
+      expect(b.highestGameAverage,
+          closeTo(a.highestGameAverage, 0.001), reason: 'highest game average');
       // Which segment each dart hit is the one thing a synced throw cannot
       // carry, so it travels folded into the stats snapshot instead. It feeds
       // the dartboard heatmap and the top doubles.

@@ -161,18 +161,41 @@ Future<SyncPacket> buildSyncPacket(
     return (included, excluded);
   }
 
+  /// The same split for throws played on this device, but along whole games:
+  /// a game is inside the range when its last throw is.
+  ///
+  /// Half a game has no perfect leg and no average worth the name, and a game
+  /// cut down the middle would have both halves claim it, once as a game
+  /// folded into the snapshot and once as a game travelling as throws.
+  (List<DartThrow>, List<DartThrow>) splitByGame(List<DartThrow> throws) {
+    if (cutoff == null) return (throws, const []);
+
+    final lastThrowOfGame = <int, int>{};
+    for (final t in throws) {
+      final at = t.thrownAt.millisecondsSinceEpoch;
+      if (at > (lastThrowOfGame[t.gameId] ?? 0)) lastThrowOfGame[t.gameId] = at;
+    }
+
+    final included = <DartThrow>[];
+    final excluded = <DartThrow>[];
+    for (final t in throws) {
+      (lastThrowOfGame[t.gameId]! >= cutoff ? included : excluded).add(t);
+    }
+    return (included, excluded);
+  }
+
   final stored     = await db.getOriginSnapshots(player.id!);
   final snapshots  = <String, String>{};
   final travelling = <(String, DartThrow)>[];
 
   // This device's own throws and its own snapshot. The throws left out travel
-  // as aggregated stats; the ones travelling as throws still need their
-  // dartboard segments folded in, because that is the one thing the wire
-  // format cannot carry per throw.
-  final (includedOwn, excludedOwn) = split(byOrigin[null] ?? const []);
+  // as aggregated stats; the ones travelling as throws still need everything
+  // their game knows about itself folded in, because a synced throw arrives
+  // without its game.
+  final (includedOwn, excludedOwn) = splitByGame(byOrigin[null] ?? const []);
   travelling.addAll(includedOwn.map((t) => (deviceId, t)));
 
-  final ownSnapshot = DbHelper.addSegmentHits(
+  final ownSnapshot = await db.addTravellingGameFacts(
       await db.foldThrowsIntoSnapshot(player.localStatsJson, excludedOwn),
       includedOwn);
   snapshots[deviceId] = ownSnapshot == null ? '' : jsonEncode(ownSnapshot);
@@ -186,7 +209,10 @@ Future<SyncPacket> buildSyncPacket(
     final (included, excluded) = split(entry.value);
     travelling.addAll(included.map((t) => (origin, t)));
 
-    final snapshot = await db.foldThrowsIntoSnapshot(stored[origin], excluded);
+    // What these games knew about themselves is already part of the snapshot
+    // their device sent, so only the plain counters are folded here.
+    final snapshot = await db.foldThrowsIntoSnapshot(stored[origin], excluded,
+        gameFacts: false);
     snapshots[origin] = snapshot == null ? '' : jsonEncode(snapshot);
   }
 
