@@ -34,7 +34,8 @@ dart run flutter_launcher_icons
 - `provider` — state management
 - `shared_preferences` — lightweight key/value persistence
 - `mobile_scanner` + `qr_flutter` — QR-based sync between devices (see the Sync section under Key Conventions)
-- `share_plus` + `gal` + `image_picker` + `path_provider` — export/share functionality
+- `share_plus` + `gal` + `path_provider` — export/share functionality
+- No file picking package. The document picker for the backup restore is written by hand on both platforms, see the Backup section under Key Conventions
 - `in_app_purchase` — donation / supporter in-app purchases
 - `package_info_plus` + `url_launcher` — app metadata and external links (about screen)
 - `intl` + `flutter_localizations` — i18n (English/German); strings are maintained by hand, see Key Conventions
@@ -95,10 +96,14 @@ lib/
 │   ├── about_screen.dart                 # App info, version, license (GPL-3.0), project links
 │   ├── licenses_screen.dart              # Licenses of the packages the app is built on
 │   ├── donation_screen.dart              # Support the developer via in-app purchases
-│   └── sync_screen.dart                  # Device-to-device data sync (QR and Wi-Fi)
+│   ├── sync_screen.dart                  # Device-to-device data sync (QR and Wi-Fi)
+│   └── backup_screen.dart                # Backup and restore of the whole local database
 ├── services/
 │   ├── sync_codec.dart        # Sync wire format: binary packet, base45, fountain coded frames
-│   └── sync_service.dart      # Sync payload types, the Wi-Fi server and its client
+│   ├── sync_service.dart      # Sync payload types, the Wi-Fi server and its client
+│   ├── device_identity.dart   # This device's sync id, the attribution key for all origin tracking
+│   ├── backup_service.dart    # Writing the database out as one file and reading one back in
+│   └── document_picker.dart   # Dart side of the hand-written system file picker
 ├── widgets/
 │   ├── dartboard_input.dart           # Dartboard-style tap input
 │   ├── dartboard_icon.dart            # Decorative dartboard SVG widget
@@ -170,6 +175,16 @@ lib/
 - `app_localizations.dart` is hand-written, not generated — there are no `.arb` files and no codegen step. A new string is one getter in `class AppLocalizations` using `_t('<en>', '<de>')`, placed under the matching `// ── Section ──` banner; parameterized strings become methods instead of getters
 - Never run `dart format` — the codebase aligns constructor arguments and the `=>` of the localization getters in columns by hand, and the formatter collapses all of it
 - Donation / supporter state lives in `DonationProvider`; never call `in_app_purchase` directly from a screen
+
+### Backup
+
+- A backup is the SQLite file itself, not a dump of it. That keeps a restore exact and costs no second serialiser to keep in step with the schema. The price is that a file from a newer schema version cannot be read, which is why `inspectBackup` reports the version and the service refuses anything above `DbHelper.schemaVersion`
+- `prepareBackup` checkpoints the write-ahead log before the file is copied. Without it a copy of `dartscore.db` alone misses whatever still sits in the `-wal` companion, and nothing about the resulting backup looks wrong until someone needs it. For the same reason a restore deletes `-wal` and `-shm`: they belong to the replaced database
+- A backup carries the device id from `DeviceIdentity` in its `app_meta` table, and a restore adopts it. Every game is filed under the device that played it, so coming back up under a fresh id would leave the whole restored history attributed to a device that no longer answers. The other side of that is that two live devices must never end up on one id, which is what the warning in the restore dialog is for
+- Backup is not sync and must not be built on `sync_codec.dart`. A sync merges two devices and folds what it cannot carry into snapshots; a restore replaces this device wholesale, identity included
+- Where the file goes is the platform's business. `share_plus` on the way out, the document picker on the way back in, so iCloud Drive, Google Drive, Files and mail are all covered without the app hosting anything or knowing which one was used
+- The document picker is written by hand in `DocumentPickerHandler.swift` and `MainActivity.kt` because every file picking package still requires CocoaPods on iOS, which this project deliberately does not use. Adding one back would undo that. A new Swift file also has to be added to the `DartScore` target in `project.pbxproj`; it is not picked up on its own
+- The picked file is always a copy in a cache directory, on both platforms. It is meant to be used at once and thrown away, not kept
 
 ### Sync
 

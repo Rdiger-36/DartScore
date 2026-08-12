@@ -6,6 +6,7 @@ import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import 'about_screen.dart';
+import 'backup_screen.dart';
 import 'donation_screen.dart';
 
 /// Settings screen grouping theme, language, support, and about sections.
@@ -28,6 +29,8 @@ class SettingsScreen extends StatelessWidget {
           const _ThemeSection(),
           const SizedBox(height: 20),
           const _LanguageSection(),
+          const SizedBox(height: 20),
+          const _DataSection(),
           const SizedBox(height: 20),
           const _SupportSection(),
           const SizedBox(height: 20),
@@ -204,6 +207,34 @@ class _LangTile extends StatelessWidget {
       trailing:
           selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
       onTap: onTap,
+    );
+  }
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+/// Settings section linking to the backup and restore screen.
+class _DataSection extends StatelessWidget {
+  const _DataSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+
+    return _Card(
+      title: l.backupSection,
+      icon: Icons.inventory_2_outlined,
+      child: ListTile(
+        leading: Icon(Icons.backup_outlined, color: cs.onSurfaceVariant),
+        title: Text(l.backupTitle),
+        subtitle: Text(l.backupSectionDesc),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BackupScreen()),
+        ),
+      ),
     );
   }
 }
