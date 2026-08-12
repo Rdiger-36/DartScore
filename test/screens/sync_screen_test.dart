@@ -96,6 +96,19 @@ void main() {
           greaterThan(tester.getRect(find.byType(DropdownButton<Player>)).bottom));
     });
 
+    testWidgets('offers the scan at the width of what is above it',
+        (tester) async {
+      for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
+        await pumpSync(tester, size: size);
+
+        final button = tester.getRect(
+            find.widgetWithText(FilledButton, 'Scan QR code'));
+        final column = tester.getRect(find.textContaining('Scan the sender'));
+        expect(button.width, greaterThanOrEqualTo(column.width - 1),
+            reason: 'the button fills its column at $size');
+      }
+    });
+
     testWidgets('starts no camera until the user asks for one', (tester) async {
       // The receiver tab builds without MobileScanner. If that ever changed,
       // opening the screen would take the camera on every visit, which is the

@@ -965,6 +965,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     final about = <Widget>[
       Text(
         l.syncReceiveDesc,
+        textAlign: TextAlign.center,
         style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
       ),
       if (_error != null) ...[
@@ -1034,15 +1035,19 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         ],
       );
     } else {
-      stage = Align(
-        alignment: Alignment.topCenter,
-        child: FilledButton.icon(
-          onPressed: _startScanning,
-          icon: const Icon(Icons.qr_code_scanner),
-          label: Text(l.scanQr),
-          style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16)),
-        ),
+      // As wide as everything else in its column, wherever that column is.
+      stage = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton.icon(
+            onPressed: _startScanning,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text(l.scanQr),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16)),
+          ),
+        ],
       );
     }
 
