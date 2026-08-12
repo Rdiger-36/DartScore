@@ -353,19 +353,18 @@ void main() {
       expect(hint.width, greaterThan(input.width));
     });
 
-    testWidgets('lines the modifier switch up with the numbers',
+    testWidgets('centres the modifier switch under the visit row',
         (tester) async {
       await pumpGame(tester, surface: _tabletLandscape);
 
       final segment = tester.getRect(find.byType(SegmentedButton<int>));
-      final field5  = tester.getRect(find.widgetWithText(InkWell, '5').first);
-      final miss    = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final pane    = tester.getRect(find.byType(DartboardInput));
 
-      // It ends where the last column of numbers ends, not where the pane
-      // does, so it does not reach across the actions it has nothing to do
-      // with.
-      expect(segment.right, closeTo(field5.right, 12));
-      expect(segment.right, lessThan(miss.left));
+      // A switch for the whole input, so it sits on the middle line of the
+      // pane rather than over one column of it.
+      expect(segment.center.dx, closeTo(pane.center.dx, 2));
+      // And carries a tablet size, not the one it has on a phone.
+      expect(segment.height, greaterThan(60));
     });
   });
 }
