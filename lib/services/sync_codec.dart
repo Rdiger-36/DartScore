@@ -214,6 +214,38 @@ Uint8List encodeSyncBytes(SyncPacket packet) {
     expectedRemaining = t.bust ? t.remainingBefore : t.remainingBefore - t.score;
   }
 
+  // Who sent this and whose data it holds, appended rather than versioned: an
+  // app that predates origins reads the packet to the last throw and stops, so
+  // it still imports everything it knows how to use instead of refusing a
+  // format number it does not recognise.
+  if (packet.senderDeviceId.isNotEmpty || packet.origins.isNotEmpty) {
+    w.str(packet.senderDeviceId);
+    w.varint(packet.origins.length);
+    for (final origin in packet.origins) {
+      w.str(origin.device);
+      w.str(origin.snapshotJson);
+    }
+
+    // Which device each throw came from, as an index into the origins above.
+    // A device id per throw would say the same thing at sixteen times the
+    // size, and a packet whose throws are all the sender's own writes nothing
+    // here at all.
+    final index = {
+      for (var i = 0; i < packet.origins.length; i++)
+        packet.origins[i].device: i,
+    };
+    final attributed = packet.throwOrigins.length == throws.length &&
+        packet.throwOrigins.any((o) => o != packet.senderDeviceId) &&
+        packet.throwOrigins.every(index.containsKey);
+
+    w.varint(attributed ? throws.length : 0);
+    if (attributed) {
+      for (final origin in packet.throwOrigins) {
+        w.varint(index[origin]!);
+      }
+    }
+  }
+
   return Uint8List.fromList(gzip.encode(w.takeBytes()));
 }
 
@@ -295,14 +327,43 @@ SyncPacket decodeSyncBytes(Uint8List compressed) {
     remaining = bust ? remaining : remaining - score;
   }
 
+  // Anything past the throws is the origin trailer, which only newer senders
+  // write.
+  var senderDeviceId = '';
+  final origins      = <SyncOrigin>[];
+  final throwOrigins = <String>[];
+
+  if (r.hasMore) {
+    senderDeviceId = r.str();
+    final originCount = r.varint();
+    for (var i = 0; i < originCount; i++) {
+      origins.add(SyncOrigin(device: r.str(), snapshotJson: r.str()));
+    }
+
+    final attributedCount = r.varint();
+    for (var i = 0; i < attributedCount; i++) {
+      final index = r.varint();
+      if (index >= origins.length) {
+        throw const FormatException('Throw names an origin that is not there');
+      }
+      throwOrigins.add(origins[index].device);
+    }
+    if (throwOrigins.isNotEmpty && throwOrigins.length != throws.length) {
+      throw const FormatException('Throw origins do not match the throws');
+    }
+  }
+
   return SyncPacket(
     version:         version,
     senderDevice:    senderDevice,
+    senderDeviceId:  senderDeviceId,
     playerUuid:      playerUuid,
     playerName:      playerName,
     favoriteDoubles: favoriteDoubles,
     stats:           stats,
     throws:          throws,
+    origins:         origins,
+    throwOrigins:    throwOrigins,
     localStatsJson:  localStats.isEmpty ? null : localStats,
     rangeDays:       rangeDays == 0 ? null : rangeDays,
   );
@@ -780,6 +841,10 @@ class _ByteReader {
   int _pos = 0;
 
   _ByteReader(this._bytes);
+
+  /// Whether anything is left to read, which is how the optional trailer at
+  /// the end of a packet is recognised.
+  bool get hasMore => _pos < _bytes.length;
 
   /// Reads one byte.
   int u8() {
