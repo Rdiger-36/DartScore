@@ -49,7 +49,7 @@ bool isTabletLayout(BuildContext context) =>
 
 /// The screens that divide themselves into two panes. Each keeps its own
 /// divider position, because each divides something different.
-enum SplitPane { game, history, players }
+enum SplitPane { game, history, players, setup }
 
 /// Share of the width the pane holding the input starts with, and the range a
 /// drag of the divider may move it to.
@@ -124,6 +124,21 @@ class _ScaledTextScaler extends TextScaler {
 /// dates and names needs less room than what it opens, but not much less.
 const double kMinListPaneWidth = 320.0;
 
+/// Narrowest a column of the setup may be dragged to.
+///
+/// A setup column is a stack of cards whose rows are a label beside a control,
+/// so it needs about what a phone gives them. Below this the format chips wrap
+/// to one per line and the legs and sets steppers stop fitting side by side.
+const double kMinSetupPaneWidth = 360.0;
+
+/// Whether [width] has room for two setup columns worth reading.
+///
+/// A tablet held upright is wide enough for two panes long before it is wide
+/// enough for these two: a settings card cut to 300 dp reads worse than the
+/// single centred column a phone gets, so below this the setup stays one.
+bool fitsSetupPanes(double width) =>
+    width >= 2 * kMinSetupPaneWidth + kDividerHitWidth;
+
 /// Width of the draggable divider between two panes. Wide enough to grab,
 /// while the line drawn inside it stays hairline thin.
 const double kDividerHitWidth = 16.0;
@@ -131,15 +146,19 @@ const double kDividerHitWidth = 16.0;
 /// Identifies the divider between two panes, for tests that drag it.
 const Key kPaneDividerKey = Key('pane-divider');
 
-/// Places the column holding the score input beside a second pane, on the side
-/// the user chose, with a divider that can be dragged to rebalance the two.
+/// Places a pane of a given share beside a second one that takes the rest,
+/// with a divider that can be dragged to rebalance the two.
+///
+/// The game names the sides after the input, because that is what the player
+/// moves there; a screen with no input keeps the same [side] for the pane it
+/// measures.
 ///
 /// [fraction] is the share [primary] takes of the width. The divider reports a
 /// new one through [onFractionChanged] while it is dragged and calls
 /// [onFractionSettled] once the gesture ends, which is where a caller writes
 /// the result down: a drag must not do that on every frame.
 class SidePaneLayout extends StatelessWidget {
-  /// The column the input lives in. Sits on the chosen side.
+  /// The pane [fraction] measures. Sits on the chosen side.
   final Widget primary;
 
   /// The pane that gets whatever width [primary] leaves over.
@@ -223,8 +242,10 @@ double paneWidthFor({
   required double minPaneWidth,
 }) {
   // On a window too narrow for two full panes the dp floor would cross itself,
-  // so it never claims more than half.
-  final floor = min(minPaneWidth, total / 2);
+  // so it never claims more than half of what the two panes actually get: half
+  // the window is already too much, because the divider is taken out of the
+  // same width and the floor would then exceed what is left for the other side.
+  final floor = min(minPaneWidth, (total - kDividerHitWidth) / 2);
   return (total * fraction).clamp(
     max(total * kMinSplitFraction, floor),
     min(total * kMaxSplitFraction, total - floor - kDividerHitWidth),
