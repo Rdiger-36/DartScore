@@ -168,6 +168,20 @@ double uprightTargetBoardEdge(BuildContext context) {
       .toDouble();
 }
 
+/// Widest the sync screen is laid out at when it divides itself. Two columns of
+/// a phone's worth each, and no more: past that the picker on one side and the
+/// code on the other only drift apart.
+const double kSyncTwoColumnMaxWidth = 1000;
+
+/// Whether the sync screen stands in two columns: a tablet on its side, where
+/// the code and what produced it both have a whole column to themselves.
+///
+/// Upright it stays the single column it is on a phone, because a picker over a
+/// code reads perfectly well and half of an upright tablet does not.
+bool syncTwoColumns(BuildContext context) =>
+    isTabletLayout(context) &&
+    MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
+
 /// Whether [width] has room for two columns of [minPaneWidth] and the divider
 /// between them.
 ///

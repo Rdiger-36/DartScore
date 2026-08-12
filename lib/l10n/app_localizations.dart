@@ -440,6 +440,10 @@ class AppLocalizations {
   String get syncViaServer     =>
       _t('too much for a QR code, transferred over Wi-Fi',
          'zu viel für einen QR-Code, Übertragung über WLAN');
+  String get syncStartStream     => _t('Start the code', 'Code starten');
+  String get syncStartStreamHint =>
+      _t('Start the stream once the other device is scanning.',
+         'Starte den Strom, sobald das andere Gerät scannt.');
   String get syncAnimatedHint  =>
       _t('Hold both phones steady until the receiver is finished.',
          'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
