@@ -93,6 +93,8 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
                   ...sorted.map((s) {
                     final isWinner = s.player.id == winnerId;
                     final hit = s.progress.clamp(0, total);

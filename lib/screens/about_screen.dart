@@ -45,12 +45,17 @@ class _LicenseTextScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final l = context.l10n;
     return Scaffold(
       appBar: AppBar(title: Text(l.license)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
         children: [
           Text(l.appName,
               style: Theme.of(context).textTheme.titleMedium
@@ -67,6 +72,40 @@ class _LicenseTextScreen extends StatelessWidget {
             label: Text(l.licenseFullText),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Widest the packaged licenses may be laid out at.
+///
+/// Flutter's own [LicensePage] divides itself into a master and a detail from
+/// 840 dp of width, and that layout stacks the detail over the list and
+/// stutters as it scrolls. Held under the threshold it stays the single column
+/// it is on a phone, and takes as much of a tablet as it can without turning
+/// into the other thing.
+const double _kLicensePageMaxWidth = 800;
+
+/// The licenses of everything the app is built on, at a width that keeps the
+/// page in one piece. The page brings its own bar and its own list.
+class _PackageLicensesScreen extends StatelessWidget {
+  final String? version;
+
+  const _PackageLicensesScreen({this.version});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: _kLicensePageMaxWidth),
+          child: LicensePage(
+            applicationName: context.l10n.appName,
+            applicationVersion: version,
+          ),
+        ),
       ),
     );
   }
@@ -173,10 +212,10 @@ class _AboutScreenState extends State<AboutScreen> {
               title: Text(l.openSourceLicenses),
               subtitle: Text(l.openSourceLicensesDesc),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: l.appName,
-                applicationVersion: info?.version,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => _PackageLicensesScreen(version: info?.version),
+                ),
               ),
             ),
           ),

@@ -199,7 +199,12 @@ class _SyncScreenState extends State<SyncScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.syncTitle),
@@ -1589,15 +1594,24 @@ class _QrScannerState extends State<_QrScanner> with WidgetsBindingObserver {
               widget.onScanned(raw);
             },
           ),
-          Center(
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: cs.primary, width: 3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+          // The frame follows the picture: on a tablet the camera fills far
+          // more than the 200 dp square a phone was drawn.
+          LayoutBuilder(
+            builder: (context, box) {
+              final side = (box.biggest.shortestSide * 0.6)
+                  .clamp(160.0, 420.0)
+                  .toDouble();
+              return Center(
+                child: Container(
+                  width: side,
+                  height: side,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: cs.primary, width: 3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            },
           ),
           Positioned(
             bottom: 20,

@@ -309,6 +309,8 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 ...sortedSlots.map((e) {
                   final slot     = e.$2;
                   final isWinner = e.$1 == data.winnerSlotIndex;
@@ -375,6 +377,8 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     const SizedBox(width: 52),
