@@ -84,6 +84,7 @@ class ShanghaiSummaryScreen extends StatelessWidget {
         ],
         details: [
           Card(
+            margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
