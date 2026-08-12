@@ -540,7 +540,7 @@ class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
       ? content
       : Scaffold(
           appBar: AppBar(
-            title: Text('${widget.player.name} · ${context.l10n.statistics}'),
+            title: Text(context.l10n.statisticsOf(widget.player.name)),
           ),
           body: content,
         );

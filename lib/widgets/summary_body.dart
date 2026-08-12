@@ -115,12 +115,15 @@ class SummaryActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // The home indicator sits under the bar and is padded around below the
-    // buttons, so the same amount goes above them: what should read as one gap
-    // on either side is otherwise a third of it on top.
-    final inset = MediaQuery.paddingOf(context).bottom;
+    final tablet = isTabletLayout(context);
     // A phone has less height to give away to a bar than a tablet has.
-    final gap = isTabletLayout(context) ? 12.0 : 3.0;
+    final gap = tablet ? 12.0 : 3.0;
+    // The home indicator asks for more room under the buttons than it draws
+    // itself, and the same room then has to go above them or the bar reads as
+    // bottom heavy. On a phone that pair of gaps is most of the bar, so it
+    // keeps half of what the system asks for: the buttons still clear the
+    // indicator, and the bar costs half the height.
+    final inset = MediaQuery.paddingOf(context).bottom * (tablet ? 1 : 0.5);
 
     return Container(
       decoration: BoxDecoration(
@@ -130,9 +133,12 @@ class SummaryActionBar extends StatelessWidget {
         ),
       ),
       child: SafeArea(
+        // The room under the buttons is measured here rather than left to the
+        // safe area, which cannot be asked for half of itself.
         top: false,
+        bottom: false,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(16, gap + inset, 16, gap),
+          padding: EdgeInsets.fromLTRB(16, gap + inset, 16, gap + inset),
           child: Center(
             // Side by side and equally wide, and no wider together than they
             // can still be read as two buttons rather than as a toolbar.
