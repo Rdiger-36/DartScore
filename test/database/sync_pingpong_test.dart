@@ -34,8 +34,20 @@ void main() {
     Future<Player> reload(Player p) async =>
         (await DbHelper.instance.getPlayer(p.id!))!;
 
+    /// How many legs have been played, so each one can be given a time of its
+    /// own.
+    var legsPlayed = 0;
+
     /// Plays one 501 leg for [player] against the shared opponent: two 180s, an
     /// overshoot from 141, then 141 checked out on a double.
+    ///
+    /// The leg is then moved a few minutes into the past, further with each
+    /// call. A test writes every throw of both devices inside the same
+    /// millisecond or two, and `thrownAt` is the deduplication key: two
+    /// devices landing on the same millisecond would have one device's visit
+    /// discarded as a copy of the other's. Real play cannot do that, one
+    /// person cannot throw on two devices at once, so spacing the legs out is
+    /// what makes the test the situation it is meant to be.
     Future<void> playLeg(Player player) async {
       final provider = GameProvider();
       await provider.startGame(
@@ -65,6 +77,14 @@ void main() {
       await provider.tapField(12, 2);
 
       expect(provider.gameOver, isTrue, reason: 'the leg should be finished');
+
+      legsPlayed++;
+      final d = await DbHelper.instance.db;
+      await d.rawUpdate(
+        'UPDATE dart_throws SET thrown_at = thrown_at - ? '
+        'WHERE game_id = (SELECT MAX(id) FROM games)',
+        [Duration(minutes: 5 * legsPlayed).inMilliseconds],
+      );
     }
 
     /// Ages every throw recorded so far, so a later leg stays inside a short
@@ -234,6 +254,46 @@ void main() {
       // And syncing with A again replaces only A's part.
       await receive(await send(a, 'DEVICE-A'), b, 'DEVICE-B');
       expect((await statsOf(b)).totalVisits, afterSecond.totalVisits);
+    });
+
+    test('the range still cuts throws that came from another device',
+        () async {
+      final a = opponents[0];
+      final b = opponents[1];
+
+      // Old history on A, synced to B, then a fresh leg played on B itself.
+      await playLeg(a);
+      await ageEverythingBy(40);
+      await receive(await send(a, 'DEVICE-A'), b, 'DEVICE-B');
+      await playLeg(b);
+
+      final all  = await send(b, 'DEVICE-B');
+      final week = await send(b, 'DEVICE-B', range: SyncRange.week);
+
+      expect(week.throws.length, lessThan(all.throws.length),
+          reason: 'what a sync brought in is subject to the range as well');
+    });
+
+    test('the range cannot cut throws from before devices were told apart',
+        () async {
+      final b = opponents[1];
+
+      // What the migration leaves behind: throws under the unnamed device,
+      // which is how every sync before this looked.
+      await playLeg(b);
+      await ageEverythingBy(40);
+      final d = await DbHelper.instance.db;
+      await d.update('games', {'is_synced': 1, 'origin_device': ''});
+
+      final all  = await send(b, 'DEVICE-B');
+      final week = await send(b, 'DEVICE-B', range: SyncRange.week);
+
+      // Deliberate, and the reason the range looks like it does nothing on a
+      // device that has synced before: there is no snapshot this data could be
+      // folded into without handing it back to whoever played it. It travels
+      // whole until one sync has given it a device to belong to.
+      expect(week.throws.length, all.throws.length);
+      expect(all.throws, isNotEmpty);
     });
 
     test('a device passing on a third one keeps whose data it is', () async {
