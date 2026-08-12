@@ -58,6 +58,13 @@ class _CricketGameView extends StatelessWidget {
     final currentIdx = provider.currentPlayerIndex;
     final current = provider.currentPlayerState;
 
+    final board = _CricketBoard(
+      states: states,
+      currentIdx: currentIdx,
+      throwCount: provider.throwCount,
+      game: game,
+    );
+
     return PopScope(
       // A running game must not be lost to a stray back gesture; the system
       // back asks the same question the close button in the app bar asks.
@@ -86,15 +93,19 @@ class _CricketGameView extends StatelessWidget {
           children: [
             // ── Scoreboard ────────────────────────────────────────────────────
             Expanded(
-              child: SingleChildScrollView(
-                padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
-                child: _CricketBoard(
-                  states: states,
-                  currentIdx: currentIdx,
-                  throwCount: provider.throwCount,
-                  game: game,
-                ),
-              ),
+              // A tablet hands the board the whole box above the input and lets
+              // it fill it. A phone keeps the column a phone screen reads at and
+              // scrolls the board inside it.
+              child: isTabletLayout(context)
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      child: board,
+                    )
+                  : SingleChildScrollView(
+                      padding:
+                          contentPadding(context, top: 8, bottom: 8, innerH: 12),
+                      child: board,
+                    ),
             ),
             // ── Input area ────────────────────────────────────────────────────
             Container(
@@ -192,6 +203,130 @@ class _CricketGameView extends StatelessWidget {
 const double _kLabelColumnWidth = 52;
 const double _kPlayerColumnWidth = 92;
 const double _kHeaderHeight = 52;
+const double _kRowHeight = 40;
+
+/// Widest a player column is allowed to grow on a tablet. Past this the board
+/// stops spreading and stands centred instead: a mark alone in a column half a
+/// screen wide stops reading as a column.
+const double _kMaxPlayerColumnWidth = 200;
+
+/// Tallest a field row may grow. Seven rows of this plus the header is about a
+/// tablet's worth of height, and a row taller than this only pushes the seven
+/// fields apart.
+const double _kMaxRowHeight = 88;
+
+/// The vertical padding a field row carries, above and below together.
+const double _kRowGap = 6;
+
+/// The card's own padding, on both sides and top and bottom together.
+const double _kCardPadding = 24;
+
+/// The margin a Card carries outside that padding, again for both sides. Left
+/// out of the budget, it is exactly what a board that fills its box overflows
+/// by.
+const double _kCardMargin = 8;
+
+/// The divider between the header and the field rows, with its two gaps.
+const double _kHeaderDivider = 13;
+
+/// How large a Cricket board draws itself in the box it was handed.
+///
+/// A phone keeps the fixed sizes the board has always had and scrolls when they
+/// do not fit. A tablet spends the box instead: the columns share the width up
+/// to a cap, the rows share the height, and the text and marks follow the rows
+/// so a taller board is not the same board with more air in it.
+class _BoardMetrics {
+  final double columnWidth;
+  final double rowHeight;
+  final double headerHeight;
+  final double markSize;
+  final double textFactor;
+
+  /// Width of the card itself, which on a tablet is only as wide as its columns
+  /// need. Infinite where the card takes whatever width it is given.
+  final double boardWidth;
+
+  /// Whether the rows fit the box at the height they were given. A board that
+  /// does not fit is scrolled rather than squeezed.
+  final bool fits;
+
+  const _BoardMetrics({
+    required this.columnWidth,
+    required this.rowHeight,
+    required this.headerHeight,
+    required this.markSize,
+    required this.textFactor,
+    required this.boardWidth,
+    required this.fits,
+  });
+
+  /// Works the sizes out for [constraints], for a board of [players] columns.
+  ///
+  /// [teamGame] adds the second line each header carries for a team, and
+  /// [tablet] decides whether anything is spent at all: on a phone this returns
+  /// exactly the fixed board.
+  factory _BoardMetrics.of(
+    BoxConstraints constraints, {
+    required bool tablet,
+    required int players,
+    required bool teamGame,
+  }) {
+    final baseHeader = teamGame ? _kHeaderHeight + 14 : _kHeaderHeight;
+
+    if (!tablet || !constraints.maxHeight.isFinite) {
+      return _BoardMetrics(
+        columnWidth:  _kPlayerColumnWidth,
+        rowHeight:    _kRowHeight,
+        headerHeight: baseHeader,
+        markSize:     36,
+        textFactor:   1.0,
+        boardWidth:   double.infinity,
+        fits:         true,
+      );
+    }
+
+    // Height left for the seven rows once the card, the header and the divider
+    // under it have taken theirs. The header is measured twice because it grows
+    // with the text, and the text grows with the rows it stands over.
+    double rowsFor(double header) =>
+        (constraints.maxHeight -
+                _kCardMargin -
+                _kCardPadding -
+                header -
+                _kHeaderDivider) /
+            7 -
+        _kRowGap;
+
+    final textFactor =
+        (rowsFor(baseHeader * 1.3) / _kRowHeight).clamp(1.0, 1.3).toDouble();
+    final headerHeight = baseHeader * textFactor;
+    final rowHeight =
+        rowsFor(headerHeight).clamp(_kRowHeight, _kMaxRowHeight).toDouble();
+
+    final columnWidth = ((constraints.maxWidth -
+                _kCardMargin -
+                _kCardPadding -
+                _kLabelColumnWidth) /
+            players)
+            .clamp(_kPlayerColumnWidth, _kMaxPlayerColumnWidth)
+            .toDouble();
+
+    return _BoardMetrics(
+      columnWidth:  columnWidth,
+      rowHeight:    rowHeight,
+      headerHeight: headerHeight,
+      // The mark keeps a margin inside its row, and never grows past the column
+      // it sits in.
+      markSize:     (rowHeight * 0.9).clamp(36, columnWidth - 8).toDouble(),
+      textFactor:   textFactor,
+      boardWidth: _kCardMargin +
+          _kCardPadding +
+          _kLabelColumnWidth +
+          columnWidth * players,
+      fits: rowsFor(headerHeight) >= _kRowHeight,
+    );
+  }
+}
 
 /// Horizontally scrollable grid of Cricket fields by player, showing marks and
 /// scores and auto-scrolling to keep the active player's column in view.
@@ -214,6 +349,11 @@ class _CricketBoard extends StatefulWidget {
 
 class _CricketBoardState extends State<_CricketBoard> {
   final ScrollController _hController = ScrollController();
+
+  /// Width of one player column as the last build worked it out. The scroll to
+  /// the active player runs after that frame and has to measure in the same
+  /// columns it is scrolling past.
+  double _columnWidth = _kPlayerColumnWidth;
 
   @override
   void initState() {
@@ -245,8 +385,8 @@ class _CricketBoardState extends State<_CricketBoard> {
     if (!_hController.hasClients) return;
 
     final viewport = _hController.position.viewportDimension;
-    final columnLeft = widget.currentIdx * _kPlayerColumnWidth;
-    final target = (columnLeft - (viewport - _kPlayerColumnWidth) / 2).clamp(
+    final columnLeft = widget.currentIdx * _columnWidth;
+    final target = (columnLeft - (viewport - _columnWidth) / 2).clamp(
       0.0,
       _hController.position.maxScrollExtent,
     );
@@ -260,14 +400,40 @@ class _CricketBoardState extends State<_CricketBoard> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final m = _BoardMetrics.of(
+          constraints,
+          tablet:   isTabletLayout(context),
+          players:  widget.states.length,
+          teamGame: widget.game.isTeamGame,
+        );
+        _columnWidth = m.columnWidth;
+
+        final card = TextScaleBy(
+          factor: m.textFactor,
+          child: _card(context, m),
+        );
+        if (m.boardWidth.isInfinite) return card;
+
+        // Only as wide as its columns, and standing in the middle of what is
+        // left. Taller than the box, it is scrolled rather than squeezed.
+        final centred = Center(
+          child: SizedBox(width: m.boardWidth, child: card),
+        );
+        return m.fits ? centred : SingleChildScrollView(child: centred);
+      },
+    );
+  }
+
+  /// The board itself at the sizes [m] worked out.
+  Widget _card(BuildContext context, _BoardMetrics m) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final l = context.l10n;
     final states = widget.states;
     final currentIdx = widget.currentIdx;
-    final headerHeight = widget.game.isTeamGame
-        ? _kHeaderHeight + 14
-        : _kHeaderHeight;
+    final headerHeight = m.headerHeight;
 
     return Card(
       child: Padding(
@@ -292,7 +458,7 @@ class _CricketBoardState extends State<_CricketBoard> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
                       child: SizedBox(
-                        height: 40,
+                        height: m.rowHeight,
                         child: Center(
                           child: Text(
                             label,
@@ -315,7 +481,7 @@ class _CricketBoardState extends State<_CricketBoard> {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final gridWidth = (_kPlayerColumnWidth * states.length).clamp(
+                  final gridWidth = (m.columnWidth * states.length).clamp(
                     constraints.maxWidth,
                     double.infinity,
                   );
@@ -332,7 +498,7 @@ class _CricketBoardState extends State<_CricketBoard> {
                             final s = e.$2;
                             final isActive = i == currentIdx;
                             return SizedBox(
-                              width: _kPlayerColumnWidth,
+                              width: m.columnWidth,
                               height: headerHeight,
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -395,10 +561,11 @@ class _CricketBoardState extends State<_CricketBoard> {
                               children: states.map((s) {
                                 final marks = s.marks[field] ?? 0;
                                 return SizedBox(
-                                  width: _kPlayerColumnWidth,
-                                  height: 40,
+                                  width: m.columnWidth,
+                                  height: m.rowHeight,
                                   child: Center(
-                                    child: CricketMarksWidget(marks: marks),
+                                    child: CricketMarksWidget(
+                                        marks: marks, size: m.markSize),
                                   ),
                                 );
                               }).toList(),
