@@ -12,6 +12,7 @@ import '../providers/players_provider.dart';
 import '../database/db_helper.dart';
 import '../models/dart_throw.dart';
 import '../models/player.dart';
+import '../services/device_identity.dart';
 import '../services/sync_codec.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
@@ -72,16 +73,28 @@ String _rangeLabelForDays(AppLocalizations l, int? days) => switch (days) {
       _  => l.syncRangeAll,
     };
 
-/// Builds a [SyncPacket] for [player] covering [range], using the live throws
-/// plus the persisted [local_stats_json] snapshot (covers cleared game history).
+/// Builds a [SyncPacket] for [player] covering [range], out of the live throws
+/// plus every stats snapshot the player carries: this device's own, covering
+/// its cleared game history, and one per device that ever synced to it.
 ///
 /// The aggregate stats always describe the player's whole history, whatever
 /// [range] is: the throws it leaves out are folded into the snapshot that
 /// travels along, so a short range costs individual throws and nothing else.
+///
+/// Which snapshot they are folded into is what keeps a sync correct in both
+/// directions. A throw played here folds into this device's snapshot, a throw
+/// that arrived from another device folds back into that device's own, and the
+/// receiver drops whichever snapshot carries its own id. Fold everything into
+/// one total instead and a device gets its own history handed back as part of
+/// somebody else's, on top of the throws it already has.
 Future<SyncPacket> buildSyncPacket(
     Player player, String senderDevice, SyncRange range) async {
-  final db        = DbHelper.instance;
-  final allThrows = await db.getThrowsForPlayer(player.id!);
+  final db       = DbHelper.instance;
+  final deviceId = await DeviceIdentity.id;
+
+  final byOrigin  = await db.getThrowsForPlayerByOrigin(player.id!);
+  final allThrows = [for (final throws in byOrigin.values) ...throws]
+    ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
 
   // Live stats
   int liveDarts = 0, liveScored = 0, liveLegs = 0, liveHigh = 0;
@@ -98,11 +111,14 @@ Future<SyncPacket> buildSyncPacket(
     }
   }
 
-  // Persistent stats from cleared-game snapshot
+  // Persistent stats from every snapshot at once: what the sending device
+  // cleared away itself, and what other devices contributed.
+  final combined = await db.combinedSnapshotJson(player.id!);
+
   int persD = 0, persV = 0, persLegs = 0, persHigh = 0, persBusts = 0, pers180 = 0, persScored = 0;
-  if (player.localStatsJson != null && player.localStatsJson!.isNotEmpty) {
+  if (combined != null && combined.isNotEmpty) {
     try {
-      final p = jsonDecode(player.localStatsJson!) as Map<String, dynamic>;
+      final p = jsonDecode(combined) as Map<String, dynamic>;
       persD      = p['total_darts']   as int? ?? 0;
       persV      = p['total_visits']  as int? ?? 0;
       persLegs   = p['legs_won']      as int? ?? 0;
@@ -130,30 +146,90 @@ Future<SyncPacket> buildSyncPacket(
           .subtract(Duration(days: range.days!))
           .millisecondsSinceEpoch;
 
-  final included = <DartThrow>[];
-  final excluded = <DartThrow>[];
-  for (final t in allThrows) {
-    if (cutoff == null || t.thrownAt.millisecondsSinceEpoch >= cutoff) {
-      included.add(t);
-    } else {
-      excluded.add(t);
+  /// Splits one device's throws into what travels as throws and what gets
+  /// folded into that device's snapshot.
+  (List<DartThrow>, List<DartThrow>) split(List<DartThrow> throws) {
+    final included = <DartThrow>[];
+    final excluded = <DartThrow>[];
+    for (final t in throws) {
+      if (cutoff == null || t.thrownAt.millisecondsSinceEpoch >= cutoff) {
+        included.add(t);
+      } else {
+        excluded.add(t);
+      }
     }
+    return (included, excluded);
   }
 
-  // The throws left out travel as aggregated stats. The ones travelling as
-  // throws still need their dartboard segments folded in, because that is the
-  // one thing the wire format cannot carry per throw.
-  final folded =
-      await db.foldThrowsIntoSnapshot(player.localStatsJson, excluded);
-  final snapshot = DbHelper.addSegmentHits(folded, included);
+  final stored     = await db.getOriginSnapshots(player.id!);
+  final snapshots  = <String, String>{};
+  final travelling = <(String, DartThrow)>[];
+
+  // This device's own throws and its own snapshot. The throws left out travel
+  // as aggregated stats; the ones travelling as throws still need their
+  // dartboard segments folded in, because that is the one thing the wire
+  // format cannot carry per throw.
+  final (includedOwn, excludedOwn) = split(byOrigin[null] ?? const []);
+  travelling.addAll(includedOwn.map((t) => (deviceId, t)));
+
+  final ownSnapshot = DbHelper.addSegmentHits(
+      await db.foldThrowsIntoSnapshot(player.localStatsJson, excludedOwn),
+      includedOwn);
+  snapshots[deviceId] = ownSnapshot == null ? '' : jsonEncode(ownSnapshot);
+
+  // Everything that arrived from somewhere else is passed on under the device
+  // it was played on, throws and snapshot alike.
+  for (final entry in byOrigin.entries) {
+    final origin = entry.key;
+    if (origin == null || origin == kLegacyOrigin) continue;
+
+    final (included, excluded) = split(entry.value);
+    travelling.addAll(included.map((t) => (origin, t)));
+
+    final snapshot = await db.foldThrowsIntoSnapshot(stored[origin], excluded);
+    snapshots[origin] = snapshot == null ? '' : jsonEncode(snapshot);
+  }
+
+  // Devices that are only aggregates here, because a shorter range on the
+  // device that passed them on left no throws of theirs behind.
+  for (final entry in stored.entries) {
+    if (entry.key == kLegacyOrigin) continue;
+    snapshots.putIfAbsent(entry.key, () => entry.value);
+  }
+
+  // Data from before devices were told apart travels as throws whatever the
+  // range asked for, because there is no snapshot it could safely be folded
+  // into: not this device's, which would hand it to whoever it came from as
+  // ours. The set is finite and does not grow, and one sync per device pair
+  // replaces it with data that knows where it is from.
+  travelling.addAll(
+      (byOrigin[kLegacyOrigin] ?? const <DartThrow>[])
+          .map((t) => (kLegacyOrigin, t)));
+  final legacySnapshot = stored[kLegacyOrigin];
+  if (legacySnapshot != null && legacySnapshot.isNotEmpty) {
+    snapshots[kLegacyOrigin] = legacySnapshot;
+  }
+
+  travelling.sort((a, b) => a.$2.thrownAt.compareTo(b.$2.thrownAt));
+
+  final origins = [
+    for (final device in {...snapshots.keys, ...travelling.map((t) => t.$1)})
+      SyncOrigin(device: device, snapshotJson: snapshots[device] ?? ''),
+  ];
 
   return SyncPacket(
     version:         2,
     senderDevice:    senderDevice,
+    senderDeviceId:  deviceId,
     playerUuid:      player.uuid,
     playerName:      player.name,
     favoriteDoubles: player.favoriteDoubles,
-    localStatsJson:  snapshot == null ? null : jsonEncode(snapshot),
+    origins:         origins,
+    throwOrigins:    [for (final t in travelling) t.$1],
+    // Everything added together, for an app version that knows no origins and
+    // reads this field alone.
+    localStatsJson:
+        DbHelper.mergeSnapshots(origins.map((o) => o.snapshotJson)),
     rangeDays:       range.days,
     stats: SyncStats(
       totalDarts:   totalDarts,
@@ -164,7 +240,7 @@ Future<SyncPacket> buildSyncPacket(
       busts:        totalBusts,
       count180:     total180,
     ),
-    throws: included.map(SyncThrow.fromDartThrow).toList(),
+    throws: [for (final t in travelling) SyncThrow.fromDartThrow(t.$2)],
   );
 }
 
@@ -1256,15 +1332,18 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     final db        = DbHelper.instance;
     final statsJson = jsonEncode(packet.stats.toJson());
     final now       = DateTime.now().millisecondsSinceEpoch;
+    final localId   = await DeviceIdentity.id;
 
     int playerId;
 
+    // The player's own snapshot is deliberately left alone. It holds the games
+    // this device cleared away itself, which no packet knows about and which
+    // overwriting it used to lose without a trace.
     if (existing != null) {
       await provider.updatePlayer(existing.copyWith(
         name: packet.playerName,
         favoriteDoubles: packet.favoriteDoubles,
         syncedStats: statsJson,
-        localStatsJson: packet.localStatsJson,
       ));
       await db.updatePlayerSyncTime(existing.id!, now,
           syncedStatsJson: statsJson);
@@ -1278,17 +1357,14 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         uuid: packet.playerUuid,
         lastSyncedAt: now,
         syncedStats: statsJson,
-        localStatsJson: packet.localStatsJson,
       );
       await db.updatePlayer(updated);
       await provider.load();
       playerId = newPlayer.id!;
     }
 
-    // What an earlier sync brought in is replaced, not added to: this packet's
-    // snapshot may already account for those throws, and keeping both would
-    // count the same legs twice. Locally played games are not affected.
-    await db.deleteSyncedThrowsForPlayer(playerId);
+    final written = await applySyncedData(packet, playerId,
+        localDevice: localId, report: report);
 
     if (packet.throws.isEmpty) {
       return existing != null
@@ -1296,45 +1372,105 @@ class _ReceiverTabState extends State<_ReceiverTab> {
           : l.importedMsg(packet.playerName);
     }
 
-    final existingTs = await db.getThrowTimestampsForPlayer(playerId);
-    final newThrows  = packet.throws
-        .where((t) => !existingTs.contains(t.thrownAt))
-        .toList();
-
-    if (newThrows.isNotEmpty) {
-      final gameId = await db.createSyncGame(
-          newThrows.first.remainingBefore + newThrows.first.score);
-
-      // Written in slices so the modal can move between them. One batch for
-      // everything would be marginally quicker and show nothing until the end.
-      const sliceSize = 500;
-      for (var start = 0; start < newThrows.length; start += sliceSize) {
-        final end = min(start + sliceSize, newThrows.length);
-        await db.insertSyncedThrows(
-          playerId,
-          gameId,
-          newThrows
-              .sublist(start, end)
-              .map((t) => t.toDartThrow(gameId: gameId, playerId: playerId))
-              .toList(),
-        );
-        report(end, newThrows.length);
-      }
-    }
-
-    final duplicates = existingTs
-        .intersection(packet.throws.map((t) => t.thrownAt).toSet())
-        .length;
-    final newLiveVisits = packet.throws.length - duplicates;
     // For display: a new player shows total visits (live plus the historical
     // snapshot), an update shows only the newly added live visits.
-    final displayCount =
-        existing != null ? newLiveVisits : packet.stats.totalVisits;
+    final displayCount = existing != null ? written : packet.stats.totalVisits;
 
     return existing != null
         ? l.importedWithThrows(packet.playerName, displayCount)
         : l.importedWithCount(packet.playerName, displayCount);
   }
+}
+
+/// Writes everything an incoming packet holds for [playerId] apart from the
+/// player row itself: one stats snapshot per device the packet knows about, and
+/// the throws, each under the device it was played on. Returns how many throws
+/// were new to this device.
+///
+/// The packet is authoritative for what the sending device holds, so its throws
+/// and its snapshot replace what an earlier sync from there left behind rather
+/// than adding to it: the snapshot may already account for throws that arrived
+/// one by one last time, and keeping both would count the same legs twice.
+/// What a different device sent stays where it is, and games played on this
+/// device are never touched.
+///
+/// [localDevice] is this device's own id. Anything the packet attributes to it
+/// is dropped on the floor: those throws and those numbers were produced here,
+/// they are still here, and taking them back in is exactly how a sync that goes
+/// both ways starts counting a leg twice.
+@visibleForTesting
+Future<int> applySyncedData(
+  SyncPacket packet,
+  int playerId, {
+  required String localDevice,
+  void Function(int done, int total)? report,
+}) async {
+  final db     = DbHelper.instance;
+  final sender = packet.senderDeviceId;
+
+  // The legacy bucket goes with the sender: what is in it cannot be told from
+  // what the packet carries, and two copies of one history is the error that
+  // cannot be seen afterwards.
+  await db.deleteSyncedThrowsForPlayer(playerId,
+      origins: {sender, kLegacyOrigin});
+  await db.deleteOriginSnapshots(playerId, {sender, kLegacyOrigin});
+
+  final origins = packet.origins.isNotEmpty
+      ? packet.origins
+      : [
+          // A packet from before origins existed says nothing about where its
+          // numbers were produced, only that they were not produced here.
+          if (packet.localStatsJson != null)
+            SyncOrigin(device: sender, snapshotJson: packet.localStatsJson!),
+        ];
+  await db.replaceOriginSnapshots(playerId, origins,
+      localDevice: localDevice);
+
+  if (packet.throws.isEmpty) return 0;
+
+  final known = await db.getThrowTimestampsForPlayer(playerId);
+
+  // Grouped by the device each throw was played on, so a device passing on
+  // what it received does not make it its own.
+  final byOrigin = <String, List<SyncThrow>>{};
+  for (var i = 0; i < packet.throws.length; i++) {
+    final t = packet.throws[i];
+    if (known.contains(t.thrownAt)) continue;
+
+    final origin = packet.originOfThrow(i);
+    if (origin == localDevice) continue;
+
+    byOrigin.putIfAbsent(origin, () => []).add(t);
+  }
+
+  final total = byOrigin.values.fold(0, (sum, list) => sum + list.length);
+  var done = 0;
+
+  for (final entry in byOrigin.entries) {
+    final throws = entry.value;
+    final gameId = await db.createSyncGame(
+        throws.first.remainingBefore + throws.first.score,
+        originDevice: entry.key);
+
+    // Written in slices so the modal can move between them. One batch for
+    // everything would be marginally quicker and show nothing until the end.
+    const sliceSize = 500;
+    for (var start = 0; start < throws.length; start += sliceSize) {
+      final end = min(start + sliceSize, throws.length);
+      await db.insertSyncedThrows(
+        playerId,
+        gameId,
+        throws
+            .sublist(start, end)
+            .map((t) => t.toDartThrow(gameId: gameId, playerId: playerId))
+            .toList(),
+      );
+      done += end - start;
+      report?.call(done, total);
+    }
+  }
+
+  return total;
 }
 
 // ── Pairing ───────────────────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/services/device_identity.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Points [DbHelper] at a fresh in-memory SQLite database for every test in
@@ -21,12 +23,23 @@ void useInMemoryDatabase() {
     // A new connection means a new empty in-memory database, created through
     // DbHelper's own onCreate, so the tests run against the shipped schema.
     await DbHelper.debugReset();
+
+    // Building a sync packet asks who this device is, which is persisted
+    // through shared_preferences and would go looking for a plugin that a test
+    // does not have. A test acting out two devices calls [asDevice] on top.
+    SharedPreferences.setMockInitialValues(const {});
+    DeviceIdentity.debugSetId(null);
   });
 
   tearDown(() async {
     await DbHelper.debugReset();
+    DeviceIdentity.debugSetId(null);
   });
 }
+
+/// Makes everything that follows speak as the device called [id], so one test
+/// can play both sides of a sync.
+void asDevice(String id) => DeviceIdentity.debugSetId(id);
 
 /// Writes [count] X01 visits for [playerId] in one batch, inside a game of
 /// their own, and returns the game id.
