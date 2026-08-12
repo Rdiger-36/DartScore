@@ -328,6 +328,10 @@ void main() {
         expect(got.highestGameAverage,
             closeTo(sent.highestGameAverage, 0.001),
             reason: 'highest game average at ${range.name}');
+        expect(got.gamesPlayed, sent.gamesPlayed,
+            reason: 'games played at ${range.name}');
+        expect(got.gamesFinished, sent.gamesFinished,
+            reason: 'games finished at ${range.name}');
       }
 
       // The round trip must not turn one perfect leg into two.
@@ -346,6 +350,89 @@ void main() {
       expect(after.highestGameAverage,
           closeTo(before.highestGameAverage, 0.001), reason: 'back home');
       expect(a.id, isNotNull);
+    });
+
+    test('a device knows only what was sent to it', () async {
+      final phone  = opponents[0]; // mine, where the profile lives
+      final tablet = opponents[1]; // a friend's, which does not know me yet
+
+      // Day one, at home on my phone.
+      await playLeg(phone);
+      await ageEverythingBy(3);
+
+      // Day two, at his place. The profile gets there by being synced over,
+      // then we play.
+      await receive(await send(phone, 'PHONE'), tablet, 'TABLET');
+      await playLeg(tablet);
+      await receive(
+          await send(tablet, 'TABLET', range: SyncRange.day), phone, 'PHONE');
+      await ageEverythingBy(3);
+
+      // Day three, at home again. His tablet hears nothing of this.
+      await playLeg(phone);
+      await ageEverythingBy(3);
+
+      // Day four, at his place again, this time with no sync beforehand.
+      await playLeg(tablet);
+      await receive(
+          await send(tablet, 'TABLET', range: SyncRange.day), phone, 'PHONE');
+
+      final mine = await statsOf(phone);
+      final his  = await statsOf(tablet);
+
+      expect(mine.gamesPlayed, 4,
+          reason: 'every evening was sent to the phone, one way or another');
+      expect(his.gamesPlayed, 3,
+          reason: 'nobody ever told the tablet about day three');
+      expect(mine.totalVisits, greaterThan(his.totalVisits));
+
+      // A transfer moves data one way. Only sending the other way evens them.
+      await receive(await send(phone, 'PHONE'), tablet, 'TABLET');
+      final evened = await statsOf(tablet);
+
+      expect(evened.gamesPlayed,  mine.gamesPlayed,  reason: 'games');
+      expect(evened.totalVisits,  mine.totalVisits,  reason: 'visits');
+      expect(evened.totalDarts,   mine.totalDarts,   reason: 'darts');
+      expect(evened.count180,     mine.count180,     reason: '180s');
+      expect(evened.perfectLegs,  mine.perfectLegs,  reason: 'perfect legs');
+      expect(evened.segmentHits,  mine.segmentHits,  reason: 'segments');
+    });
+
+    test('a short range keeps the numbers but not the older throws', () async {
+      final phone  = opponents[0];
+      final tablet = opponents[1];
+
+      await playLeg(tablet);
+      await receive(
+          await send(tablet, 'TABLET', range: SyncRange.day), phone, 'PHONE');
+      final afterFirst = await statsOf(phone);
+
+      final d = await DbHelper.instance.db;
+      Future<int> tabletThrowsOnPhone() async =>
+          (await d.rawQuery(
+            'SELECT COUNT(*) AS n FROM dart_throws t JOIN games g '
+            "ON g.id = t.game_id WHERE t.player_id = ? AND g.origin_device = 'TABLET'",
+            [phone.id],
+          )).first['n'] as int;
+
+      expect(await tabletThrowsOnPhone(), greaterThan(0));
+
+      // A second evening there, a day later, sent with the same short range.
+      await ageEverythingBy(3);
+      await playLeg(tablet);
+      await receive(
+          await send(tablet, 'TABLET', range: SyncRange.day), phone, 'PHONE');
+
+      final afterSecond = await statsOf(phone);
+
+      // The packet is authoritative for the tablet, so the first evening's
+      // throws are dropped and arrive again as part of its snapshot. Every
+      // number still adds up; what is gone is the visit by visit record.
+      expect(afterSecond.totalVisits, afterFirst.totalVisits * 2,
+          reason: 'both evenings still counted');
+      expect(afterSecond.gamesPlayed, 2, reason: 'both evenings still counted');
+      expect(await tabletThrowsOnPhone(), afterFirst.totalVisits,
+          reason: 'only the last evening is still there throw by throw');
     });
 
     test('the range still cuts throws that came from another device',
