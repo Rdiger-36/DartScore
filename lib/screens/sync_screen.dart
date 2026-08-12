@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -226,7 +227,12 @@ class _SyncScreenState extends State<SyncScreen>
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          // Two columns need the width a phone column would throw away, so the
+          // cap only applies where there is one column to cap.
+          constraints: BoxConstraints(
+              maxWidth: syncTwoColumns(context)
+                  ? kSyncTwoColumnMaxWidth
+                  : contentMaxWidth(context)),
           child: TabBarView(
         controller: _tab,
         physics: const NeverScrollableScrollPhysics(),
@@ -265,6 +271,11 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   // Animated QR
   SyncFountainEncoder? _encoder;
   Timer? _frameTimer;
+
+  /// Whether the animated code is running. It waits for the sender to say so:
+  /// a stream of codes nobody is holding a camera to is ten encodes a second
+  /// into a picture that is only being looked at.
+  bool _streaming = false;
 
   /// The frame counter is a notifier rather than plain state because it moves
   /// ten times a second. Through `setState` every tick would rebuild the whole
@@ -332,7 +343,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
         }
         if (_server.isRunning) _stopServer();
       case AppLifecycleState.resumed:
-        if (_encoder != null) _startFrameLoop();
+        if (_encoder != null && _streaming) _startFrameLoop();
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;
@@ -399,6 +410,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       _packet = null;
       _transmission = null;
       _encoder = null;
+      _streaming = false;
       _connection = null;
       _served = false;
     });
@@ -414,11 +426,16 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       _encoder      = transmission.transport == SyncTransport.animatedQr
           ? SyncFountainEncoder(transmission.data)
           : null;
+      _streaming  = false;
       _preparing  = false;
     });
     _frameIndex.value = 0;
+  }
 
-    if (_encoder != null) _startFrameLoop();
+  /// Starts the animated code once the receiver is ready for it.
+  void _startStreaming() {
+    setState(() => _streaming = true);
+    _startFrameLoop();
   }
 
   /// Drives the endless stream of fountain coded frames.
@@ -501,9 +518,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       }
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    final picker = <Widget>[
         // ── Description ───────────────────────────────────────────────────
         Text(
           l.syncSendDesc,
@@ -548,11 +563,31 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
 
         // ── Range picker ──────────────────────────────────────────────────
         _buildRangePicker(l, cs, theme),
-        const SizedBox(height: 12),
+    ];
 
-        // ── Transport content ─────────────────────────────────────────────
-        _buildTransportContent(l, cs, theme),
-      ],
+    final transport = _buildTransportContent(l, cs, theme);
+
+    if (!syncTwoColumns(context)) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [...picker, const SizedBox(height: 12), transport],
+      );
+    }
+
+    // On its side the code gets a column of its own, which is what keeps a
+    // tablet from scrolling to see the thing it is holding up to a camera.
+    return SidePaneLayout(
+      side: InputSide.left,
+      fraction: 0.45,
+      minPaneWidth: kMinPaneWidth,
+      primary: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+        children: picker,
+      ),
+      secondary: ListView(
+        padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+        children: [transport],
+      ),
     );
   }
 
@@ -654,24 +689,60 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   /// The progress bar is deliberately indeterminate. The sender has no idea how
   /// far the receiver has got, and a bar counting frames sent would suggest it
   /// does; what matters is only that the stream is running.
-  Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
-      Column(
+  Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) {
+    if (!_streaming) {
+      return Column(
         children: [
-          ValueListenableBuilder<int>(
-            valueListenable: _frameIndex,
-            builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+          // The first frame, behind glass: enough to see that a code is
+          // waiting, not enough to scan half a transfer by accident.
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: _qrCard(_encoder!.frameAt(0)),
+                ),
+              ),
+              IconButton.filled(
+                onPressed: _startStreaming,
+                iconSize: 44,
+                padding: const EdgeInsets.all(20),
+                icon: const Icon(Icons.play_arrow_rounded),
+                tooltip: l.syncStartStream,
+              ),
+            ],
           ),
           const SizedBox(height: 10),
-          LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
-          const SizedBox(height: 8),
           Text(
-            l.syncAnimatedHint,
+            l.syncStartStreamHint,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
       );
+    }
+
+    return Column(
+      children: [
+        ValueListenableBuilder<int>(
+          valueListenable: _frameIndex,
+          builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+        ),
+        const SizedBox(height: 10),
+        LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
+        const SizedBox(height: 8),
+        Text(
+          l.syncAnimatedHint,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 
   /// Offers the Wi-Fi transfer for payloads no QR code can carry.
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
@@ -733,12 +804,6 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(vertical: 14)),
         ),
         const SizedBox(height: 20),
-        Text(
-          '${connection.ip}:${connection.port}',
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12),
         _qrCard(connection.qrPayload),
       ],
     );
@@ -749,6 +814,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   /// The code fills the available width instead of a fixed size, so a dense
   /// payload still renders modules large enough for another phone to read.
   Widget _qrCard(String data) => Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             _selectedPlayer!.name,
@@ -760,6 +826,11 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
+            // Square, and never so tall that what belongs under it is pushed
+            // off the screen. Measured against the window rather than the box,
+            // because in a scrolling column there is no height to measure.
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).height * 0.5),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -823,83 +894,120 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            context.l10n.syncReceiveDesc,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant),
+    final l = context.l10n;
+
+    // ── What the tab says about itself ──────────────────────────────────────
+    final about = <Widget>[
+      Text(
+        l.syncReceiveDesc,
+        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.errorContainer,
+            borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(height: 16),
-          if (_error != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                _error!,
-                style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_fetching)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  if (_pairingPin != null) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      _pairingPin!,
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      context.l10n.syncPairWaiting,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ],
-              ),
-            )
-          else if (_scanning) ...[
-            Expanded(child: _QrScanner(onScanned: _onScanned)),
-            if (_decoder.sourceBlocks > 0) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: _decoder.solved / _decoder.sourceBlocks,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              const SizedBox(height: 8),
+          child: Text(
+            _error!,
+            style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
+          ),
+        ),
+      ],
+    ];
+
+    // ── The camera, or the button that turns it on ──────────────────────────
+    final Widget stage;
+    if (_fetching) {
+      stage = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            if (_pairingPin != null) ...[
+              const SizedBox(height: 20),
               Text(
-                '${context.l10n.syncKeepHolding}\n'
-                '${context.l10n.syncScanProgress(_decoder.solved, _decoder.sourceBlocks)}',
+                _pairingPin!,
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l.syncPairWaiting,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
-          ] else
-            FilledButton.icon(
-              onPressed: _startScanning,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: Text(context.l10n.scanQr),
-              style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16)),
+          ],
+        ),
+      );
+    } else if (_scanning) {
+      stage = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _QrScanner(onScanned: _onScanned)),
+          if (_decoder.sourceBlocks > 0) ...[
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: _decoder.solved / _decoder.sourceBlocks,
+              borderRadius: BorderRadius.circular(4),
             ),
+            const SizedBox(height: 8),
+            Text(
+              '${l.syncKeepHolding}\n'
+              '${l.syncScanProgress(_decoder.solved, _decoder.sourceBlocks)}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
         ],
+      );
+    } else {
+      stage = Align(
+        alignment: Alignment.topCenter,
+        child: FilledButton.icon(
+          onPressed: _startScanning,
+          icon: const Icon(Icons.qr_code_scanner),
+          label: Text(l.scanQr),
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+        ),
+      );
+    }
+
+    if (!syncTwoColumns(context)) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ...about,
+            const SizedBox(height: 16),
+            if (_scanning || _fetching) Expanded(child: stage) else stage,
+          ],
+        ),
+      );
+    }
+
+    // On its side the camera takes a column of its own, so it is a picture to
+    // aim rather than a strip down the middle of the screen.
+    return SidePaneLayout(
+      side: InputSide.left,
+      fraction: 0.55,
+      minPaneWidth: kMinPaneWidth,
+      primary: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+        child: stage,
+      ),
+      secondary: ListView(
+        padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+        children: about,
       ),
     );
   }
