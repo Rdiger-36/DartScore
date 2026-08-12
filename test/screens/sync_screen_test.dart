@@ -75,29 +75,14 @@ void main() {
       expect(scaler.scale(14), greaterThan(14));
     });
 
-    testWidgets('stands the code beside what produced it on a tablet turned '
-        'over', (tester) async {
-      await pumpSync(tester,
-          initial: player, size: const Size(1180, 820));
-
-      expect(find.byKey(kPaneDividerKey), findsOneWidget);
-      final picker = tester.getRect(find.byType(DropdownButton<Player>));
-      final qr     = tester.getRect(find.byType(QrImageView));
-      expect(qr.left, greaterThan(picker.right));
-      // And the code fits the height rather than the width of its column.
-      expect(qr.height, lessThan(820 / 2));
-    });
-
-    testWidgets('keeps one column upright', (tester) async {
-      await pumpSync(tester, initial: player, size: const Size(820, 1180));
-
-      expect(find.byKey(kPaneDividerKey), findsNothing);
-      expect(tester.getRect(find.byType(QrImageView)).top,
-          greaterThan(tester.getRect(find.byType(DropdownButton<Player>)).bottom));
-    });
-
-    testWidgets('offers the scan at the width of what is above it',
+    testWidgets('is one column on every device, the scan as wide as the rest',
         (tester) async {
+      for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
+        await pumpSync(tester, size: size);
+        expect(find.byKey(kPaneDividerKey), findsNothing,
+            reason: 'a picker over a code, never beside it, at $size');
+      }
+
       for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
         await pumpSync(tester, size: size);
 
