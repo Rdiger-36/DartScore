@@ -119,14 +119,16 @@ class SummaryActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tablet = isTabletLayout(context);
-    // A phone has less height to give away to a bar than a tablet has.
-    final gap = tablet ? 12.0 : 3.0;
-    // The home indicator asks for more room under the buttons than it draws
-    // itself, and the same room then has to go above them or the bar reads as
-    // bottom heavy. On a phone that pair of gaps is most of the bar, so it
-    // keeps half of what the system asks for: the buttons still clear the
-    // indicator, and the bar costs half the height.
-    final inset = MediaQuery.paddingOf(context).bottom * (tablet ? 1 : 0.5);
+
+    // The room around the buttons is fixed, and the system's own inset only
+    // ever adds to it underneath, never decides it.
+    //
+    // It used to be the other way round: almost the whole gap was the home
+    // indicator's inset, halved. That reads correctly on an iPhone by
+    // coincidence and nowhere else. Android reports no bottom inset here at
+    // all, whether it is driven by gestures or by three buttons, which left
+    // three pixels around the buttons.
+    final gap = tablet ? 28.0 : 20.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -136,12 +138,13 @@ class SummaryActionBar extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        // The room under the buttons is measured here rather than left to the
-        // safe area, which cannot be asked for half of itself.
         top: false,
-        bottom: false,
+        // Underneath, whichever is larger: the gap, or the room the system
+        // asks for. A home indicator is drawn inside that room rather than
+        // below it, so the two do not add up to a bottom heavy bar.
+        minimum: EdgeInsets.symmetric(vertical: gap),
         child: Padding(
-          padding: EdgeInsets.fromLTRB(16, gap + inset, 16, gap + inset),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Center(
             // Side by side and equally wide, and no wider together than they
             // can still be read as two buttons rather than as a toolbar.

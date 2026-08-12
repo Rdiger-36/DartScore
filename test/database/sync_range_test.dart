@@ -75,32 +75,29 @@ void main() {
     Future<Player> reload(Player p) async =>
         (await DbHelper.instance.getPlayer(p.id!))!;
 
+    /// Builds a packet the way the device called [device] would.
+    Future<SyncPacket> packetFrom(Player player, SyncRange range,
+        {String device = 'SENDER'}) async {
+      asDevice(device);
+      return buildSyncPacket(player, 'Test', range);
+    }
+
     /// Replays [packet] onto a second player the way the receive tab does, and
     /// returns the lifetime stats that player then shows.
-    Future<PlayerStats> importInto(Player receiver, SyncPacket packet) async {
-      final db = DbHelper.instance;
+    ///
+    /// Everything past the player row goes through the same call the screen
+    /// makes, so no test can pass on an import path the app does not have.
+    Future<PlayerStats> importInto(Player receiver, SyncPacket packet,
+        {String device = 'RECEIVER'}) async {
+      asDevice(device);
 
-      await db.deleteSyncedThrowsForPlayer(receiver.id!);
-      await db.updatePlayer(Player(
-        id: receiver.id,
-        name: receiver.name,
-        uuid: packet.playerUuid,
+      final current = await reload(receiver);
+      await DbHelper.instance.updatePlayer(current.copyWith(
+        name: packet.playerName,
         favoriteDoubles: packet.favoriteDoubles,
-        localStatsJson: packet.localStatsJson,
       ));
 
-      if (packet.throws.isNotEmpty) {
-        final gameId = await db.createSyncGame(
-            packet.throws.first.remainingBefore + packet.throws.first.score);
-        await db.insertSyncedThrows(
-          receiver.id!,
-          gameId,
-          packet.throws
-              .map((t) =>
-                  t.toDartThrow(gameId: gameId, playerId: receiver.id!))
-              .toList(),
-        );
-      }
+      await applySyncedData(packet, receiver.id!, localDevice: device);
 
       return loadPlayerStats(await reload(receiver));
     }
@@ -122,6 +119,11 @@ void main() {
       expect(b.checkoutPercent,
           closeTo(a.checkoutPercent, 0.001), reason: 'checkout percent');
       expect(b.perfectLegs,     a.perfectLegs,     reason: 'perfect legs');
+      // Both of these describe a game, not a throw, and a synced throw arrives
+      // without its game. They only add up because they travel folded into the
+      // snapshot alongside.
+      expect(b.highestGameAverage,
+          closeTo(a.highestGameAverage, 0.001), reason: 'highest game average');
       // Which segment each dart hit is the one thing a synced throw cannot
       // carry, so it travels folded into the stats snapshot instead. It feeds
       // the dartboard heatmap and the top doubles.
@@ -142,9 +144,9 @@ void main() {
       final receivers = await insertPlayers(['Full', 'Week']);
 
       final full = await importInto(receivers[0],
-          await buildSyncPacket(sender, 'Test', SyncRange.all));
+          await packetFrom(sender, SyncRange.all));
       final week = await importInto(receivers[1],
-          await buildSyncPacket(sender, 'Test', SyncRange.week));
+          await packetFrom(sender, SyncRange.week));
 
       expectSameLifetime(sent, full);
       expectSameLifetime(sent, week);
@@ -165,9 +167,9 @@ void main() {
       // The short range pushes most throws into the snapshot, the long one
       // sends them all as throws. Both have to end up with the same board.
       final full = await importInto(receivers[0],
-          await buildSyncPacket(sender, 'Test', SyncRange.all));
+          await packetFrom(sender, SyncRange.all));
       final day = await importInto(receivers[1],
-          await buildSyncPacket(sender, 'Test', SyncRange.day));
+          await packetFrom(sender, SyncRange.day));
 
       expect(full.segmentHits, sent.segmentHits);
       expect(day.segmentHits, sent.segmentHits);
@@ -179,8 +181,8 @@ void main() {
       await playLeg();
 
       final sender = await reload(players.first);
-      final all    = await buildSyncPacket(sender, 'Test', SyncRange.all);
-      final week   = await buildSyncPacket(sender, 'Test', SyncRange.week);
+      final all    = await packetFrom(sender, SyncRange.all);
+      final week   = await packetFrom(sender, SyncRange.week);
 
       expect(week.throws.length, lessThan(all.throws.length));
       expect(week.rangeDays, 7);
@@ -207,7 +209,7 @@ void main() {
 
       final receiver = (await insertPlayers(['Week'])).single;
       final week = await importInto(
-          receiver, await buildSyncPacket(sender, 'Test', SyncRange.week));
+          receiver, await packetFrom(sender, SyncRange.week));
 
       expectSameLifetime(sent, week);
     });
@@ -222,7 +224,7 @@ void main() {
       final receiver = (await insertPlayers(['Guest'])).single;
 
       final first = await importInto(
-          receiver, await buildSyncPacket(sender, 'Test', SyncRange.week));
+          receiver, await packetFrom(sender, SyncRange.week));
       expectSameLifetime(sent, first);
 
       // The sender plays on, then syncs again with the same short range.
@@ -231,7 +233,7 @@ void main() {
       final after = await loadPlayerStats(grown);
 
       final second = await importInto(
-          receiver, await buildSyncPacket(grown, 'Test', SyncRange.week));
+          receiver, await packetFrom(grown, SyncRange.week));
       expectSameLifetime(after, second);
     });
 

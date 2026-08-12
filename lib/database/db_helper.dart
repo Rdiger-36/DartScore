@@ -9,6 +9,7 @@ import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
+import '../services/sync_service.dart' show SyncOrigin, kLegacyOrigin;
 import '../utils/throw_stats.dart';
 
 /// Singleton SQLite wrapper and the single point of database access for the app.
@@ -49,7 +50,7 @@ class DbHelper {
         debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
       path,
-      version: 19,
+      version: 20,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -212,7 +213,52 @@ class DbHelper {
     if (oldVersion < 19) {
       await _createIndexes(db);
     }
+    if (oldVersion < 20) {
+      await db.execute('ALTER TABLE games ADD COLUMN origin_device TEXT');
+      await db.execute(_kCreatePlayerOriginStats);
+
+      // Everything a sync brought in so far came from an unnamed device, so it
+      // all goes into the legacy bucket, throws and snapshot alike.
+      await db.update('games', {'origin_device': kLegacyOrigin},
+          where: 'is_synced = 1');
+
+      // For a player that was ever imported, `local_stats_json` is whatever the
+      // last packet carried: the import overwrote the column outright. Moving
+      // it to the legacy origin says so, and frees the column to mean what it
+      // says from here on, this device's own cleared games. A player that was
+      // never synced keeps their column untouched.
+      final synced = await db.query('players',
+          columns: ['id', 'local_stats_json'],
+          where: 'last_synced_at IS NOT NULL '
+              "AND local_stats_json IS NOT NULL AND local_stats_json != ''");
+
+      for (final row in synced) {
+        await db.insert('player_origin_stats', {
+          'player_id':     row['id'],
+          'origin_device': kLegacyOrigin,
+          'snapshot_json': row['local_stats_json'],
+        });
+        await db.update('players', {'local_stats_json': null},
+            where: 'id = ?', whereArgs: [row['id']]);
+      }
+    }
   }
+
+  /// Per-device stats snapshots for one player.
+  ///
+  /// The column on `players` holds only what this device produced itself.
+  /// Everything a sync brought in lives here, one row per device it came from,
+  /// so that a device can recognise and drop its own data when it comes back
+  /// around, and so that importing from one device leaves what another sent
+  /// alone.
+  static const String _kCreatePlayerOriginStats = '''
+      CREATE TABLE IF NOT EXISTS player_origin_stats (
+        player_id INTEGER NOT NULL,
+        origin_device TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        PRIMARY KEY (player_id, origin_device)
+      )
+    ''';
 
   /// Creates the indexes behind the three lookups the app repeats most: every
   /// throw of one game, every throw of one player, and the games a player took
@@ -283,12 +329,14 @@ class DbHelper {
         created_at INTEGER NOT NULL,
         finished_at INTEGER,
         is_synced INTEGER NOT NULL DEFAULT 0,
+        origin_device TEXT,
         team_config_json TEXT,
         handicap_json TEXT,
         placement_mode INTEGER NOT NULL DEFAULT 0,
         starting_order INTEGER NOT NULL DEFAULT 0
       )
     ''');
+    await db.execute(_kCreatePlayerOriginStats);
     await db.execute('''
       CREATE TABLE game_players (
         game_id INTEGER NOT NULL,
@@ -548,14 +596,19 @@ class DbHelper {
   /// totals silently read low and nobody can tell. Grouping by game mirrors
   /// [snapshotGameStats]: perfect legs and the finished-game count are
   /// properties of a game, not of a single throw.
+  /// [gameFacts] must be false for throws that arrived from another device.
+  /// They all share one hidden sync-game, so what looks like a game here is a
+  /// whole history in one heap: counting it as one game played, or reading a
+  /// best-game average off it, describes something that was never played that
+  /// way. Those numbers already travelled as part of the sending device's
+  /// snapshot, so they are simply left out here.
   Future<Map<String, dynamic>?> foldThrowsIntoSnapshot(
-      String? snapshotJson, List<DartThrow> excluded) async {
+      String? snapshotJson, List<DartThrow> excluded,
+      {bool gameFacts = true}) async {
     var merged = (snapshotJson != null && snapshotJson.isNotEmpty)
         ? jsonDecode(snapshotJson) as Map<String, dynamic>
         : null;
     if (excluded.isEmpty) return merged;
-
-    final d = await db;
 
     final byGame = <int, List<DartThrow>>{};
     for (final t in excluded) {
@@ -563,23 +616,85 @@ class DbHelper {
     }
 
     for (final entry in byGame.entries) {
-      final gameRows = await d.query('games',
-          columns: ['start_score', 'finished_at'],
-          where: 'id = ?',
-          whereArgs: [entry.key]);
-
-      final startScore =
-          gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
-      final minDarts = startScore != null ? _kMinDarts[startScore] : null;
-
       final stats = <String, dynamic>{
         ..._computeStatsFromThrows(entry.value),
-        'perfect_legs':   _perfectLegsFor(entry.value, minDarts),
-        'games_finished':
-            gameRows.isNotEmpty && gameRows.first['finished_at'] != null ? 1 : 0,
+        if (gameFacts) ...await _gameFactsOf(entry.key, entry.value),
       };
+      if (!gameFacts) {
+        for (final key in _kGameFactKeys) {
+          stats.remove(key);
+        }
+      }
 
       merged = merged == null ? stats : _mergeStats(merged, stats);
+    }
+
+    return merged;
+  }
+
+  /// Snapshot counters that describe a game rather than a throw, and so cannot
+  /// be recomputed from throws once they have left the device they were played
+  /// on.
+  static const _kGameFactKeys = [
+    'perfect_legs',
+    'games_played',
+    'games_finished',
+    'highest_game_avg',
+  ];
+
+  /// What game [gameId] contributes about itself, given the [throws] of it that
+  /// are being accounted for.
+  Future<Map<String, dynamic>> _gameFactsOf(
+      int gameId, List<DartThrow> throws) async {
+    final d = await db;
+    final rows = await d.query('games',
+        columns: ['start_score', 'finished_at'],
+        where: 'id = ?',
+        whereArgs: [gameId]);
+
+    final startScore = rows.isEmpty ? null : rows.first['start_score'] as int?;
+    final minDarts = startScore != null ? _kMinDarts[startScore] : null;
+
+    return {
+      'perfect_legs':     _perfectLegsFor(throws, minDarts),
+      'games_played':     1,
+      'games_finished':   rows.isNotEmpty && rows.first['finished_at'] != null ? 1 : 0,
+      'highest_game_avg': bestGameAverage(throws),
+    };
+  }
+
+  /// Adds what the games behind [throws] say about themselves to [snapshot],
+  /// for throws that are travelling as throws rather than as aggregates.
+  ///
+  /// A synced throw arrives without its game: every one of them lands in a
+  /// single hidden sync-game on the other device, which has no start score of
+  /// its own and counts for no game played. So the receiver reads no perfect
+  /// leg off it, no game average worth the name, and no dartboard segment,
+  /// because the wire format carries a visit's score but not the three darts
+  /// behind it. Everything a game knows about itself has to travel here or not
+  /// at all.
+  ///
+  /// This cannot double count. On the other side these throws contribute
+  /// nothing to any of it: the sync-game is left out of the games a player has
+  /// played, its start score never reaches the perfect-leg count, and a best
+  /// game average taken over one heap of every game at once can only come out
+  /// below the real one, which the merge then discards in favour of this.
+  Future<Map<String, dynamic>?> addTravellingGameFacts(
+      Map<String, dynamic>? snapshot, List<DartThrow> throws) async {
+    if (throws.isEmpty) return snapshot;
+
+    final byGame = <int, List<DartThrow>>{};
+    for (final t in throws) {
+      byGame.putIfAbsent(t.gameId, () => []).add(t);
+    }
+
+    var merged = snapshot;
+    for (final entry in byGame.entries) {
+      final facts = <String, dynamic>{
+        ...await _gameFactsOf(entry.key, entry.value),
+        'segment_hits': segmentHitsOf(entry.value),
+      };
+      merged = merged == null ? facts : _mergeStats(merged, facts);
     }
 
     return merged;
@@ -678,26 +793,6 @@ class DbHelper {
     }
 
     return hits;
-  }
-
-  /// Adds the segments [throws] hit to [snapshot], leaving every other counter
-  /// in it untouched, and returns null when there is nothing to add.
-  ///
-  /// Which segment a dart landed on is the one thing a synced throw cannot
-  /// carry: the wire format holds a visit's score but not the three darts
-  /// behind it. Without this the dartboard heatmap and the top doubles would
-  /// stay empty on the receiving device for everything that travelled as
-  /// throws, and would fill in only for whatever a shorter range happened to
-  /// push into the snapshot instead.
-  ///
-  /// Adding them here cannot double count: the throws travelling alongside
-  /// arrive without their darts, so they contribute nothing to the segments on
-  /// the other side.
-  static Map<String, dynamic>? addSegmentHits(
-      Map<String, dynamic>? snapshot, List<DartThrow> throws) {
-    final hits = segmentHitsOf(throws);
-    if (hits.isEmpty) return snapshot;
-    return _mergeStats(snapshot ?? {}, {'segment_hits': hits});
   }
 
   /// Merges two stats maps, summing counts and recomputing maxima/averages, so
@@ -940,9 +1035,42 @@ class DbHelper {
     return rows.map((r) => r['thrown_at'] as int).toSet();
   }
 
-  /// Creates one hidden sync-game and returns its id.
+  /// A player's throws grouped by the device they were played on, with null
+  /// standing for this one and [kLegacyOrigin] for imports that predate
+  /// devices being told apart.
+  ///
+  /// Sending needs the split: only throws played here may be folded into this
+  /// device's snapshot when a range leaves them out. Folding someone else's
+  /// into it is how their data comes home to them as part of ours and gets
+  /// counted a second time.
+  Future<Map<String?, List<DartThrow>>> getThrowsForPlayerByOrigin(
+      int playerId) async {
+    final d = await db;
+    final rows = await d.rawQuery(
+      'SELECT t.*, g.origin_device AS origin_device FROM dart_throws t '
+      'JOIN games g ON g.id = t.game_id '
+      'WHERE t.player_id = ? '
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay in every provider depends on a stable order.
+      'ORDER BY t.thrown_at ASC, t.id ASC',
+      [playerId],
+    );
+
+    final byOrigin = <String?, List<DartThrow>>{};
+    for (final row in rows) {
+      final origin = row['origin_device'] as String?;
+      final map = Map<String, dynamic>.from(row)..remove('origin_device');
+      byOrigin.putIfAbsent(origin, () => []).add(_throwFromMap(map));
+    }
+    return byOrigin;
+  }
+
+  /// Creates one hidden sync-game for data received from [originDevice] and
+  /// returns its id.
+  ///
   /// Call once per import session, then pass the id to [insertSyncedThrows].
-  Future<int> createSyncGame(int playerStartScore) async {
+  Future<int> createSyncGame(int playerStartScore,
+      {String originDevice = kLegacyOrigin}) async {
     final d = await db;
     return d.insert('games', {
       'start_score': playerStartScore,
@@ -953,24 +1081,33 @@ class DbHelper {
       'created_at': DateTime.now().millisecondsSinceEpoch,
       'finished_at': DateTime.now().millisecondsSinceEpoch,
       'is_synced': 1, // hidden from history
+      'origin_device': originDevice,
     });
   }
 
   /// Removes [playerId]'s throws from earlier imports, dropping any hidden
   /// sync-game left empty by that.
   ///
-  /// Call this before importing, because a packet is authoritative for
-  /// everything that came from the sending device. Its stats snapshot may cover
-  /// throws an earlier sync delivered one by one, and keeping both would count
-  /// the same leg twice. Games played on this device carry `is_synced = 0` and
-  /// are never touched.
-  Future<void> deleteSyncedThrowsForPlayer(int playerId) async {
+  /// [origins] names which sending devices to clear out, or every one of them
+  /// when it is null. An import passes the device it is reading from, because a
+  /// packet is authoritative for everything that came from there: its stats
+  /// snapshot may cover throws an earlier sync delivered one by one, and
+  /// keeping both would count the same leg twice. What a different device sent
+  /// is no longer touched by that, and games played on this device carry
+  /// `is_synced = 0` and never were.
+  Future<void> deleteSyncedThrowsForPlayer(int playerId,
+      {Set<String>? origins}) async {
     final d = await db;
+
+    final filter = origins == null
+        ? ''
+        : 'AND g.origin_device IN (${origins.map((_) => '?').join(',')}) ';
+
     final rows = await d.rawQuery(
       'SELECT DISTINCT g.id AS id FROM games g '
       'JOIN dart_throws t ON t.game_id = g.id '
-      'WHERE g.is_synced = 1 AND t.player_id = ?',
-      [playerId],
+      'WHERE g.is_synced = 1 AND t.player_id = ? $filter',
+      [playerId, ...?origins],
     );
 
     for (final row in rows) {
@@ -1011,6 +1148,141 @@ class DbHelper {
     }
 
     await batch.commit(noResult: true);
+  }
+
+  // ── Origin snapshots ────────────────────────────────────────────────────────
+
+  /// The stats snapshots a player carries per sending device, keyed by device
+  /// id. What this device produced itself is not in here; it stays in the
+  /// player's `local_stats_json`.
+  Future<Map<String, String>> getOriginSnapshots(int playerId) async {
+    final d = await db;
+    final rows = await d.query('player_origin_stats',
+        where: 'player_id = ?', whereArgs: [playerId]);
+    return {
+      for (final r in rows)
+        r['origin_device'] as String: r['snapshot_json'] as String,
+    };
+  }
+
+  /// Writes what an incoming packet knows about each device, replacing the
+  /// snapshot per device rather than adding to it.
+  ///
+  /// [localDevice] is this device's own id, and any origin naming it is
+  /// dropped: those numbers were produced here, this device still holds the
+  /// throws behind them, and taking them back in would count them twice.
+  ///
+  /// The caller clears the sending device's row and the legacy one first, so
+  /// those two always take what the packet says. The legacy bucket goes along
+  /// because it cannot be told apart from the receiver's own, and letting both
+  /// stand would count one old sync twice, which is the failure that cannot be
+  /// seen afterwards. What that costs is a third device's contribution from
+  /// before origins existed, and one sync with that device brings it back.
+  ///
+  /// A device that is only being passed on keeps whichever snapshot covers
+  /// more darts. Its own syncs are the fresher account of it, and a device that
+  /// syncs with two others would otherwise have its history set back to
+  /// whatever the one in the middle happened to know about it.
+  Future<void> replaceOriginSnapshots(
+    int playerId,
+    List<SyncOrigin> origins, {
+    required String localDevice,
+  }) async {
+    final d = await db;
+
+    for (final origin in origins) {
+      if (origin.device == localDevice) continue;
+      if (origin.snapshotJson.isEmpty) continue;
+
+      final rows = await d.query('player_origin_stats',
+          columns: ['snapshot_json'],
+          where: 'player_id = ? AND origin_device = ?',
+          whereArgs: [playerId, origin.device]);
+
+      if (rows.isNotEmpty &&
+          _dartsIn(rows.first['snapshot_json'] as String) >=
+              _dartsIn(origin.snapshotJson)) {
+        continue;
+      }
+
+      await d.insert(
+        'player_origin_stats',
+        {
+          'player_id':     playerId,
+          'origin_device': origin.device,
+          'snapshot_json': origin.snapshotJson,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  /// How many darts a snapshot accounts for, which is what tells two accounts
+  /// of the same device apart: a snapshot only ever grows.
+  static int _dartsIn(String snapshotJson) {
+    try {
+      return (jsonDecode(snapshotJson) as Map<String, dynamic>)['total_darts']
+              as int? ??
+          0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Drops the snapshots [origins] name for a player, so an import can replace
+  /// what a device sent before instead of adding to it.
+  Future<void> deleteOriginSnapshots(
+      int playerId, Set<String> origins) async {
+    if (origins.isEmpty) return;
+    final d = await db;
+    await d.delete(
+      'player_origin_stats',
+      where: 'player_id = ? AND origin_device IN '
+          '(${origins.map((_) => '?').join(',')})',
+      whereArgs: [playerId, ...origins],
+    );
+  }
+
+  /// Every snapshot a player carries added together: this device's own plus
+  /// one per device that ever synced to it.
+  ///
+  /// This is what the statistics screens read. Keeping the parts separate is
+  /// only about being able to replace one of them on the next sync; nothing
+  /// that displays a lifetime number cares where it came from.
+  Future<String?> combinedSnapshotJson(int playerId) async {
+    final d = await db;
+
+    final playerRows = await d.query('players',
+        columns: ['local_stats_json'], where: 'id = ?', whereArgs: [playerId]);
+    final own = playerRows.isEmpty
+        ? null
+        : playerRows.first['local_stats_json'] as String?;
+
+    final origins = await getOriginSnapshots(playerId);
+    return mergeSnapshots([own, ...origins.values]);
+  }
+
+  /// Adds any number of stats snapshots together and returns the result as
+  /// JSON, or null when none of them held anything.
+  ///
+  /// Counters sum and maxima take the larger value, which is what makes this
+  /// safe only for snapshots covering different throws. Two snapshots over the
+  /// same games would double every count in them.
+  static String? mergeSnapshots(Iterable<String?> snapshots) {
+    Map<String, dynamic>? merged;
+
+    for (final snapshot in snapshots) {
+      if (snapshot == null || snapshot.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(snapshot) as Map<String, dynamic>;
+        merged = merged == null ? decoded : _mergeStats(merged, decoded);
+      } catch (_) {
+        // A snapshot that will not parse is one device's history lost, not the
+        // whole screen: the rest still adds up.
+      }
+    }
+
+    return merged == null ? null : jsonEncode(merged);
   }
 
   /// Records the last sync time and optional received stats snapshot for a player.
