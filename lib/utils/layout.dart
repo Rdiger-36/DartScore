@@ -168,24 +168,6 @@ double uprightTargetBoardEdge(BuildContext context) {
       .toDouble();
 }
 
-/// Widest the sync screen is laid out at when it divides itself. Two columns of
-/// a phone's worth each, and no more: past that the picker on one side and the
-/// code on the other only drift apart.
-const double kSyncTwoColumnMaxWidth = 1000;
-
-/// From where the sync screen divides itself into two columns.
-///
-/// Set so a tablet on its side divides and one held upright does not, and so
-/// the screen inside the pane of the player list, which is half a tablet, keeps
-/// the single column that fits there.
-const double kSyncTwoColumnMinWidth = 900;
-
-/// Whether the sync screen stands in two columns in a box [width] wide.
-///
-/// Measured against the box rather than the window, because the screen is also
-/// shown inside a pane that is itself half of one.
-bool syncTwoColumns(double width) => width >= kSyncTwoColumnMinWidth;
-
 /// Whether [width] has room for two columns of [minPaneWidth] and the divider
 /// between them.
 ///

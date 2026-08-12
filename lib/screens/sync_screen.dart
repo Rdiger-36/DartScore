@@ -234,30 +234,25 @@ class _SyncScreenState extends State<SyncScreen>
       ),
     );
 
-    final body = LayoutBuilder(
-      builder: (context, box) {
-        return Center(
-          child: ConstrainedBox(
-            // Two columns need the width a phone column would throw away, so
-            // the cap only applies where there is one column to cap.
-            constraints: BoxConstraints(
-                maxWidth: syncTwoColumns(box.maxWidth)
-                    ? kSyncTwoColumnMaxWidth
-                    : contentMaxWidth(context)),
-            child: TabBarView(
-              controller: _tab,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                const _ReceiverTab(),
-                _SenderTab(
-                  initialPlayer: widget.initialPlayer,
-                  visible: _tab.index == 1,
-                ),
-              ],
+    // One column, on every device and in either orientation: the screen is a
+    // picker over a code, and a code beside its picker was tried and read
+    // worse, not least because the pane it now lives in is already half a
+    // screen wide.
+    final body = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: TabBarView(
+          controller: _tab,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            const _ReceiverTab(),
+            _SenderTab(
+              initialPlayer: widget.initialPlayer,
+              visible: _tab.index == 1,
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
 
     return Scaffold(
@@ -624,31 +619,9 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
 
     final transport = _buildTransportContent(l, cs, theme);
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        if (!syncTwoColumns(box.maxWidth)) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [...picker, const SizedBox(height: 12), transport],
-          );
-        }
-
-        // On its side the code gets a column of its own, which is what keeps a
-        // tablet from scrolling to see the thing it is holding up to a camera.
-        return SidePaneLayout(
-          side: InputSide.left,
-          fraction: 0.45,
-          minPaneWidth: kMinPaneWidth,
-          primary: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-            children: picker,
-          ),
-          secondary: ListView(
-            padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-            children: [transport],
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [...picker, const SizedBox(height: 12), transport],
     );
   }
 
@@ -1051,38 +1024,16 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        if (!syncTwoColumns(box.maxWidth)) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ...about,
-                const SizedBox(height: 16),
-                if (_scanning || _fetching) Expanded(child: stage) else stage,
-              ],
-            ),
-          );
-        }
-
-        // On its side the camera takes a column of its own, so it is a picture
-        // to aim rather than a strip down the middle of the screen.
-        return SidePaneLayout(
-          side: InputSide.left,
-          fraction: 0.55,
-          minPaneWidth: kMinPaneWidth,
-          primary: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-            child: stage,
-          ),
-          secondary: ListView(
-            padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-            children: about,
-          ),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...about,
+          const SizedBox(height: 16),
+          if (_scanning || _fetching) Expanded(child: stage) else stage,
+        ],
+      ),
     );
   }
 
