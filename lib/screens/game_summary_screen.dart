@@ -18,6 +18,15 @@ import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
 import 'game_screen.dart';
 
+/// Width the exported result card is laid out at, whatever the screen showing
+/// it happens to be. A phone's worth of column, so the image reads the same
+/// wherever it was made.
+const double kExportCardWidth = 500;
+
+/// Identifies the card the image is taken of, for tests that check what ends up
+/// in it. It is in the tree only while an image is being made.
+const Key kExportCardKey = Key('summary-export-card');
+
 /// Post-game summary for X01: winner, per-player/team stats and throw history,
 /// with options to save or share the result card as an image.
 class GameSummaryScreen extends StatefulWidget {
@@ -135,6 +144,167 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
         for (final p in s.players) p.id: p.name,
     };
 
+    // ── The parts, built once and placed twice ───────────────────────────────
+    // The screen arranges them for the device it is on; the exported image puts
+    // the same parts in one column of its own, so moving something on screen
+    // cannot quietly take it out of the picture somebody shares.
+
+    final winnerBanner = Center(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.emoji_events_rounded, size: 52, color: cs.primary),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l.wins(winner.displayName),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+
+    final infoCard = GameInfoCard(rows: [
+      (l.gameLabel, l.modeX01Name),
+      (
+        l.matchFormat,
+        provider.game!.placementMode ? l.placementMode : l.standardMode
+      ),
+      (
+        l.gameMode_,
+        l.gameSummaryInfo(
+          provider.game!.startScore,
+          provider.game!.legs,
+          provider.game!.sets,
+          placementMode: provider.game!.placementMode,
+        )
+      ),
+      // A solo game has nobody to be ordered against.
+      if (states.length > 1)
+        (l.startingOrder, startingOrderLabel(l, provider.game!.startingOrder)),
+    ]);
+
+    final rankingCard = provider.game!.placementMode
+        ? FinalRankingCard(
+            throwsById:   {
+              for (var i = 0; i < states.length; i++) i: states[i].throws,
+            },
+            namesById:    {
+              for (var i = 0; i < states.length; i++) i: states[i].displayName,
+            },
+            legsWon:      {
+              for (var i = 0; i < states.length; i++) i: states[i].legsWon,
+            },
+            placementSum: {
+              for (var i = 0; i < states.length; i++) i: states[i].placementSum,
+            },
+          )
+        : null;
+
+    final playerCards = [
+      for (final s in states)
+        SummaryPlayerCard(
+          name:    s.isTeam ? s.displayName : s.player.name,
+          throws:  s.throws,
+          // In placement mode every slot checks out every leg, so legs won come
+          // from the provider's tally instead of counting checkout visits.
+          legsWon: provider.game!.placementMode
+              ? s.legsWon
+              : legsWonFromThrows(s.throws),
+          // A single-set match has no set tally worth showing.
+          setsWon: provider.game!.sets > 1 ? s.setsWon : null,
+          members: s.isTeam
+              ? [
+                  for (final p in s.players)
+                    (p.name, throwsOfPlayer(s.throws, p.id ?? -1)),
+                ]
+              : const [],
+          badge: s.perfectLegs > 0 ? perfectLabel : null,
+        ),
+    ];
+
+    final summary = SummaryBody(
+      header: winnerBanner,
+      result: playerCards,
+      details: [
+        // What the game was played with, over the log of how it went.
+        infoCard,
+        ?rankingCard,
+        ThrowLogCard(
+          throws: provider.allThrows(),
+          // Look the thrower up across every slot member: a team slot's
+          // `player` is only whoever throws next, so matching on that alone
+          // misses the team's other members.
+          playerName: (id) => throwerNames[id] ?? '',
+          showSet: provider.game!.sets > 1,
+        ),
+      ],
+      actions: [
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+          icon: const Icon(Icons.home_rounded),
+          label: Text(l.backToHome),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+        RematchButton(
+          modeName: l.modeX01Name,
+          details: [
+            (
+              l.matchFormat,
+              provider.game!.placementMode ? l.placementMode : l.standardMode
+            ),
+            (
+              l.gameMode_,
+              l.gameSummaryInfo(
+                provider.game!.startScore,
+                provider.game!.legs,
+                provider.game!.sets,
+                placementMode: provider.game!.placementMode,
+              )
+            ),
+            // With handicaps the game defaults say little, so the per-player
+            // rows of the summary carry the rules instead.
+            if (!provider.game!.hasHandicaps) ...[
+              (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
+              (l.checkOut, checkOutLabel(l, provider.game!.checkoutMode)),
+            ],
+          ],
+          slots: states
+              .map((s) => s.isTeamSlot
+                  ? RematchSlot.team(
+                      s.displayName,
+                      s.players
+                          .map((p) => RematchSlot.player(p.name,
+                              rules: handicapRulesLabel(
+                                  l, provider.game!, p.id)))
+                          .toList())
+                  : RematchSlot.player(
+                      s.displayName,
+                      rules: handicapRulesLabel(l, provider.game!, s.player.id),
+                    ))
+              .toList(),
+          onRematch: () => provider.startRematch(
+            provider.game!,
+            provider.playerStates.expand((s) => s.players).toList(),
+          ),
+          destination: (_) => const GameScreen(),
+        ),
+      ],
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l.gameOverview),
@@ -163,178 +333,53 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
           ],
         ],
       ),
-      // The captured card travels as one block: split across two columns, the
-      // saved image would lose whichever half did not go with it.
-      body: SummaryBody(
-        result: [
-          // The card that gets captured as image
-          RepaintBoundary(
-            key: _cardKey,
-            child: Container(
-              color: cs.surface,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  // Winner banner
-                  Center(
+      body: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // The card the image is taken of. It exists only while one is being
+          // taken, in the corner and under the screen itself: a boundary has to
+          // be laid out and painted to be rasterized, so it cannot simply be
+          // built off to the side and hidden.
+          if (_saving)
+            Positioned(
+              key: kExportCardKey,
+              left: 0,
+              top: 0,
+              // A hairline of a box holding a card as tall as the game was
+              // long: the card overflows it downwards, unclipped, and the
+              // screen is painted over all of it.
+              width: kExportCardWidth,
+              height: 1,
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: kExportCardWidth,
+                maxWidth: kExportCardWidth,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: RepaintBoundary(
+                  key: _cardKey,
+                  child: Container(
+                    color: cs.surface,
+                    padding: const EdgeInsets.all(16),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: cs.primaryContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.emoji_events_rounded,
-                              size: 52, color: cs.primary),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          l.wins(winner.displayName),
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: cs.primary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        winnerBanner,
+                        const SizedBox(height: 20),
+                        infoCard,
+                        ?rankingCard,
+                        ...playerCards,
                       ],
                     ),
                   ),
-                  // What the game was played with, so the saved or shared card
-                  // carries its settings too.
-                  GameInfoCard(rows: [
-                    (l.gameLabel, l.modeX01Name),
-                    (
-                      l.matchFormat,
-                      provider.game!.placementMode
-                          ? l.placementMode
-                          : l.standardMode
-                    ),
-                    (
-                      l.gameMode_,
-                      l.gameSummaryInfo(
-                        provider.game!.startScore,
-                        provider.game!.legs,
-                        provider.game!.sets,
-                        placementMode: provider.game!.placementMode,
-                      )
-                    ),
-                    // A solo game has nobody to be ordered against.
-                    if (states.length > 1)
-                      (
-                        l.startingOrder,
-                        startingOrderLabel(l, provider.game!.startingOrder)
-                      ),
-                  ]),
-                  const SizedBox(height: 16),
-                  // Final ranking (placement mode only)
-                  if (provider.game!.placementMode) ...[
-                    FinalRankingCard(
-                      throwsById:   {
-                        for (var i = 0; i < states.length; i++) i: states[i].throws,
-                      },
-                      namesById:    {
-                        for (var i = 0; i < states.length; i++) i: states[i].displayName,
-                      },
-                      legsWon:      {
-                        for (var i = 0; i < states.length; i++) i: states[i].legsWon,
-                      },
-                      placementSum: {
-                        for (var i = 0; i < states.length; i++) i: states[i].placementSum,
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  // Per-team or per-player stats
-                  ...states.map((s) => SummaryPlayerCard(
-                        name:    s.isTeam ? s.displayName : s.player.name,
-                        throws:  s.throws,
-                        // In placement mode every slot checks out every leg, so
-                        // legs won come from the provider's tally instead of
-                        // counting checkout visits.
-                        legsWon: provider.game!.placementMode
-                            ? s.legsWon
-                            : legsWonFromThrows(s.throws),
-                        // A single-set match has no set tally worth showing.
-                        setsWon: provider.game!.sets > 1 ? s.setsWon : null,
-                        members: s.isTeam
-                            ? [
-                                for (final p in s.players)
-                                  (p.name, throwsOfPlayer(s.throws, p.id ?? -1)),
-                              ]
-                            : const [],
-                        badge: s.perfectLegs > 0 ? perfectLabel : null,
-                      )),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
-        details: [
-          // Throw history (outside captured area: too long for image)
-          ThrowLogCard(
-            throws: provider.allThrows(),
-            // Look the thrower up across every slot member: a team slot's
-            // `player` is only whoever throws next, so matching on that alone
-            // misses the team's other members.
-            playerName: (id) => throwerNames[id] ?? '',
-            showSet: provider.game!.sets > 1,
-          ),
-        ],
-        actions: [
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            icon: const Icon(Icons.home_rounded),
-            label: Text(l.backToHome),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+          Positioned.fill(
+            child: ColoredBox(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              child: summary,
             ),
-          ),
-          RematchButton(
-            modeName: l.modeX01Name,
-            details: [
-              (
-                l.matchFormat,
-                provider.game!.placementMode ? l.placementMode : l.standardMode
-              ),
-              (
-                l.gameMode_,
-                l.gameSummaryInfo(
-                  provider.game!.startScore,
-                  provider.game!.legs,
-                  provider.game!.sets,
-                  placementMode: provider.game!.placementMode,
-                )
-              ),
-              // With handicaps the game defaults say little, so the per-player
-              // rows of the summary carry the rules instead.
-              if (!provider.game!.hasHandicaps) ...[
-                (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
-                (l.checkOut, checkOutLabel(l, provider.game!.checkoutMode)),
-              ],
-            ],
-            slots: states
-                .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(
-                        s.displayName,
-                        s.players
-                            .map((p) => RematchSlot.player(p.name,
-                                rules: handicapRulesLabel(
-                                    l, provider.game!, p.id)))
-                            .toList())
-                    : RematchSlot.player(
-                        s.displayName,
-                        rules: handicapRulesLabel(
-                            l, provider.game!, s.player.id),
-                      ))
-                .toList(),
-            onRematch: () => provider.startRematch(
-              provider.game!,
-              provider.playerStates.expand((s) => s.players).toList(),
-            ),
-            destination: (_) => const GameScreen(),
           ),
         ],
       ),

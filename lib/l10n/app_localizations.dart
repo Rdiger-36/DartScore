@@ -175,8 +175,8 @@ class AppLocalizations {
   String get gameInfo          => _t('Game Info', 'Spielinfo');
   String wins(String name)     => _t('🎯 $name wins!', '🎯 $name hat gewonnen!');
   String get allThrows         => _t('All Throws', 'Alle Würfe');
-  String get backToHome        => _t('Back to Main Menu', 'Zurück zum Hauptmenü');
-  String get playAgain         => _t('Play Again', 'Spiel wiederholen');
+  String get backToHome        => _t('Main Menu', 'Hauptmenü');
+  String get playAgain         => _t('Replay', 'Wiederholen');
   String get playAgainTitle    => _t('Play again?', 'Spiel wiederholen?');
   String get playAgainQuestion =>
       _t('Start a new game with these settings and players?',

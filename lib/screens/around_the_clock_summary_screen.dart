@@ -34,41 +34,43 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
         return b.progress.compareTo(a.progress);
       });
 
+    // Who won, which on two columns belongs over both of them
+    // rather than in the half that happens to hold it.
+    final winnerBanner = winnerId == null
+        ? null
+        : Center(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emoji_events_rounded,
+                      size: 52, color: cs.primary),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.aroundClockWinner(
+                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+
     return Scaffold(
       appBar: AppBar(title: Text(l.aroundClockSummaryTitle)),
       body: SummaryBody(
+        header: winnerBanner,
         top: 24,
         bottom: 24,
         result: [
-          if (winnerId != null) ...[
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: cs.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.emoji_events_rounded,
-                        size: 52, color: cs.primary),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l.aroundClockWinner(
-                        states.firstWhere((s) => s.player.id == winnerId).displayName),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: cs.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
           // ── Game info ────────────────────────────────────────────────────
           GameInfoCard(rows: [
             (l.gameLabel, l.modeAroundClockName),

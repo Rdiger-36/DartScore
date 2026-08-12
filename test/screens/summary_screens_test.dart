@@ -12,6 +12,7 @@ import 'package:dartscore_app/screens/cricket_summary_screen.dart';
 import 'package:dartscore_app/screens/game_summary_screen.dart';
 import 'package:dartscore_app/screens/shanghai_summary_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
+import 'package:dartscore_app/widgets/game_info_card.dart';
 import 'package:dartscore_app/widgets/summary_player_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,60 +85,68 @@ void main() {
     });
 
     testWidgets('offers the way home and the way into the next game at the '
-        'bottom, outside the card it shares', (tester) async {
+        'bottom of the screen', (tester) async {
       await pumpSummary(tester);
 
       // Both stand on the bar under the summary rather than in the middle of
-      // it, and neither is part of the image the screen exports.
-      final home = tester.getRect(find.text('Back to Main Menu'));
-      final again = tester.getRect(find.text('Play Again'));
+      // it, so neither is a scroll away.
+      final home  = tester.getRect(find.text('Main Menu'));
+      final again = tester.getRect(find.text('Replay'));
       expect(again.left, greaterThan(home.right));
       expect(home.top,
           greaterThan(tester.getRect(find.text('All Throws')).top));
-
-      final captured = find
-          .ancestor(
-            of: find.text('🎯 Ada wins!'),
-            matching: find.byWidgetPredicate(
-                (w) => w is RepaintBoundary && w.key is GlobalKey),
-          )
-          .first;
-      expect(find.descendant(of: captured, matching: find.text('Play Again')),
-          findsNothing);
     });
 
-    testWidgets('keeps the shared card whole beside the throw log on a tablet',
-        (tester) async {
+    testWidgets('stands the winner over both columns and the settings with '
+        'the numbers on a tablet', (tester) async {
       usePhoneSurface(tester, size: const Size(1180, 820));
       await tester.pumpWidget(
           testApp(const GameSummaryScreen(), game: provider));
       await tester.pumpAndSettle();
 
-      // Divided: the log stands to the right of the result.
       expect(find.byKey(kPaneDividerKey), findsOneWidget);
-      expect(tester.getRect(find.text('All Throws')).left,
-          greaterThan(tester.getRect(find.text('🎯 Ada wins!')).right));
 
-      // What the image is taken of is the boundary the screen keys, and it
-      // still holds every part of the result. Divided, the saved card would
-      // quietly lose whichever half stayed behind.
-      final captured = find
-          .ancestor(
-            of: find.text('🎯 Ada wins!'),
-            matching: find.byWidgetPredicate(
-                (w) => w is RepaintBoundary && w.key is GlobalKey),
-          )
-          .first;
+      // The winner belongs to the whole screen, so it stands over the divider
+      // rather than in the half beside it.
+      final winner  = tester.getRect(find.text('🎯 Ada wins!'));
+      final divider = tester.getRect(find.byKey(kPaneDividerKey));
+      expect(winner.center.dx, closeTo(1180 / 2, 12));
+      expect(winner.bottom, lessThanOrEqualTo(divider.top));
+
+      // What was played sits over how it went, in the right hand column.
+      final info = tester.getRect(find.byType(GameInfoCard));
+      final log  = tester.getRect(find.text('All Throws'));
+      final card = tester.getRect(find.byType(SummaryPlayerCard).first);
+      expect(info.left, greaterThan(card.right));
+      expect(info.bottom, lessThan(log.top));
+    });
+
+    testWidgets('builds the exported image from the same parts, wherever the '
+        'screen puts them', (tester) async {
+      await pumpSummary(tester);
+
+      // Nothing is rendered for an image nobody asked for yet.
+      expect(find.byKey(kExportCardKey), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.download_rounded));
+      await tester.pump();
+
+      final card = find.byKey(kExportCardKey);
+      expect(card, findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('🎯 Ada wins!')),
+          findsOneWidget);
+      expect(find.descendant(of: card, matching: find.byType(GameInfoCard)),
+          findsOneWidget);
       expect(
-        find.descendant(of: captured, matching: find.byType(SummaryPlayerCard)),
+        find.descendant(of: card, matching: find.byType(SummaryPlayerCard)),
         findsNWidgets(2),
       );
-      // The log is what the boundary was drawn around rather than over: too
-      // long for an image, and the proof that this is the card, not the screen.
-      expect(
-        find.descendant(of: captured, matching: find.text('All Throws')),
-        findsNothing,
-      );
+      // The log is too long for an image and stays out of it, and so does the
+      // way out of the screen.
+      expect(find.descendant(of: card, matching: find.text('All Throws')),
+          findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Replay')),
+          findsNothing);
     });
   });
 
@@ -257,6 +266,23 @@ void main() {
       }
       expect(find.text('Bull'), findsOneWidget,
           reason: '25 is shown as Bull, not as a number');
+    });
+
+    testWidgets('stands the winner over both columns on a tablet',
+        (tester) async {
+      usePhoneSurface(tester, size: const Size(1180, 820));
+      await tester.pumpWidget(testApp(
+        ChangeNotifierProvider<CricketProvider>.value(
+          value: provider,
+          child: const CricketSummaryScreen(),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final winner  = tester.getRect(find.text('🎯 Ada wins!'));
+      final divider = tester.getRect(find.byKey(kPaneDividerKey));
+      expect(winner.center.dx, closeTo(1180 / 2, 12));
+      expect(winner.bottom, lessThanOrEqualTo(divider.top));
     });
 
     testWidgets('repeats the settings the game was played under',
