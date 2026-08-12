@@ -18,10 +18,17 @@ class PlayersScreen extends StatefulWidget {
   State<PlayersScreen> createState() => _PlayersScreenState();
 }
 
+/// What the pane beside the player list is showing about the player in it.
+enum _PaneView { stats, sync }
+
 class _PlayersScreenState extends State<PlayersScreen> {
-  /// The player whose stats fill the pane beside the list. Only ever set on a
-  /// tablet, where the stats open next to the list instead of over it.
+  /// The player the pane beside the list belongs to. Only ever set on a tablet,
+  /// where a player opens next to the list instead of over it.
   Player? _selected;
+
+  /// Which of the two things the pane shows about them. One at a time: both
+  /// are a screen's worth on their own.
+  _PaneView _view = _PaneView.stats;
 
   @override
   Widget build(BuildContext context) =>
@@ -185,11 +192,21 @@ class _PlayersScreenState extends State<PlayersScreen> {
               primary: list,
               secondary: selected == null
                   ? _EmptyStatsPane(message: l.playersPickOne)
-                  : _StatsPane(
-                      player: selected,
-                      child: PlayerStatsScreen(
-                          player: selected, embedded: true),
-                    ),
+                  : _view == _PaneView.sync
+                      ? _StatsPane(
+                          // Keyed by player, so switching to another one starts
+                          // their transfer over instead of handing the new name
+                          // to a code that is already running.
+                          key: ValueKey('sync-${selected.id}'),
+                          title: l.syncOf(selected.name),
+                          child: SyncScreen(
+                              initialPlayer: selected, embedded: true),
+                        )
+                      : _StatsPane(
+                          title: l.statisticsOf(selected.name),
+                          child: PlayerStatsScreen(
+                              player: selected, embedded: true),
+                        ),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: tablet ? null : buttons,
@@ -200,15 +217,29 @@ class _PlayersScreenState extends State<PlayersScreen> {
   /// for it, on top of it where there is not.
   void _openStats(BuildContext context, Player player) {
     if (isTabletLayout(context)) {
-      setState(() => _selected = player);
+      setState(() {
+        _selected = player;
+        _view     = _PaneView.stats;
+      });
       return;
     }
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => PlayerStatsScreen(player: player)));
   }
 
-  /// Opens the device-to-device sync screen for [player].
+  /// Opens the device-to-device sync for [player]: in the pane beside the list
+  /// where there is room for it, on top of it where there is not.
+  ///
+  /// The pane shows one thing at a time, so opening sync for a player replaces
+  /// their statistics rather than standing beside them.
   void _openSync(BuildContext context, Player player) {
+    if (isTabletLayout(context)) {
+      setState(() {
+        _selected = player;
+        _view     = _PaneView.sync;
+      });
+      return;
+    }
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => SyncScreen(initialPlayer: player)));
   }
@@ -303,10 +334,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
 /// The right hand pane of the tablet player list: the name the pushed route
 /// would have carried in its app bar, and the statistics below it.
 class _StatsPane extends StatelessWidget {
-  final Player player;
+  final String title;
   final Widget child;
 
-  const _StatsPane({required this.player, required this.child});
+  const _StatsPane({super.key, required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +349,7 @@ class _StatsPane extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Text(
-            context.l10n.statisticsOf(player.name),
+            title,
             textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.bold),

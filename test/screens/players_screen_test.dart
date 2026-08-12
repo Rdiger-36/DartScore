@@ -2,6 +2,7 @@ import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/player_stats_screen.dart';
 import 'package:dartscore_app/screens/players_screen.dart';
+import 'package:dartscore_app/screens/sync_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +38,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+    }
+
+    /// Taps the sync action of the player named [name].
+    Future<void> openSync(WidgetTester tester, String name) async {
+      await tester.tap(find.descendant(
+        of: find.ancestor(of: find.text(name), matching: find.byType(Card)),
+        matching: find.byIcon(Icons.share_rounded),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
     }
 
     /// Taps the statistics action of the player named [name].
@@ -76,6 +87,21 @@ void main() {
       final list = tester.getRect(find.byType(ListView).first);
       final title = tester.getRect(find.text('Statistics of Zoe').first);
       expect(title.left, greaterThan(list.right));
+    });
+
+    testWidgets('shows sync in the same pane, one thing at a time',
+        (tester) async {
+      await pumpPlayers(tester, const Size(1180, 820));
+
+      await openSync(tester, 'Zoe');
+
+      final sync = tester.widget<SyncScreen>(find.byType(SyncScreen));
+      expect(sync.embedded, isTrue,
+          reason: 'the pane brings its own title bar');
+      expect(sync.initialPlayer?.name, 'Zoe');
+      expect(find.text('Sync of Zoe'), findsOneWidget);
+      // One at a time: the statistics gave the pane up rather than sharing it.
+      expect(find.byType(PlayerStatsScreen), findsNothing);
     });
 
     testWidgets('opens them on top of the list on a phone', (tester) async {
