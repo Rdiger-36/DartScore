@@ -57,6 +57,44 @@ void main() {
       expect(button.top - bar.top, closeTo(bar.bottom - button.bottom, 1.5));
     });
 
+    testWidgets('keeps its room on a device that reports no inset',
+        (tester) async {
+      // Android reports nothing under the bar, driven by gestures or by three
+      // buttons alike. The room around the buttons used to be almost entirely
+      // the iPhone's home indicator, which left three pixels here.
+      await pumpBody(tester, const Size(400, 900));
+
+      final bar    = tester.getRect(find.byType(SummaryActionBar));
+      final button = tester.getRect(find.byType(FilledButton).first);
+
+      expect(button.top - bar.top, greaterThan(12), reason: 'above');
+      expect(bar.bottom - button.bottom, greaterThan(12), reason: 'below');
+    });
+
+    testWidgets('gives a tablet with no inset its room as well', (tester) async {
+      await pumpBody(tester, const Size(1180, 820));
+
+      final bar    = tester.getRect(find.byType(SummaryActionBar));
+      final button = tester.getRect(find.byType(FilledButton).first);
+
+      expect(button.top - bar.top, greaterThan(20), reason: 'above');
+      expect(bar.bottom - button.bottom, greaterThan(20), reason: 'below');
+    });
+
+    testWidgets('clears a home indicator underneath the buttons',
+        (tester) async {
+      await pumpBody(tester, const Size(400, 900),
+          safeArea: const EdgeInsets.only(bottom: 34));
+
+      final bar    = tester.getRect(find.byType(SummaryActionBar));
+      final button = tester.getRect(find.byType(FilledButton).first);
+
+      // The indicator is drawn inside the room below rather than under it, so
+      // the room is the larger of the two and not their sum.
+      expect(bar.bottom - button.bottom, closeTo(34, 1.5), reason: 'below');
+      expect(button.top - bar.top, closeTo(20, 1.5), reason: 'above');
+    });
+
     testWidgets('stays one column on a tablet held upright', (tester) async {
       // An iPad upright is 768 wide, which is two summary columns short of the
       // width they need.
