@@ -168,7 +168,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     final size = MediaQuery.sizeOf(context);
     // Two columns need a tablet and a window wide enough to divide; a small
     // one upright is neither.
-    final twoColumns = isTabletLayout(context) && fitsSetupPanes(size.width);
+    final twoColumns =
+        isTabletLayout(context) && fitsTwoPanes(size.width, kMinSetupPaneWidth);
 
     return Scaffold(
       appBar: AppBar(title: Text(l.gameSetup)),

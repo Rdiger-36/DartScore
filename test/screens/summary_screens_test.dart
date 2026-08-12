@@ -11,6 +11,8 @@ import 'package:dartscore_app/screens/around_the_clock_summary_screen.dart';
 import 'package:dartscore_app/screens/cricket_summary_screen.dart';
 import 'package:dartscore_app/screens/game_summary_screen.dart';
 import 'package:dartscore_app/screens/shanghai_summary_screen.dart';
+import 'package:dartscore_app/utils/layout.dart';
+import 'package:dartscore_app/widgets/summary_player_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -79,6 +81,40 @@ void main() {
       // do that no other summary offers.
       expect(find.byIcon(Icons.download_rounded), findsOneWidget);
       expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
+    });
+
+    testWidgets('keeps the shared card whole beside the throw log on a tablet',
+        (tester) async {
+      usePhoneSurface(tester, size: const Size(1180, 820));
+      await tester.pumpWidget(
+          testApp(const GameSummaryScreen(), game: provider));
+      await tester.pumpAndSettle();
+
+      // Divided: the log stands to the right of the result.
+      expect(find.byKey(kPaneDividerKey), findsOneWidget);
+      expect(tester.getRect(find.text('All Throws')).left,
+          greaterThan(tester.getRect(find.text('🎯 Ada wins!')).right));
+
+      // What the image is taken of is the boundary the screen keys, and it
+      // still holds every part of the result. Divided, the saved card would
+      // quietly lose whichever half stayed behind.
+      final captured = find
+          .ancestor(
+            of: find.text('🎯 Ada wins!'),
+            matching: find.byWidgetPredicate(
+                (w) => w is RepaintBoundary && w.key is GlobalKey),
+          )
+          .first;
+      expect(
+        find.descendant(of: captured, matching: find.byType(SummaryPlayerCard)),
+        findsNWidgets(2),
+      );
+      // The log is what the boundary was drawn around rather than over: too
+      // long for an image, and the proof that this is the card, not the screen.
+      expect(
+        find.descendant(of: captured, matching: find.text('All Throws')),
+        findsNothing,
+      );
     });
   });
 

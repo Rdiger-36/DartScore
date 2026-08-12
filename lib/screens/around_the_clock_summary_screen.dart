@@ -4,9 +4,9 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/game_labels.dart';
-import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'around_the_clock_screen.dart';
 
 /// Post-game summary for Around the Clock: the winner plus each player's final
@@ -36,9 +36,10 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(l.aroundClockSummaryTitle)),
-      body: ListView(
-        padding: contentPadding(context, top: 24, bottom: 24, innerH: 16),
-        children: [
+      body: SummaryBody(
+        top: 24,
+        bottom: 24,
+        result: [
           if (winnerId != null) ...[
             Center(
               child: Column(
@@ -100,8 +101,8 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
             ),
             (l.startingOrder, startingOrderLabel(l, provider.game!.startingOrder)),
           ]),
-          const SizedBox(height: 16),
-
+        ],
+        details: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -172,18 +173,16 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () =>
-                Navigator.popUntil(context, (route) => route.isFirst),
-            icon: const Icon(Icons.home_rounded),
-            label: Text(l.backToHome),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
         ],
+        footer: FilledButton.icon(
+          onPressed: () =>
+              Navigator.popUntil(context, (route) => route.isFirst),
+          icon: const Icon(Icons.home_rounded),
+          label: Text(l.backToHome),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
       ),
     );
   }
