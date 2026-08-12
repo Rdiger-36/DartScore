@@ -58,12 +58,29 @@ class LivePlayerStatsScreen extends StatefulWidget {
 class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
   late final PageController _controller =
       PageController(initialPage: widget.initialSlotIndex);
+
+  /// The page in view. A page holds one slot, or two where the screen is wide
+  /// enough for both, so this is not a slot index.
   late int _page = widget.initialSlotIndex;
+
+  /// Whether the last build put two slots on a page. A rotation changes what a
+  /// page holds, and the same player has to stay in view across it.
+  bool? _twoUp;
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Moves the controller onto the page the slot in view now lives on, after a
+  /// rotation changed how many slots a page holds.
+  void _repage(bool twoUp) {
+    final slot = _twoUp! ? _page * 2 : _page;
+    _page = twoUp ? slot ~/ 2 : slot;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_controller.hasClients) _controller.jumpToPage(_page);
+    });
   }
 
   @override
@@ -75,32 +92,69 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
           return const Scaffold(body: SizedBox.shrink());
         }
 
-        final theme  = Theme.of(context);
-        final l      = context.l10n;
-        final states = provider.playerStates;
-        final slot   = states[_page.clamp(0, states.length - 1)];
+        final theme   = Theme.of(context);
+        final l       = context.l10n;
+        final states  = provider.playerStates;
         final nextIdx = provider.nextSlotIndex;
+
+        final tablet    = isTabletLayout(context);
+        final landscape = MediaQuery.sizeOf(context).width >=
+            MediaQuery.sizeOf(context).height;
+        // On its side a tablet has room for two of these beside each other, so
+        // it shows two and pages in twos rather than leaving half the screen to
+        // the margin of a single column.
+        final twoUp     = tablet && landscape && states.length > 1;
+        final pageCount = twoUp ? (states.length + 1) ~/ 2 : states.length;
+
+        if (_twoUp != null && _twoUp != twoUp) _repage(twoUp);
+        _twoUp = twoUp;
+
+        final firstSlot = (twoUp ? _page * 2 : _page)
+            .clamp(0, states.length - 1);
+        final lastSlot = twoUp
+            ? (firstSlot + 1).clamp(0, states.length - 1)
+            : firstSlot;
+
+        /// One slot, at the size the screen it is on reads at. A tablet gets
+        /// the same panel its game screen keeps beside the input, which brings
+        /// its own width and text size; a phone keeps the page it always had.
+        Widget slotPage(int i) => tablet
+            ? LivePlayerStatsPanel(slotIndex: i)
+            : _SlotStatsPage(
+                state:         states[i],
+                game:          game,
+                isActiveSlot:  i == provider.currentPlayerIndex,
+                isNextSlot:    i != provider.currentPlayerIndex && i == nextIdx,
+                currentLeg:    provider.currentLeg,
+                currentSet:    provider.currentSet,
+                liveRemaining: provider.liveDisplayRemaining,
+                liveBust:      provider.liveBust,
+                dartsInVisit:  provider.dartsInVisit,
+              );
 
         return Scaffold(
           backgroundColor: theme.colorScheme.surface,
           appBar: AppBar(
             backgroundColor: theme.colorScheme.surface,
-            toolbarHeight: 44,
+            toolbarHeight: tablet ? 56 : 44,
             centerTitle: true,
             title: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  slot.displayName,
+                  [
+                    for (var i = firstSlot; i <= lastSlot; i++)
+                      states[i].displayName,
+                  ].join(' · '),
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: tablet ? 19 : 15),
                 ),
                 Text(
                   '${l.legLabel(provider.currentLeg)} · ${l.setLabel(provider.currentSet)}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: tablet ? 13 : 11,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -108,46 +162,47 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
             ),
           ),
           body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: contentMaxWidth(context,
-                      fraction: kGameWidthFraction, maxWidth: kMaxGameWidth),
+            child: Column(
+              children: [
+                Expanded(
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: pageCount,
+                    onPageChanged: (i) => setState(() => _page = i),
+                    itemBuilder: (_, i) {
+                      if (!twoUp) return slotPage(i);
+                      final left  = i * 2;
+                      final right = left + 1;
+                      // An odd player out keeps the middle of the page rather
+                      // than half of it with nothing beside it.
+                      if (right >= states.length) {
+                        return Center(
+                          child: SizedBox(
+                            width: kStatsPaneMaxWidth,
+                            child: slotPage(left),
+                          ),
+                        );
+                      }
+                      return SidePaneLayout(
+                        side: InputSide.left,
+                        primary: slotPage(left),
+                        secondary: slotPage(right),
+                      );
+                    },
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: PageView.builder(
-                        controller: _controller,
-                        itemCount: states.length,
-                        onPageChanged: (i) => setState(() => _page = i),
-                        itemBuilder: (_, i) => _SlotStatsPage(
-                          state:         states[i],
-                          game:          game,
-                          isActiveSlot:  i == provider.currentPlayerIndex,
-                          isNextSlot:    i != provider.currentPlayerIndex &&
-                                         i == nextIdx,
-                          currentLeg:    provider.currentLeg,
-                          currentSet:    provider.currentSet,
-                          liveRemaining: provider.liveDisplayRemaining,
-                          liveBust:      provider.liveBust,
-                          dartsInVisit:  provider.dartsInVisit,
-                        ),
-                      ),
+                if (pageCount > 1)
+                  _PageDots(
+                    count: pageCount,
+                    index: _page,
+                    label: l.playerOfTotal(firstSlot + 1, states.length),
+                    onTap: (i) => _controller.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
                     ),
-                    if (states.length > 1)
-                      _PageDots(
-                        count: states.length,
-                        index: _page,
-                        onTap: (i) => _controller.animateToPage(
-                          i,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
         );
@@ -880,11 +935,16 @@ class _MemberRow extends StatelessWidget {
 class _PageDots extends StatelessWidget {
   final int count;
   final int index;
+
+  /// What the row of dots says out loud. Passed in because a dot stands for a
+  /// page, and a page does not always hold exactly one player.
+  final String label;
   final void Function(int index) onTap;
 
   const _PageDots({
     required this.count,
     required this.index,
+    required this.label,
     required this.onTap,
   });
 
@@ -893,7 +953,7 @@ class _PageDots extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Semantics(
-      label: context.l10n.playerOfTotal(index + 1, count),
+      label: label,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(count, (i) {
