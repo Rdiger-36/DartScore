@@ -537,6 +537,43 @@ class AppLocalizations {
   String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
   String get throws            => _t('Throws', 'Würfe');
 
+  // ── Backup ────────────────────────────────────────────────────────────────
+  String get backupTitle       => _t('Backup', 'Sicherung');
+  String get backupSection     => _t('Data', 'Daten');
+  String get backupSectionDesc =>
+      _t('Back up everything to a file, or restore it',
+         'Alles in eine Datei sichern oder wiederherstellen');
+  String get backupCreate      => _t('Create backup', 'Sicherung erstellen');
+  String get backupCreateDesc  =>
+      _t('Writes all players, games and throws into one file',
+         'Schreibt alle Spieler, Spiele und Würfe in eine Datei');
+  String get backupRestore     => _t('Restore backup', 'Sicherung wiederherstellen');
+  String get backupRestoreDesc =>
+      _t('Reads a backup file back in',
+         'Liest eine Sicherungsdatei wieder ein');
+  String get backupWhereHint   =>
+      _t('Pick where the file goes: iCloud Drive, Google Drive, Files, mail or a chat. Nothing is uploaded anywhere by the app itself.',
+         'Du wählst, wohin die Datei geht: iCloud Drive, Google Drive, Dateien, E-Mail oder ein Chat. Die App selbst lädt nichts irgendwo hoch.');
+  String get backupCreated     => _t('Backup created.', 'Sicherung erstellt.');
+  String get backupNotABackup  =>
+      _t('This file is not a DartScore backup.',
+         'Diese Datei ist keine DartScore-Sicherung.');
+  String get backupTooNew      =>
+      _t('This backup comes from a newer version of DartScore. Update the app first.',
+         'Diese Sicherung stammt aus einer neueren Version von DartScore. Aktualisiere zuerst die App.');
+  String get backupRestoreQ    => _t('Restore backup?', 'Sicherung wiederherstellen?');
+  String get backupRestoreWarn =>
+      _t('Every player, game and statistic on this device is replaced by the backup. That cannot be undone.',
+         'Alle Spieler, Spiele und Statistiken auf diesem Gerät werden durch die Sicherung ersetzt. Das lässt sich nicht rückgängig machen.');
+  String get backupDeviceWarn  =>
+      _t('This device also takes over the identity of the device the backup was made on. If that device still exists, do not sync it with this one again.',
+         'Dieses Gerät übernimmt außerdem die Kennung des Geräts, auf dem die Sicherung erstellt wurde. Falls es dieses Gerät noch gibt, synchronisiere es danach nicht mehr mit diesem.');
+  String get backupRestored    => _t('Backup restored.', 'Sicherung wiederhergestellt.');
+  String get backupUnknownDate => _t('Date unknown', 'Datum unbekannt');
+  String backupContents(int players, int games) =>
+      _t('$players player${players != 1 ? 's' : ''}, $games game${games != 1 ? 's' : ''}',
+         '$players ${players != 1 ? 'Spieler' : 'Spieler'}, $games ${games != 1 ? 'Spiele' : 'Spiel'}');
+
   // ── Game Mode Selection ──────────────────────────────────────────────────
   String get selectGameMode       => _t('Select Game Mode', 'Spielmodus wählen');
   String get comingSoon           => _t('Coming Soon', 'Demnächst');

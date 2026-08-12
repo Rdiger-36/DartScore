@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
@@ -22,6 +23,10 @@ class DbHelper {
   static final DbHelper instance = DbHelper._();
   static Database? _db;
 
+  /// Schema version this build knows how to open. A backup written at a higher
+  /// version is refused rather than opened, see [inspectBackup].
+  static const int schemaVersion = 21;
+
   /// Where the database file lives, overriding the platform default. Only set
   /// by tests, which point it at an in-memory database so each case starts on
   /// a fresh schema.
@@ -44,13 +49,15 @@ class DbHelper {
     return _db!;
   }
 
+  /// Where the `dartscore.db` file lives on this device.
+  Future<String> get databasePath async =>
+      debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
+
   /// Opens (creating if needed) the `dartscore.db` database with foreign keys on.
   Future<Database> _initDb() async {
-    final path =
-        debugDatabasePath ?? join(await getDatabasesPath(), 'dartscore.db');
     return openDatabase(
-      path,
-      version: 20,
+      await databasePath,
+      version: schemaVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onOpen: (db) async {
@@ -242,7 +249,24 @@ class DbHelper {
             where: 'id = ?', whereArgs: [row['id']]);
       }
     }
+    if (oldVersion < 21) {
+      await db.execute(_kCreateAppMeta);
+    }
   }
+
+  /// Free-form key/value rows that describe the database file itself rather
+  /// than anything in the app.
+  ///
+  /// A backup is the plain database file, so whatever has to travel with it has
+  /// to live inside it. That is what this table is for: the marker that
+  /// identifies the file as a DartScore backup, and the id of the device that
+  /// wrote it. See [writeBackupMarkers].
+  static const String _kCreateAppMeta = '''
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''';
 
   /// Per-device stats snapshots for one player.
   ///
@@ -437,6 +461,7 @@ class DbHelper {
         thrown_at INTEGER NOT NULL
       )
     ''');
+    await db.execute(_kCreateAppMeta);
     await _createIndexes(db);
   }
 
@@ -1465,4 +1490,162 @@ class DbHelper {
     await d.delete('around_the_clock_throws', where: 'game_id = ?', whereArgs: [gameId]);
     await d.delete('around_the_clock_games', where: 'id = ?', whereArgs: [gameId]);
   }
+
+  // ── Backup and restore ───────────────────────────────────────────────────────
+
+  /// Value of the `format` row that marks a file as a DartScore backup.
+  static const String kBackupMarker = 'dartscore-backup';
+
+  /// The tables a file must have before it is offered as a restore. A database
+  /// picked from anywhere on the device can be anything, and replacing the live
+  /// file with it is not undoable.
+  static const List<String> _kRequiredTables = [
+    'players',
+    'games',
+    'dart_throws',
+  ];
+
+  /// Prepares the live database to be copied out as a backup and returns the
+  /// path to copy from.
+  ///
+  /// Writes the markers a restore reads back, then folds the write-ahead log
+  /// into the main file. That checkpoint is the point of this method: in WAL
+  /// mode the newest games sit in the companion `-wal` file, so a copy of
+  /// `dartscore.db` alone silently misses them, and the resulting backup looks
+  /// perfectly fine until someone needs it.
+  Future<String> prepareBackup(String deviceId) async {
+    final d = await db;
+    final meta = {
+      'format':     kBackupMarker,
+      'device_id':  deviceId,
+      'created_at': '${DateTime.now().millisecondsSinceEpoch}',
+    };
+    for (final entry in meta.entries) {
+      await d.insert('app_meta', {'key': entry.key, 'value': entry.value},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await d.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    return databasePath;
+  }
+
+  /// Reads what the file at [path] holds, without touching the live database.
+  ///
+  /// Returns null when it is not a readable SQLite database or does not carry
+  /// this app's tables. A file from a newer app version is described rather
+  /// than rejected here, so the caller can say so instead of failing blankly.
+  Future<BackupInfo?> inspectBackup(String path) async {
+    Database? file;
+    try {
+      file = await openReadOnlyDatabase(path);
+
+      final tables = (await file.query('sqlite_master',
+              columns: ['name'], where: "type = 'table'"))
+          .map((r) => r['name'] as String)
+          .toSet();
+      if (!_kRequiredTables.every(tables.contains)) return null;
+
+      final meta = <String, String>{};
+      if (tables.contains('app_meta')) {
+        for (final row in await file.query('app_meta')) {
+          meta[row['key'] as String] = row['value'] as String;
+        }
+      }
+
+      final createdAt = int.tryParse(meta['created_at'] ?? '');
+      var games = 0;
+      for (final table in [
+        'games',
+        'cricket_games',
+        'shanghai_games',
+        'around_the_clock_games',
+      ]) {
+        if (!tables.contains(table)) continue;
+        games += Sqflite.firstIntValue(
+                await file.rawQuery('SELECT COUNT(*) FROM $table')) ??
+            0;
+      }
+
+      return BackupInfo(
+        schemaVersion: await file.getVersion(),
+        deviceId:      meta['device_id'],
+        createdAt:     createdAt == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(createdAt),
+        playerCount: Sqflite.firstIntValue(await file.rawQuery(
+                'SELECT COUNT(*) FROM players WHERE is_deleted = 0')) ??
+            0,
+        gameCount: games,
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      await file?.close();
+    }
+  }
+
+  /// Replaces the live database with the file at [sourcePath] and reopens it,
+  /// running whatever migration the restored file still needs.
+  ///
+  /// The current file is only moved aside, not deleted, until the new one is
+  /// open, so a failure anywhere in between leaves the device on the data it
+  /// already had. The `-wal` and `-shm` companions have to go: they belong to
+  /// the old database, and leaving them beside a new file is how a restore ends
+  /// up as a mixture of both.
+  Future<void> replaceDatabase(String sourcePath) async {
+    final path   = await databasePath;
+    final target = File(path);
+    final aside  = File('$path.replaced');
+
+    await _db?.close();
+    _db = null;
+
+    if (await aside.exists()) await aside.delete();
+    if (await target.exists()) await target.rename(aside.path);
+    for (final companion in ['$path-wal', '$path-shm']) {
+      final file = File(companion);
+      if (await file.exists()) await file.delete();
+    }
+
+    try {
+      await File(sourcePath).copy(path);
+      await db;
+    } catch (_) {
+      await _db?.close();
+      _db = null;
+      if (await target.exists()) await target.delete();
+      if (await aside.exists()) await aside.rename(path);
+      rethrow;
+    }
+
+    await aside.delete();
+  }
+}
+
+/// What a candidate backup file was found to hold, read before a restore
+/// replaces anything.
+class BackupInfo {
+  /// Schema version the file was written at. One above this app's own means it
+  /// comes from a newer version, which cannot be restored here: the migrations
+  /// that would explain the file do not exist in this build yet.
+  final int schemaVersion;
+
+  /// Id of the device that wrote the backup, adopted on restore so the restored
+  /// history stays attributed to the device that played it.
+  final String? deviceId;
+
+  /// When the backup was written, or null for a file without the marker.
+  final DateTime? createdAt;
+
+  /// Players and games the file contains, shown so the user can tell one backup
+  /// from another before overwriting anything.
+  final int playerCount;
+  final int gameCount;
+
+  const BackupInfo({
+    required this.schemaVersion,
+    required this.deviceId,
+    required this.createdAt,
+    required this.playerCount,
+    required this.gameCount,
+  });
 }

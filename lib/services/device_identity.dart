@@ -43,6 +43,22 @@ class DeviceIdentity {
     return _cached = stored;
   }
 
+  /// Takes over [id] as this device's identity, replacing whatever was stored.
+  ///
+  /// Only a restore does this, and it has to: every game in a backup is filed
+  /// under the id of the device that played it, and the stats snapshot beside
+  /// it says which of those are this device's own. Coming back up under a fresh
+  /// id would leave the restored history attributed to a device that no longer
+  /// answers, and the next sync would pass it on as somebody else's.
+  ///
+  /// The other side of that is that two devices must not run on one id, so a
+  /// restore says the phone it came from should not sync with this one again.
+  static Future<void> adopt(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefsKey, id);
+    _cached = id;
+  }
+
   /// Pins the id, or clears the cache when given null. Tests act out two
   /// devices in one process and need to say which one is speaking.
   @visibleForTesting
