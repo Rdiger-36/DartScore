@@ -87,6 +87,45 @@ void main() {
       );
     }
 
+    /// Plays a nine dart leg for [player]: 180, 180, then 141 on T20, T19, D12.
+    ///
+    /// The only leg shape here that is perfect, and the one with a game
+    /// average worth reading. Both are properties of a game rather than of a
+    /// throw, so they are also the two numbers a synced throw cannot carry on
+    /// its own.
+    Future<void> playPerfectLeg(Player player) async {
+      final provider = GameProvider();
+      await provider.startGame(
+          Game(startScore: 501, legs: 1, createdAt: DateTime.now()),
+          [player, opponents.last]);
+
+      for (var i = 0; i < 3; i++) {
+        await provider.tapField(20, 3);
+      }
+      for (var i = 0; i < 3; i++) {
+        await provider.tapField(20, 1);
+      }
+      for (var i = 0; i < 3; i++) {
+        await provider.tapField(20, 3);
+      }
+      for (var i = 0; i < 3; i++) {
+        await provider.tapField(20, 1);
+      }
+      await provider.tapField(20, 3);
+      await provider.tapField(19, 3);
+      await provider.tapField(12, 2);
+
+      expect(provider.gameOver, isTrue, reason: 'the leg should be finished');
+
+      legsPlayed++;
+      final d = await DbHelper.instance.db;
+      await d.rawUpdate(
+        'UPDATE dart_throws SET thrown_at = thrown_at - ? '
+        'WHERE game_id = (SELECT MAX(id) FROM games)',
+        [Duration(minutes: 5 * legsPlayed).inMilliseconds],
+      );
+    }
+
     /// Ages every throw recorded so far, so a later leg stays inside a short
     /// range and this one does not.
     Future<void> ageEverythingBy(int days) async {
@@ -254,6 +293,59 @@ void main() {
       // And syncing with A again replaces only A's part.
       await receive(await send(a, 'DEVICE-A'), b, 'DEVICE-B');
       expect((await statsOf(b)).totalVisits, afterSecond.totalVisits);
+    });
+
+    test('what a game knows about itself survives a sync, at every range',
+        () async {
+      final a = opponents[0];
+
+      for (final range in SyncRange.values) {
+        await DbHelper.debugReset();
+        opponents = await insertPlayers(['A', 'B', 'Opponent']);
+        final sender   = opponents[0];
+        final receiver = opponents[1];
+
+        // A nine darter, and an older ordinary leg so a short range has
+        // something to fold away as well.
+        await playLeg(sender);
+        await ageEverythingBy(40);
+        await playPerfectLeg(sender);
+
+        final sent = await statsOf(sender);
+        expect(sent.perfectLegs, 1, reason: 'the nine darter is perfect');
+        expect(sent.highestGameAverage, greaterThan(100),
+            reason: 'a nine darter averages 167');
+
+        await receive(
+            await send(sender, 'DEVICE-A', range: range), receiver, 'DEVICE-B');
+        final got = await statsOf(receiver);
+
+        // A synced throw arrives without its game: every one of them lands in
+        // one hidden sync-game with no start score, so neither number can be
+        // recomputed on the other side and both have to travel folded in.
+        expect(got.perfectLegs, sent.perfectLegs,
+            reason: 'perfect legs at ${range.name}');
+        expect(got.highestGameAverage,
+            closeTo(sent.highestGameAverage, 0.001),
+            reason: 'highest game average at ${range.name}');
+      }
+
+      // The round trip must not turn one perfect leg into two.
+      await DbHelper.debugReset();
+      opponents = await insertPlayers(['A', 'B', 'Opponent']);
+      await playPerfectLeg(opponents[0]);
+      final before = await statsOf(opponents[0]);
+
+      await receive(
+          await send(opponents[0], 'DEVICE-A'), opponents[1], 'DEVICE-B');
+      await receive(
+          await send(opponents[1], 'DEVICE-B'), opponents[0], 'DEVICE-A');
+
+      final after = await statsOf(opponents[0]);
+      expect(after.perfectLegs, before.perfectLegs, reason: 'back home');
+      expect(after.highestGameAverage,
+          closeTo(before.highestGameAverage, 0.001), reason: 'back home');
+      expect(a.id, isNotNull);
     });
 
     test('the range still cuts throws that came from another device',
