@@ -352,8 +352,12 @@ enum SyncServerState {
   /// The user approved, the payload goes out on the next request.
   approved,
 
-  /// The payload has been handed over.
+  /// The payload has been handed over, and the peer's own is now awaited.
   served,
+
+  /// The peer has answered with its side of the exchange. Whether that answer
+  /// carried anything is [SyncServer.returnedPayload].
+  returned,
 
   /// The user turned the peer away.
   rejected,
@@ -384,20 +388,40 @@ class SyncConnection {
   }
 }
 
-/// Hosts a one-shot local HTTP server that hands a payload to one peer over the
-/// local network, once the user has confirmed the peer is the right one.
+/// Hosts a one-shot local HTTP server that exchanges a payload with one peer
+/// over the local network, once the user has confirmed the peer is the right
+/// one.
 ///
 /// A peer needs the token from the connection QR to get any answer at all,
 /// which is what keeps the payload from anyone else who happens to be on the
 /// same Wi-Fi. Past that door it still waits: the first request only starts a
 /// pairing, both devices show the same four digits, and the payload is released
-/// when the user approves it here. The server then stops itself rather than
-/// staying open for the rest of the session.
+/// when the user approves it here.
+///
+/// The exchange goes both ways in one pairing. After the payload has gone out
+/// the server stays up briefly for the peer to post its own side back, which is
+/// what makes two devices reconcile in one confirmation instead of two runs
+/// with the roles swapped. The peer always answers, with an empty body when it
+/// has nothing to give, so the wait ends on an answer rather than on the
+/// timeout. Then the server stops rather than staying open for the rest of the
+/// session.
 class SyncServer {
+  /// How long to wait for the peer's side after the payload has gone out. Only
+  /// reached when the peer disappears mid-exchange; an ordinary run answers at
+  /// once.
+  static const Duration returnTimeout = Duration(seconds: 90);
+
   HttpServer? _server;
   String? _payload;
+  String? _returned;
+  Timer? _returnTimer;
   String _token = '';
   String _pin = '';
+
+  /// What the peer sent back, or null when it had nothing for this device.
+  /// Only meaningful once the state is [SyncServerState.returned].
+  String? get returnedPayload =>
+      _returned == null || _returned!.isEmpty ? null : _returned;
 
   final ValueNotifier<SyncServerState> _state =
       ValueNotifier(SyncServerState.waiting);
@@ -417,6 +441,7 @@ class SyncServer {
     final random = Random.secure();
 
     _payload = payload;
+    _returned = null;
     _token = List.generate(
         16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
     _pin = random.nextInt(10000).toString().padLeft(4, '0');
@@ -458,6 +483,11 @@ class SyncServer {
       return;
     }
 
+    if (req.method == 'POST') {
+      await _handleReturn(req, response);
+      return;
+    }
+
     if (_state.value == SyncServerState.waiting) {
       _state.value = SyncServerState.pending;
     }
@@ -479,7 +509,14 @@ class SyncServer {
         // a payload of a few tens of kilobytes is still in flight at that
         // point, so the receiver sees the connection break instead.
         await response.close();
-        _state.value = SyncServerState.served;
+        if (_state.value != SyncServerState.served) {
+          _state.value = SyncServerState.served;
+          _startReturnTimer();
+        }
+      case SyncServerState.returned:
+        // The exchange is over. Nothing is served twice.
+        response.statusCode = HttpStatus.gone;
+        await response.close();
       case SyncServerState.waiting:
       case SyncServerState.pending:
         response
@@ -489,12 +526,52 @@ class SyncServer {
     }
   }
 
+  /// Takes the peer's side of the exchange.
+  ///
+  /// Only once this device's own payload is out: before that there is no
+  /// approved peer, and taking a packet from an unconfirmed one would let
+  /// anyone holding the token push data in. An empty body is a valid answer and
+  /// means the peer had nothing to send.
+  Future<void> _handleReturn(HttpRequest req, HttpResponse response) async {
+    if (_state.value != SyncServerState.served) {
+      response.statusCode = HttpStatus.conflict;
+      await response.close();
+      return;
+    }
+
+    final body = await utf8.decoder.bind(req).join();
+    _returned = body;
+
+    response.statusCode = HttpStatus.ok;
+
+    // Same reason as the payload above, the other way round: the screen reacts
+    // to `returned` by shutting the server down, so the answer has to be fully
+    // written before the state says so, or the peer never sees it.
+    await response.close();
+    _returnTimer?.cancel();
+    _state.value = SyncServerState.returned;
+  }
+
+  /// Gives up waiting for the peer's side after [returnTimeout], so a peer that
+  /// vanished mid-exchange does not leave the sender's screen waiting forever.
+  void _startReturnTimer() {
+    _returnTimer?.cancel();
+    _returnTimer = Timer(returnTimeout, () {
+      if (_state.value == SyncServerState.served) {
+        _returned = null;
+        _state.value = SyncServerState.returned;
+      }
+    });
+  }
+
   /// Stops the server and clears the payload and the session secrets.
   ///
   /// The state is deliberately left where it was. A screen shutting down calls
   /// this and then [dispose] without waiting, so a write here would land on a
   /// notifier that is already gone; [start] resets the state anyway.
   Future<void> stop() async {
+    _returnTimer?.cancel();
+    _returnTimer = null;
     await _server?.close(force: true);
     _server = null;
     _payload = null;
@@ -504,6 +581,7 @@ class SyncServer {
 
   /// Releases the state notifier. Call when the owning screen goes away.
   void dispose() {
+    _returnTimer?.cancel();
     _state.dispose();
   }
 
@@ -596,6 +674,37 @@ class SyncClient {
           throw TimeoutException('The transfer was not confirmed in time');
         }
         await Future<void>.delayed(_kPollInterval);
+      }
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Sends this device's own side of the exchange back to [connection].
+  ///
+  /// Always called after a successful [fetch], with an empty [payload] when
+  /// there is nothing to return: the sender is waiting on an answer either way,
+  /// and an empty one ends its wait immediately instead of after the timeout.
+  ///
+  /// A failure here is deliberately not fatal to the caller. The data this
+  /// device received is already stored, and the only thing lost is the other
+  /// direction, which the user can run again.
+  Future<void> post(SyncConnection connection, String payload) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..idleTimeout = const Duration(seconds: 10);
+
+    try {
+      final url = Uri.parse(
+          'http://${connection.ip}:${connection.port}/${connection.token}');
+      final request = await client.postUrl(url);
+      request.headers.contentType = ContentType.text;
+      request.write(payload);
+
+      final res = await request.close().timeout(const Duration(seconds: 30));
+      await res.drain<void>();
+      if (res.statusCode != HttpStatus.ok) {
+        throw Exception('Server responded with ${res.statusCode}');
       }
     } finally {
       client.close(force: true);

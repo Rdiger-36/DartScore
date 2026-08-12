@@ -392,7 +392,8 @@ class _SenderTab extends StatefulWidget {
   State<_SenderTab> createState() => _SenderTabState();
 }
 
-class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
+class _SenderTabState extends State<_SenderTab>
+    with WidgetsBindingObserver, _PacketImport {
   Player? _selectedPlayer;
   SyncRange _range = SyncRange.all;
 
@@ -425,8 +426,13 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   /// request from the same peer does not open a second one.
   bool _askingApproval = false;
 
-  /// Set once the payload has gone out and the server has stopped itself.
+  /// Set once the exchange is over and the server has stopped itself.
   bool _served = false;
+
+  /// What went wrong with the packet the peer sent back, if anything. The
+  /// outgoing half already succeeded at that point, so this is reported next to
+  /// the confirmation rather than in place of it.
+  String? _returnError;
 
   @override
   void initState() {
@@ -504,14 +510,18 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
     switch (_server.state.value) {
       case SyncServerState.pending:
         _askApproval();
-      case SyncServerState.served:
       case SyncServerState.rejected:
-        // Both are the end of this session. Turning a device away leaves the
-        // server refusing everyone, so it comes down rather than sitting there
-        // saying no to the next attempt as well.
+        // Turning a device away leaves the server refusing everyone, so it
+        // comes down rather than sitting there saying no to the next attempt
+        // as well.
         _finishServing();
+      case SyncServerState.returned:
+        _finishExchange();
       case SyncServerState.waiting:
       case SyncServerState.approved:
+      // The payload is out but the session is not over: the other device still
+      // owes its own side, which is what makes one pairing reconcile both.
+      case SyncServerState.served:
         if (mounted) setState(() {});
     }
   }
@@ -540,6 +550,40 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
     if (mounted) setState(() { _connection = null; _served = sent; });
+  }
+
+  /// Closes the session once the peer has answered, and imports what it sent.
+  ///
+  /// The outgoing half is already done by this point, so a return leg that
+  /// brings nothing, or brings something unreadable, is reported beside the
+  /// confirmation instead of turning the whole transfer into a failure.
+  Future<void> _finishExchange() async {
+    final payload = _server.returnedPayload;
+    await _server.stop();
+    if (!mounted) return;
+    setState(() {
+      _connection  = null;
+      _served      = true;
+      _returnError = null;
+    });
+
+    if (payload == null) return;
+
+    SyncPacket packet;
+    try {
+      packet = decodeSyncPayload(payload);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _returnError = '${context.l10n.syncReadFailed}\n\n'
+            '${context.l10n.error}: $e');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final imported = await importPacket(packet);
+    // Back to the player list, where the profile that just changed is waiting.
+    if (imported && mounted) Navigator.of(context).pop();
   }
 
   // ── Preparing the payload ─────────────────────────────────────────────────
@@ -929,10 +973,10 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 6),
             Text(
-              l.syncServerSentHint,
+              _returnError ?? l.syncServerSentHint,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                  color: _returnError == null ? cs.onSurfaceVariant : cs.error),
             ),
             const SizedBox(height: 16),
           ],
@@ -958,6 +1002,11 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
     }
 
     final connection = _connection!;
+    // The payload is out and the other device is putting its own together. The
+    // code is gone from the screen by then: scanning it again would only reach
+    // a session that is already spoken for.
+    final awaitingReturn = _server.state.value == SyncServerState.served;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -969,7 +1018,17 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(vertical: 14)),
         ),
         const SizedBox(height: 20),
-        _qrCard(connection.qrPayload),
+        if (awaitingReturn) ...[
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+          Text(
+            l.syncAwaitingReturn,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ] else
+          _qrCard(connection.qrPayload),
       ],
     );
   }
@@ -1027,7 +1086,7 @@ class _ReceiverTab extends StatefulWidget {
   State<_ReceiverTab> createState() => _ReceiverTabState();
 }
 
-class _ReceiverTabState extends State<_ReceiverTab> {
+class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   bool _scanning = false;
   bool _fetching = false;
   String? _error;
@@ -1207,16 +1266,19 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         },
       );
       return decodeSyncPayload(payload);
-    }, overWifi: true);
+    }, connection: connection);
   }
 
   /// Closes the camera, resolves [read] into a packet and imports it, turning
   /// any failure into the error banner.
   ///
-  /// [overWifi] picks the message, because a code that would not decode is not
-  /// a network problem and pointing at the Wi-Fi would only mislead.
+  /// [connection] is set for a Wi-Fi transfer. It picks the failure message,
+  /// because a code that would not decode is not a network problem and pointing
+  /// at the Wi-Fi would only mislead, and it is where this device's own side of
+  /// the exchange goes back to.
   Future<void> _finishScan(Future<SyncPacket> Function() read,
-      {bool overWifi = false}) async {
+      {SyncConnection? connection}) async {
+    final overWifi = connection != null;
     setState(() {
       _scanning   = false;
       _fetching   = true;
@@ -1227,7 +1289,21 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     try {
       final packet = await read();
       if (!mounted) return;
-      await _handlePacket(packet);
+
+      // Before the dialogs, not after: the other device is holding its server
+      // open until this answers, and a user reading a confirmation is easily
+      // slower than any timeout worth having. The two directions do not depend
+      // on each other, so there is nothing to wait for.
+      if (connection != null) await _returnOwnSide(packet, connection);
+      if (!mounted) return;
+
+      final imported = await importPacket(packet);
+      if (!mounted) return;
+      setState(() => _fetching = false);
+      // Back to the player list, where the imported profile is now waiting.
+      // Both ways into this screen come from there, so popping lands on it.
+      if (imported) Navigator.of(context).pop();
+      return;
     } catch (e) {
       if (mounted) {
         final l = context.l10n;
@@ -1248,11 +1324,56 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     }
   }
 
-  /// Common flow: name conflict check → confirm dialog → import.
-  Future<void> _handlePacket(SyncPacket packet) async {
+  /// Sends this device's own history for the same player back over the
+  /// connection, so one pairing settles both directions.
+  ///
+  /// Built before the import rather than after, so what goes back is this
+  /// device's own history and not the sender's own data handed straight back to
+  /// it. Nothing here is allowed to fail loudly: what was received is already
+  /// safe, and the only thing a failure costs is the other direction, which the
+  /// user can simply run again. The peer is always answered, with an empty body
+  /// when this device does not know the player at all, because it is holding
+  /// its server open until it hears something.
+  Future<void> _returnOwnSide(
+      SyncPacket packet, SyncConnection connection) async {
+    var payload = '';
+    try {
+      final player =
+          await DbHelper.instance.getPlayerByUuid(packet.playerUuid);
+      if (player != null) {
+        // Encoded straight, with no transport decision to make: this always
+        // goes back over the connection it came in on, whatever its size.
+        final own = await buildSyncPacket(
+            player, Platform.isIOS ? 'iPhone' : 'Android', SyncRange.all);
+        payload = encodeSyncPayload(own);
+      }
+    } catch (_) {
+      payload = '';
+    }
+
+    try {
+      await SyncClient().post(connection, payload);
+    } catch (_) {
+      // The sender falls back on its own timeout.
+    }
+  }
+}
+
+/// The receiving half of a sync, shared by both tabs.
+///
+/// A Wi-Fi transfer goes both ways in one pairing, so the sending device
+/// imports as well: whatever comes back over the return leg runs through the
+/// same questions, the same confirmation and the same writes as a packet that
+/// was scanned. One copy of that flow is the point of this mixin. Two would be
+/// how the directions start disagreeing about what a name conflict means.
+mixin _PacketImport<T extends StatefulWidget> on State<T> {
+  /// Common flow: name conflict check → confirm dialog → import. Returns
+  /// whether anything was written, so the caller can decide what to do with a
+  /// screen that is now showing stale data.
+  Future<bool> importPacket(SyncPacket packet) async {
     Player? existing =
         await DbHelper.instance.getPlayerByUuid(packet.playerUuid);
-    if (!mounted) return;
+    if (!mounted) return false;
 
     if (existing == null) {
       final provider = context.read<PlayersProvider>();
@@ -1263,24 +1384,20 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       if (sameNamePlayer != null) {
         final resolution =
             await _showNameConflictDialog(packet, sameNamePlayer);
-        if (!mounted) return;
+        if (!mounted) return false;
         if (resolution == null) {
-          setState(() => _fetching = false);
-          return;
+          return false;
         } else if (resolution == _NameResolution.useExisting) {
           existing = sameNamePlayer;
         } else if (resolution is String) {
-          await _doImport(packet.withName(resolution), null);
-          if (mounted) setState(() => _fetching = false);
-          return;
+          return _doImport(packet.withName(resolution), null);
         }
       }
     }
 
     final confirmed = await _showConfirmDialog(packet, existing);
-    if (!mounted) return;
-    if (confirmed) await _doImport(packet, existing);
-    if (mounted) setState(() => _fetching = false);
+    if (!mounted || !confirmed) return false;
+    return _doImport(packet, existing);
   }
 
   /// Prompts the user to resolve a same-name conflict (merge into the existing
@@ -1354,12 +1471,12 @@ class _ReceiverTabState extends State<_ReceiverTab> {
   }
 
   /// Runs the import behind a modal that shows how far it has got and then
-  /// reports the outcome.
+  /// reports the outcome. Returns whether it went through.
   ///
   /// A sync can carry tens of thousands of visits, and writing them takes long
   /// enough that a bare spinner leaves the user guessing whether anything is
   /// happening at all.
-  Future<void> _doImport(SyncPacket packet, Player? existing) async {
+  Future<bool> _doImport(SyncPacket packet, Player? existing) async {
     final imported = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -1367,10 +1484,7 @@ class _ReceiverTabState extends State<_ReceiverTab> {
         run: (report) => _writeImport(packet, existing, report),
       ),
     );
-
-    // Back to the player list, where the imported profile is now waiting. Both
-    // ways into this screen come from there, so popping lands on it.
-    if (imported == true && mounted) Navigator.of(context).pop();
+    return imported == true;
   }
 
   /// Persists the incoming packet: updates the existing player or creates a new

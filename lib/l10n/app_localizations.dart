@@ -522,6 +522,9 @@ class AppLocalizations {
   String get alternativeName   => _t('Alternative name', 'Alternativer Name');
   String fromDevice(String d)  => _t('From: $d', 'Von: $d');
   String get import_           => _t('Import', 'Importieren');
+  String get syncAwaitingReturn =>
+      _t('The data is through. Waiting for the other device to send its own back, so both are up to date after one transfer.',
+         'Die Daten sind durch. Warte darauf, dass das andere Gerät seine eigenen zurückschickt, damit beide nach einer Übertragung aktuell sind.');
   String get update            => _t('Update', 'Aktualisieren');
   String importedMsg(String name) => _t('$name imported.', '$name importiert.');
   String updatedMsg(String name) => _t('$name updated.', '$name aktualisiert.');
