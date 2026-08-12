@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import '../widgets/dartboard_icon.dart';
+import 'licenses_screen.dart';
 
 const _projectUrl = 'https://rdiger-36.github.io/Rdiger-36/';
 
@@ -45,12 +46,17 @@ class _LicenseTextScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final l = context.l10n;
     return Scaffold(
       appBar: AppBar(title: Text(l.license)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
         children: [
           Text(l.appName,
               style: Theme.of(context).textTheme.titleMedium
@@ -173,10 +179,8 @@ class _AboutScreenState extends State<AboutScreen> {
               title: Text(l.openSourceLicenses),
               subtitle: Text(l.openSourceLicensesDesc),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: l.appName,
-                applicationVersion: info?.version,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LicensesScreen()),
               ),
             ),
           ),

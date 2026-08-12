@@ -93,6 +93,7 @@ lib/
 │   ├── player_stats_screen.dart          # Per-player lifetime stats
 │   ├── settings_screen.dart              # Theme, language, donation and about links
 │   ├── about_screen.dart                 # App info, version, license (GPL-3.0), project links
+│   ├── licenses_screen.dart              # Licenses of the packages the app is built on
 │   ├── donation_screen.dart              # Support the developer via in-app purchases
 │   └── sync_screen.dart                  # Device-to-device data sync (QR and Wi-Fi)
 ├── services/

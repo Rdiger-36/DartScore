@@ -24,6 +24,21 @@ import '../support/test_db.dart';
 /// Each group plays a real game in `setUp` and then hands the stored game back
 /// to the screen, so what is under test is the reconstruction: the same throws
 /// have to produce the same result a second time, hours or a sync later.
+/// Renders a detail the way the tablet history does: embedded in a pane that is
+/// a part of a wide window, and reports how wide its first card comes out.
+///
+/// The screens used to pad themselves by measuring the window, which inside a
+/// pane leaves the margin of a whole screen on either side of half of one and
+/// squeezes the content to nothing.
+Future<double> paneCardWidth(WidgetTester tester, Widget detail) async {
+  usePhoneSurface(tester, size: const Size(1180, 820));
+  await tester.pumpWidget(testApp(
+    Center(child: SizedBox(width: 560, height: 800, child: detail)),
+  ));
+  await pumpUntilLoaded(tester);
+  return tester.getRect(find.byType(Card).first).width;
+}
+
 void main() {
   // ── X01 ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +96,15 @@ void main() {
       await pumpDetail(tester);
 
       expect(find.text('01.04.26  20:15'), findsOneWidget);
+    });
+
+    testWidgets('offers the rematch on a bar under the game, not inside it',
+        (tester) async {
+      await pumpDetail(tester);
+
+      final again = tester.getRect(find.text('Replay'));
+      final list  = tester.getRect(find.byType(ListView));
+      expect(again.top, greaterThan(list.bottom));
     });
 
     testWidgets('rebuilds the winner and the throw log from the stored throws',
@@ -159,6 +183,15 @@ void main() {
       expect(find.text('0/7 Fields closed'), findsOneWidget);
     });
 
+    testWidgets('fills the pane it is embedded in', (tester) async {
+      final width = await paneCardWidth(
+        tester,
+        CricketHistorySummaryScreen(
+            game: stored, players: players, embedded: true),
+      );
+      expect(width, greaterThan(500));
+    });
+
     testWidgets('rebuilds the marks grid down to the Bull', (tester) async {
       await pumpDetail(tester);
 
@@ -210,6 +243,15 @@ void main() {
       )));
       await pumpUntilLoaded(tester);
     }
+
+    testWidgets('fills the pane it is embedded in', (tester) async {
+      final width = await paneCardWidth(
+        tester,
+        ShanghaiHistorySummaryScreen(
+            game: stored, players: players, embedded: true),
+      );
+      expect(width, greaterThan(500));
+    });
 
     testWidgets('replays the game to the same result', (tester) async {
       final score = provider.playerStates[0].score;
@@ -268,6 +310,15 @@ void main() {
       )));
       await pumpUntilLoaded(tester);
     }
+
+    testWidgets('fills the pane it is embedded in', (tester) async {
+      final width = await paneCardWidth(
+        tester,
+        AroundTheClockHistorySummaryScreen(
+            game: stored, players: players, embedded: true),
+      );
+      expect(width, greaterThan(500));
+    });
 
     testWidgets('replays how far each player got', (tester) async {
       final total = aroundTheClockOrder.length;

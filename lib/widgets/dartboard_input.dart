@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -32,8 +34,28 @@ class DartEntry {
 /// [_compactHeight] the grid instead takes exactly what the other rows leave,
 /// so the Miss/Bull/Done row stays on screen on a short phone no matter how far
 /// the scoreboard above has grown.
+///
+/// [fillHeight] asks for the second behaviour whatever the height, which is
+/// what a tablet pane wants: there the input is given far more height than it
+/// needs, and a column that keeps its phone size would float in the middle of
+/// it. The buttons then grow towards square rather than staying flat.
 class DartboardInput extends StatefulWidget {
-  const DartboardInput({super.key});
+  /// Whether the column should fill the height it is given rather than keep its
+  /// preferred size.
+  final bool fillHeight;
+
+  const DartboardInput({super.key, this.fillHeight = false});
+
+  /// Pane width from which the actions move beside the grid. Below it the
+  /// column they would take comes straight off the width of the numbers.
+  static const double _sideActionsMinWidth = 520;
+
+  /// Whether a pane [width] wide is one where the actions sit beside the grid.
+  ///
+  /// Public because the layout around the input arranges itself differently in
+  /// that case: with the actions beside the numbers the column is short enough
+  /// to take the checkout hint on top of it.
+  static bool usesSideActions(double width) => width >= _sideActionsMinWidth;
 
   @override
   State<DartboardInput> createState() => _DartboardInputState();
@@ -48,6 +70,16 @@ class _DartboardInputState extends State<DartboardInput> {
   /// Width to height ratio of a field button when there is room for it.
   static const double _preferredAspectRatio = 1.4;
 
+  /// The same ratio for a pane that hands the input more height than it needs.
+  /// A button may grow past square there, because a tablet has the room and a
+  /// taller button is an easier target.
+  static const double _filledAspectRatio = 0.8;
+
+  /// And further still in a pane too narrow for the actions to sit beside the
+  /// grid: that pane is tall and thin, so without this the height the actions
+  /// do not take would stand around as a hole under the numbers.
+  static const double _narrowFilledAspectRatio = 0.62;
+
   /// Shortest a field button may get. If even that does not fit, the grid
   /// scrolls inside its box rather than pushing the action row off screen.
   static const double _minFieldHeight = 30;
@@ -57,6 +89,18 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Horizontal padding around the grid and the action row.
   static const double _sidePadding = 10;
+
+  /// Widest the modifier switch is drawn. It fills what a tablet pane gives it
+  /// up to here, past which three segments start reading as three buttons that
+  /// happen to touch rather than as one switch.
+  static const double _maxSegmentWidth = 620;
+
+  /// Share of a tablet pane the action row under the grid takes, and the range
+  /// it may end up in. Left at its phone height the row reads small next to
+  /// number buttons twice its size; the grid gives up the difference.
+  static const double _actionRowHeightFactor = 0.13;
+  static const double _minActionRowHeight = 72;
+  static const double _maxActionRowHeight = 110;
 
   static const _fields = [
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -68,6 +112,84 @@ class _DartboardInputState extends State<DartboardInput> {
     context.read<GameProvider>().tapField(field, _modifier);
     setState(() => _modifier = 1);
   }
+
+  /// Miss, Bull and Done, either as the row under the grid or as the column
+  /// beside it.
+  ///
+  /// Bull takes twice the share of the other two in the row, where it is also
+  /// the widest label. Stacked it gets an equal share: three buttons of the
+  /// same size read as one control, and the height is not scarce there.
+  Widget _actions({required bool vertical, required double verticalPadding}) {
+    final cs = Theme.of(context).colorScheme;
+    final provider = context.read<GameProvider>();
+    final dartCount = provider.currentVisitDarts.length;
+
+    final miss = _ActionButton(
+      label: context.l10n.miss,
+      icon: Icons.close,
+      color: cs.errorContainer,
+      textColor: cs.onErrorContainer,
+      disabled: dartCount >= 3,
+      verticalPadding: verticalPadding,
+      onTap: () => _tapField(0),
+    );
+    final bull = _ActionButton(
+      label: context.l10n.bullLabel(_modifier == 2),
+      icon: Icons.adjust,
+      color: cs.secondaryContainer,
+      textColor: cs.onSecondaryContainer,
+      disabled: dartCount >= 3 || _modifier == 3,
+      verticalPadding: verticalPadding,
+      onTap: () => _tapField(25),
+    );
+    final done = _ActionButton(
+      label: context.l10n.done_,
+      icon: Icons.check,
+      color: Colors.amber,
+      textColor: Colors.black,
+      disabled: dartCount == 0,
+      verticalPadding: verticalPadding,
+      onTap: provider.finishVisitEarly,
+    );
+
+    if (vertical) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: miss),
+          const SizedBox(height: 6),
+          Expanded(child: bull),
+          const SizedBox(height: 6),
+          Expanded(child: done),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: miss),
+        const SizedBox(width: 6),
+        Expanded(flex: 2, child: bull),
+        const SizedBox(width: 6),
+        Expanded(child: done),
+      ],
+    );
+  }
+
+  /// Background the number buttons take under the active modifier, and what
+  /// the switch shows for it.
+  Color? _modifierColor(BuildContext context) => switch (_modifier) {
+        2 => Theme.of(context).colorScheme.secondaryContainer,
+        3 => tripleContainerColor(context),
+        _ => null,
+      };
+
+  /// Foreground for [_modifierColor].
+  Color? _onModifierColor(BuildContext context) => switch (_modifier) {
+        2 => Theme.of(context).colorScheme.onSecondaryContainer,
+        3 => onTripleContainerColor(context),
+        _ => null,
+      };
 
   /// The number grid at its preferred size, as tall as its aspect ratio makes it.
   Widget _grid({
@@ -93,39 +215,92 @@ class _DartboardInputState extends State<DartboardInput> {
     );
   }
 
-  /// The number grid sized to the box it is given: the row height follows from
-  /// the space left over, clamped so the buttons stay tappable and never grow
-  /// past their preferred size. Only if the clamp binds does the grid scroll.
-  Widget _fittedGrid({required double spacing, required bool disabled}) {
+  /// How the grid divides a box: the size of one button, and whether even the
+  /// shortest allowed row is taller than the box can hold.
+  ({double buttonWidth, double rowHeight, bool scrolls}) _gridMetrics({
+    required double width,
+    required double height,
+    required double spacing,
+    required double maxAspectRatio,
+  }) {
+    final buttonWidth = (width - 4 * spacing) / 5;
+    final leftover    = (height - 3 * spacing) / 4;
+    final rowHeight   = leftover
+        .clamp(_minFieldHeight, buttonWidth / maxAspectRatio)
+        .toDouble();
+    return (
+      buttonWidth: buttonWidth,
+      rowHeight: rowHeight,
+      scrolls: rowHeight > leftover,
+    );
+  }
+
+  /// The number grid sized to the box it is given, with the actions beside it
+  /// when [sideActions] says the pane is wide enough for them.
+  ///
+  /// The result is exactly as tall as the grid turns out to be, never as tall
+  /// as the box: a taller one would stretch the action column to a height the
+  /// numbers next to it do not have, and hide the difference inside the grid.
+  /// What the grid does not need belongs to the spacing of the column above.
+  Widget _fittedGridArea({
+    required double spacing,
+    required bool disabled,
+    required double maxAspectRatio,
+    required bool sideActions,
+    required double actionWidth,
+    required double actionVPadding,
+  }) {
     return LayoutBuilder(
       builder: (context, box) {
-        final buttonWidth = (box.maxWidth - 4 * spacing) / 5;
-        final leftover    = (box.maxHeight - 3 * spacing) / 4;
-        final rowHeight   = leftover.clamp(
-          _minFieldHeight,
-          buttonWidth / _preferredAspectRatio,
+        final gap = sideActions ? spacing + 2 : 0.0;
+        final m = _gridMetrics(
+          width: box.maxWidth - actionWidth - gap,
+          height: box.maxHeight,
+          spacing: spacing,
+          maxAspectRatio: maxAspectRatio,
         );
-        final scrolls = rowHeight > leftover;
 
         final grid = GridView.count(
           crossAxisCount: 5,
-          shrinkWrap: !scrolls,
-          physics: scrolls
+          shrinkWrap: !m.scrolls,
+          physics: m.scrolls
               ? const ClampingScrollPhysics()
               : const NeverScrollableScrollPhysics(),
           mainAxisSpacing: spacing,
           crossAxisSpacing: spacing,
-          childAspectRatio: buttonWidth / rowHeight,
+          childAspectRatio: m.buttonWidth / m.rowHeight,
           children: _fields.map((f) => _FieldButton(
             field: f,
             modifier: _modifier,
             disabled: disabled,
-            compact: rowHeight < _twoLineFieldHeight,
+            compact: m.rowHeight < _twoLineFieldHeight,
+            scale: (m.rowHeight / 48).clamp(1.0, 2.0).toDouble(),
             onTap: () => _tapField(f),
           )).toList(),
         );
 
-        return scrolls ? grid : Center(child: grid);
+        final height =
+            m.scrolls ? box.maxHeight : 4 * m.rowHeight + 3 * spacing;
+
+        return SizedBox(
+          height: height,
+          child: sideActions
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: grid),
+                    SizedBox(width: gap),
+                    SizedBox(
+                      width: actionWidth,
+                      child: _actions(
+                        vertical: true,
+                        verticalPadding: actionVPadding,
+                      ),
+                    ),
+                  ],
+                )
+              : grid,
+        );
       },
     );
   }
@@ -133,7 +308,6 @@ class _DartboardInputState extends State<DartboardInput> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final provider = context.watch<GameProvider>();
     final darts = provider.currentVisitDarts;
     final dartCount = darts.length;
@@ -144,16 +318,51 @@ class _DartboardInputState extends State<DartboardInput> {
         // absorb whatever the rows around it leave, so the layout fits by
         // construction instead of by a guessed row height.
         final compact = constraints.maxHeight < _compactHeight;
+        // Both a short screen and a tall pane want the grid to take the height
+        // that is left; they differ only in how far a button may grow.
+        final fitted  = compact || widget.fillHeight;
+        // Beside the grid the actions cost width, which only a wide pane has
+        // to spare, and give back the height the row under the grid took.
+        final sideActions =
+            widget.fillHeight &&
+                DartboardInput.usesSideActions(constraints.maxWidth);
+        // A pane far taller than it is wide cannot spend its height on the
+        // grid: four rows of five buttons would have to stretch out of shape.
+        // The visit display and the modifier take it instead, where a tablet
+        // gains something from the size anyway.
+        final tallPane = widget.fillHeight &&
+            constraints.maxHeight / constraints.maxWidth > 1.6;
+        final rowScale = tallPane ? 1.35 : 1.0;
+        final actionColumnWidth = sideActions
+            ? (constraints.maxWidth * 0.2).clamp(100, 140).toDouble()
+            : 0.0;
         final gridSpacing = compact ? 4.0 : 6.0;
-        final segmentVPadding = compact ? 4.0 : 8.0;
-        final gapAfterProgress = compact ? 6.0 : 10.0;
-        final gapAfterSegment = compact ? 6.0 : 12.0;
+        // Bigger where the pane is a tablet's: it sits between number buttons
+        // twice their phone size, and at its phone size it reads as an
+        // afterthought between them.
+        final segmentVPadding = compact
+            ? 4.0
+            : tallPane
+                ? 20.0
+                : widget.fillHeight
+                    ? 18.0
+                    : 8.0;
+        // More air above the switch than below it, so it reads with the grid
+        // it changes rather than with the visit above it.
+        final gapAfterProgress = compact ? 6.0 : (widget.fillHeight ? 20.0 : 10.0);
+        final gapAfterSegment = compact ? 6.0 : (widget.fillHeight ? 8.0 : 12.0);
         final gapBeforeActions = compact ? 10.0 : 16.0;
         final actionVPadding = compact ? 7.0 : 11.0;
         final bottomPad = compact ? 8.0 : 14.0;
 
         final column = Column(
-          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: fitted ? MainAxisSize.max : MainAxisSize.min,
+          // A box taller than the input needs spreads what is left over the
+          // gaps, keeping the dart row at the top and the actions at the
+          // bottom where the hands are.
+          mainAxisAlignment: fitted
+              ? MainAxisAlignment.spaceBetween
+              : MainAxisAlignment.start,
           children: [
             // Dart progress row with undo/redo
             _DartProgressRow(
@@ -162,37 +371,76 @@ class _DartboardInputState extends State<DartboardInput> {
               canUndo: provider.canUndoDart,
               canRedo: provider.canRedoDart,
               compact: compact,
+              scale: rowScale,
               onUndo: provider.undoLastDart,
               onRedo: provider.redoLastDart,
             ),
             SizedBox(height: gapAfterProgress),
-            // Modifier
+            // Modifier, centred over the visit row above it. It is a switch
+            // for the whole input, not for one column of it, so it stays on
+            // the middle line of the pane whatever the grid does, and fills
+            // what the pane gives it up to a width past which three segments
+            // stop reading as one switch.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-              child: SegmentedButton<int>(
-                segments: [
-                  ButtonSegment(value: 1, label: Text(context.l10n.single)),
-                  ButtonSegment(value: 2, label: Text(context.l10n.double_)),
-                  ButtonSegment(value: 3, label: Text(context.l10n.triple)),
-                ],
-                selected: {_modifier},
-                onSelectionChanged: (s) => setState(() => _modifier = s.first),
-                style: ButtonStyle(
-                  padding: WidgetStateProperty.all(
-                      EdgeInsets.symmetric(vertical: segmentVPadding)),
-                  textStyle: WidgetStateProperty.all(theme.textTheme.labelMedium),
+              child: SizedBox(
+                width: widget.fillHeight
+                    ? min(constraints.maxWidth - 2 * _sidePadding,
+                        _maxSegmentWidth)
+                    : null,
+                child: SegmentedButton<int>(
+                  segments: [
+                    // Scaled down rather than wrapped: dragging the divider can
+                    // make this pane narrow enough that "Single" would
+                    // otherwise break across two lines.
+                    ButtonSegment(
+                        value: 1, label: _SegmentLabel(context.l10n.single)),
+                    ButtonSegment(
+                        value: 2, label: _SegmentLabel(context.l10n.double_)),
+                    ButtonSegment(
+                        value: 3, label: _SegmentLabel(context.l10n.triple)),
+                  ],
+                  selected: {_modifier},
+                  onSelectionChanged: (s) => setState(() => _modifier = s.first),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all(
+                        EdgeInsets.symmetric(vertical: segmentVPadding)),
+                    textStyle: WidgetStateProperty.all(widget.fillHeight
+                        ? theme.textTheme.titleLarge
+                        : theme.textTheme.labelMedium),
+                    // The chosen segment wears the colour the number buttons
+                    // are about to take, so the switch shows what it does
+                    // rather than only naming it.
+                    backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? _modifierColor(context)
+                            : null),
+                    foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? _onModifierColor(context)
+                            : null),
+                  ),
                 ),
               ),
             ),
             SizedBox(height: gapAfterSegment),
-            // Number grid
-            if (compact)
-              Expanded(
+            // Number grid, with the actions beside it where the pane is wide
+            // enough that moving them there does not cost the numbers width.
+            if (fitted)
+              Flexible(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-                  child: _fittedGrid(
+                  child: _fittedGridArea(
                     spacing: gridSpacing,
                     disabled: dartCount >= 3,
+                    maxAspectRatio: !widget.fillHeight
+                        ? _preferredAspectRatio
+                        : sideActions
+                            ? _filledAspectRatio
+                            : _narrowFilledAspectRatio,
+                    sideActions: sideActions,
+                    actionWidth: actionColumnWidth,
+                    actionVPadding: actionVPadding,
                   ),
                 ),
               )
@@ -206,64 +454,37 @@ class _DartboardInputState extends State<DartboardInput> {
                   disabled: dartCount >= 3,
                 ),
               ),
-            SizedBox(height: gapBeforeActions),
-            // Miss | Bull | Fertig
-            Padding(
-              padding: EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      label: context.l10n.miss,
-                      icon: Icons.close,
-                      color: cs.errorContainer,
-                      textColor: cs.onErrorContainer,
-                      disabled: dartCount >= 3,
-                      verticalPadding: actionVPadding,
-                      onTap: () => _tapField(0),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    flex: 2,
-                    child: _ActionButton(
-                      label: context.l10n.bullLabel(_modifier == 2),
-                      icon: Icons.adjust,
-                      color: cs.secondaryContainer,
-                      textColor: cs.onSecondaryContainer,
-                      disabled: dartCount >= 3 || _modifier == 3,
-                      verticalPadding: actionVPadding,
-                      onTap: () => _tapField(25),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _ActionButton(
-                      label: context.l10n.done_,
-                      icon: Icons.check,
-                      color: Colors.amber,
-                      textColor: Colors.black,
-                      disabled: dartCount == 0,
-                      verticalPadding: actionVPadding,
-                      onTap: provider.finishVisitEarly,
-                    ),
-                  ),
-                ],
+            if (!sideActions) ...[
+              SizedBox(height: gapBeforeActions),
+              // Miss | Bull | Fertig
+              Padding(
+                padding:
+                    EdgeInsets.fromLTRB(_sidePadding, 0, _sidePadding, bottomPad),
+                child: SizedBox(
+                  height: widget.fillHeight
+                      ? (constraints.maxHeight * _actionRowHeightFactor)
+                          .clamp(_minActionRowHeight, _maxActionRowHeight)
+                          .toDouble()
+                      : null,
+                  child: _actions(
+                      vertical: false, verticalPadding: actionVPadding),
+                ),
               ),
-            ),
+            ] else
+              SizedBox(height: bottomPad),
           ],
         );
 
         final sized = Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
+            constraints: BoxConstraints(maxWidth: widget.fillHeight ? 760 : 500),
             child: column,
           ),
         );
 
         // The fitted column already ends exactly at the bottom of its box. Only the
         // preferred layout can outgrow the space it was given, so only it scrolls.
-        if (compact) return sized;
+        if (fitted) return sized;
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -275,18 +496,34 @@ class _DartboardInputState extends State<DartboardInput> {
   }
 }
 
+/// One label of the modifier switch, kept on a single line at whatever width
+/// the pane leaves it.
+class _SegmentLabel extends StatelessWidget {
+  final String text;
+
+  const _SegmentLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(text, maxLines: 1, softWrap: false),
+      );
+}
+
 // ── Dart progress row ────────────────────────────────────────────────────────
 
 /// The three-dart progress strip with undo/redo buttons shown above the grid.
 ///
 /// [compact] lays each slot out on one line instead of three, which is the
-/// cheapest 25 dp a short screen can give back to the number grid.
+/// cheapest 25 dp a short screen can give back to the number grid. [scale] does
+/// the opposite where a pane has height to spare.
 class _DartProgressRow extends StatelessWidget {
   final List<DartEntry> darts;
   final bool isNegative;
   final bool canUndo;
   final bool canRedo;
   final bool compact;
+  final double scale;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
 
@@ -298,6 +535,7 @@ class _DartProgressRow extends StatelessWidget {
     required this.compact,
     required this.onUndo,
     required this.onRedo,
+    this.scale = 1.0,
   });
 
   @override
@@ -307,7 +545,8 @@ class _DartProgressRow extends StatelessWidget {
 
     return Container(
       margin: EdgeInsets.fromLTRB(10, compact ? 6 : 8, 10, 0),
-      padding: EdgeInsets.fromLTRB(6, compact ? 4 : 5, 4, compact ? 4 : 5),
+      padding: EdgeInsets.fromLTRB(
+          6, (compact ? 4 : 5) * scale, 4, (compact ? 4 : 5) * scale),
       decoration: BoxDecoration(
         color: isNegative ? cs.errorContainer : cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
@@ -318,6 +557,7 @@ class _DartProgressRow extends StatelessWidget {
           _UndoRedoBtn(
             icon: Icons.undo_rounded,
             enabled: canUndo,
+            scale: scale,
             onTap: onUndo,
           ),
           // Three dart slots
@@ -329,12 +569,13 @@ class _DartProgressRow extends StatelessWidget {
                 isActive: i == darts.length,
                 isNegative: isNegative,
                 compact: compact,
+                scale: scale,
               ),
             ),
             if (i < 2)
               Container(
                 width: 1,
-                height: compact ? 18 : 26,
+                height: (compact ? 18 : 26) * scale,
                 color: cs.outlineVariant,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
               ),
@@ -343,6 +584,7 @@ class _DartProgressRow extends StatelessWidget {
           _UndoRedoBtn(
             icon: Icons.redo_rounded,
             enabled: canRedo,
+            scale: scale,
             onTap: onRedo,
           ),
         ],
@@ -355,12 +597,14 @@ class _DartProgressRow extends StatelessWidget {
 class _UndoRedoBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
+  final double scale;
   final VoidCallback onTap;
 
   const _UndoRedoBtn({
     required this.icon,
     required this.enabled,
     required this.onTap,
+    this.scale = 1.0,
   });
 
   @override
@@ -372,10 +616,10 @@ class _UndoRedoBtn extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: enabled ? onTap : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 4 * scale),
           child: Icon(
             icon,
-            size: 20,
+            size: 20 * scale,
             color: enabled
                 ? cs.onSurface
                 : cs.onSurface.withValues(alpha: 0.25),
@@ -400,6 +644,7 @@ class _DartSlot extends StatelessWidget {
   final bool isActive;
   final bool isNegative;
   final bool compact;
+  final double scale;
 
   const _DartSlot({
     required this.index,
@@ -407,6 +652,7 @@ class _DartSlot extends StatelessWidget {
     required this.isActive,
     required this.isNegative,
     required this.compact,
+    this.scale = 1.0,
   });
 
   @override
@@ -449,27 +695,32 @@ class _DartSlot extends StatelessWidget {
       );
     }
 
+    /// The phone size of [style], grown by [scale].
+    TextStyle? sized(TextStyle? style) =>
+        style?.copyWith(fontSize: (style.fontSize ?? 12) * scale);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Dart ${index + 1}',
-          style: theme.textTheme.labelSmall?.copyWith(
+          style: sized(theme.textTheme.labelSmall)?.copyWith(
             color: accent.withValues(alpha: isActive ? 1.0 : 0.55),
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        const SizedBox(height: 1),
+        SizedBox(height: 1 * scale),
         Text(
           entry?.label ?? (isActive ? '▶' : '—'),
-          style: theme.textTheme.titleSmall?.copyWith(
+          style: sized(theme.textTheme.titleSmall)?.copyWith(
             fontWeight: FontWeight.bold,
             color: valueColor,
           ),
         ),
         Text(
           entry != null ? '+${entry!.score}' : ' ',
-          style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+          style: sized(theme.textTheme.labelSmall)
+              ?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
     );
@@ -485,6 +736,9 @@ class _FieldButton extends StatelessWidget {
   final int modifier;
   final bool disabled;
   final bool compact;
+  /// How much larger than on a phone the label renders, following the size of
+  /// the button itself.
+  final double scale;
   final VoidCallback onTap;
 
   const _FieldButton({
@@ -492,6 +746,7 @@ class _FieldButton extends StatelessWidget {
     required this.modifier,
     required this.disabled,
     this.compact = false,
+    this.scale = 1.0,
     required this.onTap,
   });
 
@@ -539,6 +794,7 @@ class _FieldButton extends StatelessWidget {
               Text(
                 modifier > 1 ? notation : '$field',
                 style: t.titleMedium?.copyWith(
+                  fontSize: (t.titleMedium?.fontSize ?? 16) * scale,
                   fontWeight: FontWeight.bold,
                   color: _fg(context),
                 ),
@@ -548,6 +804,7 @@ class _FieldButton extends StatelessWidget {
               Text(
                 '$field',
                 style: t.titleMedium?.copyWith(
+                  fontSize: (t.titleMedium?.fontSize ?? 16) * scale,
                   fontWeight: FontWeight.bold,
                   color: _fg(context),
                 ),
@@ -556,6 +813,7 @@ class _FieldButton extends StatelessWidget {
                 Text(
                   '$score',
                   style: t.labelSmall?.copyWith(
+                    fontSize: (t.labelSmall?.fontSize ?? 11) * scale,
                     color: _fg(context).withValues(alpha: 0.65),
                     fontWeight: FontWeight.bold,
                   ),
@@ -603,21 +861,43 @@ class _ActionButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: disabled ? null : onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: verticalPadding),
-          child: Column(
-            children: [
-              Icon(icon, size: 17, color: effectiveFg),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: t.labelSmall?.copyWith(
-                  color: effectiveFg,
-                  fontWeight: FontWeight.bold,
-                ),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // Given a height rather than taking one from its content, the
+            // button reads its size off that: label and icon in the middle
+            // rather than at the top edge, and both grown to match.
+            final tall = box.hasBoundedHeight && box.maxHeight > 64;
+            final scale =
+                tall ? (box.maxHeight / 54).clamp(1.0, 1.9).toDouble() : 1.0;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: verticalPadding),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: tall ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 17 * scale, color: effectiveFg),
+                  SizedBox(height: 2 * scale),
+                  // Scaled down rather than wrapped: the widest label is
+                  // "Bull (50)", and a second line is what pushed this button
+                  // past its own height.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: t.labelSmall?.copyWith(
+                        fontSize: (t.labelSmall?.fontSize ?? 11) * scale,
+                        color: effectiveFg,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

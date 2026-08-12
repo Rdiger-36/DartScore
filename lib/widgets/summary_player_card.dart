@@ -27,6 +27,12 @@ class SummaryPlayerCard extends StatelessWidget {
   /// The slot's members, empty for an individual player.
   final List<SummaryMember> members;
 
+  /// A short honour to stand in the top right of the header, such as a leg
+  /// checked out in the fewest darts the start score allows. Null where the
+  /// source cannot tell, which is why it is passed in rather than derived: the
+  /// live game counts perfect legs as they happen, a stored one does not.
+  final String? badge;
+
   const SummaryPlayerCard({
     super.key,
     required this.name,
@@ -34,6 +40,7 @@ class SummaryPlayerCard extends StatelessWidget {
     required this.legsWon,
     this.setsWon,
     this.members = const [],
+    this.badge,
   });
 
   /// Whether this card stands for a team rather than a single player.
@@ -87,6 +94,10 @@ class SummaryPlayerCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (badge != null) ...[
+                  const SizedBox(width: 8),
+                  _Badge(label: badge!),
+                ],
               ],
             ),
             const SizedBox(height: 12),
@@ -112,6 +123,41 @@ class SummaryPlayerCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The honour in the corner of a player's header: a star and what it was for.
+class _Badge extends StatelessWidget {
+  final String label;
+
+  const _Badge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: cs.tertiary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 16, color: cs.onTertiary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: cs.onTertiary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -14,33 +14,58 @@ import '../widgets/final_ranking_card.dart';
 import '../widgets/game_info_card.dart';
 import '../utils/placement.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
 import 'game_screen.dart';
 
 /// Detailed view of a finished X01 game from history: per-player stats and the
 /// full throw log, loaded from the stored throws.
-class HistoryGameSummaryScreen extends StatelessWidget {
+class HistoryGameSummaryScreen extends StatefulWidget {
   final Game game;
   final List<Player> players;
+
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the history does on a tablet. Embedded it renders
+  /// its content alone, without a screen around it.
+  final bool embedded;
 
   const HistoryGameSummaryScreen({
     super.key,
     required this.game,
     required this.players,
+    this.embedded = false,
   });
 
   @override
+  State<HistoryGameSummaryScreen> createState() =>
+      _HistoryGameSummaryScreenState();
+}
+
+class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<_GameData> _future = _load();
+
+  @override
+  void didUpdateWidget(HistoryGameSummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<_GameData>(
-        future: _load(),
+        future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -49,7 +74,7 @@ class HistoryGameSummaryScreen extends StatelessWidget {
           if (data == null || data.playerThrows.isEmpty) {
             return Center(child: Text(context.l10n.noThrowData));
           }
-          return _SummaryBody(game: game, data: data, players: players);
+          return _SummaryBody(game: widget.game, data: data, players: widget.players);
         },
       ),
         ),
@@ -57,10 +82,21 @@ class HistoryGameSummaryScreen extends StatelessWidget {
     );
   }
 
-  /// Loads the game's throws and groups them by player.
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
+          ),
+          body: content,
+        );
+
+  /// Loads the widget.game's throws and groups them by player.
   Future<_GameData> _load() async {
     final db = DbHelper.instance;
-    final allThrows = await db.getThrowsForGame(game.id!);
+    final allThrows = await db.getThrowsForGame(widget.game.id!);
     final Map<int, List<DartThrow>> byPlayer = {};
     for (final t in allThrows) {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
@@ -107,7 +143,58 @@ class _SummaryBody extends StatelessWidget {
     // lookup to list a team's members.
     final namesById = {for (final p in players) p.id: p.name};
 
-    return ListView(
+    final rematch = RematchButton(
+      modeName: context.l10n.modeX01Name,
+      details: [
+        (
+          context.l10n.matchFormat,
+          game.placementMode
+              ? context.l10n.placementMode
+              : context.l10n.standardMode
+        ),
+        (
+          context.l10n.gameMode_,
+          context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
+              placementMode: game.placementMode)
+        ),
+        // With handicaps the game defaults say little, so the per-player
+        // rows below carry the rules instead.
+        if (!game.hasHandicaps) ...[
+          (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
+          (
+            context.l10n.checkOut,
+            checkOutLabel(context.l10n, game.checkoutMode)
+          ),
+        ],
+      ],
+      slots: game.isTeamGame
+          ? game.teams!
+              .map((t) => RematchSlot.team(
+                    t.name,
+                    [
+                      for (final id in t.playerIds)
+                        if (namesById[id] != null)
+                          RematchSlot.player(
+                            namesById[id]!,
+                            rules: handicapRulesLabel(
+                                context.l10n, game, id),
+                          ),
+                    ],
+                  ))
+              .toList()
+          : players
+              .map((p) => RematchSlot.player(
+                    p.name,
+                    rules:
+                        handicapRulesLabel(context.l10n, game, p.id),
+                  ))
+              .toList(),
+      onRematch: () =>
+          context.read<GameProvider>().startRematch(game, players),
+      destination: (_) => const GameScreen(),
+    );
+
+    final list = ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
         // Winner banner
@@ -157,58 +244,6 @@ class _SummaryBody extends StatelessWidget {
               startingOrderLabel(context.l10n, game.startingOrder)
             ),
         ]),
-        const SizedBox(height: 16),
-        RematchButton(
-          modeName: context.l10n.modeX01Name,
-          details: [
-            (
-              context.l10n.matchFormat,
-              game.placementMode
-                  ? context.l10n.placementMode
-                  : context.l10n.standardMode
-            ),
-            (
-              context.l10n.gameMode_,
-              context.l10n.gameSummaryInfo(game.startScore, game.legs, game.sets,
-                  placementMode: game.placementMode)
-            ),
-            // With handicaps the game defaults say little, so the per-player
-            // rows below carry the rules instead.
-            if (!game.hasHandicaps) ...[
-              (context.l10n.checkIn, checkInLabel(context.l10n, game.gameMode)),
-              (
-                context.l10n.checkOut,
-                checkOutLabel(context.l10n, game.checkoutMode)
-              ),
-            ],
-          ],
-          slots: game.isTeamGame
-              ? game.teams!
-                  .map((t) => RematchSlot.team(
-                        t.name,
-                        [
-                          for (final id in t.playerIds)
-                            if (namesById[id] != null)
-                              RematchSlot.player(
-                                namesById[id]!,
-                                rules: handicapRulesLabel(
-                                    context.l10n, game, id),
-                              ),
-                        ],
-                      ))
-                  .toList()
-              : players
-                  .map((p) => RematchSlot.player(
-                        p.name,
-                        rules:
-                            handicapRulesLabel(context.l10n, game, p.id),
-                      ))
-                  .toList(),
-          onRematch: () =>
-              context.read<GameProvider>().startRematch(game, players),
-          destination: (_) => const GameScreen(),
-        ),
-        const SizedBox(height: 16),
         // Final ranking (placement mode only). Slots are keyed by team index in
         // a team game and by player id otherwise, matching how the placement
         // helpers group the throws.
@@ -234,7 +269,6 @@ class _SummaryBody extends StatelessWidget {
                   }
                 : {for (final p in players) p.id!: p.name},
           ),
-          const SizedBox(height: 12),
         ],
         // Per-team or per-player stats
         if (game.isTeamGame)
@@ -279,12 +313,18 @@ class _SummaryBody extends StatelessWidget {
               legsWon: legsWonOverride ?? legsWonFromThrows(throws),
             );
           }),
-        const SizedBox(height: 14),
         ThrowLogCard(
           throws: data.allThrows,
           playerName: (id) => namesById[id] ?? '',
           showSet: game.sets > 1,
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

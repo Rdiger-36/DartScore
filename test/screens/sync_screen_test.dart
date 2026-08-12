@@ -2,6 +2,7 @@ import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/screens/sync_screen.dart';
 import 'package:dartscore_app/services/sync_service.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -26,8 +27,9 @@ void main() {
   /// that fake async never gets to, so it is let through explicitly. Nothing
   /// here settles: an animated transfer shows an indeterminate progress bar,
   /// and `pumpAndSettle` would wait on an animation that never ends.
-  Future<void> pumpSync(WidgetTester tester, {Player? initial}) async {
-    usePhoneSurface(tester, size: const Size(400, 1400));
+  Future<void> pumpSync(WidgetTester tester,
+      {Player? initial, Size size = const Size(400, 1400)}) async {
+    usePhoneSurface(tester, size: size);
     await tester.pumpWidget(
         testApp(SyncScreen(initialPlayer: initial), players: players));
 
@@ -61,6 +63,35 @@ void main() {
 
       expect(find.text('Scan QR code'), findsOneWidget);
       expect(find.byType(QrImageView), findsNothing);
+    });
+
+    testWidgets('is read at the size of the device it is on', (tester) async {
+      await pumpSync(tester, size: const Size(1180, 820));
+
+      // The screen is mostly text, so a tablet renders it larger, the way the
+      // other reading screens do.
+      final scaler = MediaQuery.textScalerOf(
+          tester.element(find.textContaining('QR').first));
+      expect(scaler.scale(14), greaterThan(14));
+    });
+
+    testWidgets('is one column on every device, the scan as wide as the rest',
+        (tester) async {
+      for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
+        await pumpSync(tester, size: size);
+        expect(find.byKey(kPaneDividerKey), findsNothing,
+            reason: 'a picker over a code, never beside it, at $size');
+      }
+
+      for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
+        await pumpSync(tester, size: size);
+
+        final button = tester.getRect(
+            find.widgetWithText(FilledButton, 'Scan QR code'));
+        final column = tester.getRect(find.textContaining('Scan the sender'));
+        expect(button.width, greaterThanOrEqualTo(column.width - 1),
+            reason: 'the button fills its column at $size');
+      }
     });
 
     testWidgets('starts no camera until the user asks for one', (tester) async {
@@ -128,8 +159,27 @@ void main() {
     Future<void> letFramesRun(WidgetTester tester) =>
         tester.pump(const Duration(milliseconds: 400));
 
+    /// Starts the stream, which waits for the sender to say the receiver is
+    /// ready rather than running at whoever happens to be looking.
+    Future<void> startStream(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
+      await tester.pump();
+    }
+
+    testWidgets('waits to be started before it runs', (tester) async {
+      await pumpSync(tester, initial: player);
+
+      final before = code(tester);
+      await letFramesRun(tester);
+
+      expect(identical(code(tester), before), isTrue,
+          reason: 'nothing should be encoded until the code is started');
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
     testWidgets('cycles through frames', (tester) async {
       await pumpSync(tester, initial: player);
+      await startStream(tester);
       final before = code(tester);
 
       await letFramesRun(tester);
@@ -137,9 +187,53 @@ void main() {
       expect(identical(code(tester), before), isFalse);
     });
 
+    testWidgets('stops again when the code itself is tapped', (tester) async {
+      await pumpSync(tester, initial: player);
+      await startStream(tester);
+      final running = code(tester);
+      await letFramesRun(tester);
+      expect(identical(code(tester), running), isFalse);
+
+      await tester.tap(find.byType(QrImageView));
+      await tester.pump();
+      final stopped = code(tester);
+      await letFramesRun(tester);
+
+      expect(identical(code(tester), stopped), isTrue);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
+    testWidgets('stops when the tab is left', (tester) async {
+      await pumpSync(tester, initial: player);
+      await startStream(tester);
+
+      // Bounded pumps rather than a settle: a running code ticks ten times a
+      // second, so nothing settles until it has been stopped.
+      await tester.tap(find.text('Receive'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Coming back re-reads the history, which is real I/O the fake clock
+      // never gets to on its own.
+      for (var i = 0; i < 60; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump();
+        if (find.byType(QrImageView).evaluate().isNotEmpty) break;
+      }
+
+      // A code nobody can see keeps no loop running: it is back behind its
+      // glass, waiting to be started again.
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
     testWidgets('stops advancing once the app goes to the background',
         (tester) async {
       await pumpSync(tester, initial: player);
+      await startStream(tester);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
@@ -152,6 +246,7 @@ void main() {
 
     testWidgets('picks up again when the app comes back', (tester) async {
       await pumpSync(tester, initial: player);
+      await startStream(tester);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await letFramesRun(tester);
       final whileAway = code(tester);

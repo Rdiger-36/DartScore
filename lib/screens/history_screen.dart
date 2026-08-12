@@ -10,6 +10,7 @@ import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../providers/shanghai_provider.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/game_labels.dart';
@@ -41,6 +42,9 @@ class _HistoryScreenState extends State<HistoryScreen>
   List<_HistoryEntry> _entries = [];
   _ModeFilter _openFilter     = _ModeFilter.all;
   _ModeFilter _finishedFilter = _ModeFilter.all;
+  /// The finished game the detail pane shows. Only ever set on a tablet, where
+  /// a tap opens the game beside the list instead of on top of it.
+  _HistoryEntry? _selected;
 
   _ModeFilter get _currentFilter =>
       _tabController.index == 0 ? _openFilter : _finishedFilter;
@@ -268,24 +272,82 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
+  /// The detail view of [e], for the route on a phone and the pane on a tablet.
+  Widget _detailFor(_HistoryEntry e, {required bool embedded}) {
+    if (e.isCricket) {
+      return CricketHistorySummaryScreen(
+          game: e.cricketGame!, players: e.players, embedded: embedded);
+    }
+    if (e.isShanghai) {
+      return ShanghaiHistorySummaryScreen(
+          game: e.shanghaiGame!, players: e.players, embedded: embedded);
+    }
+    if (e.isAroundTheClock) {
+      return AroundTheClockHistorySummaryScreen(
+          game: e.aroundTheClockGame!, players: e.players, embedded: embedded);
+    }
+    return HistoryGameSummaryScreen(
+        game: e.x01Game!, players: e.players, embedded: embedded);
+  }
+
+  /// Opens the detail of [e]: beside the list where there is room for it, on
+  /// top of it where there is not.
+  void _showSummary(BuildContext context, _HistoryEntry e) {
+    if (isTabletLayout(context)) {
+      setState(() => _selected = e);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => _detailFor(e, embedded: false)),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
+    final tablet = isTabletLayout(context);
+    // The divider is one setting for the whole app: wherever two panes share a
+    // screen, they share the position the player dragged them to.
+    final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
+    final landscape =
+        MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(context.l10n.historyTitle),
         actions: [
           if (_visibleEntries.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
+              // Read and hit from further away than a phone is.
+              icon: Icon(Icons.delete_sweep_outlined, size: tablet ? 30 : null),
               tooltip: context.l10n.clearAll,
               onPressed: () => _confirmDeleteVisible(context),
             ),
         ],
         bottom: TabBar(
           controller: _tabController,
+          // A tablet reads its tabs from further away, and there is height to
+          // spare for them.
+          labelStyle: tablet
+              ? Theme.of(context).textTheme.titleLarge
+              : null,
+          unselectedLabelStyle: tablet
+              ? Theme.of(context).textTheme.titleLarge
+              : null,
           tabs: [
-            Tab(text: context.l10n.open),
-            Tab(text: context.l10n.finished),
+            Tab(
+              height: tablet ? 56 : null,
+              text: context.l10n.open,
+            ),
+            Tab(
+              height: tablet ? 56 : null,
+              text: context.l10n.finished,
+            ),
           ],
         ),
       ),
@@ -299,9 +361,31 @@ class _HistoryScreenState extends State<HistoryScreen>
           final open     = entries.where((e) => e.finishedAt == null).toList();
           final finished = entries.where((e) => e.finishedAt != null).toList();
 
+          final finishedList = _TabContent(
+            entries: finished,
+            isOpenTab: false,
+            filter: _finishedFilter,
+            onFilterChanged: (f) => setState(() => _finishedFilter = f),
+            onDelete: _deleteEntry,
+            onResume: (_) {},
+            onShowSummary: (e) => _showSummary(context, e),
+            selected: _selected,
+          );
+
+          // A game the list no longer holds must not stay open beside it.
+          final stillThere = _selected != null &&
+              finished.any((e) => identical(e, _selected));
+
           return TabBarView(
             controller: _tabController,
+            // A tablet switches tabs from the bar above them. Left swipeable,
+            // the page would take every horizontal drag on this tab, including
+            // the one that moves the divider it now carries.
+            physics: tablet ? const NeverScrollableScrollPhysics() : null,
             children: [
+              // Only finished games have anything to show beside the list. An
+              // open one is resumed, not read, so its tab keeps the whole
+              // width instead of standing next to an empty half.
               _TabContent(
                 entries: open,
                 isOpenTab: true,
@@ -317,34 +401,96 @@ class _HistoryScreenState extends State<HistoryScreen>
                             : _resumeX01(context, e),
                 onShowSummary: (_) {},
               ),
-              _TabContent(
-                entries: finished,
-                isOpenTab: false,
-                filter: _finishedFilter,
-                onFilterChanged: (f) => setState(() => _finishedFilter = f),
-                onDelete: _deleteEntry,
-                onResume: (_) {},
-                onShowSummary: (e) => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => e.isCricket
-                        ? CricketHistorySummaryScreen(
-                            game: e.cricketGame!, players: e.players)
-                        : e.isShanghai
-                            ? ShanghaiHistorySummaryScreen(
-                                game: e.shanghaiGame!, players: e.players)
-                            : e.isAroundTheClock
-                                ? AroundTheClockHistorySummaryScreen(
-                                    game: e.aroundTheClockGame!,
-                                    players: e.players)
-                                : HistoryGameSummaryScreen(
-                                    game: e.x01Game!, players: e.players),
-                  ),
+              // The pane belongs to this tab rather than to the screen. Around
+              // the whole TabBarView it would appear and disappear halfway
+              // through a swipe, which resizes both pages under the finger.
+              if (!tablet)
+                finishedList
+              else
+                SidePaneLayout(
+                  side: InputSide.left,
+                  fraction:
+                      layout!.splitFraction(SplitPane.history, landscape: landscape),
+                  minPaneWidth: kMinListPaneWidth,
+                  onFractionChanged: (f) =>
+                      layout.setSplitFraction(SplitPane.history, f,
+                          landscape: landscape),
+                  onFractionSettled: () {
+                    layout.persistSplitFraction(SplitPane.history,
+                        landscape: landscape);
+                  },
+                  primary: finishedList,
+                  secondary: stillThere
+                      ? _DetailPane(
+                          entry: _selected!,
+                          child: _detailFor(_selected!, embedded: true),
+                        )
+                      : _EmptyDetailPane(message: context.l10n.historyPickGame),
                 ),
-              ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+// ── Detail pane ──────────────────────────────────────────────────────────────
+
+/// The right hand pane of the tablet history: the title the pushed route would
+/// have carried in its app bar, and the detail below it.
+class _DetailPane extends StatelessWidget {
+  final _HistoryEntry entry;
+  final Widget child;
+
+  const _DetailPane({required this.entry, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          child: Text(
+            DateFormat('dd.MM.yy  HH:mm').format(entry.createdAt),
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+/// What the detail pane shows while no game is picked.
+class _EmptyDetailPane extends StatelessWidget {
+  final String message;
+
+  const _EmptyDetailPane({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.touch_app_outlined, size: 40, color: cs.outline),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -362,6 +508,8 @@ class _TabContent extends StatefulWidget {
   final void Function(_HistoryEntry) onDelete;
   final void Function(_HistoryEntry) onResume;
   final void Function(_HistoryEntry) onShowSummary;
+  /// The entry whose detail is open beside the list, if any.
+  final _HistoryEntry? selected;
 
   const _TabContent({
     required this.entries,
@@ -371,6 +519,7 @@ class _TabContent extends StatefulWidget {
     required this.onDelete,
     required this.onResume,
     required this.onShowSummary,
+    this.selected,
   });
 
   @override
@@ -467,6 +616,7 @@ class _TabContentState extends State<_TabContent>
                         final e = filtered[i];
                         return _GameTile(
                           entry: e,
+                          isSelected: identical(e, widget.selected),
                           onDelete: () => widget.onDelete(e),
                           onResume: widget.isOpenTab
                               ? () => widget.onResume(e)
@@ -584,12 +734,15 @@ class _GameTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback? onResume;
   final VoidCallback? onShowSummary;
+  /// Whether this entry is the one open in the detail pane beside the list.
+  final bool isSelected;
 
   const _GameTile({
     required this.entry,
     required this.onDelete,
     this.onResume,
     this.onShowSummary,
+    this.isSelected = false,
   });
 
   @override
@@ -641,6 +794,9 @@ class _GameTile extends StatelessWidget {
       onDismissed: (_) => onDelete(),
       child: Card(
         margin: const EdgeInsets.only(bottom: 6),
+        // Marked rather than merely highlighted: on a tablet this tile and the
+        // pane beside it are the same thing, and nothing else says which.
+        color: isSelected ? cs.secondaryContainer : null,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onResume ?? onShowSummary,

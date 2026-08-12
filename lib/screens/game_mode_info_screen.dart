@@ -12,7 +12,12 @@ class GameModeInfoScreen extends StatelessWidget {
   const GameModeInfoScreen({super.key, required this.mode});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final l = context.l10n;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;

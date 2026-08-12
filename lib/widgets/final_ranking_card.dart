@@ -61,7 +61,10 @@ class FinalRankingCard extends StatelessWidget {
         return (placementOf[a] ?? 0).compareTo(placementOf[b] ?? 0);
       });
 
+    // The margin the stat cards around it carry, so a column
+    // of cards comes out one width.
     return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

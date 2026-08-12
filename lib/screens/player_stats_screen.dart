@@ -453,22 +453,50 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
 
 /// Per-player lifetime statistics screen: loads aggregated stats and renders
 /// the hero summary, charts, breakdowns, and (if available) synced stats.
-class PlayerStatsScreen extends StatelessWidget {
+class PlayerStatsScreen extends StatefulWidget {
   final Player player;
 
-  const PlayerStatsScreen({super.key, required this.player});
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the player list does on a tablet. Embedded it
+  /// renders its content alone, without a screen around it.
+  final bool embedded;
+
+  const PlayerStatsScreen({
+    super.key,
+    required this.player,
+    this.embedded = false,
+  });
+
+  @override
+  State<PlayerStatsScreen> createState() => _PlayerStatsScreenState();
+}
+
+class _PlayerStatsScreenState extends State<PlayerStatsScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the screen would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<PlayerStats> _future = loadPlayerStats(widget.player);
+
+  @override
+  void didUpdateWidget(PlayerStatsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.player.id != widget.player.id) {
+      _future = loadPlayerStats(widget.player);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${player.name} · ${context.l10n.statistics}'),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<PlayerStats>(
-        future: loadPlayerStats(player),
+        future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -478,8 +506,8 @@ class PlayerStatsScreen extends StatelessWidget {
           }
           final stats = snap.data!;
           // No throws at all: show synced snapshot or empty state
-          if (stats.totalVisits == 0 && player.syncedStats != null) {
-            return _SyncedStatsView(player: player);
+          if (stats.totalVisits == 0 && widget.player.syncedStats != null) {
+            return _SyncedStatsView(player: widget.player);
           }
           if (stats.totalVisits == 0) {
             return Center(
@@ -491,20 +519,31 @@ class PlayerStatsScreen extends StatelessWidget {
                       color: Theme.of(context).colorScheme.outlineVariant),
                   const SizedBox(height: 12),
                   Text(
-                    context.l10n.noGamesFor(player.name),
+                    context.l10n.noGamesFor(widget.player.name),
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ],
               ),
             );
           }
-          return _StatsBody(player: player, stats: stats);
+          return _StatsBody(player: widget.player, stats: stats);
         },
       ),
         ),
       ),
     );
   }
+
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text(context.l10n.statisticsOf(widget.player.name)),
+          ),
+          body: content,
+        );
 }
 
 // ── Body ──────────────────────────────────────────────────────────────────────

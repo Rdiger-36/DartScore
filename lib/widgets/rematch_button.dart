@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/layout.dart';
 
 /// One label/value line of the rematch confirmation dialog, e.g. the variant
 /// or the leg/set format of the game that is about to be repeated.
@@ -174,31 +175,38 @@ class _RematchConfirmDialog extends StatelessWidget {
     final l = context.l10n;
     final theme = Theme.of(context);
 
-    return AlertDialog(
-      title: Text(l.playAgainTitle),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DialogRow(l.gameLabel, modeName),
-            ...details.map((d) => _DialogRow(d.$1, d.$2)),
-            ..._participantRows(context),
-            const SizedBox(height: 16),
-            Text(l.playAgainQuestion, style: theme.textTheme.bodyMedium),
+    // Held to the width the app reads at, like every other dialog: a dialog
+    // sizes itself to what it is given, which on a tablet is the whole screen.
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: AlertDialog(
+          title: Text(l.playAgainTitle),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DialogRow(l.gameLabel, modeName),
+                ...details.map((d) => _DialogRow(d.$1, d.$2)),
+                ..._participantRows(context),
+                const SizedBox(height: 16),
+                Text(l.playAgainQuestion, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l.startGame),
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(l.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(l.startGame),
-        ),
-      ],
     );
   }
 }

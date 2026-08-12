@@ -1,5 +1,7 @@
 import 'package:dartscore_app/providers/language_provider.dart';
+import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,6 +104,48 @@ void main() {
       // straight through, so a leftover would come back as a locale.
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('language_code'), isNull);
+    });
+  });
+
+  group('TabletLayoutProvider', () {
+    test('keeps the screens and orientations apart', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = await _loaded(TabletLayoutProvider());
+
+      provider.setSplitFraction(SplitPane.game, 0.65, landscape: true);
+
+      expect(provider.splitFraction(SplitPane.game, landscape: true), 0.65);
+      expect(provider.splitFraction(SplitPane.game, landscape: false),
+          kDefaultSplitFraction);
+      // And the other screens are untouched by it.
+      expect(provider.splitFraction(SplitPane.history, landscape: true),
+          kDefaultSplitFraction);
+    });
+
+    test('comes back on the split each orientation was left on', () async {
+      SharedPreferences.setMockInitialValues({});
+      final first = await _loaded(TabletLayoutProvider());
+      first.setSplitFraction(SplitPane.game, 0.65, landscape: true);
+      first.setSplitFraction(SplitPane.players, 0.38, landscape: false);
+      await first.persistSplitFraction(SplitPane.game, landscape: true);
+      await first.persistSplitFraction(SplitPane.players, landscape: false);
+
+      final next = await _loaded(TabletLayoutProvider());
+
+      expect(next.splitFraction(SplitPane.game, landscape: true), 0.65);
+      expect(next.splitFraction(SplitPane.players, landscape: false), 0.38);
+      expect(next.splitFraction(SplitPane.game, landscape: false),
+          kDefaultSplitFraction);
+    });
+
+    test('refuses a split that would leave a pane unusable', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = await _loaded(TabletLayoutProvider());
+
+      provider.setSplitFraction(SplitPane.game, 0.95, landscape: true);
+
+      expect(provider.splitFraction(SplitPane.game, landscape: true),
+          kMaxSplitFraction);
     });
   });
 }
