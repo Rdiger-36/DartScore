@@ -102,7 +102,7 @@ void main() {
         (tester) async {
       await pumpDetail(tester);
 
-      final again = tester.getRect(find.text('Play Again'));
+      final again = tester.getRect(find.text('Replay'));
       final list  = tester.getRect(find.byType(ListView));
       expect(again.top, greaterThan(list.bottom));
     });

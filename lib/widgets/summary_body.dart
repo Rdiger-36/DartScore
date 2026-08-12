@@ -6,12 +6,16 @@ import '../utils/layout.dart';
 /// behind it on the other, and the way out under both.
 ///
 /// A phone, and a tablet too narrow to divide, get the single column the four
-/// summaries have always been: [result], [details] and [footer] in that order,
-/// with the same gap between the two blocks that used to sit there by hand.
+/// summaries have always been: [header], [result], [details] in that order,
+/// with the same gap between the blocks that used to sit there by hand.
 ///
 /// The divider stands in the middle and stays there. Both columns hold cards of
 /// the same kind, so there is nothing to rebalance between them.
 class SummaryBody extends StatelessWidget {
+  /// Who won, which belongs to the whole screen rather than to one half of it:
+  /// on two columns it stands over both, upright it opens the column.
+  final Widget? header;
+
   /// How the game ended: the winner, the rematch, and what was played.
   final List<Widget> result;
 
@@ -32,6 +36,7 @@ class SummaryBody extends StatelessWidget {
 
   const SummaryBody({
     super.key,
+    this.header,
     required this.result,
     required this.details,
     required this.actions,
@@ -47,6 +52,11 @@ class SummaryBody extends StatelessWidget {
 
     return Column(
       children: [
+        if (header != null && twoColumns)
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, top, 16, 0),
+            child: header,
+          ),
         Expanded(
           child: twoColumns
               ? SidePaneLayout(
@@ -65,6 +75,10 @@ class SummaryBody extends StatelessWidget {
                   padding:
                       contentPadding(context, top: top, bottom: bottom, innerH: 16),
                   children: [
+                    if (header != null) ...[
+                      header!,
+                      const SizedBox(height: 20),
+                    ],
                     ...result,
                     const SizedBox(height: 16),
                     ...details,
@@ -96,6 +110,8 @@ class SummaryActionBar extends StatelessWidget {
     // buttons, so the same amount goes above them: what should read as one gap
     // on either side is otherwise a third of it on top.
     final inset = MediaQuery.paddingOf(context).bottom;
+    // A phone has less height to give away to a bar than a tablet has.
+    final gap = isTabletLayout(context) ? 12.0 : 6.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -107,7 +123,7 @@ class SummaryActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 12 + inset, 16, 12),
+          padding: EdgeInsets.fromLTRB(16, gap + inset, 16, gap),
           child: Center(
             // Side by side and equally wide, and no wider together than they
             // can still be read as two buttons rather than as a toolbar.
