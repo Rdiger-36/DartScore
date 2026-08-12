@@ -44,17 +44,26 @@ class SummaryBody extends StatelessWidget {
     this.bottom = 16,
   });
 
+  /// Whether a summary on this screen stands in two columns.
+  ///
+  /// Public because a screen has to know before it hands its cards over: what
+  /// belongs beside the numbers on a tablet may belong right under the winner
+  /// in a single column.
+  static bool twoColumnsOn(BuildContext context) =>
+      isTabletLayout(context) &&
+      fitsTwoPanes(MediaQuery.sizeOf(context).width, kMinSummaryPaneWidth);
+
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final twoColumns = isTabletLayout(context) &&
-        fitsTwoPanes(width, kMinSummaryPaneWidth);
+    final twoColumns = twoColumnsOn(context);
 
     return Column(
       children: [
         if (header != null && twoColumns)
           Padding(
-            padding: EdgeInsets.fromLTRB(16, top, 16, 0),
+            // Standing over both columns, it needs room under it, or the
+            // divider reads as if it came out of the banner.
+            padding: EdgeInsets.fromLTRB(16, top, 16, 16),
             child: header,
           ),
         Expanded(
@@ -111,7 +120,7 @@ class SummaryActionBar extends StatelessWidget {
     // on either side is otherwise a third of it on top.
     final inset = MediaQuery.paddingOf(context).bottom;
     // A phone has less height to give away to a bar than a tablet has.
-    final gap = isTabletLayout(context) ? 12.0 : 6.0;
+    final gap = isTabletLayout(context) ? 12.0 : 3.0;
 
     return Container(
       decoration: BoxDecoration(
