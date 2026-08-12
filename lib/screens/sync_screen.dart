@@ -734,7 +734,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
             if (packet != null && !_preparing) ...[
               const SizedBox(height: 10),
               Text(
-                '${l.syncVisitCount(packet.throws.length)} · ${_transportLabel(l)}',
+                '${_visitCountLabel(l, packet)} · ${_transportLabel(l)}',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
@@ -745,12 +745,37 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
                   style: theme.textTheme.labelSmall
                       ?.copyWith(color: cs.onSurfaceVariant),
                 ),
+                // Only worth saying while a range is picked: that is when the
+                // count stops moving and the picker looks broken.
+                if (_legacyCount(packet) > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    l.syncLegacyNote,
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ],
             ],
           ],
         ),
       ),
     );
+  }
+
+  /// How many of the packet's throws predate devices being told apart.
+  ///
+  /// They travel whatever the range says, which is what makes the count look
+  /// stuck on a device that synced under an older version.
+  int _legacyCount(SyncPacket packet) =>
+      packet.throwOrigins.where((o) => o == kLegacyOrigin).length;
+
+  /// What the packet carries as throws, and how much of that the range has no
+  /// say over.
+  String _visitCountLabel(AppLocalizations l, SyncPacket packet) {
+    final total  = l.syncVisitCount(packet.throws.length);
+    final legacy = _legacyCount(packet);
+    return legacy == 0 ? total : '$total, ${l.syncLegacyShare(legacy)}';
   }
 
   /// How the current payload will travel, in words.

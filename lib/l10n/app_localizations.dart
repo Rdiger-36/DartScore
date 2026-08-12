@@ -429,6 +429,12 @@ class AppLocalizations {
   String syncVisitCount(int n) =>
       _t('$n visit${n != 1 ? 's' : ''}',
          '$n ${n != 1 ? 'Aufnahmen' : 'Aufnahme'}');
+  String syncLegacyShare(int n) =>
+      _t('$n of them from earlier syncs',
+         'davon $n aus früheren Syncs');
+  String get syncLegacyNote    =>
+      _t('Visits from a sync made before this version always travel in full, because there is no telling any more which device played them. Once this device has received this player once, they are filed under a device and the time range reaches them too.',
+         'Aufnahmen aus einem Sync vor dieser Version werden immer vollständig übertragen, weil sich nicht mehr feststellen lässt, welches Gerät sie gespielt hat. Sobald dieses Gerät die Daten dieses Spielers einmal empfangen hat, sind sie zugeordnet und der Zeitraum greift auch dort.');
   String syncRangeInPacket(String range) =>
       _t('Range: $range', 'Zeitraum: $range');
 
