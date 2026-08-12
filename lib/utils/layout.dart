@@ -154,6 +154,20 @@ const double kMinSetupPaneWidth = 360.0;
 /// upright keeps its single column and only a landscape one divides.
 const double kMinSummaryPaneWidth = 400.0;
 
+/// Edge length of the target dartboard on a tablet held upright.
+///
+/// A phone reads the board at the width of its screen, which is also all the
+/// width it has. A tablet has more width than a circle can use and more height
+/// than the list under it needs, so the board takes half the height instead and
+/// never more width than there is. The floor is what a phone already gave it.
+double uprightTargetBoardEdge(BuildContext context) {
+  final mq   = MediaQuery.of(context);
+  final body = mq.size.height - mq.padding.vertical - kToolbarHeight;
+  return min(mq.size.width - 24, body * 0.5)
+      .clamp(kMaxGameWidth, 720)
+      .toDouble();
+}
+
 /// Whether [width] has room for two columns of [minPaneWidth] and the divider
 /// between them.
 ///
