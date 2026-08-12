@@ -363,7 +363,9 @@ void main() {
       // A switch for the whole input, so it sits on the middle line of the
       // pane rather than over one column of it.
       expect(segment.center.dx, closeTo(pane.center.dx, 2));
-      // And carries a tablet size, not the one it has on a phone.
+      // And carries a tablet size, not the one it has on a phone: as wide as
+      // the pane allows it, and taller than a phone draws it.
+      expect(segment.width, closeTo(pane.width - 20, 2));
       expect(segment.height, greaterThan(60));
     });
   });

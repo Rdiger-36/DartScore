@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -87,6 +89,11 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Horizontal padding around the grid and the action row.
   static const double _sidePadding = 10;
+
+  /// Widest the modifier switch is drawn. It fills what a tablet pane gives it
+  /// up to here, past which three segments start reading as three buttons that
+  /// happen to touch rather than as one switch.
+  static const double _maxSegmentWidth = 620;
 
   /// Share of a tablet pane the action row under the grid takes, and the range
   /// it may end up in. Left at its phone height the row reads small next to
@@ -371,37 +378,48 @@ class _DartboardInputState extends State<DartboardInput> {
             SizedBox(height: gapAfterProgress),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on
-            // the middle line of the pane whatever the grid does.
+            // the middle line of the pane whatever the grid does, and fills
+            // what the pane gives it up to a width past which three segments
+            // stop reading as one switch.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
-              child: SegmentedButton<int>(
-                segments: [
-                  // Scaled down rather than wrapped: dragging the divider can
-                  // make this pane narrow enough that "Single" would otherwise
-                  // break across two lines.
-                  ButtonSegment(value: 1, label: _SegmentLabel(context.l10n.single)),
-                  ButtonSegment(value: 2, label: _SegmentLabel(context.l10n.double_)),
-                  ButtonSegment(value: 3, label: _SegmentLabel(context.l10n.triple)),
-                ],
-                selected: {_modifier},
-                onSelectionChanged: (s) => setState(() => _modifier = s.first),
-                style: ButtonStyle(
-                  padding: WidgetStateProperty.all(
-                      EdgeInsets.symmetric(vertical: segmentVPadding)),
-                  textStyle: WidgetStateProperty.all(widget.fillHeight
-                      ? theme.textTheme.titleLarge
-                      : theme.textTheme.labelMedium),
-                  // The chosen segment wears the colour the number buttons are
-                  // about to take, so the switch shows what it does rather
-                  // than only naming it.
-                  backgroundColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? _modifierColor(context)
-                          : null),
-                  foregroundColor: WidgetStateProperty.resolveWith((states) =>
-                      states.contains(WidgetState.selected)
-                          ? _onModifierColor(context)
-                          : null),
+              child: SizedBox(
+                width: widget.fillHeight
+                    ? min(constraints.maxWidth - 2 * _sidePadding,
+                        _maxSegmentWidth)
+                    : null,
+                child: SegmentedButton<int>(
+                  segments: [
+                    // Scaled down rather than wrapped: dragging the divider can
+                    // make this pane narrow enough that "Single" would
+                    // otherwise break across two lines.
+                    ButtonSegment(
+                        value: 1, label: _SegmentLabel(context.l10n.single)),
+                    ButtonSegment(
+                        value: 2, label: _SegmentLabel(context.l10n.double_)),
+                    ButtonSegment(
+                        value: 3, label: _SegmentLabel(context.l10n.triple)),
+                  ],
+                  selected: {_modifier},
+                  onSelectionChanged: (s) => setState(() => _modifier = s.first),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all(
+                        EdgeInsets.symmetric(vertical: segmentVPadding)),
+                    textStyle: WidgetStateProperty.all(widget.fillHeight
+                        ? theme.textTheme.titleLarge
+                        : theme.textTheme.labelMedium),
+                    // The chosen segment wears the colour the number buttons
+                    // are about to take, so the switch shows what it does
+                    // rather than only naming it.
+                    backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? _modifierColor(context)
+                            : null),
+                    foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                        states.contains(WidgetState.selected)
+                            ? _onModifierColor(context)
+                            : null),
+                  ),
                 ),
               ),
             ),
