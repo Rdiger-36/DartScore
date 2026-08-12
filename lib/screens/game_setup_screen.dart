@@ -6,6 +6,7 @@ import '../models/game.dart';
 import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../widgets/player_dialog.dart';
 import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
@@ -164,359 +165,490 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     final theme = Theme.of(context);
     final allPlayers = context.watch<PlayersProvider>().players;
 
-    final l = context.l10n;
+    final l    = context.l10n;
+    final size = MediaQuery.sizeOf(context);
+    // Two columns need a tablet and a window wide enough to divide; a small
+    // one upright is neither.
+    final twoColumns = isTabletLayout(context) && fitsSetupPanes(size.width);
+
     return Scaffold(
       appBar: AppBar(title: Text(l.gameSetup)),
-      body: ListView(
-        padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
-        children: [
-          _Section(
-            title: l.startScore,
-            child: Wrap(
-              spacing: 8,
-              children: _scoreOptions.map((s) {
-                return ChoiceChip(
-                  label: Text('$s'),
-                  selected: _startScore == s,
-                  onSelected: (_) => setState(() => _startScore = s),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Section(
-            title: l.checkIn,
-            child: Wrap(
-              spacing: 8,
+      body: twoColumns
+          ? _twoColumnBody(
+              context,
+              theme,
+              l,
+              allPlayers,
+              landscape: size.width >= size.height,
+            )
+          : ListView(
+              padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
               children: [
-                (GameMode.straightIn, l.straight),
-                (GameMode.doubleIn,   l.double_),
-                (GameMode.masterIn,   l.master),
-              ].map((e) => ChoiceChip(
-                label: Text(e.$2),
-                selected: _gameMode == e.$1,
-                onSelected: (_) => setState(() => _gameMode = e.$1),
-              )).toList(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Section(
-            title: l.checkOut,
-            child: Wrap(
-              spacing: 8,
-              children: [
-                (CheckoutMode.straightOut, l.straight),
-                (CheckoutMode.doubleOut,   l.double_),
-                (CheckoutMode.masterOut,   l.master),
-              ].map((e) => ChoiceChip(
-                label: Text(e.$2),
-                selected: _checkoutMode == e.$1,
-                onSelected: (_) => setState(() => _checkoutMode = e.$1),
-              )).toList(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _PlayersSection(
-            allPlayers: allPlayers,
-            selectedPlayers: _selectedPlayers,
-            onToggle: (p, selected) {
-              setState(() {
-                if (selected) {
-                  _selectedPlayers.add(p);
-                } else {
-                  _selectedPlayers.removeWhere((s) => s.id == p.id);
-                }
-              });
-            },
-            onAddPlayer: () => _showAddPlayerDialog(context),
-          ),
-          // ── Match format (only with >=2 players) ────────────────────────
-          if (_selectedPlayers.length >= 2) ...[
-            const SizedBox(height: 16),
-            _Section(
-              title: l.matchFormat,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Mode toggle: standard match formats vs. placement mode.
-                  SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(
-                        value: false,
-                        label: Text(l.standardMode),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        label: Text(l.placementMode),
-                        enabled: _placementEligible,
-                      ),
-                    ],
-                    selected: {_placementActive},
-                    onSelectionChanged: (s) => setState(() {
-                      _placementMode = s.first;
-                      if (_placementMode) {
-                        _legs = 3;
-                      } else {
-                        _format = MatchFormat.bo5;
-                        _legs = MatchFormat.bo5.legs!;
-                        _sets = MatchFormat.bo5.sets!;
-                      }
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _placementActive
-                        ? l.placementModeHint
-                        : l.placementEligibilityHint,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (!_placementActive) ...[
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: MatchFormat.values
-                          .map((f) => ChoiceChip(
-                                label: Text(l.matchFormatLabel(f)),
-                                selected: _format == f,
-                                onSelected: (_) => _selectFormat(f),
-                              ))
-                          .toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _formatRule(l, _format),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Legs/sets stay visible for every format; only editable
-                    // for the custom preset so the first-to hint always
-                    // makes sense.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _Stepper(
-                            label: l.legs,
-                            value: _legs,
-                            min: 1,
-                            max: kMaxLegs,
-                            enabled: _format == MatchFormat.custom,
-                            onChanged: (v) => setState(() => _legs = v),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _Stepper(
-                            label: l.sets,
-                            value: _sets,
-                            min: 1,
-                            max: kMaxSets,
-                            enabled: _format == MatchFormat.custom,
-                            onChanged: (v) => setState(() => _sets = v),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      l.firstToHint,
+                ..._modeSections(theme, l),
+                const SizedBox(height: 16),
+                _playersCard(context, allPlayers),
+                ..._matchFormatBlock(theme, l),
+                ..._playerExtras(),
+                const SizedBox(height: 24),
+                if (_selectedPlayers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      l.minOnePlayer,
+                      textAlign: TextAlign.center,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.error,
                       ),
                     ),
-                  ] else
-                    // Placement mode: only the number of legs is configurable,
-                    // sets are fixed to 1.
-                    _Stepper(
+                  ),
+                _startButton(theme, l),
+              ],
+            ),
+    );
+  }
+
+  /// The setup as two columns: what the game is on one side, who plays it on
+  /// the other, with the start button on a bar under both.
+  ///
+  /// Each column scrolls on its own, which is why the button cannot sit at the
+  /// end of one of them: it would be somewhere the other column has long
+  /// scrolled past.
+  Widget _twoColumnBody(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations l,
+    List<Player> allPlayers, {
+    required bool landscape,
+  }) {
+    final layout = context.watch<TabletLayoutProvider>();
+
+    return Column(
+      children: [
+        Expanded(
+          child: SidePaneLayout(
+            side: InputSide.left,
+            fraction: layout.splitFraction(SplitPane.setup,
+                landscape: landscape),
+            minPaneWidth: kMinSetupPaneWidth,
+            onFractionChanged: (f) => layout.setSplitFraction(
+                SplitPane.setup, f, landscape: landscape),
+            onFractionSettled: () {
+              layout.persistSplitFraction(SplitPane.setup,
+                  landscape: landscape);
+            },
+            primary: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+              children: [
+                ..._modeSections(theme, l),
+                ..._matchFormatBlock(theme, l),
+              ],
+            ),
+            secondary: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+              children: [
+                _playersCard(context, allPlayers),
+                ..._playerExtras(),
+              ],
+            ),
+          ),
+        ),
+        _startBar(theme, l),
+      ],
+    );
+  }
+
+  /// The bar under both columns, carrying the start button and, while nobody
+  /// is picked, the reason it does nothing.
+  Widget _startBar(ThemeData theme, AppLocalizations l) {
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 3,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _selectedPlayers.isEmpty
+                    ? Text(
+                        l.minOnePlayer,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SizedBox(width: 16),
+              _startButton(theme, l),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The button that starts the game, disabled until somebody plays it.
+  Widget _startButton(ThemeData theme, AppLocalizations l) {
+    return FilledButton.icon(
+      onPressed: _selectedPlayers.isNotEmpty ? _startGame : null,
+      icon: const Icon(Icons.play_arrow),
+      label: Text(
+        _selectedPlayers.length == 1 ? l.startOpenPlay : l.startGame,
+      ),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        textStyle: theme.textTheme.titleMedium,
+      ),
+    );
+  }
+
+  /// The cards describing the game itself: what is thrown down from, and how a
+  /// leg is entered and left.
+  List<Widget> _modeSections(ThemeData theme, AppLocalizations l) {
+    return [
+      _Section(
+        title: l.startScore,
+        child: Wrap(
+          spacing: 8,
+          children: _scoreOptions.map((s) {
+            return ChoiceChip(
+              label: Text('$s'),
+              selected: _startScore == s,
+              onSelected: (_) => setState(() => _startScore = s),
+            );
+          }).toList(),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _Section(
+        title: l.checkIn,
+        child: Wrap(
+          spacing: 8,
+          children: [
+            (GameMode.straightIn, l.straight),
+            (GameMode.doubleIn,   l.double_),
+            (GameMode.masterIn,   l.master),
+          ].map((e) => ChoiceChip(
+            label: Text(e.$2),
+            selected: _gameMode == e.$1,
+            onSelected: (_) => setState(() => _gameMode = e.$1),
+          )).toList(),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _Section(
+        title: l.checkOut,
+        child: Wrap(
+          spacing: 8,
+          children: [
+            (CheckoutMode.straightOut, l.straight),
+            (CheckoutMode.doubleOut,   l.double_),
+            (CheckoutMode.masterOut,   l.master),
+          ].map((e) => ChoiceChip(
+            label: Text(e.$2),
+            selected: _checkoutMode == e.$1,
+            onSelected: (_) => setState(() => _checkoutMode = e.$1),
+          )).toList(),
+        ),
+      ),
+    ];
+  }
+
+  /// The match format and the legs and sets that go with it, or in a solo game
+  /// the note that there is no match to win and the legs alone.
+  ///
+  /// Nothing at all while nobody is picked: a format is a statement about
+  /// players, and there are none yet.
+  List<Widget> _matchFormatBlock(ThemeData theme, AppLocalizations l) {
+    if (_selectedPlayers.isEmpty) return const [];
+
+    // ── Solo: only the number of legs is open ─────────────────────────────
+    if (_selectedPlayers.length == 1) {
+      return [
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  size: 18, color: theme.colorScheme.onSecondaryContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l.openPlayHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _Section(
+          title: l.matchFormat,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: Text(l.formatCustom),
+                    selected: true,
+                    onSelected: (_) {},
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l.formatCustomRule,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _Stepper(
+                      label: l.legs,
+                      value: _soloLegs,
+                      min: 1,
+                      max: kMaxLegs,
+                      onChanged: (v) => setState(() => _soloLegs = v),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _Stepper(
+                      label: l.sets,
+                      value: 1,
+                      min: 1,
+                      max: 1,
+                      enabled: false,
+                      onChanged: (_) {},
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l.firstToHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    return [
+      const SizedBox(height: 16),
+      _Section(
+        title: l.matchFormat,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Mode toggle: standard match formats vs. placement mode.
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  label: Text(l.standardMode),
+                ),
+                ButtonSegment(
+                  value: true,
+                  label: Text(l.placementMode),
+                  enabled: _placementEligible,
+                ),
+              ],
+              selected: {_placementActive},
+              onSelectionChanged: (s) => setState(() {
+                _placementMode = s.first;
+                if (_placementMode) {
+                  _legs = 3;
+                } else {
+                  _format = MatchFormat.bo5;
+                  _legs = MatchFormat.bo5.legs!;
+                  _sets = MatchFormat.bo5.sets!;
+                }
+              }),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _placementActive
+                  ? l.placementModeHint
+                  : l.placementEligibilityHint,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (!_placementActive) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: MatchFormat.values
+                    .map((f) => ChoiceChip(
+                          label: Text(l.matchFormatLabel(f)),
+                          selected: _format == f,
+                          onSelected: (_) => _selectFormat(f),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _formatRule(l, _format),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Legs/sets stay visible for every format; only editable for the
+              // custom preset so the first-to hint always makes sense.
+              Row(
+                children: [
+                  Expanded(
+                    child: _Stepper(
                       label: l.legs,
                       value: _legs,
                       min: 1,
                       max: kMaxLegs,
-                      enabled: true,
+                      enabled: _format == MatchFormat.custom,
                       onChanged: (v) => setState(() => _legs = v),
                     ),
-                ],
-              ),
-            ),
-          ] else if (_selectedPlayers.length == 1) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded,
-                      size: 18, color: theme.colorScheme.onSecondaryContainer),
-                  const SizedBox(width: 8),
+                  ),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: Text(
-                      l.openPlayHint,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: _Stepper(
+                      label: l.sets,
+                      value: _sets,
+                      min: 1,
+                      max: kMaxSets,
+                      enabled: _format == MatchFormat.custom,
+                      onChanged: (v) => setState(() => _sets = v),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            _Section(
-              title: l.matchFormat,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: Text(l.formatCustom),
-                        selected: true,
-                        onSelected: (_) {},
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l.formatCustomRule,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _Stepper(
-                          label: l.legs,
-                          value: _soloLegs,
-                          min: 1,
-                          max: kMaxLegs,
-                          onChanged: (v) => setState(() => _soloLegs = v),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _Stepper(
-                          label: l.sets,
-                          value: 1,
-                          min: 1,
-                          max: 1,
-                          enabled: false,
-                          onChanged: (_) {},
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l.firstToHint,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          // ── Handicap ──────────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2) ...[
-            const SizedBox(height: 16),
-            _HandicapSection(
-              enabled: _handicapEnabled,
-              players: _selectedPlayers,
-              handicaps: _handicaps,
-              gameCheckIn: _gameMode,
-              gameCheckOut: _checkoutMode,
-              teamAssignment: _teamGameEnabled ? _teamAssignment : null,
-              teamNames: _teamGameEnabled ? _teamNames : null,
-              onToggle: (v) => setState(() {
-                _handicapEnabled = v;
-                if (v) {
-                  for (final p in _selectedPlayers) {
-                    _handicaps.putIfAbsent(
-                      p,
-                      () => PlayerHandicap(
-                          checkIn: _gameMode, checkOut: _checkoutMode),
-                    );
-                  }
-                }
-              }),
-              onChanged: (p, h) => setState(() => _handicaps[p] = h),
-            ),
-          ],
-          // ── Team game ──────────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2) ...[
-            const SizedBox(height: 16),
-            TeamSection(
-              enabled: _teamGameEnabled,
-              players: _selectedPlayers,
-              teamAssignment: _teamAssignment,
-              teamNames: _teamNames,
-              teamNameCtrl: _teamNameCtrl,
-              onToggle: (v) => setState(() {
-                _teamGameEnabled = v;
-                if (v) {
-                  for (var i = 0; i < _selectedPlayers.length; i++) {
-                    _teamAssignment[_selectedPlayers[i]] = i % _teamNames.length;
-                  }
-                }
-              }),
-              onAssignmentChanged: (p, t) =>
-                  setState(() => _teamAssignment[p] = t),
-              onNameChanged: (i, name) =>
-                  setState(() => _teamNames[i] = name),
-              onAddTeam: _addTeam,
-              onRemoveTeam: _removeTeam,
-            ),
-          ],
-          // ── Starting order ─────────────────────────────────────────────
-          if (_selectedPlayers.length >= 2) ...[
-            const SizedBox(height: 16),
-            StartingOrderSection(
-              order:    _startingOrder,
-              entries:  _startingOrderEntries(),
-              teamMode: _teamGameEnabled,
-              onOrderChanged: (o) => setState(() => _startingOrder = o),
-              onReorder: _reorderStartingOrder,
-            ),
-          ],
-          const SizedBox(height: 24),
-          if (_selectedPlayers.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                l.minOnePlayer,
-                textAlign: TextAlign.center,
+              const SizedBox(height: 12),
+              Text(
+                l.firstToHint,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-          FilledButton.icon(
-            onPressed: _selectedPlayers.isNotEmpty ? _startGame : null,
-            icon: const Icon(Icons.play_arrow),
-            label: Text(_selectedPlayers.length == 1
-                ? l.startOpenPlay
-                : l.startGame),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              textStyle: theme.textTheme.titleMedium,
-            ),
-          ),
-        ],
+            ] else
+              // Placement mode: only the number of legs is configurable, sets
+              // are fixed to 1.
+              _Stepper(
+                label: l.legs,
+                value: _legs,
+                min: 1,
+                max: kMaxLegs,
+                enabled: true,
+                onChanged: (v) => setState(() => _legs = v),
+              ),
+          ],
+        ),
       ),
+    ];
+  }
+
+  /// Who is playing: the card the rest of the screen follows from.
+  Widget _playersCard(BuildContext context, List<Player> allPlayers) {
+    return _PlayersSection(
+      allPlayers: allPlayers,
+      selectedPlayers: _selectedPlayers,
+      onToggle: (p, selected) {
+        setState(() {
+          if (selected) {
+            _selectedPlayers.add(p);
+          } else {
+            _selectedPlayers.removeWhere((s) => s.id == p.id);
+          }
+        });
+      },
+      onAddPlayer: () => _showAddPlayerDialog(context),
     );
+  }
+
+  /// What the picked players can still be arranged into: rules of their own,
+  /// teams, and the order they throw in. Empty in a solo game, where there is
+  /// nobody to arrange them against.
+  List<Widget> _playerExtras() {
+    return [
+      if (_selectedPlayers.length >= 2) ...[
+        // ── Handicap ────────────────────────────────────────────────────────
+        const SizedBox(height: 16),
+        _HandicapSection(
+          enabled: _handicapEnabled,
+          players: _selectedPlayers,
+          handicaps: _handicaps,
+          gameCheckIn: _gameMode,
+          gameCheckOut: _checkoutMode,
+          teamAssignment: _teamGameEnabled ? _teamAssignment : null,
+          teamNames: _teamGameEnabled ? _teamNames : null,
+          onToggle: (v) => setState(() {
+            _handicapEnabled = v;
+            if (v) {
+              for (final p in _selectedPlayers) {
+                _handicaps.putIfAbsent(
+                  p,
+                  () => PlayerHandicap(
+                      checkIn: _gameMode, checkOut: _checkoutMode),
+                );
+              }
+            }
+          }),
+          onChanged: (p, h) => setState(() => _handicaps[p] = h),
+        ),
+        // ── Team game ───────────────────────────────────────────────────────
+        const SizedBox(height: 16),
+        TeamSection(
+          enabled: _teamGameEnabled,
+          players: _selectedPlayers,
+          teamAssignment: _teamAssignment,
+          teamNames: _teamNames,
+          teamNameCtrl: _teamNameCtrl,
+          onToggle: (v) => setState(() {
+            _teamGameEnabled = v;
+            if (v) {
+              for (var i = 0; i < _selectedPlayers.length; i++) {
+                _teamAssignment[_selectedPlayers[i]] = i % _teamNames.length;
+              }
+            }
+          }),
+          onAssignmentChanged: (p, t) =>
+              setState(() => _teamAssignment[p] = t),
+          onNameChanged: (i, name) =>
+              setState(() => _teamNames[i] = name),
+          onAddTeam: _addTeam,
+          onRemoveTeam: _removeTeam,
+        ),
+        // ── Starting order ──────────────────────────────────────────────────
+        const SizedBox(height: 16),
+        StartingOrderSection(
+          order:    _startingOrder,
+          entries:  _startingOrderEntries(),
+          teamMode: _teamGameEnabled,
+          onOrderChanged: (o) => setState(() => _startingOrder = o),
+          onReorder: _reorderStartingOrder,
+        ),
+      ],
+    ];
   }
 
   /// Opens the create-player dialog and adds the new player to the selection.
