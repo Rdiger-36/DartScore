@@ -6,7 +6,6 @@ import '../models/game.dart';
 import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
-import '../providers/tablet_layout_provider.dart';
 import '../widgets/player_dialog.dart';
 import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
@@ -174,13 +173,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l.gameSetup)),
       body: twoColumns
-          ? _twoColumnBody(
-              context,
-              theme,
-              l,
-              allPlayers,
-              landscape: size.width >= size.height,
-            )
+          ? _twoColumnBody(context, theme, l, allPlayers)
           : ListView(
               padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
               children: [
@@ -213,29 +206,22 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   /// Each column scrolls on its own, which is why the button cannot sit at the
   /// end of one of them: it would be somewhere the other column has long
   /// scrolled past.
+  ///
+  /// The divider stands in the middle and stays there. The screens that let it
+  /// be dragged put two different things beside each other, a list against what
+  /// it opens; these two are the same kind of thing and want the same width.
   Widget _twoColumnBody(
     BuildContext context,
     ThemeData theme,
     AppLocalizations l,
-    List<Player> allPlayers, {
-    required bool landscape,
-  }) {
-    final layout = context.watch<TabletLayoutProvider>();
-
+    List<Player> allPlayers,
+  ) {
     return Column(
       children: [
         Expanded(
           child: SidePaneLayout(
             side: InputSide.left,
-            fraction: layout.splitFraction(SplitPane.setup,
-                landscape: landscape),
             minPaneWidth: kMinSetupPaneWidth,
-            onFractionChanged: (f) => layout.setSplitFraction(
-                SplitPane.setup, f, landscape: landscape),
-            onFractionSettled: () {
-              layout.persistSplitFraction(SplitPane.setup,
-                  landscape: landscape);
-            },
             primary: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
               children: [

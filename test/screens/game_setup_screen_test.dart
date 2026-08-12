@@ -1,11 +1,8 @@
 import 'package:dartscore_app/providers/players_provider.dart';
-import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/game_setup_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/test_app.dart';
 import '../support/test_db.dart';
@@ -114,24 +111,19 @@ void main() {
     useInMemoryDatabase();
 
     late PlayersProvider players;
-    late TabletLayoutProvider layout;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      layout = TabletLayoutProvider();
       await insertPlayers(['Ada', 'Zoe']);
       players = PlayersProvider();
       await players.load();
     });
 
+    /// Renders the setup at [size]. No layout provider is wrapped around it on
+    /// purpose: this screen divides in the middle and keeps nothing.
     Future<void> pumpSetup(WidgetTester tester, Size size) async {
       usePhoneSurface(tester, size: size);
       await tester.pumpWidget(
-        ChangeNotifierProvider<TabletLayoutProvider>.value(
-          value: layout,
-          child: testApp(const GameSetupScreen(), players: players),
-        ),
-      );
+          testApp(const GameSetupScreen(), players: players));
       await tester.pumpAndSettle();
     }
 
@@ -166,20 +158,19 @@ void main() {
       expect(find.text('Select at least 1 player'), findsOneWidget);
     });
 
-    testWidgets('keeps a divider position of its own', (tester) async {
-      layout.setSplitFraction(SplitPane.setup, 0.4, landscape: true);
-
+    testWidgets('divides in the middle and stays there', (tester) async {
       await pumpSetup(tester, const Size(1180, 820));
 
       final divider = tester.getRect(find.byKey(kPaneDividerKey));
-      expect(divider.left, closeTo(1180 * 0.4, 4));
+      expect(divider.center.dx, closeTo(1180 / 2, 8));
 
+      // Both columns hold the same kind of thing, so there is nothing to
+      // rebalance: the divider is a line, not a grip.
       await tester.drag(find.byKey(kPaneDividerKey), const Offset(120, 0),
           touchSlopX: 0);
       await tester.pumpAndSettle();
 
-      expect(layout.splitFraction(SplitPane.setup, landscape: true),
-          greaterThan(0.4));
+      expect(tester.getRect(find.byKey(kPaneDividerKey)), divider);
     });
 
     testWidgets('lays both columns out full, upright and on its side',

@@ -49,7 +49,7 @@ bool isTabletLayout(BuildContext context) =>
 
 /// The screens that divide themselves into two panes. Each keeps its own
 /// divider position, because each divides something different.
-enum SplitPane { game, history, players, setup }
+enum SplitPane { game, history, players }
 
 /// Share of the width the pane holding the input starts with, and the range a
 /// drag of the divider may move it to.
@@ -124,7 +124,7 @@ class _ScaledTextScaler extends TextScaler {
 /// dates and names needs less room than what it opens, but not much less.
 const double kMinListPaneWidth = 320.0;
 
-/// Narrowest a column of the setup may be dragged to.
+/// Narrowest a column of the setup is worth showing.
 ///
 /// A setup column is a stack of cards whose rows are a label beside a control,
 /// so it needs about what a phone gives them. Below this the format chips wrap
