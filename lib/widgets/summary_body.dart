@@ -6,8 +6,8 @@ import '../utils/layout.dart';
 /// behind it on the other, and the way out under both.
 ///
 /// A phone, and a tablet too narrow to divide, get the single column the four
-/// summaries have always been: [header], [result], [details] in that order,
-/// with the same gap between the blocks that used to sit there by hand.
+/// summaries have always been: [header], [result], [details] in that order, at
+/// the one spacing the cards themselves carry.
 ///
 /// The divider stands in the middle and stays there. Both columns hold cards of
 /// the same kind, so there is nothing to rebalance between them.
@@ -88,8 +88,11 @@ class SummaryBody extends StatelessWidget {
                       header!,
                       const SizedBox(height: 20),
                     ],
+                    // No gap between the two blocks: every card carries its
+                    // own margin, and a second one here would set the last
+                    // card of one block further from the next than any two
+                    // cards inside a block.
                     ...result,
-                    const SizedBox(height: 16),
                     ...details,
                   ],
                 ),

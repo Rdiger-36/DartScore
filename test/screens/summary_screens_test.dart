@@ -124,6 +124,24 @@ void main() {
       expect(surface(find.byType(ThrowLogCard)), closeTo(info, 0.5));
     });
 
+    testWidgets('spaces every card the same way down the column',
+        (tester) async {
+      await pumpSummary(tester);
+
+      /// The visible box of a card, which is what the eye measures a gap by.
+      Rect surface(Finder of) => tester
+          .getRect(find.descendant(of: of, matching: find.byType(Material)).first);
+
+      final info    = surface(find.byType(GameInfoCard));
+      final first   = surface(find.byType(SummaryPlayerCard).first);
+      final last    = surface(find.byType(SummaryPlayerCard).last);
+      final log     = surface(find.byType(ThrowLogCard));
+
+      // The player cards used to stand closer to each other than the log stood
+      // to them, because the blocks carried a gap on top of the card margins.
+      expect(log.top - last.bottom, closeTo(first.top - info.bottom, 0.5));
+    });
+
     testWidgets('stands the winner over both columns and the settings with '
         'the numbers on a tablet', (tester) async {
       usePhoneSurface(tester, size: const Size(1180, 820));
