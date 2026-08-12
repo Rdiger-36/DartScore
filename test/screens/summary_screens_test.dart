@@ -171,6 +171,31 @@ void main() {
       expect(info.bottom, lessThan(log.top));
     });
 
+    testWidgets('draws the exported card at one size, whatever the screen is '
+        'read at', (tester) async {
+      usePhoneSurface(tester, size: const Size(1180, 820));
+      await tester.pumpWidget(
+          testApp(const GameSummaryScreen(), game: provider));
+      await tester.pumpAndSettle();
+
+      // The screen grows its text with the device, like every other screen
+      // that is mostly text.
+      final onScreen =
+          MediaQuery.textScalerOf(tester.element(find.text('All Throws')));
+      expect(onScreen.scale(14), greaterThan(14));
+
+      await tester.tap(find.byIcon(Icons.download_rounded));
+      await tester.pump();
+
+      // The image does not: it is the same picture wherever it was made, and
+      // a card of a fixed width would be overflowed by a larger one.
+      final inCard = MediaQuery.textScalerOf(tester.element(find.descendant(
+        of: find.byKey(kExportCardKey),
+        matching: find.byType(GameInfoCard),
+      )));
+      expect(inCard.scale(14), 14);
+    });
+
     testWidgets('builds the exported image from the same parts, wherever the '
         'screen puts them', (tester) async {
       await pumpSummary(tester);

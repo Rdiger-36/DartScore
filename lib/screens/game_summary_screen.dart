@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../providers/game_provider.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/layout.dart';
 import '../utils/game_labels.dart';
 import '../utils/throw_stats.dart';
 import '../widgets/final_ranking_card.dart';
@@ -123,7 +124,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final provider = context.read<GameProvider>();
     final states = provider.playerStates;
     final winner = states.firstWhere(
@@ -363,20 +369,28 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                 maxWidth: kExportCardWidth,
                 minHeight: 0,
                 maxHeight: double.infinity,
-                child: RepaintBoundary(
-                  key: _cardKey,
-                  child: Container(
-                    color: cs.surface,
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        winnerBanner,
-                        const SizedBox(height: 20),
-                        infoCard,
-                        ?rankingCard,
-                        ...playerCards,
-                      ],
+                child: MediaQuery(
+                  // The image is the same picture wherever it was made, so it
+                  // is drawn at one size: neither the tablet scaling around
+                  // this screen nor the system text size reaches into it, and
+                  // a card of a fixed width cannot be overflowed by either.
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: TextScaler.noScaling),
+                  child: RepaintBoundary(
+                    key: _cardKey,
+                    child: Container(
+                      color: cs.surface,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          winnerBanner,
+                          const SizedBox(height: 20),
+                          infoCard,
+                          ?rankingCard,
+                          ...playerCards,
+                        ],
+                      ),
                     ),
                   ),
                 ),
