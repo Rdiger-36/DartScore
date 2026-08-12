@@ -54,6 +54,29 @@ class _AroundTheClockGameView extends StatelessWidget {
     final states  = provider.playerStates;
     final current = provider.currentPlayerState;
 
+    final tablet    = isTabletLayout(context);
+    final landscape = MediaQuery.sizeOf(context).width >=
+        MediaQuery.sizeOf(context).height;
+
+    final scoreboard = _AroundTheClockBoard(
+      provider:   provider,
+      states:     states,
+      currentIdx: provider.currentPlayerIndex,
+      throwCount: provider.dartsInVisit,
+    );
+
+    /// The player list on a tablet: read at the size of the device, standing in
+    /// the middle of its box while it is short and scrolled once it is not.
+    Widget listPane(EdgeInsets padding) => TextScaleBy(
+          factor: TabletTextScale.factorOf(context),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: padding,
+              child: scoreboard,
+            ),
+          ),
+        );
+
     return PopScope(
       // A running game must not be lost to a stray back gesture; the system
       // back asks the same question the close button in the app bar asks.
@@ -80,40 +103,60 @@ class _AroundTheClockGameView extends StatelessWidget {
         ),
         body: Column(
           children: [
-            // ── Fixed target card + dartboard ─────────────────────────────────
-            Padding(
-              padding: contentPadding(
-                context,
-                fraction: kGameWidthFraction,
-                maxWidth: kMaxGameWidth,
-                top: 8,
-                innerH: 12,
-              ),
-              child: Column(
-                children: [
-                  SizedBox(width: double.infinity, child: _TargetDartboard(provider: provider)),
-                ],
-              ),
-            ),
-            // ── Scrollable player list ────────────────────────────────────────
-            Expanded(
-              child: SingleChildScrollView(
-                padding: contentPadding(
-                  context,
-                  fraction: kGameWidthFraction,
-                  maxWidth: kMaxGameWidth,
-                  top: 12,
-                  bottom: 8,
-                  innerH: 12,
+            // ── Target dartboard and player list ──────────────────────────────
+            if (tablet && landscape)
+              // Two columns: the board is worth the height of the screen, and
+              // the list beside it no longer waits under a board that took it.
+              Expanded(
+                child: SidePaneLayout(
+                  side: InputSide.left,
+                  primary: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                    child: Center(child: _TargetDartboard(provider: provider)),
+                  ),
+                  secondary: listPane(const EdgeInsets.fromLTRB(8, 8, 12, 8)),
                 ),
-                child: _AroundTheClockBoard(
-                  provider:   provider,
-                  states:     states,
-                  currentIdx: provider.currentPlayerIndex,
-                  throwCount: provider.dartsInVisit,
+              )
+            else ...[
+              Padding(
+                padding: tablet
+                    ? const EdgeInsets.fromLTRB(12, 8, 12, 0)
+                    : contentPadding(
+                        context,
+                        fraction: kGameWidthFraction,
+                        maxWidth: kMaxGameWidth,
+                        top: 8,
+                        innerH: 12,
+                      ),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      // Upright a tablet gives the board half the height it has
+                      // rather than the width a phone reads it at.
+                      width: tablet
+                          ? uprightTargetBoardEdge(context)
+                          : double.infinity,
+                      child: _TargetDartboard(provider: provider),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              Expanded(
+                child: tablet
+                    ? listPane(const EdgeInsets.fromLTRB(12, 12, 12, 8))
+                    : SingleChildScrollView(
+                        padding: contentPadding(
+                          context,
+                          fraction: kGameWidthFraction,
+                          maxWidth: kMaxGameWidth,
+                          top: 12,
+                          bottom: 8,
+                          innerH: 12,
+                        ),
+                        child: scoreboard,
+                      ),
+              ),
+            ],
             // ── Input area ────────────────────────────────────────────────────
             Container(
               decoration: BoxDecoration(
