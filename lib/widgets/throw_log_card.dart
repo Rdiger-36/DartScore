@@ -24,9 +24,12 @@ class ThrowLogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // The margin the stat cards around it carry, so a column
+    // of cards comes out one width.
     return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

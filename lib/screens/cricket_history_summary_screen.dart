@@ -11,31 +11,56 @@ import '../utils/layout.dart';
 import '../widgets/cricket_marks_widget.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'cricket_screen.dart';
 
 /// Detailed view of a finished Cricket game from history, with final marks and
 /// scores reconstructed from its stored throws.
-class CricketHistorySummaryScreen extends StatelessWidget {
+class CricketHistorySummaryScreen extends StatefulWidget {
   final CricketGame game;
   final List<Player> players;
+
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the history does on a tablet. Embedded it renders
+  /// its content alone, without a screen around it.
+  final bool embedded;
 
   const CricketHistorySummaryScreen({
     super.key,
     required this.game,
     required this.players,
+    this.embedded = false,
   });
 
   @override
+  State<CricketHistorySummaryScreen> createState() =>
+      _CricketHistorySummaryScreenState();
+}
+
+class _CricketHistorySummaryScreenState extends State<CricketHistorySummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<_CricketHistoryData> _future = _load();
+
+  @override
+  void didUpdateWidget(CricketHistorySummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<_CricketHistoryData>(
-            future: _load(),
+            future: _future,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
@@ -44,7 +69,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
               if (data == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, players: players, data: data);
+              return _Body(game: widget.game, players: widget.players, data: data);
             },
           ),
         ),
@@ -52,28 +77,39 @@ class CricketHistorySummaryScreen extends StatelessWidget {
     );
   }
 
-  /// Loads the game's throws and reconstructs each slot's final marks, score,
-  /// and the winning slot. A slot is one team (if [game.isTeamGame]) or one
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
+          ),
+          body: content,
+        );
+
+  /// Loads the widget.game's throws and reconstructs each slot's final marks, score,
+  /// and the winning slot. A slot is one team (if [widget.game.isTeamGame]) or one
   /// player, mirroring `CricketProvider._buildSlots`.
   Future<_CricketHistoryData> _load() async {
-    final throws = await DbHelper.instance.getCricketThrowsForGame(game.id!);
+    final throws = await DbHelper.instance.getCricketThrowsForGame(widget.game.id!);
 
-    final slots = game.isTeamGame
-        ? game.teams!
+    final slots = widget.game.isTeamGame
+        ? widget.game.teams!
             .map((team) => team.playerIds
-                .map((id) => players.firstWhere((p) => p.id == id))
+                .map((id) => widget.players.firstWhere((p) => p.id == id))
                 .toList())
             .toList()
-        : players.map((p) => [p]).toList();
-    final slotNames = game.isTeamGame
-        ? game.teams!.map((t) => t.name).toList()
-        : players.map((p) => p.name).toList();
+        : widget.players.map((p) => [p]).toList();
+    final slotNames = widget.game.isTeamGame
+        ? widget.game.teams!.map((t) => t.name).toList()
+        : widget.players.map((p) => p.name).toList();
 
     final marks  = List.generate(slots.length, (_) => <int, int>{});
     final scores = List.filled(slots.length, 0);
 
-    final isCT     = game.variant == CricketVariant.cutThroat;
-    final isSimple = game.scoringMode == CricketScoringMode.simple;
+    final isCT     = widget.game.variant == CricketVariant.cutThroat;
+    final isSimple = widget.game.scoringMode == CricketScoringMode.simple;
 
     for (final t in throws) {
       if (t.isMiss) continue;
@@ -107,7 +143,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
 
     // Determine winner from DB (finished_at set + score condition)
     int? winnerSlotIndex;
-    if (game.finishedAt != null) {
+    if (widget.game.finishedAt != null) {
       if (isCT) {
         final minScore = scores.fold(999999, (a, b) => a < b ? a : b);
         winnerSlotIndex = scores.indexOf(minScore);
@@ -132,7 +168,7 @@ class CricketHistorySummaryScreen extends StatelessWidget {
       slots: List.generate(slots.length, (i) => _CricketSlot(
             displayName: slotNames[i],
             players:     slots[i],
-            isTeamSlot:  game.isTeamGame,
+            isTeamSlot:  widget.game.isTeamGame,
             marks:       marks[i],
             score:       scores[i],
           )),
@@ -199,8 +235,28 @@ class _Body extends StatelessWidget {
       });
     final sorted = sortedSlots.map((e) => e.$2).toList();
 
-    return ListView(
-      padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
+    final rematch = RematchButton(
+      modeName: l.modeCricketName,
+      details: [
+        (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+        (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
+      ],
+      slots: data.slots
+          .map((s) => s.isTeamSlot
+              ? RematchSlot.team(s.displayName,
+                  s.players.map((p) => RematchSlot.player(p.name)).toList())
+              : RematchSlot.player(s.displayName))
+          .toList(),
+      onRematch: () =>
+          context.read<CricketProvider>().startRematch(game, players),
+      destination: (_) => const CricketScreen(),
+    );
+
+    final list = ListView(
+      // Fixed rather than measured: on a tablet this screen is rendered inside
+      // a pane, and contentPadding measures the window, so it would put the
+      // margin of a whole screen on either side of half of one.
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       children: [
         // Winner banner
         if (data.winnerSlotIndex != null) ...[
@@ -238,29 +294,12 @@ class _Body extends StatelessWidget {
           (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
-        const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
-        RematchButton(
-          modeName: l.modeCricketName,
-          details: [
-            (l.cricketVariant, cricketVariantLabel(l, game.variant)),
-            (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
-          ],
-          slots: data.slots
-              .map((s) => s.isTeamSlot
-                  ? RematchSlot.team(s.displayName,
-                      s.players.map((p) => RematchSlot.player(p.name)).toList())
-                  : RematchSlot.player(s.displayName))
-              .toList(),
-          onRematch: () =>
-              context.read<CricketProvider>().startRematch(game, players),
-          destination: (_) => const CricketScreen(),
-        ),
-        const SizedBox(height: 16),
 
         // Per-player score cards
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -270,6 +309,8 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 ...sortedSlots.map((e) {
                   final slot     = e.$2;
                   final isWinner = e.$1 == data.winnerSlotIndex;
@@ -324,10 +365,9 @@ class _Body extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 12),
-
         // Field marks overview
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -337,6 +377,8 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     const SizedBox(width: 52),
@@ -390,6 +432,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

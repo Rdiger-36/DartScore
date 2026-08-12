@@ -13,20 +13,25 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final l = context.l10n;
     return Scaffold(
       appBar: AppBar(title: Text(l.settingsTitle)),
       body: ListView(
         padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
-        children: const [
-          _ThemeSection(),
-          SizedBox(height: 20),
-          _LanguageSection(),
-          SizedBox(height: 20),
-          _SupportSection(),
-          SizedBox(height: 20),
-          _AboutSection(),
+        children: [
+          const _ThemeSection(),
+          const SizedBox(height: 20),
+          const _LanguageSection(),
+          const SizedBox(height: 20),
+          const _SupportSection(),
+          const SizedBox(height: 20),
+          const _AboutSection(),
         ],
       ),
     );
@@ -50,7 +55,7 @@ class _ThemeSection extends StatelessWidget {
       icon: Icons.palette_outlined,
       child: Column(
         children: [
-          _ThemeTile(
+          _ChoiceTile(
             label: l.system,
             subtitle: l.systemDesc,
             icon: Icons.brightness_auto_rounded,
@@ -59,7 +64,7 @@ class _ThemeSection extends StatelessWidget {
             cs: cs,
           ),
           const Divider(height: 1),
-          _ThemeTile(
+          _ChoiceTile(
             label: l.light,
             subtitle: l.lightDesc,
             icon: Icons.light_mode_rounded,
@@ -68,7 +73,7 @@ class _ThemeSection extends StatelessWidget {
             cs: cs,
           ),
           const Divider(height: 1),
-          _ThemeTile(
+          _ChoiceTile(
             label: l.dark,
             subtitle: l.darkDesc,
             icon: Icons.dark_mode_rounded,
@@ -82,8 +87,9 @@ class _ThemeSection extends StatelessWidget {
   }
 }
 
-/// A selectable radio tile for one theme option.
-class _ThemeTile extends StatelessWidget {
+/// A selectable tile for one option of a settings section, marked with a
+/// check when it is the active choice.
+class _ChoiceTile extends StatelessWidget {
   final String label;
   final String subtitle;
   final IconData icon;
@@ -91,7 +97,7 @@ class _ThemeTile extends StatelessWidget {
   final VoidCallback onTap;
   final ColorScheme cs;
 
-  const _ThemeTile({
+  const _ChoiceTile({
     required this.label,
     required this.subtitle,
     required this.icon,

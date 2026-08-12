@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../models/game.dart';
@@ -72,6 +73,72 @@ class _GameScreenState extends State<GameScreen> {
         final currentCheckOut = playerCheckOuts[currentIdx];
         final currentHasCheckedIn = playerCheckedIn[currentIdx];
 
+        final tablet    = isTabletLayout(context);
+        final layout    = tablet ? context.watch<TabletLayoutProvider>() : null;
+        final mq        = MediaQuery.of(context);
+        final landscape = mq.size.width >= mq.size.height;
+
+        // How much bigger than a phone the score card may be. The card shares
+        // its column with the input, so what it may spend follows from the
+        // height both have: a large tablet reads from across the room, a small
+        // one in landscape has barely more room than a phone.
+        final bodyHeight = mq.size.height -
+            mq.padding.top -
+            mq.padding.bottom -
+            (tablet ? 56 : 44);
+        final scale = tablet ? (bodyHeight / 560).clamp(1.0, 1.9) : 1.0;
+        // The checkout hint grows with the card but more slowly: it is a line
+        // of text, not a number read from the other side of the room.
+        final hintScale = scale.clamp(1.0, 1.5).toDouble();
+
+        final scoreboard = _Scoreboard(
+              states: states,
+              currentIdx: currentIdx,
+              game: game,
+              isSolo: isSolo,
+              liveRemaining: displayRemaining,
+              liveBust: liveBust,
+              currentLeg: provider.currentLeg,
+              currentSet: provider.currentSet,
+              liveDartsInVisit: liveDartsInVisit,
+              playerCheckIns: playerCheckIns,
+              playerCheckOuts: playerCheckOuts,
+              playerCheckedIn: playerCheckedIn,
+          scale: scale,
+          onSlotTap: (i) => Navigator.of(context)
+              .push(LivePlayerStatsRoute<void>(slotIndex: i)),
+        );
+
+        // Fixed-height area for the checkout hint so buttons never shift
+        final checkoutHint = SizedBox(
+          height: 62 * hintScale,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: FinishSuggestionWidget(
+              key: ValueKey(
+                '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
+              ),
+              remaining: liveBust ? current.remaining : displayRemaining,
+              favoriteDouble: current.player.favoriteDouble,
+              dartsThrown: liveDartsInVisit,
+              checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
+              scale: hintScale,
+            ),
+          ),
+        );
+
+        // The hint belongs to the score, and travels with it unless a layout
+        // finds it a better place.
+        final scoreboardBlock = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            scoreboard,
+            SizedBox(height: 6 * scale),
+            checkoutHint,
+          ],
+        );
+
         return PopScope(
           // A running game must not be lost to a stray back gesture; the system
           // back asks the same question the close button in the app bar asks.
@@ -83,7 +150,7 @@ class _GameScreenState extends State<GameScreen> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             appBar: AppBar(
               backgroundColor: Theme.of(context).colorScheme.surface,
-              toolbarHeight: 44,
+              toolbarHeight: tablet ? 56 : 44,
               centerTitle: true,
               title: isSolo
                   ? Column(
@@ -94,14 +161,15 @@ class _GameScreenState extends State<GameScreen> {
                           game.legs > 1
                               ? '${context.l10n.openPlay} · ${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)}'
                               : '${context.l10n.openPlay} · ${game.startScore}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: tablet ? 19 : 15),
                         ),
                         if (game.legs > 1)
                           Text(
                             context.l10n.legsSetsShort(game.legs, game.sets),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: tablet ? 13 : 11,
                               color: Theme.of(context)
                                   .colorScheme
                                   .onSurfaceVariant,
@@ -115,8 +183,9 @@ class _GameScreenState extends State<GameScreen> {
                       children: [
                         Text(
                           '${game.startScore} · ${context.l10n.legLabel(provider.currentLeg)} · ${context.l10n.setLabel(provider.currentSet)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: tablet ? 19 : 15),
                         ),
                         Text(
                           game.placementMode
@@ -124,7 +193,7 @@ class _GameScreenState extends State<GameScreen> {
                               : '${context.l10n.matchFormatLabel(MatchFormatLookup.fromValues(game.legs, game.sets))}'
                                 ' (${context.l10n.legsSetsShort(game.legs, game.sets)})',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: tablet ? 13 : 11,
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurfaceVariant,
@@ -133,8 +202,21 @@ class _GameScreenState extends State<GameScreen> {
                       ],
                     ),
               actions: [
+                // Which hand holds the tablet changes between games and even
+                // between players, so the swap belongs here rather than three
+                // screens away in the settings.
+                if (layout != null)
+                  IconButton(
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 26),
+                    tooltip: context.l10n.swapInputSide,
+                    onPressed: () => layout.setSide(
+                      layout.side == InputSide.left
+                          ? InputSide.right
+                          : InputSide.left,
+                    ),
+                  ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 22),
+                  icon: Icon(Icons.close_rounded, size: tablet ? 26 : 22),
                   tooltip: context.l10n.quitGame,
                   onPressed: () => _confirmQuit(context),
                 ),
@@ -146,63 +228,16 @@ class _GameScreenState extends State<GameScreen> {
             // opens a gap above the action row instead of below it.
             body: SafeArea(
               top: false,
-              child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: contentMaxWidth(context, fraction: kGameWidthFraction, maxWidth: kMaxGameWidth)),
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Scoreboard + reserved checkout area ───────────
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Scoreboard(
-                      states: states,
+              child: tablet
+                  ? _TabletBody(
+                      scoreboardBlock: scoreboardBlock,
+                      scoreboard: scoreboard,
+                      checkoutHint: checkoutHint,
+                      scoreboardGap: 6 * scale,
                       currentIdx: currentIdx,
-                      game: game,
-                      isSolo: isSolo,
-                      liveRemaining: displayRemaining,
-                      liveBust: liveBust,
-                      currentLeg: provider.currentLeg,
-                      currentSet: provider.currentSet,
-                      liveDartsInVisit: liveDartsInVisit,
-                      playerCheckIns: playerCheckIns,
-                      playerCheckOuts: playerCheckOuts,
-                      playerCheckedIn: playerCheckedIn,
-                      onSlotTap: (i) => Navigator.of(context)
-                          .push(LivePlayerStatsRoute<void>(slotIndex: i)),
-                    ),
-                    const SizedBox(height: 6),
-                    // Fixed-height area for the checkout hint so buttons never shift
-                    SizedBox(
-                      height: 62,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: FinishSuggestionWidget(
-                          key: ValueKey(
-                            '${liveBust ? current.remaining : displayRemaining}_$liveDartsInVisit',
-                          ),
-                          remaining: liveBust ? current.remaining : displayRemaining,
-                          favoriteDouble: current.player.favoriteDouble,
-                          dartsThrown: liveDartsInVisit,
-                          checkoutMode: currentHasCheckedIn ? currentCheckOut : CheckoutMode.doubleOut,
-                        ),
-                      ),
-                    ),
-                  ],
-                    ),
-                  ),
-                ),
-                // ── Dartboard input ─────────────────────────────────────────
-                const Expanded(child: DartboardInput()),
-              ],
-            ),
-              ),
-            ),
+                      landscape: landscape,
+                    )
+                  : _PhoneBody(scoreboardBlock: scoreboardBlock),
             ),
           ),
         );
@@ -244,6 +279,147 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
+// ── Bodies ────────────────────────────────────────────────────────────────────
+
+/// The phone layout: scoreboard on top, input filling what is left below it.
+class _PhoneBody extends StatelessWidget {
+  final Widget scoreboardBlock;
+
+  const _PhoneBody({required this.scoreboardBlock});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: contentMaxWidth(context,
+              fraction: kGameWidthFraction, maxWidth: kMaxGameWidth),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: scoreboardBlock,
+              ),
+            ),
+            const Expanded(child: DartboardInput()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tablet layout: score and input stay together in one column, the way a
+/// player already knows them, and the width that is won goes to the live stats
+/// of whoever is throwing.
+///
+/// Landscape stands that column beside the stats. Portrait keeps the scoreboard
+/// across the full width, where it reads from across the room, and splits only
+/// the space below it, because half of a portrait tablet is too narrow for a
+/// score card that size.
+class _TabletBody extends StatelessWidget {
+  final Widget scoreboardBlock;
+  /// The two halves of that block, for the portrait layout that separates them.
+  final Widget scoreboard;
+  final Widget checkoutHint;
+  final double scoreboardGap;
+  final int currentIdx;
+  final bool landscape;
+
+  const _TabletBody({
+    required this.scoreboardBlock,
+    required this.scoreboard,
+    required this.checkoutHint,
+    required this.scoreboardGap,
+    required this.currentIdx,
+    required this.landscape,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = context.watch<TabletLayoutProvider>();
+    final side   = layout.side;
+    // No header: the score card right above it already says who is throwing,
+    // what they need and what they average, and a second copy of that in the
+    // pane next to it is noise rather than information.
+    final stats = LivePlayerStatsPanel(slotIndex: currentIdx, showHeader: false);
+
+    if (landscape) {
+      return SidePaneLayout(
+        side: side,
+        fraction: layout.splitFraction(SplitPane.game, landscape: true),
+        // This pane carries the scoreboard as well, so it needs more width
+        // before it stops being worth looking at.
+        minPaneWidth: kMinGamePaneWidth,
+        onFractionChanged: (f) =>
+            layout.setSplitFraction(SplitPane.game, f, landscape: true),
+        onFractionSettled: () {
+          layout.persistSplitFraction(SplitPane.game, landscape: true);
+        },
+        primary: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            scoreboardBlock,
+            const Expanded(child: DartboardInput(fillHeight: true)),
+          ],
+        ),
+        secondary: stats,
+      );
+    }
+
+    final fraction = layout.splitFraction(SplitPane.game, landscape: false);
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Dragged wide enough, the input puts its actions beside the grid and
+        // the column above them is short enough to carry the checkout hint. It
+        // reads better there, right over the field the player is aiming at,
+        // than across the top of the screen.
+        final paneWidth = paneWidthFor(
+          total: box.maxWidth,
+          fraction: fraction,
+          minPaneWidth: kMinPaneWidth,
+        );
+        final hintOverInput = DartboardInput.usesSideActions(paneWidth);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (hintOverInput) scoreboard else scoreboardBlock,
+            Expanded(
+              child: SidePaneLayout(
+                side: side,
+                fraction: fraction,
+                onFractionChanged: (f) => layout
+                    .setSplitFraction(SplitPane.game, f, landscape: false),
+                onFractionSettled: () {
+                  layout.persistSplitFraction(SplitPane.game,
+                      landscape: false);
+                },
+                primary: hintOverInput
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(height: scoreboardGap),
+                          checkoutHint,
+                          const Expanded(
+                              child: DartboardInput(fillHeight: true)),
+                        ],
+                      )
+                    : const DartboardInput(fillHeight: true),
+                secondary: stats,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 // ── Scoreboard ────────────────────────────────────────────────────────────────
 
 /// The X01 scoreboard: one card per player/team showing remaining score (live
@@ -261,6 +437,10 @@ class _Scoreboard extends StatelessWidget {
   final List<GameMode> playerCheckIns;
   final List<CheckoutMode> playerCheckOuts;
   final List<bool> playerCheckedIn;
+  /// How much larger than on a phone the card renders. A tablet is read from
+  /// across the room rather than at arm's length, and how much room the card
+  /// may spend on that depends on the height it shares with the input.
+  final double scale;
   /// Opens the live info view for the slot at the given index.
   final void Function(int slotIndex) onSlotTap;
 
@@ -277,6 +457,7 @@ class _Scoreboard extends StatelessWidget {
     required this.playerCheckIns,
     required this.playerCheckOuts,
     required this.playerCheckedIn,
+    required this.scale,
     required this.onSlotTap,
   });
 
@@ -321,23 +502,29 @@ class _Scoreboard extends StatelessWidget {
             : cs.onSurface;
     final onCardMuted = onCard.withValues(alpha: 0.65);
 
+    final radius = 16.0 * scale;
+    /// The phone size of [style], grown by [scale].
+    TextStyle? sized(TextStyle? style) =>
+        style?.copyWith(fontSize: (style.fontSize ?? 14) * scale);
+
     return Expanded(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        margin: EdgeInsets.symmetric(horizontal: 4 * scale),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius),
         ),
         // The ink has to sit inside the opaque container, otherwise the splash
         // is painted underneath the card colour and stays invisible.
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(radius),
             onTap: () => onSlotTap(i),
             child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          padding: EdgeInsets.fromLTRB(
+              12 * scale, 14 * scale, 12 * scale, 12 * scale),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -347,7 +534,7 @@ class _Scoreboard extends StatelessWidget {
                 s.displayName,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: sized(theme.textTheme.titleSmall)?.copyWith(
                   color: onCard,
                   fontWeight: FontWeight.bold,
                 ),
@@ -357,7 +544,7 @@ class _Scoreboard extends StatelessWidget {
                   s.player.name,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
+                  style: sized(theme.textTheme.labelSmall)?.copyWith(
                     color: onCard.withValues(alpha: 0.75),
                   ),
                 ),
@@ -369,6 +556,7 @@ class _Scoreboard extends StatelessWidget {
                   checkOut: playerCheckOuts[i],
                   checkedIn: playerCheckedIn[i],
                   onCard: onCard,
+                  scale: scale,
                 ),
               ),
               const SizedBox(height: 2),
@@ -380,7 +568,7 @@ class _Scoreboard extends StatelessWidget {
                   key: ValueKey('$i-$displayValue-$showBust'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 52,
+                    fontSize: 52 * scale,
                     fontWeight: FontWeight.bold,
                     color: onCard,
                     height: 1,
@@ -396,7 +584,7 @@ class _Scoreboard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Icon(
                       Icons.bar_chart_rounded,
-                      size: 14,
+                      size: 14 * scale,
                       color: onCardMuted,
                     ),
                   ),
@@ -408,12 +596,12 @@ class _Scoreboard extends StatelessWidget {
                           game.sets > 1
                               ? '${context.l10n.setsAbbr} ${s.setsWon}  ${context.l10n.legsAbbr} ${s.legsWon}'
                               : '${context.l10n.legs}: ${s.legsWon}',
-                          style: theme.textTheme.bodySmall
+                          style: sized(theme.textTheme.bodySmall)
                               ?.copyWith(color: onCardMuted),
                         ),
                       Text(
                         'Ø ${s.average.toStringAsFixed(1)}',
-                        style: theme.textTheme.bodySmall
+                        style: sized(theme.textTheme.bodySmall)
                             ?.copyWith(color: onCardMuted),
                       ),
                     ],
@@ -422,17 +610,17 @@ class _Scoreboard extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerRight,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 7 * scale, vertical: 3 * scale),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFB300),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(6 * scale),
                         ),
                         child: Text(
                           '$minDarts',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.black,
-                            fontSize: 12,
+                            fontSize: 12 * scale,
                             fontWeight: FontWeight.bold,
                             height: 1,
                           ),
@@ -497,7 +685,7 @@ class _Scoreboard extends StatelessWidget {
 
           // ── Other players: compact score strip ────────────────────
           if (otherIndices.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6 * scale),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -512,52 +700,58 @@ class _Scoreboard extends StatelessWidget {
                   final chipFg =
                       finished ? cs.onSecondaryContainer : cs.onSurface;
                   return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    margin: EdgeInsets.symmetric(horizontal: 4 * scale),
                     decoration: BoxDecoration(
                       color: chipBg,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(24),
                     ),
                     child: Material(
                       type: MaterialType.transparency,
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                         onTap: () => onSlotTap(i),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 10 * scale, vertical: 4 * scale),
                           child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: 9,
+                          radius: 9 * scale,
                           backgroundColor: cs.outline.withValues(alpha: 0.3),
                           child: Text(
                             s.player.name.isNotEmpty
                                 ? s.player.name[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 9 * scale,
                               fontWeight: FontWeight.bold,
                               color: cs.onSurface,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        SizedBox(width: 5 * scale),
                         Text(
                           s.displayName.split(' ').first,
-                          style: theme.textTheme.labelSmall?.copyWith(
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(
+                            fontSize:
+                                (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
                             color: finished
                                 ? chipFg.withValues(alpha: 0.85)
                                 : cs.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6 * scale),
                         Text(
                           finished
                               ? context.l10n.placementBadge(s.legPlacement!)
                               : '${s.remaining}',
-                          style: theme.textTheme.labelMedium?.copyWith(
+                          style: theme.textTheme.labelMedium
+                              ?.copyWith(
+                            fontSize:
+                                (theme.textTheme.labelMedium?.fontSize ?? 12) * scale,
                             fontWeight: FontWeight.bold,
                             color: chipFg,
                           ),
@@ -592,6 +786,8 @@ class _ModeBadge extends StatelessWidget {
   final CheckoutMode checkOut;
   final bool checkedIn;
   final Color onCard;
+  /// How much larger than on a phone the badge renders, matching its card.
+  final double scale;
 
   const _ModeBadge({
     required this.remaining,
@@ -599,6 +795,7 @@ class _ModeBadge extends StatelessWidget {
     required this.checkOut,
     required this.checkedIn,
     required this.onCard,
+    required this.scale,
   });
 
   @override
@@ -609,15 +806,16 @@ class _ModeBadge extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: EdgeInsets.symmetric(
+              horizontal: 8 * scale, vertical: 2 * scale),
           decoration: BoxDecoration(
             color: const Color(0xFFFFB300).withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 9,
+            style: TextStyle(
+              fontSize: 9 * scale,
               fontWeight: FontWeight.bold,
               color: Colors.black,
               letterSpacing: 0.8,
@@ -640,7 +838,7 @@ class _ModeBadge extends StatelessWidget {
           '→ $label',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 10 * scale,
             fontWeight: FontWeight.w600,
             color: onCard.withValues(alpha: 0.7),
             letterSpacing: 0.5,

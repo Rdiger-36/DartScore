@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/layout.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/game_labels.dart';
-import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'cricket_screen.dart';
 
 /// Post-game summary for Cricket: the winner plus each player's final marks and
@@ -15,7 +16,12 @@ class CricketSummaryScreen extends StatelessWidget {
   const CricketSummaryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final provider = context.read<CricketProvider>();
     final game     = provider.game!;
     final states   = provider.playerStates;
@@ -36,65 +42,43 @@ class CricketSummaryScreen extends StatelessWidget {
             : b.score.compareTo(a.score);
       });
 
+    // Who won, which on two columns belongs over both of them
+    // rather than in the half that happens to hold it.
+    final winnerBanner = winnerId == null
+        ? null
+        : Center(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.emoji_events_rounded,
+                      size: 52, color: cs.primary),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.cricketWinner(
+                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+
     return Scaffold(
       appBar: AppBar(title: Text(l.cricketSummaryTitle)),
-      body: ListView(
-        padding: contentPadding(context, top: 24, bottom: 24, innerH: 16),
-        children: [
-          // ── Winner banner ────────────────────────────────────────────────
-          if (winnerId != null) ...[
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: cs.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.emoji_events_rounded,
-                        size: 52, color: cs.primary),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l.cricketWinner(
-                        states.firstWhere((s) => s.player.id == winnerId).displayName),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: cs.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // ── Rematch ──────────────────────────────────────────────────────
-          RematchButton(
-            modeName: l.modeCricketName,
-            details: [
-              (l.cricketVariant, cricketVariantLabel(l, game.variant)),
-              (
-                l.cricketScoringMode,
-                cricketScoringModeLabel(l, game.scoringMode)
-              ),
-            ],
-            slots: states
-                .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(s.displayName,
-                        s.players.map((p) => RematchSlot.player(p.name)).toList())
-                    : RematchSlot.player(s.displayName))
-                .toList(),
-            onRematch: () => provider.startRematch(
-              game,
-              states.expand((s) => s.players).toList(),
-            ),
-            destination: (_) => const CricketScreen(),
-          ),
-          const SizedBox(height: 20),
-
+      body: SummaryBody(
+        header: winnerBanner,
+        top: 24,
+        bottom: 24,
+        result: [
           // ── Game info ────────────────────────────────────────────────────
           GameInfoCard(rows: [
             (l.gameLabel, l.modeCricketName),
@@ -102,10 +86,11 @@ class CricketSummaryScreen extends StatelessWidget {
             (l.cricketScoringMode, cricketScoringModeLabel(l, game.scoringMode)),
             (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
           ]),
-          const SizedBox(height: 16),
-
+        ],
+        details: [
           // ── Player results ───────────────────────────────────────────────
           Card(
+            margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -115,6 +100,8 @@ class CricketSummaryScreen extends StatelessWidget {
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
                   ...sorted.map((s) {
                     final isWinner = s.player.id == winnerId;
                     final fieldsClosed =
@@ -188,8 +175,8 @@ class CricketSummaryScreen extends StatelessWidget {
           ),
 
           // ── Final field status ───────────────────────────────────────────
-          const SizedBox(height: 16),
           Card(
+            margin: const EdgeInsets.only(bottom: 12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -199,6 +186,8 @@ class CricketSummaryScreen extends StatelessWidget {
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
                   // Header
                   Row(
                     children: [
@@ -256,8 +245,8 @@ class CricketSummaryScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 24),
+        ],
+        actions: [
           FilledButton.icon(
             onPressed: () =>
                 Navigator.popUntil(context, (route) => route.isFirst),
@@ -266,6 +255,27 @@ class CricketSummaryScreen extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
+          ),
+          RematchButton(
+            modeName: l.modeCricketName,
+            details: [
+              (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+              (
+                l.cricketScoringMode,
+                cricketScoringModeLabel(l, game.scoringMode)
+              ),
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              game,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const CricketScreen(),
           ),
         ],
       ),

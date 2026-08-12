@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -171,7 +172,13 @@ Future<SyncPacket> buildSyncPacket(
 /// transferring a player's stats between devices.
 class SyncScreen extends StatefulWidget {
   final Player? initialPlayer;
-  const SyncScreen({super.key, this.initialPlayer});
+
+  /// Whether this sits inside a pane that already has a title bar of its own,
+  /// as the player list gives it on a tablet. The tabs then head the body
+  /// instead of hanging under an app bar that is not there.
+  final bool embedded;
+
+  const SyncScreen({super.key, this.initialPlayer, this.embedded = false});
 
   @override
   State<SyncScreen> createState() => _SyncScreenState();
@@ -190,6 +197,11 @@ class _SyncScreenState extends State<SyncScreen>
       initialIndex: widget.initialPlayer != null ? 1 : 0,
       vsync: this,
     );
+    // The send tab has a code on it and, for a large history, a server behind
+    // it. Both stop when the tab is left, which the tab itself has to be told.
+    _tab.addListener(() {
+      if (!_tab.indexIsChanging) setState(() {});
+    });
   }
 
   @override
@@ -199,39 +211,63 @@ class _SyncScreenState extends State<SyncScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
+    final tabs = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: TabBar(
+          controller: _tab,
+          tabs: [
+            Tab(
+                icon: const Icon(Icons.download_rounded),
+                text: context.l10n.syncReceive),
+            Tab(
+                icon: const Icon(Icons.upload_rounded),
+                text: context.l10n.syncSend),
+          ],
+        ),
+      ),
+    );
+
+    // One column, on every device and in either orientation: the screen is a
+    // picker over a code, and a code beside its picker was tried and read
+    // worse, not least because the pane it now lives in is already half a
+    // screen wide.
+    final body = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: TabBarView(
+          controller: _tab,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            const _ReceiverTab(),
+            _SenderTab(
+              initialPlayer: widget.initialPlayer,
+              visible: _tab.index == 1,
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.l10n.syncTitle),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(kTextTabBarHeight),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-              child: TabBar(
-                controller: _tab,
-                tabs: [
-                  Tab(icon: const Icon(Icons.download_rounded), text: context.l10n.syncReceive),
-                  Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
-                ],
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: Text(context.l10n.syncTitle),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(kTextTabBarHeight),
+                child: tabs,
               ),
             ),
-          ),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-          child: TabBarView(
-        controller: _tab,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          const _ReceiverTab(),
-          _SenderTab(initialPlayer: widget.initialPlayer),
-        ],
-      ),
-        ),
-      ),
+      body: widget.embedded
+          ? Column(children: [tabs, Expanded(child: body)])
+          : body,
     );
   }
 }
@@ -242,7 +278,13 @@ class _SyncScreenState extends State<SyncScreen>
 /// transport the resulting payload calls for.
 class _SenderTab extends StatefulWidget {
   final Player? initialPlayer;
-  const _SenderTab({this.initialPlayer});
+
+  /// Whether this tab is the one on screen. A code nobody can see is not worth
+  /// encoding, and a server nobody can be handed the code to is not worth
+  /// keeping open.
+  final bool visible;
+
+  const _SenderTab({this.initialPlayer, this.visible = true});
 
   @override
   State<_SenderTab> createState() => _SenderTabState();
@@ -260,6 +302,11 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   // Animated QR
   SyncFountainEncoder? _encoder;
   Timer? _frameTimer;
+
+  /// Whether the animated code is running. It waits for the sender to say so:
+  /// a stream of codes nobody is holding a camera to is ten encodes a second
+  /// into a picture that is only being looked at.
+  bool _streaming = false;
 
   /// The frame counter is a notifier rather than plain state because it moves
   /// ten times a second. Through `setState` every tick would rebuild the whole
@@ -296,6 +343,21 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   }
 
   @override
+  void didUpdateWidget(covariant _SenderTab old) {
+    super.didUpdateWidget(old);
+    if (old.visible && !widget.visible) _hide();
+  }
+
+  /// Takes the transfer down when the tab is left: the code goes back to
+  /// waiting, and the server stops rather than sitting on a payload nobody can
+  /// still be given the code to.
+  void _hide() {
+    _frameTimer?.cancel();
+    if (_streaming) setState(() => _streaming = false);
+    if (_server.isRunning) _stopServer();
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _frameTimer?.cancel();
@@ -327,7 +389,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
         }
         if (_server.isRunning) _stopServer();
       case AppLifecycleState.resumed:
-        if (_encoder != null) _startFrameLoop();
+        if (_encoder != null && _streaming) _startFrameLoop();
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;
@@ -394,6 +456,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       _packet = null;
       _transmission = null;
       _encoder = null;
+      _streaming = false;
       _connection = null;
       _served = false;
     });
@@ -409,11 +472,22 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       _encoder      = transmission.transport == SyncTransport.animatedQr
           ? SyncFountainEncoder(transmission.data)
           : null;
+      _streaming  = false;
       _preparing  = false;
     });
     _frameIndex.value = 0;
+  }
 
-    if (_encoder != null) _startFrameLoop();
+  /// Starts the animated code once the receiver is ready for it.
+  void _startStreaming() {
+    setState(() => _streaming = true);
+    _startFrameLoop();
+  }
+
+  /// Puts the animated code back behind its glass.
+  void _stopStreaming() {
+    _frameTimer?.cancel();
+    setState(() => _streaming = false);
   }
 
   /// Drives the endless stream of fountain coded frames.
@@ -496,9 +570,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
       }
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    final picker = <Widget>[
         // ── Description ───────────────────────────────────────────────────
         Text(
           l.syncSendDesc,
@@ -543,11 +615,13 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
 
         // ── Range picker ──────────────────────────────────────────────────
         _buildRangePicker(l, cs, theme),
-        const SizedBox(height: 12),
+    ];
 
-        // ── Transport content ─────────────────────────────────────────────
-        _buildTransportContent(l, cs, theme),
-      ],
+    final transport = _buildTransportContent(l, cs, theme);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [...picker, const SizedBox(height: 12), transport],
     );
   }
 
@@ -649,24 +723,64 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   /// The progress bar is deliberately indeterminate. The sender has no idea how
   /// far the receiver has got, and a bar counting frames sent would suggest it
   /// does; what matters is only that the stream is running.
-  Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) =>
-      Column(
+  Widget _buildAnimatedQr(AppLocalizations l, ColorScheme cs, ThemeData theme) {
+    if (!_streaming) {
+      return Column(
         children: [
-          ValueListenableBuilder<int>(
-            valueListenable: _frameIndex,
-            builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+          // The first frame, behind glass: enough to see that a code is
+          // waiting, not enough to scan half a transfer by accident.
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: _qrCard(_encoder!.frameAt(0)),
+                ),
+              ),
+              IconButton.filled(
+                onPressed: _startStreaming,
+                iconSize: 44,
+                padding: const EdgeInsets.all(20),
+                icon: const Icon(Icons.play_arrow_rounded),
+                tooltip: l.syncStartStream,
+              ),
+            ],
           ),
           const SizedBox(height: 10),
-          LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
-          const SizedBox(height: 8),
           Text(
-            l.syncAnimatedHint,
+            l.syncStartStreamHint,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
       );
+    }
+
+    return Column(
+      children: [
+        // The code stops where it was started: on a tap on the code itself.
+        GestureDetector(
+          onTap: _stopStreaming,
+          child: ValueListenableBuilder<int>(
+            valueListenable: _frameIndex,
+            builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
+        const SizedBox(height: 8),
+        Text(
+          l.syncStopStreamHint,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 
   /// Offers the Wi-Fi transfer for payloads no QR code can carry.
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
@@ -728,12 +842,6 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(vertical: 14)),
         ),
         const SizedBox(height: 20),
-        Text(
-          '${connection.ip}:${connection.port}',
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12),
         _qrCard(connection.qrPayload),
       ],
     );
@@ -744,6 +852,7 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   /// The code fills the available width instead of a fixed size, so a dense
   /// payload still renders modules large enough for another phone to read.
   Widget _qrCard(String data) => Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             _selectedPlayer!.name,
@@ -755,6 +864,11 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
+            // Square, and never so tall that what belongs under it is pushed
+            // off the screen. Measured against the window rather than the box,
+            // because in a scrolling column there is no height to measure.
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).height * 0.5),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -818,82 +932,106 @@ class _ReceiverTabState extends State<_ReceiverTab> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            context.l10n.syncReceiveDesc,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant),
+    final l = context.l10n;
+
+    // ── What the tab says about itself ──────────────────────────────────────
+    final about = <Widget>[
+      Text(
+        l.syncReceiveDesc,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.errorContainer,
+            borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(height: 16),
-          if (_error != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cs.errorContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                _error!,
-                style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_fetching)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  if (_pairingPin != null) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      _pairingPin!,
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      context.l10n.syncPairWaiting,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ],
-              ),
-            )
-          else if (_scanning) ...[
-            Expanded(child: _QrScanner(onScanned: _onScanned)),
-            if (_decoder.sourceBlocks > 0) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: _decoder.solved / _decoder.sourceBlocks,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              const SizedBox(height: 8),
+          child: Text(
+            _error!,
+            style: TextStyle(color: cs.onErrorContainer, fontSize: 13),
+          ),
+        ),
+      ],
+    ];
+
+    // ── The camera, or the button that turns it on ──────────────────────────
+    final Widget stage;
+    if (_fetching) {
+      stage = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            if (_pairingPin != null) ...[
+              const SizedBox(height: 20),
               Text(
-                '${context.l10n.syncKeepHolding}\n'
-                '${context.l10n.syncScanProgress(_decoder.solved, _decoder.sourceBlocks)}',
+                _pairingPin!,
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l.syncPairWaiting,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
-          ] else
-            FilledButton.icon(
-              onPressed: _startScanning,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: Text(context.l10n.scanQr),
-              style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16)),
+          ],
+        ),
+      );
+    } else if (_scanning) {
+      stage = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _QrScanner(onScanned: _onScanned)),
+          if (_decoder.sourceBlocks > 0) ...[
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: _decoder.solved / _decoder.sourceBlocks,
+              borderRadius: BorderRadius.circular(4),
             ),
+            const SizedBox(height: 8),
+            Text(
+              '${l.syncKeepHolding}\n'
+              '${l.syncScanProgress(_decoder.solved, _decoder.sourceBlocks)}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
+      );
+    } else {
+      // As wide as everything else in its column, wherever that column is.
+      stage = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton.icon(
+            onPressed: _startScanning,
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text(l.scanQr),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16)),
+          ),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...about,
+          const SizedBox(height: 16),
+          if (_scanning || _fetching) Expanded(child: stage) else stage,
         ],
       ),
     );
@@ -1589,15 +1727,24 @@ class _QrScannerState extends State<_QrScanner> with WidgetsBindingObserver {
               widget.onScanned(raw);
             },
           ),
-          Center(
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: cs.primary, width: 3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+          // The frame follows the picture: on a tablet the camera fills far
+          // more than the 200 dp square a phone was drawn.
+          LayoutBuilder(
+            builder: (context, box) {
+              final side = (box.biggest.shortestSide * 0.6)
+                  .clamp(160.0, 420.0)
+                  .toDouble();
+              return Center(
+                child: Container(
+                  width: side,
+                  height: side,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: cs.primary, width: 3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            },
           ),
           Positioned(
             bottom: 20,

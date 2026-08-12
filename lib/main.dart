@@ -11,6 +11,7 @@ import 'providers/shanghai_provider.dart';
 import 'providers/around_the_clock_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
+import 'providers/tablet_layout_provider.dart';
 import 'providers/donation_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -207,6 +208,7 @@ class DartScoreApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => TabletLayoutProvider()),
         ChangeNotifierProvider(create: (_) => DonationProvider()),
         ChangeNotifierProvider(create: (_) => PlayersProvider()..load()),
         ChangeNotifierProvider(create: (_) => GameProvider()),

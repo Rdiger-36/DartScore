@@ -9,31 +9,56 @@ import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'around_the_clock_screen.dart';
 
 /// Detailed view of a finished Around the Clock game from history, rebuilt by
 /// replaying its stored throws through a fresh provider.
-class AroundTheClockHistorySummaryScreen extends StatelessWidget {
+class AroundTheClockHistorySummaryScreen extends StatefulWidget {
   final AroundTheClockGame game;
   final List<Player> players;
+
+  /// Whether this sits inside a pane that brings its own title bar, as the
+  /// master detail layout of the history does on a tablet. Embedded it renders
+  /// its content alone, without a screen around it.
+  final bool embedded;
 
   const AroundTheClockHistorySummaryScreen({
     super.key,
     required this.game,
     required this.players,
+    this.embedded = false,
   });
 
   @override
+  State<AroundTheClockHistorySummaryScreen> createState() =>
+      _AroundTheClockHistorySummaryScreenState();
+}
+
+class _AroundTheClockHistorySummaryScreenState extends State<AroundTheClockHistorySummaryScreen> {
+  /// Started once and kept, not started again on every build.
+  ///
+  /// A read begun inside `build` is begun again by every rebuild, and a pane
+  /// whose divider is being dragged rebuilds on every frame: the view would
+  /// fall back to its spinner for the length of the drag and hammer the
+  /// database while it lasted.
+  late Future<AroundTheClockProvider> _future = _load();
+
+  @override
+  void didUpdateWidget(AroundTheClockHistorySummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) _future = _load();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(DateFormat('dd.MM.yy  HH:mm').format(game.createdAt)),
-      ),
-      body: Center(
+    return _wrap(
+      context,
+      Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
           child: FutureBuilder<AroundTheClockProvider>(
-            future: _load(),
+            future: _future,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) {
                 return const Center(child: CircularProgressIndicator());
@@ -42,7 +67,7 @@ class AroundTheClockHistorySummaryScreen extends StatelessWidget {
               if (provider == null) {
                 return Center(child: Text(context.l10n.noThrowData));
               }
-              return _Body(game: game, players: players, provider: provider);
+              return _Body(game: widget.game, players: widget.players, provider: provider);
             },
           ),
         ),
@@ -50,11 +75,22 @@ class AroundTheClockHistorySummaryScreen extends StatelessWidget {
     );
   }
 
-  /// Replays the game's throws via a standalone provider instance, reusing
+  /// Puts the screen around [content], or hands it over bare when this view is
+  /// widget.embedded in a pane that already has a title bar of its own.
+  Widget _wrap(BuildContext context, Widget content) => widget.embedded
+      ? content
+      : Scaffold(
+          appBar: AppBar(
+            title: Text(DateFormat('dd.MM.yy  HH:mm').format(widget.game.createdAt)),
+          ),
+          body: content,
+        );
+
+  /// Replays the widget.game's throws via a standalone provider instance, reusing
   /// its variant-aware progression/winner logic instead of duplicating it here.
   Future<AroundTheClockProvider> _load() async {
     final provider = AroundTheClockProvider();
-    await provider.resumeGame(game, players);
+    await provider.resumeGame(widget.game, widget.players);
     return provider;
   }
 }
@@ -90,8 +126,28 @@ class _Body extends StatelessWidget {
         return b.progress.compareTo(a.progress);
       });
 
-    return ListView(
-      padding: contentPadding(context, top: 16, bottom: 24, innerH: 12),
+    final rematch = RematchButton(
+      modeName: l.modeAroundClockName,
+      details: [
+        (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+      ],
+      slots: states
+          .map((s) => s.isTeamSlot
+              ? RematchSlot.team(s.displayName,
+                  s.players.map((p) => RematchSlot.player(p.name)).toList())
+              : RematchSlot.player(s.displayName))
+          .toList(),
+      onRematch: () => context
+          .read<AroundTheClockProvider>()
+          .startRematch(game, players),
+      destination: (_) => const AroundTheClockScreen(),
+    );
+
+    final list = ListView(
+      // Fixed rather than measured: on a tablet this screen is rendered inside
+      // a pane, and contentPadding measures the window, so it would put the
+      // margin of a whole screen on either side of half of one.
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       children: [
         if (winnerId != null) ...[
           Center(
@@ -127,28 +183,11 @@ class _Body extends StatelessWidget {
           (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
-        const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
-        RematchButton(
-          modeName: l.modeAroundClockName,
-          details: [
-            (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
-          ],
-          slots: states
-              .map((s) => s.isTeamSlot
-                  ? RematchSlot.team(s.displayName,
-                      s.players.map((p) => RematchSlot.player(p.name)).toList())
-                  : RematchSlot.player(s.displayName))
-              .toList(),
-          onRematch: () => context
-              .read<AroundTheClockProvider>()
-              .startRematch(game, players),
-          destination: (_) => const AroundTheClockScreen(),
-        ),
-        const SizedBox(height: 16),
 
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -158,6 +197,8 @@ class _Body extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
                 ...sorted.map((s) {
                   final isWinner = s.player.id == winnerId;
                   final hit = s.progress.clamp(0, total);
@@ -209,6 +250,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

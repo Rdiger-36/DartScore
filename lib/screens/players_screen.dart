@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../models/player.dart';
 import '../widgets/player_dialog.dart';
 import 'player_stats_screen.dart';
@@ -10,19 +11,37 @@ import '../utils/layout.dart';
 
 /// Player management screen: the primary profile plus all other players, with
 /// add, edit, delete, stats, and sync actions.
-class PlayersScreen extends StatelessWidget {
+class PlayersScreen extends StatefulWidget {
   const PlayersScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<PlayersScreen> createState() => _PlayersScreenState();
+}
+
+/// What the pane beside the player list is showing about the player in it.
+enum _PaneView { stats, sync }
+
+class _PlayersScreenState extends State<PlayersScreen> {
+  /// The player the pane beside the list belongs to. Only ever set on a tablet,
+  /// where a player opens next to the list instead of over it.
+  Player? _selected;
+
+  /// Which of the two things the pane shows about them. One at a time: both
+  /// are a screen's worth on their own.
+  _PaneView _view = _PaneView.stats;
+
+  @override
+  Widget build(BuildContext context) =>
+      TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
     final l = context.l10n;
     final cs = Theme.of(context).colorScheme;
     final syncFab = FloatingActionButton.extended(
       heroTag: 'sync',
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SyncScreen()),
-      ),
+      onPressed: () => _openSync(context, null),
       backgroundColor: cs.secondary,
       foregroundColor: cs.onSecondary,
       icon: const Icon(Icons.sync_rounded),
@@ -110,31 +129,118 @@ class PlayersScreen extends StatelessWidget {
       },
     );
 
+    final tablet = isTabletLayout(context);
+
+    final buttons = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [addFab, const SizedBox(height: fabSpacing), syncFab],
+    );
+
+    Widget list = Center(child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+      child: listContent,
+    ));
+
+    // Both buttons act on the list, so on a tablet they belong over the list
+    // and not over the statistics in the pane beside it, which is where the
+    // scaffold would float them.
+    if (tablet) {
+      list = Stack(
+        children: [
+          Positioned.fill(child: list),
+          Positioned(
+            right: fabMargin,
+            bottom: fabMargin + bottomInset,
+            child: buttons,
+          ),
+        ],
+      );
+    }
+
+    final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
+    final landscape =
+        MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
+    // A player who was deleted while their stats were open must not stay in
+    // the pane beside a list that no longer holds them.
+    final selected = context
+        .watch<PlayersProvider>()
+        .players
+        .where((p) => p.id == _selected?.id)
+        .firstOrNull;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l.playersTitle),
       ),
-      body: Center(child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-        child: listContent,
-      )),
+      body: !tablet
+          ? list
+          : SidePaneLayout(
+              side: InputSide.left,
+              fraction: layout!.splitFraction(SplitPane.players, landscape: landscape),
+              minPaneWidth: kMinListPaneWidth,
+              onFractionChanged: (f) =>
+                  layout.setSplitFraction(SplitPane.players, f,
+                    landscape: landscape),
+              onFractionSettled: () {
+                layout.persistSplitFraction(SplitPane.players,
+                  landscape: landscape);
+              },
+              primary: list,
+              secondary: _view == _PaneView.sync
+                  ? _StatsPane(
+                      // Keyed by player, so switching to another one starts
+                      // their transfer over instead of handing the new name to
+                      // a code that is already running.
+                      key: ValueKey('sync-${selected?.id}'),
+                      title: selected == null
+                          ? l.syncTitle
+                          : l.syncOf(selected.name),
+                      child: SyncScreen(
+                          initialPlayer: selected, embedded: true),
+                    )
+                  : selected == null
+                      ? _EmptyStatsPane(message: l.playersPickOne)
+                      : _StatsPane(
+                          title: l.statisticsOf(selected.name),
+                          child: PlayerStatsScreen(
+                              player: selected, embedded: true),
+                        ),
+            ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [addFab, const SizedBox(height: fabSpacing), syncFab],
-      ),
+      floatingActionButton: tablet ? null : buttons,
     );
   }
 
-  /// Opens the lifetime stats screen for [player].
+  /// Opens the lifetime stats of [player]: beside the list where there is room
+  /// for it, on top of it where there is not.
   void _openStats(BuildContext context, Player player) {
+    if (isTabletLayout(context)) {
+      setState(() {
+        _selected = player;
+        _view     = _PaneView.stats;
+      });
+      return;
+    }
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => PlayerStatsScreen(player: player)));
   }
 
-  /// Opens the device-to-device sync screen for [player].
-  void _openSync(BuildContext context, Player player) {
+  /// Opens the device-to-device sync in the pane beside the list where there is
+  /// room for it, and on top of it where there is not.
+  ///
+  /// [player] is whose profile to send, or null for the button over the list,
+  /// which is the way in for a device that is about to receive one and has
+  /// nobody picked. The pane shows one thing at a time, so this replaces the
+  /// statistics rather than standing beside them.
+  void _openSync(BuildContext context, Player? player) {
+    if (isTabletLayout(context)) {
+      setState(() {
+        _selected = player;
+        _view     = _PaneView.sync;
+      });
+      return;
+    }
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => SyncScreen(initialPlayer: player)));
   }
@@ -223,6 +329,68 @@ class PlayersScreen extends StatelessWidget {
 }
 
 // ── Primary player card ───────────────────────────────────────────────────────
+
+// ── Detail pane ──────────────────────────────────────────────────────────────
+
+/// The right hand pane of the tablet player list: the name the pushed route
+/// would have carried in its app bar, and the statistics below it.
+class _StatsPane extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _StatsPane({super.key, required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+/// What the statistics pane shows while no player is picked.
+class _EmptyStatsPane extends StatelessWidget {
+  final String message;
+
+  const _EmptyStatsPane({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.insights_outlined, size: 40, color: cs.outline),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// Highlighted card for the primary player with edit, stats, and sync actions.
 class _PrimaryPlayerCard extends StatelessWidget {

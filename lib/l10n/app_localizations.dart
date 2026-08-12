@@ -175,8 +175,8 @@ class AppLocalizations {
   String get gameInfo          => _t('Game Info', 'Spielinfo');
   String wins(String name)     => _t('🎯 $name wins!', '🎯 $name hat gewonnen!');
   String get allThrows         => _t('All Throws', 'Alle Würfe');
-  String get backToHome        => _t('Back to Main Menu', 'Zurück zum Hauptmenü');
-  String get playAgain         => _t('Play Again', 'Spiel wiederholen');
+  String get backToHome        => _t('Main Menu', 'Hauptmenü');
+  String get playAgain         => _t('Replay', 'Wiederholen');
   String get playAgainTitle    => _t('Play again?', 'Spiel wiederholen?');
   String get playAgainQuestion =>
       _t('Start a new game with these settings and players?',
@@ -217,6 +217,9 @@ class AppLocalizations {
 
   // ── Player Stats ─────────────────────────────────────────────────────────
   String get statistics        => _t('Statistics', 'Statistik');
+  String statisticsOf(String name) =>
+      _t('Statistics of $name', 'Statistik von $name');
+  String syncOf(String name) => _t('Sync of $name', 'Sync von $name');
   String get statsX01Only      => _t('Statistics are collected in X01 mode only.', 'Statistiken werden nur im X01 Spielmodus erhoben.');
   String noGamesFor(String name) =>
       _t('No games for $name yet.', 'Noch keine Spiele für $name.');
@@ -366,6 +369,13 @@ class AppLocalizations {
   String get importFromLibrary => _t('Import from Photo Library', 'Aus Foto-Bibliothek importieren');
   String get importFromLibDesc => _t('Select a saved QR code image', 'Gespeichertes QR-Code Bild auswählen');
   String get noPlayersSettings => _t('No players added yet.', 'Noch keine Spieler angelegt.');
+  String get swapInputSide     => _t('Swap sides', 'Seiten tauschen');
+  String get playersPickOne    =>
+      _t('Pick a player to see their statistics.',
+         'Wähle einen Spieler, um seine Statistik zu sehen.');
+  String get historyPickGame   =>
+      _t('Pick a game to see how it went.',
+         'Wähle ein Spiel, um den Verlauf zu sehen.');
 
   // ── Donation ─────────────────────────────────────────────────────────────
   String get donationTitle      => _t('Support Developer', 'Entwickler unterstützen');
@@ -394,6 +404,12 @@ class AppLocalizations {
   String get licenseFullText   => _t('Read full license text', 'Vollständigen Lizenztext lesen');
   String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
+  String get licensesPickPackage    =>
+      _t('Pick a package to read its license.',
+         'Wähle ein Paket, um seine Lizenz zu lesen.');
+  String licenseCount(int n) => n == 1
+      ? _t('1 license', '1 Lizenz')
+      : _t('$n licenses', '$n Lizenzen');
   String get linkOpenError     => _t('Could not open the link.', 'Der Link konnte nicht geöffnet werden.');
 
   // ── Sync ──────────────────────────────────────────────────────────────────
@@ -425,9 +441,16 @@ class AppLocalizations {
   String get syncViaServer     =>
       _t('too much for a QR code, transferred over Wi-Fi',
          'zu viel für einen QR-Code, Übertragung über WLAN');
+  String get syncStartStream     => _t('Start the code', 'Code starten');
+  String get syncStartStreamHint =>
+      _t('Start the stream once the other device is scanning.',
+         'Starte den Strom, sobald das andere Gerät scannt.');
   String get syncAnimatedHint  =>
       _t('Hold both phones steady until the receiver is finished.',
          'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
+  String get syncStopStreamHint =>
+      _t('Hold both devices steady until the receiver is finished. Tap the code to stop it.',
+         'Halte beide Geräte ruhig, bis der Empfänger fertig ist. Tippe auf den Code, um ihn anzuhalten.');
   String get syncServerHint    =>
       _t('Both devices need to be on the same Wi-Fi for this.',
          'Dafür müssen beide Geräte im selben WLAN sein.');

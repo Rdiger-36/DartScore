@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
+import 'stat_row.dart';
 
 /// One label/value line of a [GameInfoCard].
 typedef GameInfoRow = (String label, String value);
@@ -8,7 +9,9 @@ typedef GameInfoRow = (String label, String value);
 /// summary and the history detail describe a game the same way and in the same
 /// shape as the surrounding stat cards.
 ///
-/// Set [dense] on the history screens, whose cards use a tighter scale.
+/// Set [dense] on the history screens, whose heading reads at a smaller size.
+/// It is the type that changes, not the box: every card of a summary carries
+/// the same margin and the same padding, or a column of them comes out ragged.
 class GameInfoCard extends StatelessWidget {
   final List<GameInfoRow> rows;
   final bool dense;
@@ -19,9 +22,12 @@ class GameInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // The same margin, padding and divided header the stat cards it stands
+    // among carry, so a column of cards reads as one column.
     return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: EdgeInsets.all(dense ? 14 : 16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -32,28 +38,10 @@ class GameInfoCard extends StatelessWidget {
                       : theme.textTheme.titleMedium)
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
             const SizedBox(height: 8),
-            ...rows.map((r) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        child: Text(r.$1, style: theme.textTheme.bodyMedium),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          r.$2,
-                          textAlign: TextAlign.end,
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
+            ...rows.map((r) => StatRow(label: r.$1, value: r.$2)),
           ],
         ),
       ),
