@@ -219,6 +219,7 @@ class AppLocalizations {
   String get statistics        => _t('Statistics', 'Statistik');
   String statisticsOf(String name) =>
       _t('Statistics of $name', 'Statistik von $name');
+  String syncOf(String name) => _t('Sync of $name', 'Sync von $name');
   String get statsX01Only      => _t('Statistics are collected in X01 mode only.', 'Statistiken werden nur im X01 Spielmodus erhoben.');
   String noGamesFor(String name) =>
       _t('No games for $name yet.', 'Noch keine Spiele für $name.');
@@ -447,6 +448,9 @@ class AppLocalizations {
   String get syncAnimatedHint  =>
       _t('Hold both phones steady until the receiver is finished.',
          'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
+  String get syncStopStreamHint =>
+      _t('Hold both devices steady until the receiver is finished. Tap the code to stop it.',
+         'Halte beide Geräte ruhig, bis der Empfänger fertig ist. Tippe auf den Code, um ihn anzuhalten.');
   String get syncServerHint    =>
       _t('Both devices need to be on the same Wi-Fi for this.',
          'Dafür müssen beide Geräte im selben WLAN sein.');

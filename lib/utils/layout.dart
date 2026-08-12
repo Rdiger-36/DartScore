@@ -173,14 +173,18 @@ double uprightTargetBoardEdge(BuildContext context) {
 /// code on the other only drift apart.
 const double kSyncTwoColumnMaxWidth = 1000;
 
-/// Whether the sync screen stands in two columns: a tablet on its side, where
-/// the code and what produced it both have a whole column to themselves.
+/// From where the sync screen divides itself into two columns.
 ///
-/// Upright it stays the single column it is on a phone, because a picker over a
-/// code reads perfectly well and half of an upright tablet does not.
-bool syncTwoColumns(BuildContext context) =>
-    isTabletLayout(context) &&
-    MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
+/// Set so a tablet on its side divides and one held upright does not, and so
+/// the screen inside the pane of the player list, which is half a tablet, keeps
+/// the single column that fits there.
+const double kSyncTwoColumnMinWidth = 900;
+
+/// Whether the sync screen stands in two columns in a box [width] wide.
+///
+/// Measured against the box rather than the window, because the screen is also
+/// shown inside a pane that is itself half of one.
+bool syncTwoColumns(double width) => width >= kSyncTwoColumnMinWidth;
 
 /// Whether [width] has room for two columns of [minPaneWidth] and the divider
 /// between them.

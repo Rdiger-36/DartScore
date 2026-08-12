@@ -172,7 +172,13 @@ Future<SyncPacket> buildSyncPacket(
 /// transferring a player's stats between devices.
 class SyncScreen extends StatefulWidget {
   final Player? initialPlayer;
-  const SyncScreen({super.key, this.initialPlayer});
+
+  /// Whether this sits inside a pane that already has a title bar of its own,
+  /// as the player list gives it on a tablet. The tabs then head the body
+  /// instead of hanging under an app bar that is not there.
+  final bool embedded;
+
+  const SyncScreen({super.key, this.initialPlayer, this.embedded = false});
 
   @override
   State<SyncScreen> createState() => _SyncScreenState();
@@ -191,6 +197,11 @@ class _SyncScreenState extends State<SyncScreen>
       initialIndex: widget.initialPlayer != null ? 1 : 0,
       vsync: this,
     );
+    // The send tab has a code on it and, for a large history, a server behind
+    // it. Both stop when the tab is left, which the tab itself has to be told.
+    _tab.addListener(() {
+      if (!_tab.indexIsChanging) setState(() {});
+    });
   }
 
   @override
@@ -206,43 +217,62 @@ class _SyncScreenState extends State<SyncScreen>
   /// The screen itself. [build] only wraps it, so that a tablet renders the
   /// same layout at a size that suits the distance it is read from.
   Widget _build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(context.l10n.syncTitle),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(kTextTabBarHeight),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-              child: TabBar(
-                controller: _tab,
-                tabs: [
-                  Tab(icon: const Icon(Icons.download_rounded), text: context.l10n.syncReceive),
-                  Tab(icon: const Icon(Icons.upload_rounded), text: context.l10n.syncSend),
-                ],
-              ),
+    final tabs = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+        child: TabBar(
+          controller: _tab,
+          tabs: [
+            Tab(
+                icon: const Icon(Icons.download_rounded),
+                text: context.l10n.syncReceive),
+            Tab(
+                icon: const Icon(Icons.upload_rounded),
+                text: context.l10n.syncSend),
+          ],
+        ),
+      ),
+    );
+
+    final body = LayoutBuilder(
+      builder: (context, box) {
+        return Center(
+          child: ConstrainedBox(
+            // Two columns need the width a phone column would throw away, so
+            // the cap only applies where there is one column to cap.
+            constraints: BoxConstraints(
+                maxWidth: syncTwoColumns(box.maxWidth)
+                    ? kSyncTwoColumnMaxWidth
+                    : contentMaxWidth(context)),
+            child: TabBarView(
+              controller: _tab,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                const _ReceiverTab(),
+                _SenderTab(
+                  initialPlayer: widget.initialPlayer,
+                  visible: _tab.index == 1,
+                ),
+              ],
             ),
           ),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          // Two columns need the width a phone column would throw away, so the
-          // cap only applies where there is one column to cap.
-          constraints: BoxConstraints(
-              maxWidth: syncTwoColumns(context)
-                  ? kSyncTwoColumnMaxWidth
-                  : contentMaxWidth(context)),
-          child: TabBarView(
-        controller: _tab,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          const _ReceiverTab(),
-          _SenderTab(initialPlayer: widget.initialPlayer),
-        ],
-      ),
-        ),
-      ),
+        );
+      },
+    );
+
+    return Scaffold(
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: Text(context.l10n.syncTitle),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(kTextTabBarHeight),
+                child: tabs,
+              ),
+            ),
+      body: widget.embedded
+          ? Column(children: [tabs, Expanded(child: body)])
+          : body,
     );
   }
 }
@@ -253,7 +283,13 @@ class _SyncScreenState extends State<SyncScreen>
 /// transport the resulting payload calls for.
 class _SenderTab extends StatefulWidget {
   final Player? initialPlayer;
-  const _SenderTab({this.initialPlayer});
+
+  /// Whether this tab is the one on screen. A code nobody can see is not worth
+  /// encoding, and a server nobody can be handed the code to is not worth
+  /// keeping open.
+  final bool visible;
+
+  const _SenderTab({this.initialPlayer, this.visible = true});
 
   @override
   State<_SenderTab> createState() => _SenderTabState();
@@ -309,6 +345,21 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
         if (mounted) _prepare();
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant _SenderTab old) {
+    super.didUpdateWidget(old);
+    if (old.visible && !widget.visible) _hide();
+  }
+
+  /// Takes the transfer down when the tab is left: the code goes back to
+  /// waiting, and the server stops rather than sitting on a payload nobody can
+  /// still be given the code to.
+  void _hide() {
+    _frameTimer?.cancel();
+    if (_streaming) setState(() => _streaming = false);
+    if (_server.isRunning) _stopServer();
   }
 
   @override
@@ -436,6 +487,12 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
   void _startStreaming() {
     setState(() => _streaming = true);
     _startFrameLoop();
+  }
+
+  /// Puts the animated code back behind its glass.
+  void _stopStreaming() {
+    _frameTimer?.cancel();
+    setState(() => _streaming = false);
   }
 
   /// Drives the endless stream of fountain coded frames.
@@ -567,27 +624,31 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
 
     final transport = _buildTransportContent(l, cs, theme);
 
-    if (!syncTwoColumns(context)) {
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [...picker, const SizedBox(height: 12), transport],
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (!syncTwoColumns(box.maxWidth)) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [...picker, const SizedBox(height: 12), transport],
+          );
+        }
 
-    // On its side the code gets a column of its own, which is what keeps a
-    // tablet from scrolling to see the thing it is holding up to a camera.
-    return SidePaneLayout(
-      side: InputSide.left,
-      fraction: 0.45,
-      minPaneWidth: kMinPaneWidth,
-      primary: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-        children: picker,
-      ),
-      secondary: ListView(
-        padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-        children: [transport],
-      ),
+        // On its side the code gets a column of its own, which is what keeps a
+        // tablet from scrolling to see the thing it is holding up to a camera.
+        return SidePaneLayout(
+          side: InputSide.left,
+          fraction: 0.45,
+          minPaneWidth: kMinPaneWidth,
+          primary: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+            children: picker,
+          ),
+          secondary: ListView(
+            padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+            children: [transport],
+          ),
+        );
+      },
     );
   }
 
@@ -727,15 +788,19 @@ class _SenderTabState extends State<_SenderTab> with WidgetsBindingObserver {
 
     return Column(
       children: [
-        ValueListenableBuilder<int>(
-          valueListenable: _frameIndex,
-          builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+        // The code stops where it was started: on a tap on the code itself.
+        GestureDetector(
+          onTap: _stopStreaming,
+          child: ValueListenableBuilder<int>(
+            valueListenable: _frameIndex,
+            builder: (_, index, _) => _qrCard(_encoder!.frameAt(index)),
+          ),
         ),
         const SizedBox(height: 10),
         LinearProgressIndicator(borderRadius: BorderRadius.circular(4)),
         const SizedBox(height: 8),
         Text(
-          l.syncAnimatedHint,
+          l.syncStopStreamHint,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall
               ?.copyWith(color: cs.onSurfaceVariant),
@@ -981,34 +1046,38 @@ class _ReceiverTabState extends State<_ReceiverTab> {
       );
     }
 
-    if (!syncTwoColumns(context)) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ...about,
-            const SizedBox(height: 16),
-            if (_scanning || _fetching) Expanded(child: stage) else stage,
-          ],
-        ),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (!syncTwoColumns(box.maxWidth)) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...about,
+                const SizedBox(height: 16),
+                if (_scanning || _fetching) Expanded(child: stage) else stage,
+              ],
+            ),
+          );
+        }
 
-    // On its side the camera takes a column of its own, so it is a picture to
-    // aim rather than a strip down the middle of the screen.
-    return SidePaneLayout(
-      side: InputSide.left,
-      fraction: 0.55,
-      minPaneWidth: kMinPaneWidth,
-      primary: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-        child: stage,
-      ),
-      secondary: ListView(
-        padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-        children: about,
-      ),
+        // On its side the camera takes a column of its own, so it is a picture
+        // to aim rather than a strip down the middle of the screen.
+        return SidePaneLayout(
+          side: InputSide.left,
+          fraction: 0.55,
+          minPaneWidth: kMinPaneWidth,
+          primary: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+            child: stage,
+          ),
+          secondary: ListView(
+            padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+            children: about,
+          ),
+        );
+      },
     );
   }
 

@@ -189,6 +189,49 @@ void main() {
       expect(identical(code(tester), before), isFalse);
     });
 
+    testWidgets('stops again when the code itself is tapped', (tester) async {
+      await pumpSync(tester, initial: player);
+      await startStream(tester);
+      final running = code(tester);
+      await letFramesRun(tester);
+      expect(identical(code(tester), running), isFalse);
+
+      await tester.tap(find.byType(QrImageView));
+      await tester.pump();
+      final stopped = code(tester);
+      await letFramesRun(tester);
+
+      expect(identical(code(tester), stopped), isTrue);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
+    testWidgets('stops when the tab is left', (tester) async {
+      await pumpSync(tester, initial: player);
+      await startStream(tester);
+
+      // Bounded pumps rather than a settle: a running code ticks ten times a
+      // second, so nothing settles until it has been stopped.
+      await tester.tap(find.text('Receive'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Coming back re-reads the history, which is real I/O the fake clock
+      // never gets to on its own.
+      for (var i = 0; i < 60; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump();
+        if (find.byType(QrImageView).evaluate().isNotEmpty) break;
+      }
+
+      // A code nobody can see keeps no loop running: it is back behind its
+      // glass, waiting to be started again.
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
     testWidgets('stops advancing once the app goes to the background',
         (tester) async {
       await pumpSync(tester, initial: player);
