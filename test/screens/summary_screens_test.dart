@@ -83,6 +83,29 @@ void main() {
       expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
     });
 
+    testWidgets('offers the way home and the way into the next game at the '
+        'bottom, outside the card it shares', (tester) async {
+      await pumpSummary(tester);
+
+      // Both stand on the bar under the summary rather than in the middle of
+      // it, and neither is part of the image the screen exports.
+      final home = tester.getRect(find.text('Back to Main Menu'));
+      final again = tester.getRect(find.text('Play Again'));
+      expect(again.left, greaterThan(home.right));
+      expect(home.top,
+          greaterThan(tester.getRect(find.text('All Throws')).top));
+
+      final captured = find
+          .ancestor(
+            of: find.text('🎯 Ada wins!'),
+            matching: find.byWidgetPredicate(
+                (w) => w is RepaintBoundary && w.key is GlobalKey),
+          )
+          .first;
+      expect(find.descendant(of: captured, matching: find.text('Play Again')),
+          findsNothing);
+    });
+
     testWidgets('keeps the shared card whole beside the throw log on a tablet',
         (tester) async {
       usePhoneSurface(tester, size: const Size(1180, 820));
@@ -115,6 +138,51 @@ void main() {
         find.descendant(of: captured, matching: find.text('All Throws')),
         findsNothing,
       );
+    });
+  });
+
+  // ── X01, checked out in the fewest darts there are ────────────────────────
+
+  group('the X01 summary of a perfect leg', () {
+    useInMemoryDatabase();
+
+    late GameProvider provider;
+
+    setUp(() async {
+      provider = GameProvider();
+      final players = await insertPlayers(['Ada', 'Zoe']);
+      await provider.startGame(
+        Game(
+          startScore:    101,
+          legs:          1,
+          sets:          1,
+          createdAt:     DateTime(2026, 4, 1),
+          startingOrder: StartingOrder.fixed,
+        ),
+        players,
+      );
+      // 101 in two darts, which is the fewest 101 can be checked out in:
+      // T17 leaves 50, and the bull is a double.
+      await provider.tapField(17, 3);
+      await provider.tapField(25, 2);
+    });
+
+    testWidgets('pins the honour to the card of whoever threw it',
+        (tester) async {
+      usePhoneSurface(tester, size: const Size(400, 2400));
+      await tester.pumpWidget(
+          testApp(const GameSummaryScreen(), game: provider));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2-Darter'), findsOneWidget);
+      // In the header of Ada's card, beside her name, not in a band of its own
+      // under the winner.
+      final card = find.ancestor(
+        of: find.text('2-Darter'),
+        matching: find.byType(SummaryPlayerCard),
+      );
+      expect(card, findsOneWidget);
+      expect(tester.widget<SummaryPlayerCard>(card).name, 'Ada');
     });
   });
 

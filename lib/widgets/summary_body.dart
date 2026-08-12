@@ -19,9 +19,11 @@ class SummaryBody extends StatelessWidget {
   /// beside them, which is the longer of the two columns.
   final List<Widget> details;
 
-  /// The way back out. Under both columns rather than at the end of one,
-  /// because two columns that scroll on their own have no shared end.
-  final Widget footer;
+  /// What the screen offers once the game is read: the way home and the way
+  /// into the next game. They stand side by side on a bar of their own, which
+  /// stays put while everything above it scrolls, so the two things a player
+  /// reaches for are never a page away.
+  final List<Widget> actions;
 
   /// Padding above and below the columns. X01 sits closer to its app bar than
   /// the three modes whose summary opens on a winner banner.
@@ -32,7 +34,7 @@ class SummaryBody extends StatelessWidget {
     super.key,
     required this.result,
     required this.details,
-    required this.footer,
+    required this.actions,
     this.top = 16,
     this.bottom = 16,
   });
@@ -40,53 +42,81 @@ class SummaryBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-
-    if (!isTabletLayout(context) ||
-        !fitsTwoPanes(width, kMinSummaryPaneWidth)) {
-      return ListView(
-        padding: contentPadding(context, top: top, bottom: bottom, innerH: 16),
-        children: [
-          ...result,
-          const SizedBox(height: 16),
-          ...details,
-          const SizedBox(height: 24),
-          footer,
-        ],
-      );
-    }
+    final twoColumns = isTabletLayout(context) &&
+        fitsTwoPanes(width, kMinSummaryPaneWidth);
 
     return Column(
       children: [
         Expanded(
-          child: SidePaneLayout(
-            side: InputSide.left,
-            minPaneWidth: kMinSummaryPaneWidth,
-            primary: ListView(
-              padding: EdgeInsets.fromLTRB(16, top, 8, bottom),
-              children: result,
-            ),
-            secondary: ListView(
-              padding: EdgeInsets.fromLTRB(8, top, 16, bottom),
-              children: details,
-            ),
-          ),
+          child: twoColumns
+              ? SidePaneLayout(
+                  side: InputSide.left,
+                  minPaneWidth: kMinSummaryPaneWidth,
+                  primary: ListView(
+                    padding: EdgeInsets.fromLTRB(16, top, 8, bottom),
+                    children: result,
+                  ),
+                  secondary: ListView(
+                    padding: EdgeInsets.fromLTRB(8, top, 16, bottom),
+                    children: details,
+                  ),
+                )
+              : ListView(
+                  padding:
+                      contentPadding(context, top: top, bottom: bottom, innerH: 16),
+                  children: [
+                    ...result,
+                    const SizedBox(height: 16),
+                    ...details,
+                  ],
+                ),
         ),
-        Material(
-          color: Theme.of(context).colorScheme.surface,
-          elevation: 3,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              // The button keeps a width it can be read as a button at rather
-              // than the width of the room.
-              child: Center(
-                child: SizedBox(width: kMinSummaryPaneWidth, child: footer),
+        _ActionBar(actions: actions),
+      ],
+    );
+  }
+}
+
+/// The bar the summary ends on: the same background as the page it sits under,
+/// parted from it by a hairline rather than by a shadow, because it is where
+/// the page stops rather than something laid over it.
+class _ActionBar extends StatelessWidget {
+  final List<Widget> actions;
+
+  const _ActionBar({required this.actions});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Center(
+            // Side by side and equally wide, and no wider together than they
+            // can still be read as two buttons rather than as a toolbar.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Row(
+                children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 12),
+                    Expanded(child: actions[i]),
+                  ],
+                ],
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

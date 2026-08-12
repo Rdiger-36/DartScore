@@ -17,7 +17,10 @@ void main() {
         body: SummaryBody(
           result:  const [Card(child: SizedBox(height: 200, child: Text('won'))) ],
           details: const [Card(child: SizedBox(height: 200, child: Text('numbers')))],
-          footer:  FilledButton(onPressed: () {}, child: const Text('home')),
+          actions: [
+            FilledButton(onPressed: () {}, child: const Text('home')),
+            FilledButton(onPressed: () {}, child: const Text('again')),
+          ],
         ),
       )));
       await tester.pumpAndSettle();
@@ -30,8 +33,12 @@ void main() {
       expect(find.byKey(kPaneDividerKey), findsNothing);
       expect(tester.getRect(find.text('won')).bottom,
           lessThan(tester.getRect(find.text('numbers')).top));
+      // The way out sits under everything, on a bar of its own that the
+      // content scrolls behind rather than into.
       expect(tester.getRect(find.text('numbers')).bottom,
           lessThan(tester.getRect(find.text('home')).top));
+      expect(tester.getRect(find.text('again')).left,
+          greaterThan(tester.getRect(find.text('home')).right));
     });
 
     testWidgets('stays one column on a tablet held upright', (tester) async {
@@ -53,13 +60,16 @@ void main() {
           greaterThan(tester.getRect(find.text('won')).right));
 
       // Under both: below whichever column reaches furthest down.
-      final button = tester.getRect(find.text('home'));
+      final home  = tester.getRect(find.text('home'));
+      final again = tester.getRect(find.text('again'));
       for (final column in tester.widgetList(find.byType(ListView))) {
-        expect(button.top,
+        expect(home.top,
             greaterThan(tester.getRect(find.byWidget(column)).bottom));
       }
-      // And centred, rather than stretched across the whole window.
-      expect(button.center.dx, closeTo(1180 / 2, 8));
+      // Side by side, and the pair centred rather than stretched across the
+      // whole window.
+      expect(again.left, greaterThan(home.right));
+      expect((home.left + again.right) / 2, closeTo(1180 / 2, 12));
     });
   });
 }

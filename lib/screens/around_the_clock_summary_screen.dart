@@ -69,29 +69,6 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
             const SizedBox(height: 20),
           ],
 
-          // ── Rematch ──────────────────────────────────────────────────────
-          RematchButton(
-            modeName: l.modeAroundClockName,
-            details: [
-              (
-                l.aroundClockVariant,
-                aroundTheClockVariantLabel(l, provider.game!.variant)
-              ),
-            ],
-            slots: states
-                .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(s.displayName,
-                        s.players.map((p) => RematchSlot.player(p.name)).toList())
-                    : RematchSlot.player(s.displayName))
-                .toList(),
-            onRematch: () => provider.startRematch(
-              provider.game!,
-              states.expand((s) => s.players).toList(),
-            ),
-            destination: (_) => const AroundTheClockScreen(),
-          ),
-          const SizedBox(height: 20),
-
           // ── Game info ────────────────────────────────────────────────────
           GameInfoCard(rows: [
             (l.gameLabel, l.modeAroundClockName),
@@ -174,15 +151,37 @@ class AroundTheClockSummaryScreen extends StatelessWidget {
             ),
           ),
         ],
-        footer: FilledButton.icon(
-          onPressed: () =>
-              Navigator.popUntil(context, (route) => route.isFirst),
-          icon: const Icon(Icons.home_rounded),
-          label: Text(l.backToHome),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+        actions: [
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.popUntil(context, (route) => route.isFirst),
+            icon: const Icon(Icons.home_rounded),
+            label: Text(l.backToHome),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
           ),
-        ),
+          RematchButton(
+            modeName: l.modeAroundClockName,
+            details: [
+              (
+                l.aroundClockVariant,
+                aroundTheClockVariantLabel(l, provider.game!.variant)
+              ),
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              provider.game!,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const AroundTheClockScreen(),
+          ),
+        ],
       ),
     );
   }
