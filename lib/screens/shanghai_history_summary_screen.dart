@@ -9,6 +9,7 @@ import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'shanghai_screen.dart';
 
 /// Detailed view of a finished Shanghai game from history, rebuilt by replaying
@@ -127,7 +128,23 @@ class _Body extends StatelessWidget {
         return b.score.compareTo(a.score);
       });
 
-    return ListView(
+    final rematch = RematchButton(
+      modeName: l.modeShanghaiName,
+      details: [
+        (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
+      ],
+      slots: states
+          .map((s) => s.isTeamSlot
+              ? RematchSlot.team(s.displayName,
+                  s.players.map((p) => RematchSlot.player(p.name)).toList())
+              : RematchSlot.player(s.displayName))
+          .toList(),
+      onRematch: () =>
+          context.read<ShanghaiProvider>().startRematch(game, players),
+      destination: (_) => const ShanghaiScreen(),
+    );
+
+    final list = ListView(
       // Fixed rather than measured: on a tablet this screen is rendered inside
       // a pane, and contentPadding measures the window, so it would put the
       // margin of a whole screen on either side of half of one.
@@ -170,22 +187,6 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
-        RematchButton(
-          modeName: l.modeShanghaiName,
-          details: [
-            (l.shanghaiVariant, shanghaiVariantLabel(l, game.variant)),
-          ],
-          slots: states
-              .map((s) => s.isTeamSlot
-                  ? RematchSlot.team(s.displayName,
-                      s.players.map((p) => RematchSlot.player(p.name)).toList())
-                  : RematchSlot.player(s.displayName))
-              .toList(),
-          onRematch: () =>
-              context.read<ShanghaiProvider>().startRematch(game, players),
-          destination: (_) => const ShanghaiScreen(),
-        ),
-        const SizedBox(height: 16),
 
         Card(
           child: Padding(
@@ -251,6 +252,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

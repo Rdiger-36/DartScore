@@ -9,6 +9,7 @@ import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
+import '../widgets/summary_body.dart';
 import 'around_the_clock_screen.dart';
 
 /// Detailed view of a finished Around the Clock game from history, rebuilt by
@@ -125,7 +126,24 @@ class _Body extends StatelessWidget {
         return b.progress.compareTo(a.progress);
       });
 
-    return ListView(
+    final rematch = RematchButton(
+      modeName: l.modeAroundClockName,
+      details: [
+        (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
+      ],
+      slots: states
+          .map((s) => s.isTeamSlot
+              ? RematchSlot.team(s.displayName,
+                  s.players.map((p) => RematchSlot.player(p.name)).toList())
+              : RematchSlot.player(s.displayName))
+          .toList(),
+      onRematch: () => context
+          .read<AroundTheClockProvider>()
+          .startRematch(game, players),
+      destination: (_) => const AroundTheClockScreen(),
+    );
+
+    final list = ListView(
       // Fixed rather than measured: on a tablet this screen is rendered inside
       // a pane, and contentPadding measures the window, so it would put the
       // margin of a whole screen on either side of half of one.
@@ -168,23 +186,6 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 16),
 
         // ── Rematch ────────────────────────────────────────────────────────
-        RematchButton(
-          modeName: l.modeAroundClockName,
-          details: [
-            (l.aroundClockVariant, aroundTheClockVariantLabel(l, game.variant)),
-          ],
-          slots: states
-              .map((s) => s.isTeamSlot
-                  ? RematchSlot.team(s.displayName,
-                      s.players.map((p) => RematchSlot.player(p.name)).toList())
-                  : RematchSlot.player(s.displayName))
-              .toList(),
-          onRematch: () => context
-              .read<AroundTheClockProvider>()
-              .startRematch(game, players),
-          destination: (_) => const AroundTheClockScreen(),
-        ),
-        const SizedBox(height: 16),
 
         Card(
           child: Padding(
@@ -247,6 +248,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+
+    return Column(
+      children: [
+        Expanded(child: list),
+        SummaryActionBar(actions: [rematch]),
       ],
     );
   }

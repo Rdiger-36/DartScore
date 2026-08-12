@@ -71,23 +71,31 @@ class SummaryBody extends StatelessWidget {
                   ],
                 ),
         ),
-        _ActionBar(actions: actions),
+        SummaryActionBar(actions: actions),
       ],
     );
   }
 }
 
-/// The bar the summary ends on: the same background as the page it sits under,
+/// The bar a summary ends on: the same background as the page it sits under,
 /// parted from it by a hairline rather than by a shadow, because it is where
 /// the page stops rather than something laid over it.
-class _ActionBar extends StatelessWidget {
+///
+/// Used on its own by the history details, which have one thing to offer
+/// rather than two but end the same way.
+class SummaryActionBar extends StatelessWidget {
+  /// The buttons, side by side and equally wide.
   final List<Widget> actions;
 
-  const _ActionBar({required this.actions});
+  const SummaryActionBar({super.key, required this.actions});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The home indicator sits under the bar and is padded around below the
+    // buttons, so the same amount goes above them: what should read as one gap
+    // on either side is otherwise a third of it on top.
+    final inset = MediaQuery.paddingOf(context).bottom;
 
     return Container(
       decoration: BoxDecoration(
@@ -99,7 +107,7 @@ class _ActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: EdgeInsets.fromLTRB(16, 12 + inset, 16, 12),
           child: Center(
             // Side by side and equally wide, and no wider together than they
             // can still be read as two buttons rather than as a toolbar.
