@@ -72,30 +72,6 @@ class CricketSummaryScreen extends StatelessWidget {
             const SizedBox(height: 20),
           ],
 
-          // ── Rematch ──────────────────────────────────────────────────────
-          RematchButton(
-            modeName: l.modeCricketName,
-            details: [
-              (l.cricketVariant, cricketVariantLabel(l, game.variant)),
-              (
-                l.cricketScoringMode,
-                cricketScoringModeLabel(l, game.scoringMode)
-              ),
-            ],
-            slots: states
-                .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(s.displayName,
-                        s.players.map((p) => RematchSlot.player(p.name)).toList())
-                    : RematchSlot.player(s.displayName))
-                .toList(),
-            onRematch: () => provider.startRematch(
-              game,
-              states.expand((s) => s.players).toList(),
-            ),
-            destination: (_) => const CricketScreen(),
-          ),
-          const SizedBox(height: 20),
-
           // ── Game info ────────────────────────────────────────────────────
           GameInfoCard(rows: [
             (l.gameLabel, l.modeCricketName),
@@ -258,15 +234,38 @@ class CricketSummaryScreen extends StatelessWidget {
             ),
           ),
         ],
-        footer: FilledButton.icon(
-          onPressed: () =>
-              Navigator.popUntil(context, (route) => route.isFirst),
-          icon: const Icon(Icons.home_rounded),
-          label: Text(l.backToHome),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+        actions: [
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.popUntil(context, (route) => route.isFirst),
+            icon: const Icon(Icons.home_rounded),
+            label: Text(l.backToHome),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
           ),
-        ),
+          RematchButton(
+            modeName: l.modeCricketName,
+            details: [
+              (l.cricketVariant, cricketVariantLabel(l, game.variant)),
+              (
+                l.cricketScoringMode,
+                cricketScoringModeLabel(l, game.scoringMode)
+              ),
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(s.displayName,
+                        s.players.map((p) => RematchSlot.player(p.name)).toList())
+                    : RematchSlot.player(s.displayName))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              game,
+              states.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const CricketScreen(),
+          ),
+        ],
       ),
     );
   }

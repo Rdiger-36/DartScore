@@ -29,13 +29,18 @@ class GameSummaryScreen extends StatefulWidget {
 
 class _GameSummaryScreenState extends State<GameSummaryScreen> {
   final _cardKey = GlobalKey();
+
+  /// The share button itself, because iPadOS anchors the share sheet to a
+  /// rectangle on screen and refuses the call without one.
+  final _shareKey = GlobalKey();
+
   bool _saving = false;
 
   /// Rasterizes the result card widget to a high-resolution image.
   ///
-  /// Waits for the pending frame first: callers set [_saving] before rendering,
-  /// which hides the rematch button inside the captured area, and that frame
-  /// must be laid out and painted before the boundary is grabbed.
+  /// Waits for the pending frame first: setting [_saving] swaps the export
+  /// actions for a spinner, and that frame must be laid out and painted before
+  /// the boundary is grabbed.
   Future<ui.Image> _renderCard() async {
     await WidgetsBinding.instance.endOfFrame;
     final ctx = _cardKey.currentContext;
@@ -68,8 +73,21 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     }
   }
 
+  /// Where the share sheet should point on a tablet.
+  ///
+  /// On an iPad the sheet is a popover that has to be anchored to something,
+  /// and share_plus reports an error rather than opening without an anchor,
+  /// which is why sharing did nothing there. Read before the spinner replaces
+  /// the button, or there is nothing left to measure.
+  Rect? _shareOrigin() {
+    final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
   /// Renders the result card to a temporary PNG and opens the share sheet.
   Future<void> _shareCard() async {
+    final origin = _shareOrigin();
     setState(() => _saving = true);
     final shareSubject = context.l10n.shareSubject;
     try {
@@ -79,7 +97,11 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
       final file = File('${tmp.path}/dartscore_ergebnis.png');
       await file.writeAsBytes(bytes!.buffer.asUint8List());
       await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], subject: shareSubject),
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: shareSubject,
+          sharePositionOrigin: origin,
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -101,6 +123,12 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     );
     final cs = Theme.of(context).colorScheme;
     final l = context.l10n;
+    // What a leg checked out in the fewest darts the start score allows is
+    // called, for the card of whoever managed one.
+    final minDarts = minimumDartsForScore[provider.game!.startScore];
+    final perfectLabel =
+        minDarts == 9 ? l.nineDarter : l.perfectGameLabel(minDarts ?? 0);
+
     // Name of every player in the game, keyed by id, for the throw log.
     final throwerNames = {
       for (final s in states)
@@ -127,6 +155,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               onPressed: _saveToPhotos,
             ),
             IconButton(
+              key: _shareKey,
               icon: const Icon(Icons.ios_share_rounded),
               tooltip: l.share,
               onPressed: _shareCard,
@@ -171,104 +200,6 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                       ],
                     ),
                   ),
-                  // Perfect game badges
-                  ...states.where((s) => s.perfectLegs > 0).map((s) {
-                    final minDarts =
-                        minimumDartsForScore[provider.game!.startScore];
-                    final label = minDarts == 9
-                        ? l.nineDarter
-                        : l.perfectGameLabel(minDarts ?? 0);
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                            cs.tertiary,
-                            cs.tertiary.withValues(alpha: 0.7),
-                          ]),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.star_rounded,
-                                color: Colors.white, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${s.player.name}: $label! 🏆',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  // Rematch: hidden while the card is captured so it never
-                  // shows up in the saved/shared result image.
-                  if (!_saving) ...[
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: RematchButton(
-                        modeName: l.modeX01Name,
-                        details: [
-                          (
-                            l.matchFormat,
-                            provider.game!.placementMode
-                                ? l.placementMode
-                                : l.standardMode
-                          ),
-                          (
-                            l.gameMode_,
-                            l.gameSummaryInfo(
-                              provider.game!.startScore,
-                              provider.game!.legs,
-                              provider.game!.sets,
-                              placementMode: provider.game!.placementMode,
-                            )
-                          ),
-                          // With handicaps the game defaults say little, so the
-                          // per-player rows below carry the rules instead.
-                          if (!provider.game!.hasHandicaps) ...[
-                            (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
-                            (
-                              l.checkOut,
-                              checkOutLabel(l, provider.game!.checkoutMode)
-                            ),
-                          ],
-                        ],
-                        slots: states
-                            .map((s) => s.isTeamSlot
-                                ? RematchSlot.team(
-                                    s.displayName,
-                                    s.players
-                                        .map((p) => RematchSlot.player(p.name,
-                                            rules: handicapRulesLabel(
-                                                l, provider.game!, p.id)))
-                                        .toList())
-                                : RematchSlot.player(
-                                    s.displayName,
-                                    rules: handicapRulesLabel(
-                                        l, provider.game!, s.player.id),
-                                  ))
-                            .toList(),
-                        onRematch: () => provider.startRematch(
-                          provider.game!,
-                          provider.playerStates
-                              .expand((s) => s.players)
-                              .toList(),
-                        ),
-                        destination: (_) => const GameScreen(),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
                   // What the game was played with, so the saved or shared card
                   // carries its settings too.
                   GameInfoCard(rows: [
@@ -332,6 +263,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
                                   (p.name, throwsOfPlayer(s.throws, p.id ?? -1)),
                               ]
                             : const [],
+                        badge: s.perfectLegs > 0 ? perfectLabel : null,
                       )),
                 ],
               ),
@@ -349,12 +281,62 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             showSet: provider.game!.sets > 1,
           ),
         ],
-        footer: FilledButton(
-          onPressed: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-          },
-          child: Text(l.backToHome),
-        ),
+        actions: [
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            icon: const Icon(Icons.home_rounded),
+            label: Text(l.backToHome),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+          RematchButton(
+            modeName: l.modeX01Name,
+            details: [
+              (
+                l.matchFormat,
+                provider.game!.placementMode ? l.placementMode : l.standardMode
+              ),
+              (
+                l.gameMode_,
+                l.gameSummaryInfo(
+                  provider.game!.startScore,
+                  provider.game!.legs,
+                  provider.game!.sets,
+                  placementMode: provider.game!.placementMode,
+                )
+              ),
+              // With handicaps the game defaults say little, so the per-player
+              // rows of the summary carry the rules instead.
+              if (!provider.game!.hasHandicaps) ...[
+                (l.checkIn, checkInLabel(l, provider.game!.gameMode)),
+                (l.checkOut, checkOutLabel(l, provider.game!.checkoutMode)),
+              ],
+            ],
+            slots: states
+                .map((s) => s.isTeamSlot
+                    ? RematchSlot.team(
+                        s.displayName,
+                        s.players
+                            .map((p) => RematchSlot.player(p.name,
+                                rules: handicapRulesLabel(
+                                    l, provider.game!, p.id)))
+                            .toList())
+                    : RematchSlot.player(
+                        s.displayName,
+                        rules: handicapRulesLabel(
+                            l, provider.game!, s.player.id),
+                      ))
+                .toList(),
+            onRematch: () => provider.startRematch(
+              provider.game!,
+              provider.playerStates.expand((s) => s.players).toList(),
+            ),
+            destination: (_) => const GameScreen(),
+          ),
+        ],
       ),
     );
   }
