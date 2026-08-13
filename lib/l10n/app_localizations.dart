@@ -352,14 +352,13 @@ class AppLocalizations {
 
   // ── Settings ─────────────────────────────────────────────────────────────
   String get settingsTitle     => _t('Settings', 'Einstellungen');
+  String get displaySection    => _t('Display', 'Darstellung');
+  String get appSection        => _t('App', 'App');
   String get language          => _t('Language', 'Sprache');
-  String get appearance        => _t('Appearance', 'Erscheinungsbild');
+  String get theme             => _t('Theme', 'Design');
   String get system            => _t('System', 'System');
-  String get systemDesc        => _t('Follows System setting', 'Folgt der System-Einstellung');
   String get light             => _t('Light', 'Hell');
-  String get lightDesc         => _t('Always light theme', 'Immer helles Design');
   String get dark              => _t('Dark', 'Dunkel');
-  String get darkDesc          => _t('Always dark theme', 'Immer dunkles Design');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',
@@ -393,7 +392,8 @@ class AppLocalizations {
       'Deine Unterstützung bedeutet mir viel und hilft dabei, DartScore für alle kostenlos zu halten.');
 
   // ── About ────────────────────────────────────────────────────────────────
-  String get about             => _t('About', 'Info');
+  String get about             => _t('About', 'Über die App');
+  String get aboutDesc         => _t('Version, license, project', 'Version, Lizenz, Projekt');
   String get aboutTitle        => _t('About DartScore', 'Über DartScore');
   String get version           => _t('Version', 'Version');
   String get developer         => _t('Developer', 'Entwickler');
@@ -542,10 +542,8 @@ class AppLocalizations {
 
   // ── Backup ────────────────────────────────────────────────────────────────
   String get backupTitle       => _t('Backup', 'Sicherung');
-  String get backupSection     => _t('Data', 'Daten');
   String get backupSectionDesc =>
-      _t('Back up everything to a file, or restore it',
-         'Alles in eine Datei sichern oder wiederherstellen');
+      _t('Back up and restore', 'Sichern und wiederherstellen');
   String get backupCreate      => _t('Create backup', 'Sicherung erstellen');
   String get backupCreateDesc  =>
       _t('Writes all players, games and throws into one file',
