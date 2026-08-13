@@ -167,7 +167,7 @@ class _BackupScreenState extends State<BackupScreen> {
               const SizedBox(height: 14),
               Text(l.backupRestoreWarn),
               const SizedBox(height: 10),
-              Text(l.backupDeviceWarn,
+              Text(l.backupDeviceNote,
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ],
           ),

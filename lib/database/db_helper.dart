@@ -1583,6 +1583,68 @@ class DbHelper {
     }
   }
 
+  /// Re-files everything a just-restored database called its own as [source]'s.
+  ///
+  /// A game played on a device carries no device id at all: `origin_device` is
+  /// null, and null means "mine". So a database restored onto a different phone
+  /// arrives claiming a history that phone never played, and both devices then
+  /// hold the same games as their own. That is what makes a plain copy a
+  /// one-way door: two devices claiming one history cannot sync, because each
+  /// would take the other's copy of it for a second one.
+  ///
+  /// Stamping the source's id onto it says what is actually true, and the rest
+  /// follows from rules that already exist: the two go on syncing, throws
+  /// deduplicate on their timestamps, and a third device sees those games once,
+  /// under the device that played them, whichever of the two hands them over.
+  ///
+  /// Only ever for a backup from another device. Restoring one's own on the
+  /// same phone must leave it alone, or the history loses what only a device's
+  /// own games carry through a sync: the perfect legs, the best game average
+  /// and the games played.
+  Future<void> attributeRestoredHistory(String source) async {
+    final d = await db;
+
+    await d.update('games', {'origin_device': source},
+        where: 'origin_device IS NULL');
+
+    // The snapshot on the player row means "this device's own cleared games",
+    // so it has to move into the source's bucket with everything else. Merged
+    // rather than overwritten: a backup can already hold a snapshot for the
+    // source device if it once received data back from it.
+    final players = await d.query('players',
+        columns: ['id', 'local_stats_json'],
+        where: "local_stats_json IS NOT NULL AND local_stats_json != ''");
+
+    for (final row in players) {
+      final playerId = row['id'] as int;
+      final own = row['local_stats_json'] as String;
+
+      final existing = await d.query('player_origin_stats',
+          columns: ['snapshot_json'],
+          where: 'player_id = ? AND origin_device = ?',
+          whereArgs: [playerId, source]);
+
+      final merged = mergeSnapshots([
+        own,
+        if (existing.isNotEmpty) existing.first['snapshot_json'] as String,
+      ]);
+
+      if (merged != null) {
+        await d.insert(
+          'player_origin_stats',
+          {
+            'player_id':     playerId,
+            'origin_device': source,
+            'snapshot_json': merged,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await d.update('players', {'local_stats_json': null},
+          where: 'id = ?', whereArgs: [playerId]);
+    }
+  }
+
   /// Replaces the live database with the file at [sourcePath] and reopens it,
   /// running whatever migration the restored file still needs.
   ///
