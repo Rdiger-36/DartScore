@@ -344,7 +344,7 @@ class _BackupScreenState extends State<BackupScreen> {
         ),
         const SizedBox(height: 20),
         FilledButton(
-          onPressed: _leaveMode,
+          onPressed: _finishToHome,
           style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16)),
           child: Text(l.done),
@@ -681,6 +681,14 @@ class _BackupScreenState extends State<BackupScreen> {
     );
     return ok ?? false;
   }
+
+  /// Leaves the backup screen altogether, back to where the user started.
+  ///
+  /// The transfer is over and there is nothing left to do here, so the way out
+  /// is one tap rather than a walk back up through the settings. The server is
+  /// shut down by [dispose] on the way.
+  void _finishToHome() =>
+      Navigator.of(context).popUntil((route) => route.isFirst);
 
   /// Back to the two entries, shutting down whatever the mode was running.
   Future<void> _leaveMode() async {
