@@ -68,12 +68,13 @@ void main() {
     /// returns on, and awaiting one there hangs the test rather than failing
     /// it.
     Future<String> backupOf(WidgetTester tester, List<String> names,
-        {String? thenAdd}) async {
+        {String? thenAdd, String device = 'iPhone'}) async {
       return (await tester.runAsync(() async {
         for (final name in names) {
           await DbHelper.instance.insertPlayer(Player(name: name));
         }
-        final source = await DbHelper.instance.prepareBackup('DEVICEAAAA000001', 'iPhone');
+        final source =
+            await DbHelper.instance.prepareBackup('DEVICEAAAA000001', device);
         final path = '${dir.path}/backup.db';
         await File(source).copy(path);
         if (thenAdd != null) {
@@ -139,6 +140,34 @@ void main() {
       expect(find.text('iPhone'), findsOneWidget, reason: 'the device it came from');
       expect(find.textContaining('cannot be undone'), findsWidgets);
       expect(find.textContaining('stay filed under the device'), findsOneWidget);
+    });
+
+    testWidgets('has room for a device that names itself in full',
+        (tester) async {
+      // The label names the device and its operating system now, not just
+      // "iPhone", so this row has to hold a good deal more than it used to.
+      // On a narrow phone, which is where it runs out of room.
+      const device = "Niklas' iPhone 15 Pro Max (iOS 18.5)";
+      usePhoneSurface(tester, size: const Size(360, 800));
+      pickedPath =
+          await backupOf(tester, ['Ann'], thenAdd: 'Later', device: device);
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      expect(find.text(device), findsOneWidget);
+
+      // Measured rather than left to an overflow error, because there is none
+      // to catch: the row sits in a box that lets it grow, so a value too long
+      // for the dialog is quietly cut off at the edge instead of reported. Laid
+      // out behind a Spacer this text takes 513 logical pixels on a 360 pixel
+      // screen, and everything past the edge is simply not there for the user.
+      final dialog = tester.getSize(find.ancestor(
+          of: find.text('Restore backup?'), matching: find.byType(AlertDialog)));
+      expect(tester.getSize(find.text(device)).width,
+          lessThanOrEqualTo(dialog.width),
+          reason: 'the device name has to fit the dialog that shows it');
     });
 
     testWidgets('changes nothing when the question is declined', (tester) async {
