@@ -305,19 +305,24 @@ class _BackupScreenState extends State<BackupScreen> {
               onTap: () => Navigator.pop(ctx, value),
             );
 
-        return AlertDialog(
-          title: Text(title),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [option(first, true), option(second, false)],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(ctx.l10n.cancel),
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+            child: AlertDialog(
+              title: Text(title),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [option(first, true), option(second, false)],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(ctx.l10n.cancel),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -649,33 +654,49 @@ class _BackupScreenState extends State<BackupScreen> {
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text(l.backupRestoreQ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _summaryCard(l, info, title: l.backupIncomingTitle),
-                const SizedBox(height: 14),
-                Text(l.backupRestoreWarn),
-                const SizedBox(height: 10),
-                Text(l.backupDeviceNote,
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        // Bounded like every dialog in the sync screen: an AlertDialog left to
+        // itself takes the width it is offered, which on a tablet is most of
+        // the screen for a few lines of text.
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+            child: AlertDialog(
+              title: Text(l.backupRestoreQ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _summaryCard(l, info, title: l.backupIncomingTitle),
+                    const SizedBox(height: 14),
+                    Text(l.backupRestoreWarn),
+                    const SizedBox(height: 10),
+                    Text(l.backupDeviceNote,
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(l.cancel),
+                ),
+                FilledButton(
+                  // Both halves of the pair, not just the background. A
+                  // FilledButton left to itself writes in onPrimary, which is
+                  // white in both themes, and the dark theme's error is a
+                  // light red that white barely shows up on.
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.error,
+                    foregroundColor: cs.onError,
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(l.backupRestore),
+                ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.cancel),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: cs.error),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.backupRestore),
-            ),
-          ],
         );
       },
     );
