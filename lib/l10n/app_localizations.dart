@@ -608,9 +608,23 @@ class AppLocalizations {
          'Spiele aus der Sicherung bleiben dem Gerät zugeordnet, auf dem sie gespielt wurden. Dieses und jenes Gerät können danach weiterhin synchronisieren.');
   String get backupRestored    => _t('Backup restored.', 'Sicherung wiederhergestellt.');
   String get backupUnknownDate => _t('Date unknown', 'Datum unbekannt');
-  String backupContents(int players, int games) =>
-      _t('$players player${players != 1 ? 's' : ''}, $games game${games != 1 ? 's' : ''}',
-         '$players ${players != 1 ? 'Spieler' : 'Spieler'}, $games ${games != 1 ? 'Spiele' : 'Spiel'}');
+  String get backupSaveFirstQ  =>
+      _t('Save the current data first?',
+         'Vorher die aktuellen Daten sichern?');
+  String get backupSaveFirst   => _t('Create a backup now', 'Jetzt eine Sicherung erstellen');
+  String get backupSaveFirstDesc =>
+      _t('The only way back if the restored data turns out to be the wrong one',
+         'Der einzige Weg zurück, falls die wiederhergestellten Daten die falschen sind');
+  String get backupContinueAnyway => _t('Continue', 'Weiter');
+  String get backupSourceHint  =>
+      _t('Where should the backup come from? You get to see what it holds before anything is replaced.',
+         'Woher soll die Sicherung kommen? Was sie enthält, siehst du, bevor irgendetwas ersetzt wird.');
+  String get backupOutgoingTitle => _t('Being handed over', 'Wird übergeben');
+  String get backupIncomingTitle => _t('This backup', 'Diese Sicherung');
+  String get backupWhen        => _t('Version of', 'Stand');
+  String get backupDevice      => _t('From', 'Von');
+  String get backupSize        => _t('Size', 'Größe');
+  String get backupGames       => _t('Games', 'Spiele');
 
   // ── Game Mode Selection ──────────────────────────────────────────────────
   String get selectGameMode       => _t('Select Game Mode', 'Spielmodus wählen');

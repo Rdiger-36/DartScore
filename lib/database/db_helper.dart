@@ -1513,12 +1513,13 @@ class DbHelper {
   /// mode the newest games sit in the companion `-wal` file, so a copy of
   /// `dartscore.db` alone silently misses them, and the resulting backup looks
   /// perfectly fine until someone needs it.
-  Future<String> prepareBackup(String deviceId) async {
+  Future<String> prepareBackup(String deviceId, String deviceLabel) async {
     final d = await db;
     final meta = {
-      'format':     kBackupMarker,
-      'device_id':  deviceId,
-      'created_at': '${DateTime.now().millisecondsSinceEpoch}',
+      'format':       kBackupMarker,
+      'device_id':    deviceId,
+      'device_label': deviceLabel,
+      'created_at':   '${DateTime.now().millisecondsSinceEpoch}',
     };
     for (final entry in meta.entries) {
       await d.insert('app_meta', {'key': entry.key, 'value': entry.value},
@@ -1568,13 +1569,15 @@ class DbHelper {
       return BackupInfo(
         schemaVersion: await file.getVersion(),
         deviceId:      meta['device_id'],
+        deviceLabel:   meta['device_label'],
         createdAt:     createdAt == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(createdAt),
         playerCount: Sqflite.firstIntValue(await file.rawQuery(
                 'SELECT COUNT(*) FROM players WHERE is_deleted = 0')) ??
             0,
-        gameCount: games,
+        gameCount:  games,
+        sizeBytes:  await File(path).length(),
       );
     } catch (_) {
       return null;
@@ -1683,6 +1686,49 @@ class DbHelper {
   }
 }
 
+/// What this device would hand over right now, for the screen that is about to
+/// offer it: the same summary a receiver reads out of the file, taken from the
+/// live database instead.
+///
+/// Read after [prepareBackup], so the markers it reports are the ones the file
+/// will carry.
+extension LocalBackupSummary on DbHelper {
+  Future<BackupInfo> describeLocal() async {
+    final d = await db;
+    final meta = {
+      for (final row in await d.query('app_meta'))
+        row['key'] as String: row['value'] as String,
+    };
+
+    var games = 0;
+    for (final table in [
+      'games',
+      'cricket_games',
+      'shanghai_games',
+      'around_the_clock_games',
+    ]) {
+      games +=
+          Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM $table')) ??
+              0;
+    }
+
+    final createdAt = int.tryParse(meta['created_at'] ?? '');
+    return BackupInfo(
+      schemaVersion: DbHelper.schemaVersion,
+      deviceId:      meta['device_id'],
+      deviceLabel:   meta['device_label'],
+      createdAt:     createdAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(createdAt),
+      playerCount: Sqflite.firstIntValue(await d.rawQuery(
+              'SELECT COUNT(*) FROM players WHERE is_deleted = 0')) ??
+          0,
+      gameCount: games,
+      sizeBytes: await File(await databasePath).length(),
+    );
+  }
+}
+
 /// What a candidate backup file was found to hold, read before a restore
 /// replaces anything.
 class BackupInfo {
@@ -1691,9 +1737,14 @@ class BackupInfo {
   /// that would explain the file do not exist in this build yet.
   final int schemaVersion;
 
-  /// Id of the device that wrote the backup, adopted on restore so the restored
-  /// history stays attributed to the device that played it.
+  /// Id of the device that wrote the backup. Stamped onto the restored history
+  /// when it lands on a different device, so it stays attributed to the one
+  /// that played it.
   final String? deviceId;
+
+  /// What that device calls itself, "iPhone" or "Android". For the user to
+  /// read, and nothing else: it says nothing about which device it was.
+  final String? deviceLabel;
 
   /// When the backup was written, or null for a file without the marker.
   final DateTime? createdAt;
@@ -1703,11 +1754,16 @@ class BackupInfo {
   final int playerCount;
   final int gameCount;
 
+  /// How large the file is, so the user knows what a transfer is in for.
+  final int sizeBytes;
+
   const BackupInfo({
     required this.schemaVersion,
     required this.deviceId,
+    required this.deviceLabel,
     required this.createdAt,
     required this.playerCount,
     required this.gameCount,
+    required this.sizeBytes,
   });
 }

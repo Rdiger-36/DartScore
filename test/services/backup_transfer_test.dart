@@ -60,7 +60,7 @@ void main() {
     await DbHelper.instance.insertPlayer(Player(name: 'Bob'));
 
     final connection = await server.start(
-      await BackupService.exportBytes(),
+      (await BackupService.exportBytes()).$1,
       twoWay: false,
       contentType: ContentType.binary,
       codePrefix: kBackupWifiPrefix,
@@ -91,7 +91,7 @@ void main() {
 
   test('nothing can be pushed back down the same connection', () async {
     final connection = await server.start(
-      await BackupService.exportBytes(),
+      (await BackupService.exportBytes()).$1,
       twoWay: false,
       codePrefix: kBackupWifiPrefix,
     );
@@ -113,7 +113,7 @@ void main() {
 
   test('a declined transfer hands over nothing', () async {
     final connection = await server.start(
-      await BackupService.exportBytes(),
+      (await BackupService.exportBytes()).$1,
       twoWay: false,
       codePrefix: kBackupWifiPrefix,
     );
@@ -132,7 +132,7 @@ void main() {
       final id = await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
       await seedThrows(id, 4000);
       return server.start(
-        await BackupService.exportBytes(),
+        (await BackupService.exportBytes()).$1,
         twoWay: false,
         contentType: ContentType.binary,
         codePrefix: kBackupWifiPrefix,
@@ -193,7 +193,7 @@ void main() {
       expect(server.progress.value, 1.0);
 
       await server.stop();
-      await server.start(await BackupService.exportBytes(), twoWay: false);
+      await server.start((await BackupService.exportBytes()).$1, twoWay: false);
 
       expect(server.progress.value, 0.0);
     });
