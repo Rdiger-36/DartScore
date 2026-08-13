@@ -34,8 +34,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(haptics, hasLength(1));
-    expect(haptics.single, contains('mediumImpact'),
-        reason: 'a "look here", not an alarm');
+    // The impact taps travel as an argument naming which one; the plain,
+    // strongest vibrate carries none. Anything else here means it was quietly
+    // softened back to a tap.
+    expect(haptics.single, 'null',
+        reason: 'the full vibrate, so it carries like a notification');
   });
 
   testWidgets('does not buzz again on a rebuild', (tester) async {

@@ -151,10 +151,10 @@ class _QrScannerState extends State<QrScanner> with WidgetsBindingObserver {
 /// of them. The token in the connection code is what actually keeps everyone
 /// else out; this is the part the user can see.
 ///
-/// Opening buzzes once. This dialog is the one moment in a transfer that waits
-/// on the user, and it arrives while they are looking at the other device, so
-/// without a nudge the pairing sits there until somebody happens to glance
-/// back.
+/// Opening vibrates once, like a notification. This dialog is the one moment in
+/// a transfer that waits on the user, and it arrives while they are looking at
+/// the other device, so without a nudge the pairing sits there until somebody
+/// happens to glance back.
 class PairingDialog extends StatefulWidget {
   final String pin;
 
@@ -168,10 +168,12 @@ class _PairingDialogState extends State<PairingDialog> {
   @override
   void initState() {
     super.initState();
-    // Short rather than a full vibrate: this is a "look here", not an alarm.
-    // Goes through the view's own haptics on Android, so it needs no VIBRATE
-    // permission, and it is silently ignored where the hardware has none.
-    HapticFeedback.mediumImpact();
+    // The full vibrate rather than one of the impact taps, so it carries like
+    // a notification: the user is holding the other device when this arrives
+    // and a tap is easy to miss. This is the strongest haptic available
+    // without the VIBRATE permission and the vibrator API behind it, and it is
+    // silently ignored where the hardware has none.
+    HapticFeedback.vibrate();
   }
 
   @override
