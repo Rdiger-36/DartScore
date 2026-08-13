@@ -8,6 +8,8 @@ import 'package:dartscore_app/services/sync_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../support/test_db.dart';
+
 /// Handing the whole database to another device over the local network.
 ///
 /// Deliberately without `TestWidgetsFlutterBinding`: that binding answers every
@@ -121,6 +123,80 @@ void main() {
     server.reject();
 
     await expectLater(fetch, throwsA(isA<SyncRejectedException>()));
+  });
+
+  group('what the two screens show while it runs', () {
+    /// A payload well past one chunk, because a transfer that fits in a single
+    /// write reports one step and proves nothing about the reporting.
+    Future<SyncConnection> serveLargePayload() async {
+      final id = await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
+      await seedThrows(id, 4000);
+      return server.start(
+        await BackupService.exportBytes(),
+        twoWay: false,
+        contentType: ContentType.binary,
+        codePrefix: kBackupWifiPrefix,
+      );
+    }
+
+    test('the receiver is told the number to compare', () async {
+      final connection = await serveLargePayload();
+
+      String? seen;
+      final fetch = SyncClient()
+          .fetchBytes(loopback(connection), onPin: (pin) => seen = pin);
+      await until(SyncServerState.pending);
+      server.approve();
+      await fetch;
+
+      expect(seen, isNotNull);
+      expect(seen, server.pin,
+          reason: 'both screens have to show the same digits');
+    });
+
+    test('both sides can follow how far the database has got', () async {
+      final connection = await serveLargePayload();
+
+      final sent = <double>[];
+      server.progress.addListener(() => sent.add(server.progress.value));
+
+      var lastReceived = 0;
+      var announcedTotal = 0;
+      final fetch = SyncClient().fetchBytes(
+        loopback(connection),
+        onProgress: (received, total) {
+          lastReceived = received;
+          announcedTotal = total;
+        },
+      );
+      await until(SyncServerState.pending);
+      server.approve();
+      final bytes = await fetch;
+
+      expect(sent, isNotEmpty, reason: 'the sending screen needs a bar to move');
+      expect(sent.length, greaterThan(1),
+          reason: 'one step at the end is not progress');
+      expect(sent, orderedEquals(List.of(sent)..sort()));
+      expect(sent.last, 1.0);
+
+      expect(announcedTotal, bytes.length,
+          reason: 'without the length the receiver cannot draw a bar at all');
+      expect(lastReceived, bytes.length);
+    });
+
+    test('a fresh transfer starts its progress over', () async {
+      final connection = await serveLargePayload();
+      final fetch = SyncClient().fetchBytes(loopback(connection));
+      await until(SyncServerState.pending);
+      server.approve();
+      await fetch;
+      expect(server.progress.value, 1.0);
+
+      await server.stop();
+      await server.start(await BackupService.exportBytes(), twoWay: false);
+
+      expect(server.progress.value, 0.0);
+    });
   });
 
   test('a profile sync code is not a database code', () {

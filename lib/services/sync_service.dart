@@ -426,6 +426,14 @@ class SyncServer {
   /// once.
   static const Duration returnTimeout = Duration(seconds: 90);
 
+  /// How much of the payload goes out before the progress is reported again.
+  ///
+  /// The whole body used to be handed to the socket in one call, which is fine
+  /// for a sync packet and useless for a database: the user would watch a still
+  /// screen for as long as it takes. Small enough to move a bar, large enough
+  /// that the flush per slice costs nothing next to the write.
+  static const int _kChunkBytes = 64 * 1024;
+
   HttpServer? _server;
   List<int>? _payload;
   ContentType _contentType = ContentType.text;
@@ -434,6 +442,12 @@ class SyncServer {
   Timer? _returnTimer;
   String _token = '';
   String _pin = '';
+
+  final ValueNotifier<double> _progress = ValueNotifier(0);
+
+  /// How much of the payload has gone out, from 0 to 1. Stays at 0 until a peer
+  /// is actually being served.
+  ValueListenable<double> get progress => _progress;
 
   /// What the peer sent back, or null when it had nothing for this device.
   /// Only meaningful once the state is [SyncServerState.returned].
@@ -473,6 +487,7 @@ class SyncServer {
     _contentType = contentType ?? ContentType.text;
     _twoWay = twoWay;
     _returned = null;
+    _progress.value = 0;
     _token = List.generate(
         16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
     _pin = random.nextInt(10000).toString().padLeft(4, '0');
@@ -530,12 +545,22 @@ class SyncServer {
         await response.close();
       case SyncServerState.approved:
       case SyncServerState.served:
+        final payload = _payload!;
         response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = _contentType
-          ..headers.contentLength = _payload!.length
-          ..headers.set(HttpHeaders.connectionHeader, 'close')
-          ..add(_payload!);
+          ..headers.contentLength = payload.length
+          ..headers.set(HttpHeaders.connectionHeader, 'close');
+
+        // Written in slices so the sending screen has something to show. A
+        // database takes long enough that one write and a still screen look
+        // like a transfer that died.
+        for (var start = 0; start < payload.length; start += _kChunkBytes) {
+          final end = min(start + _kChunkBytes, payload.length);
+          response.add(payload.sublist(start, end));
+          await response.flush();
+          _progress.value = end / payload.length;
+        }
 
         // The state has to wait for the last byte. Announcing the hand-over
         // any earlier lets the screen shut the server down mid-response, and
@@ -543,6 +568,7 @@ class SyncServer {
         // in flight at that point, so the receiver sees the connection break
         // instead.
         await response.close();
+        _progress.value = 1;
         if (_state.value != SyncServerState.served) {
           _state.value = SyncServerState.served;
           if (_twoWay) _startReturnTimer();
@@ -613,10 +639,11 @@ class SyncServer {
     _pin = '';
   }
 
-  /// Releases the state notifier. Call when the owning screen goes away.
+  /// Releases the notifiers. Call when the owning screen goes away.
   void dispose() {
     _returnTimer?.cancel();
     _state.dispose();
+    _progress.dispose();
   }
 
   /// Characters a session token is built from: unambiguous, and all inside the
@@ -673,9 +700,13 @@ class SyncClient {
   /// has approved the transfer.
   ///
   /// [onPin] is called with the four digits as soon as the server names them,
-  /// so the receiver can show the user what to compare against.
+  /// so the receiver can show the user what to compare against. [onProgress]
+  /// reports the bytes arrived and the total expected, which is what a database
+  /// transfer needs: it is large enough that a screen without a bar looks
+  /// stuck. The total is 0 when the sender announced no length.
   Future<List<int>> fetchBytes(SyncConnection connection,
-      {void Function(String pin)? onPin}) async {
+      {void Function(String pin)? onPin,
+      void Function(int received, int total)? onProgress}) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10)
       ..idleTimeout = const Duration(seconds: 10);
@@ -693,9 +724,13 @@ class SyncClient {
 
         // Collected as bytes, because the payload may be a database rather
         // than text. Only the small status answers below are ever decoded.
+        final total = res.contentLength < 0 ? 0 : res.contentLength;
         final body = <int>[];
         await for (final chunk in res) {
           body.addAll(chunk);
+          if (res.statusCode == HttpStatus.ok) {
+            onProgress?.call(body.length, total);
+          }
         }
 
         switch (res.statusCode) {

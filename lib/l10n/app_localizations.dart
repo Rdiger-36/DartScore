@@ -584,6 +584,12 @@ class AppLocalizations {
       _t('Scan the code on the device you want the data from.',
          'Scanne den Code auf dem Gerät, dessen Daten du übernehmen willst.');
   String get backupReceiving   => _t('Receiving the database', 'Datenbank wird empfangen');
+  String backupReceivingAt(int percent) =>
+      _t('Receiving the database, $percent%',
+         'Datenbank wird empfangen, $percent%');
+  String backupSending(int percent) =>
+      _t('Sending the database, $percent%',
+         'Datenbank wird gesendet, $percent%');
   String get backupNotSyncCode =>
       _t('That is a profile sync code. Use it in the sync screen of the player list.',
          'Das ist ein Code für den Profil-Sync. Verwende ihn in der Sync-Ansicht der Spielerliste.');
