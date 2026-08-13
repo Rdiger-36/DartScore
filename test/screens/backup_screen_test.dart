@@ -147,7 +147,7 @@ void main() {
       // The label names the device and its operating system now, not just
       // "iPhone", so this row has to hold a good deal more than it used to.
       // On a narrow phone, which is where it runs out of room.
-      const device = "Niklas' iPhone 15 Pro Max (iOS 18.5)";
+      const device = "Niklas' Galaxy S23 Ultra (Android 14)";
       usePhoneSurface(tester, size: const Size(360, 800));
       pickedPath =
           await backupOf(tester, ['Ann'], thenAdd: 'Later', device: device);
