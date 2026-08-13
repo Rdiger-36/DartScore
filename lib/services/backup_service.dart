@@ -60,6 +60,39 @@ class BackupService {
     return result.status == ShareResultStatus.success;
   }
 
+  /// The database as bytes, ready to be handed to another device over the
+  /// local network.
+  ///
+  /// Same file the share sheet gets, checkpoint and markers included, only it
+  /// never touches a temporary file on the way out.
+  static Future<List<int>> exportBytes() async {
+    final deviceId = await DeviceIdentity.id;
+    final source   = await DbHelper.instance.prepareBackup(deviceId);
+    return File(source).readAsBytes();
+  }
+
+  /// Takes a database that arrived over the network and reports what it holds,
+  /// exactly like [pick] does for a file the user chose.
+  ///
+  /// The bytes are written out before anything looks at them: reading a
+  /// database means opening it, and opening it means having it somewhere.
+  static Future<PickedBackup> acceptTransfer(List<int> bytes) async {
+    final tmp  = await getTemporaryDirectory();
+    final file = File('${tmp.path}/incoming-backup.db');
+    await file.writeAsBytes(bytes, flush: true);
+
+    final info = await DbHelper.instance.inspectBackup(file.path);
+    if (info == null) {
+      await _discard(file.path);
+      throw const BackupRejectedException(BackupRejection.notABackup);
+    }
+    if (info.schemaVersion > DbHelper.schemaVersion) {
+      await _discard(file.path);
+      throw const BackupRejectedException(BackupRejection.tooNew);
+    }
+    return PickedBackup(file.path, info);
+  }
+
   /// Name a backup is offered under, dated so several of them stay apart in a
   /// cloud folder.
   ///

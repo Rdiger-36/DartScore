@@ -119,6 +119,7 @@ lib/
 │   ├── stat_row.dart                  # Shared label/value row used by every stat list
 │   ├── throw_log_card.dart            # Shared "All Throws" log for the X01 summary and history screens
 │   ├── rematch_button.dart            # "Play Again" button + its confirmation dialog
+│   ├── wifi_pairing.dart              # QR scanner, pairing number dialog and QR card, shared by sync and backup
 │   └── player_dialog.dart             # Create/edit player dialog
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
@@ -184,6 +185,8 @@ lib/
 - A game played on a device carries **no** device id: `origin_device` is null and null means "mine". So a database restored onto a different phone arrives claiming a history that phone never played. `attributeRestoredHistory` stamps the source's id onto it, which is what keeps the two devices able to sync afterwards. Only when the ids differ: restoring one's own backup on the same phone must leave it alone, or the history loses what only a device's own games carry through a sync (perfect legs, best game average, games played)
 - Backup is not sync and must not be built on `sync_codec.dart`. A sync merges two devices and folds what it cannot carry into snapshots; a restore replaces this device wholesale, identity included
 - Where the file goes is the platform's business. `share_plus` on the way out, the document picker on the way back in, so iCloud Drive, Google Drive, Files and mail are all covered without the app hosting anything or knowing which one was used
+- A backup can also go straight to another device over Wi-Fi, on the same `SyncServer` the profile sync uses, but always with `twoWay: false`: a database replaces the device that takes it, so there is nothing it could hand back. Its connection code carries `kBackupWifiPrefix` rather than `kSyncWifiPrefix`, and each screen refuses the other's code. The two do opposite things, one merges and one replaces, and a code read in the wrong screen has to fail rather than half work
+- Both halves of the backup screen ask "file or the other device" in a dialog rather than showing four entries, so the symmetry between saving and restoring stays visible
 - The document picker is written by hand in `DocumentPickerHandler.swift` and `MainActivity.kt` because every file picking package still requires CocoaPods on iOS, which this project deliberately does not use. Adding one back would undo that. A new Swift file also has to be added to the `DartScore` target in `project.pbxproj`; it is not picked up on its own
 - The picked file is always a copy in a cache directory, on both platforms. It is meant to be used at once and thrown away, not kept
 
@@ -200,6 +203,8 @@ lib/
 - `thrownAt` in milliseconds is the deduplication key on import. Do not round it
 - The origin fields ride in a trailer after the throws rather than in a new format version, so an app that predates them reads the packet up to the last throw and imports it instead of refusing a version number it does not know. `local_stats_json` in a packet is every origin added together, kept for exactly those readers
 - All three transports build on the same bytes from `sync_codec.dart`. What differs is only the framing: base45 for one code, fountain coded frames for an animated one, HTTP for the Wi-Fi transfer
+- `SyncServer` carries bytes, not text, because the backup transfer rides on it and a database is binary. `SyncClient.fetch` is only `fetchBytes` with a utf8 decode on top
+- The pairing UI both transfers share (the scanner, the number dialog, the QR card) lives in `widgets/wifi_pairing.dart`, and `buildQrCode` sits in `sync_codec.dart` beside the framing it belongs to
 - QR payloads are base45 so a code can use its alphanumeric mode, which holds about a third more than the byte mode. Every character a code carries, headers included, has to stay inside that set, and the codes are built through `buildQrCode` in `sync_screen.dart` because `QrCode.fromData` always picks the byte mode
 - Animated frames are LT coded: the receiver needs any set of frames slightly larger than the block count, not particular ones. Seeds are scrambled before use and each transfer starts at a random point in the seed space; both are load bearing, without them the overhead goes from about 1.25 to 4 times the block count
 - The Wi-Fi server hands its payload to one peer, once, after the user confirms a pairing number. A request without the session token is refused without disturbing the user. The state may only reach `served` after the response has finished writing, or the screen shuts the socket down mid-body, and the same holds for `returned` and the answer to the peer

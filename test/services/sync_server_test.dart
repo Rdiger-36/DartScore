@@ -33,7 +33,7 @@ void main() {
 
   setUp(() async {
     server = SyncServer();
-    connection = await server.start(payload);
+    connection = await server.start(utf8.encode(payload));
   });
 
   tearDown(() async {
@@ -69,7 +69,7 @@ void main() {
 
     test('every session gets its own token and number', () async {
       final other = SyncServer();
-      final second = await other.start(payload);
+      final second = await other.start(utf8.encode(payload));
 
       expect(second.token, isNot(connection.token));
       expect(second.token.length, 16);
@@ -113,7 +113,7 @@ void main() {
       // that only shows up once the body no longer fits in one buffer.
       final big = 'DS2:${'W' * 250000}';
       final other = SyncServer();
-      final where = await other.start(big);
+      final where = await other.start(utf8.encode(big));
 
       // The screen stops the server the moment it reports the hand-over, so
       // that has to be the moment the last byte is out.

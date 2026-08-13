@@ -109,11 +109,20 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// Walks the two taps that start a restore from a file: the entry, then
+    /// the route out of the two the screen offers.
+    Future<void> tapRestoreFromFile(WidgetTester tester) async {
+      await tester.tap(find.text('Restore backup').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('From a file'));
+      await tester.pump();
+    }
+
     testWidgets('asks first, and says what the backup holds', (tester) async {
       pickedPath = await backupOf(tester, ['Ann', 'Bob'], thenAdd: 'Later');
       await pumpScreen(tester);
 
-      await tester.tap(find.text('Restore backup').first);
+      await tapRestoreFromFile(tester);
       await pumpUntil(tester, find.text('Restore backup?'));
 
       expect(find.text('2 players, 0 games'), findsOneWidget);
@@ -127,9 +136,15 @@ void main() {
       pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
       await pumpScreen(tester);
 
-      await tester.tap(find.text('Restore backup').first);
+      await tapRestoreFromFile(tester);
       await pumpUntil(tester, find.text('Restore backup?'));
-      await tester.tap(find.text('Cancel'));
+      // Scoped to the confirmation: the route dialog behind it is still on its
+      // way out and carries a Cancel of its own.
+      await tester.tap(find.descendant(
+        of: find.ancestor(
+            of: find.text('Restore backup?'), matching: find.byType(AlertDialog)),
+        matching: find.text('Cancel'),
+      ));
       await pumpUntilIdle(tester);
 
       final names = (await tester.runAsync(DbHelper.instance.getPlayers))!
@@ -143,7 +158,7 @@ void main() {
       pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
       await pumpScreen(tester);
 
-      await tester.tap(find.text('Restore backup').first);
+      await tapRestoreFromFile(tester);
       await pumpUntil(tester, find.text('Restore backup?'));
       await tester.tap(find.widgetWithText(FilledButton, 'Restore backup'));
       await pumpUntil(tester, find.text('Backup restored.'));
@@ -162,7 +177,7 @@ void main() {
           () => File(pickedPath!).writeAsString('not a database'));
       await pumpScreen(tester);
 
-      await tester.tap(find.text('Restore backup').first);
+      await tapRestoreFromFile(tester);
       await pumpUntil(
           tester, find.text('This file is not a DartScore backup.'));
 
@@ -175,7 +190,7 @@ void main() {
       pickedPath = null;
       await pumpScreen(tester);
 
-      await tester.tap(find.text('Restore backup').first);
+      await tapRestoreFromFile(tester);
       for (var i = 0; i < 10; i++) {
         await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 20)));
