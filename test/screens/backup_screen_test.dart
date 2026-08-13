@@ -73,7 +73,7 @@ void main() {
         for (final name in names) {
           await DbHelper.instance.insertPlayer(Player(name: name));
         }
-        final source = await DbHelper.instance.prepareBackup('DEVICEAAAA000001');
+        final source = await DbHelper.instance.prepareBackup('DEVICEAAAA000001', 'iPhone');
         final path = '${dir.path}/backup.db';
         await File(source).copy(path);
         if (thenAdd != null) {
@@ -109,10 +109,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Walks the two taps that start a restore from a file: the entry, then
-    /// the route out of the two the screen offers.
+    /// Walks the gates a restore goes through before a file is even picked:
+    /// the entry, the warning with its offer to save first, then the source.
     Future<void> tapRestoreFromFile(WidgetTester tester) async {
       await tester.tap(find.text('Restore backup').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save the current data first?'), findsOneWidget,
+          reason: 'the only way back out of a wrong restore is a copy of what '
+              'is there now, and this is the last moment to make one');
+
+      await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('From a file'));
       await tester.pump();
@@ -125,10 +132,12 @@ void main() {
       await tapRestoreFromFile(tester);
       await pumpUntil(tester, find.text('Restore backup?'));
 
-      expect(find.text('2 players, 0 games'), findsOneWidget);
-      // The two things a restore cannot take back: the data, and the identity
-      // this device syncs under.
-      expect(find.textContaining('cannot be undone'), findsOneWidget);
+      // What it holds, so two backups can be told apart before one of them
+      // replaces everything.
+      expect(find.text('This backup'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget, reason: 'two players');
+      expect(find.text('iPhone'), findsOneWidget, reason: 'the device it came from');
+      expect(find.textContaining('cannot be undone'), findsWidgets);
       expect(find.textContaining('stay filed under the device'), findsOneWidget);
     });
 

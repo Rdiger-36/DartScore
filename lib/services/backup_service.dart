@@ -43,10 +43,9 @@ class BackupService {
   ///
   /// Returns false when the user dismissed the sheet without choosing a target.
   static Future<bool> exportAndShare({Rect? sharePositionOrigin}) async {
-    final deviceId = await DeviceIdentity.id;
-    final source   = await DbHelper.instance.prepareBackup(deviceId);
-    final tmp      = await getTemporaryDirectory();
-    final target   = File('${tmp.path}/${backupFileName(DateTime.now())}');
+    final source = await _prepare();
+    final tmp    = await getTemporaryDirectory();
+    final target = File('${tmp.path}/${backupFileName(DateTime.now())}');
 
     if (await target.exists()) await target.delete();
     await File(source).copy(target.path);
@@ -60,15 +59,24 @@ class BackupService {
     return result.status == ShareResultStatus.success;
   }
 
+  /// Stamps the database with who is handing it over and when, and returns the
+  /// path to read it from.
+  static Future<String> _prepare() async => DbHelper.instance.prepareBackup(
+        await DeviceIdentity.id,
+        Platform.isIOS ? 'iPhone' : 'Android',
+      );
+
   /// The database as bytes, ready to be handed to another device over the
-  /// local network.
+  /// local network, together with what is in it.
   ///
   /// Same file the share sheet gets, checkpoint and markers included, only it
-  /// never touches a temporary file on the way out.
-  static Future<List<int>> exportBytes() async {
-    final deviceId = await DeviceIdentity.id;
-    final source   = await DbHelper.instance.prepareBackup(deviceId);
-    return File(source).readAsBytes();
+  /// never touches a temporary file on the way out. The summary comes back with
+  /// it because the sending screen shows what it is about to give away, and
+  /// reading it afterwards would describe a file that has already gone.
+  static Future<(List<int>, BackupInfo)> exportBytes() async {
+    final source = await _prepare();
+    final info   = await DbHelper.instance.describeLocal();
+    return (await File(source).readAsBytes(), info);
   }
 
   /// Takes a database that arrived over the network and reports what it holds,

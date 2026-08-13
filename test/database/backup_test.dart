@@ -44,7 +44,7 @@ void main() {
   /// Writes a backup of the current database to its own file and returns the
   /// path, the way the export does.
   Future<String> writeBackup(String deviceId, {String name = 'backup.db'}) async {
-    final source = await DbHelper.instance.prepareBackup(deviceId);
+    final source = await DbHelper.instance.prepareBackup(deviceId, 'iPhone');
     final target = '${dir.path}/$name';
     await File(source).copy(target);
     return target;
@@ -60,10 +60,32 @@ void main() {
 
       expect(info, isNotNull);
       expect(info!.deviceId, 'DEVICE0000000001');
+      expect(info.deviceLabel, 'iPhone',
+          reason: 'the receiving screen names where the data comes from');
       expect(info.playerCount, 2);
       expect(info.gameCount, 0);
       expect(info.schemaVersion, DbHelper.schemaVersion);
       expect(info.createdAt, isNotNull);
+      expect(info.sizeBytes, greaterThan(0));
+    });
+
+    test('describes the live database in the same terms as a file', () async {
+      final id = await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
+      await seedThrows(id, 20);
+
+      final path = await writeBackup('DEVICE0000000001');
+      final fromFile = await DbHelper.instance.inspectBackup(path);
+      final fromLive = await DbHelper.instance.describeLocal();
+
+      // The sending screen reads the live database and the receiving screen
+      // reads the file. They have to agree, or the two ends of one transfer
+      // describe different things.
+      expect(fromLive.deviceId, fromFile!.deviceId);
+      expect(fromLive.deviceLabel, fromFile.deviceLabel);
+      expect(fromLive.createdAt, fromFile.createdAt);
+      expect(fromLive.playerCount, fromFile.playerCount);
+      expect(fromLive.gameCount, fromFile.gameCount);
+      expect(fromLive.sizeBytes, fromFile.sizeBytes);
     });
 
     test('refuses a file that is not a database', () async {

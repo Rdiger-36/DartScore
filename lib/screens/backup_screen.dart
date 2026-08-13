@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
+import '../database/db_helper.dart' show BackupInfo;
 import '../services/backup_service.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
@@ -17,6 +18,13 @@ enum _Mode {
   /// The two entries, waiting to be picked.
   idle,
 
+  /// What restoring will do, and the offer to save the current data first.
+  restoreWarning,
+
+  /// Where the backup should come from, and the last word before anything is
+  /// replaced.
+  restoreSource,
+
   /// Serving this device's database to a peer over the local network.
   sending,
 
@@ -26,11 +34,15 @@ enum _Mode {
 
 /// Writes the whole local database out, and reads one back in.
 ///
-/// Both halves offer the same two routes, a file or the other device directly,
-/// and the choice is a dialog rather than four entries so the symmetry stays
-/// visible. The two halves are deliberately unequal past that point: creating a
-/// backup is a couple of taps, taking one in goes through the file, its
-/// contents and a confirmation, because it replaces everything on the device.
+/// Both halves offer the same two routes, a file or the other device directly.
+/// Past that they are deliberately unequal, because they are not equally
+/// dangerous. Creating a backup is two taps. Taking one in walks through what a
+/// restore costs, the offer to save the current data first, where the file
+/// comes from, and finally what was actually found in it, and only then does
+/// anything get replaced.
+///
+/// Whatever is being handed over or taken in is described in the same terms on
+/// both sides: when it was made, which device made it, and what is in it.
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
 
@@ -39,9 +51,11 @@ class BackupScreen extends StatefulWidget {
 }
 
 class _BackupScreenState extends State<BackupScreen> {
-  /// Anchors the share sheet on an iPad, where a popover without an anchor
-  /// fails instead of opening.
-  final _exportKey = GlobalKey();
+  /// Anchor the share sheet on an iPad, where a popover without an anchor
+  /// fails instead of opening. One per entry that can start a share, because
+  /// only the one on screen has anything to measure.
+  final _exportKey    = GlobalKey();
+  final _saveFirstKey = GlobalKey();
 
   final SyncServer _server = SyncServer();
 
@@ -58,6 +72,10 @@ class _BackupScreenState extends State<BackupScreen> {
   /// How much of the database has arrived, and how much is coming. Null until
   /// the transfer is actually running.
   (int, int)? _received;
+
+  /// What this device is offering the peer, shown beside the code so the user
+  /// can see what is about to leave.
+  BackupInfo? _outgoing;
 
   /// Set while the approval dialog is up, so a peer asking again does not open
   /// a second one.
@@ -98,9 +116,11 @@ class _BackupScreenState extends State<BackupScreen> {
       body: ListView(
         padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
         children: switch (_mode) {
-          _Mode.idle      => _idleBody(l),
-          _Mode.sending   => _sendingBody(l),
-          _Mode.receiving => _receivingBody(l),
+          _Mode.idle           => _idleBody(l),
+          _Mode.restoreWarning => _restoreWarningBody(l),
+          _Mode.restoreSource  => _restoreSourceBody(l),
+          _Mode.sending        => _sendingBody(l),
+          _Mode.receiving      => _receivingBody(l),
         },
       ),
     );
@@ -130,7 +150,7 @@ class _BackupScreenState extends State<BackupScreen> {
               title: Text(l.backupRestore),
               subtitle: Text(l.backupRestoreDesc),
               enabled: !_busy,
-              onTap: _chooseRestore,
+              onTap: () => setState(() => _mode = _Mode.restoreWarning),
             ),
           ],
         ),
@@ -153,36 +173,121 @@ class _BackupScreenState extends State<BackupScreen> {
     );
     if (route == null || !mounted) return;
     if (route) {
-      await _export();
+      await _export(_exportKey);
     } else {
       await _startSending();
     }
   }
 
-  /// The same question for the way back in.
-  Future<void> _chooseRestore() async {
-    final l = context.l10n;
-    final route = await _askRoute(
-      title: l.backupRestore,
-      first: (Icons.folder_outlined, l.backupFromFile, l.backupFromFileDesc),
-      second: (
-        Icons.qr_code_scanner_rounded,
-        l.backupFromDevice,
-        l.backupFromDeviceDesc
+  // ── Restoring, step one: what it costs ────────────────────────────────────
+
+  /// Says what a restore does before anything is picked, and offers to put the
+  /// current data somewhere safe first.
+  ///
+  /// The way out of a restore that turns out to be the wrong one is a copy of
+  /// what was there before, and the only moment the user can still make one is
+  /// now.
+  List<Widget> _restoreWarningBody(AppLocalizations l) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    return [
+      Card(
+        color: cs.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: cs.onErrorContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(l.backupRestoreQ,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: cs.onErrorContainer,
+                          fontWeight: FontWeight.bold,
+                        )),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(l.backupRestoreWarn,
+                  style: TextStyle(color: cs.onErrorContainer)),
+            ],
+          ),
+        ),
       ),
-    );
-    if (route == null || !mounted) return;
-    if (route) {
-      await _restoreFromFile();
-    } else {
-      setState(() {
-        _mode  = _Mode.receiving;
-        _error = null;
-      });
-    }
+      const SizedBox(height: 20),
+      Text(l.backupSaveFirstQ,
+          style: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Card(
+        child: ListTile(
+          key: _saveFirstKey,
+          leading: Icon(Icons.save_alt_rounded, color: cs.primary),
+          title: Text(l.backupSaveFirst),
+          subtitle: Text(l.backupSaveFirstDesc),
+          enabled: !_busy,
+          onTap: () => _export(_saveFirstKey),
+        ),
+      ),
+      const SizedBox(height: 24),
+      if (_busy)
+        const Center(child: CircularProgressIndicator())
+      else
+        FilledButton(
+          onPressed: () => setState(() => _mode = _Mode.restoreSource),
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+          child: Text(l.backupContinueAnyway),
+        ),
+    ];
   }
 
-  /// Offers the two routes and returns true for the file one, false for the
+  // ── Restoring, step two: from where, and the last word ────────────────────
+
+  /// Where the backup comes from. Picking one is the last thing that happens
+  /// before the file is read, and the dialog after it names what was found.
+  List<Widget> _restoreSourceBody(AppLocalizations l) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_busy) {
+      return [const Center(child: CircularProgressIndicator())];
+    }
+
+    return [
+      _note(l.backupSourceHint),
+      const SizedBox(height: 16),
+      Card(
+        child: Column(
+          children: [
+            ListTile(
+              leading: Icon(Icons.folder_outlined, color: cs.primary),
+              title: Text(l.backupFromFile),
+              subtitle: Text(l.backupFromFileDesc),
+              onTap: _restoreFromFile,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading:
+                  Icon(Icons.qr_code_scanner_rounded, color: cs.primary),
+              title: Text(l.backupFromDevice),
+              subtitle: Text(l.backupFromDeviceDesc),
+              onTap: () => setState(() {
+                _mode  = _Mode.receiving;
+                _error = null;
+              }),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// Offers the two routes out and returns true for the file one, false for the
   /// other device, or null when the user backed out.
   Future<bool?> _askRoute({
     required String title,
@@ -238,7 +343,12 @@ class _BackupScreenState extends State<BackupScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        FilledButton(onPressed: _startSending, child: Text(l.backupSendAgain)),
+        FilledButton(
+          onPressed: _leaveMode,
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+          child: Text(l.done),
+        ),
       ];
     }
 
@@ -256,6 +366,10 @@ class _BackupScreenState extends State<BackupScreen> {
 
     return [
       _note(l.backupSendHint),
+      if (_outgoing != null) ...[
+        const SizedBox(height: 12),
+        _summaryCard(l, _outgoing!, title: l.backupOutgoingTitle),
+      ],
       const SizedBox(height: 20),
       ValueListenableBuilder<double>(
         valueListenable: _server.progress,
@@ -289,11 +403,13 @@ class _BackupScreenState extends State<BackupScreen> {
       _sent       = false;
       _error      = null;
       _connection = null;
+      _outgoing   = null;
     });
 
     try {
-      final bytes = await BackupService.exportBytes();
+      final (bytes, info) = await BackupService.exportBytes();
       if (!mounted) return;
+      setState(() => _outgoing = info);
 
       if (_server.isRunning) await _server.stop();
       // One way on purpose. A database replaces the device that takes it, so
@@ -469,9 +585,10 @@ class _BackupScreenState extends State<BackupScreen> {
 
   // ── Shared ────────────────────────────────────────────────────────────────
 
-  /// Copies the database out and hands it to the share sheet.
-  Future<void> _export() async {
-    final box    = _exportKey.currentContext?.findRenderObject() as RenderBox?;
+  /// Copies the database out and hands it to the share sheet, anchored on the
+  /// entry the user tapped.
+  Future<void> _export(GlobalKey anchor) async {
+    final box    = anchor.currentContext?.findRenderObject() as RenderBox?;
     final origin = box == null || !box.hasSize
         ? null
         : box.localToGlobal(Offset.zero) & box.size;
@@ -527,9 +644,6 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<bool> _confirm(PickedBackup picked) async {
     final l    = context.l10n;
     final info = picked.info;
-    final when = info.createdAt == null
-        ? l.backupUnknownDate
-        : DateFormat('dd.MM.yy  HH:mm').format(info.createdAt!);
 
     final ok = await showDialog<bool>(
       context: context,
@@ -537,19 +651,19 @@ class _BackupScreenState extends State<BackupScreen> {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
           title: Text(l.backupRestoreQ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(when, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(l.backupContents(info.playerCount, info.gameCount),
-                  style: TextStyle(color: cs.onSurfaceVariant)),
-              const SizedBox(height: 14),
-              Text(l.backupRestoreWarn),
-              const SizedBox(height: 10),
-              Text(l.backupDeviceNote,
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryCard(l, info, title: l.backupIncomingTitle),
+                const SizedBox(height: 14),
+                Text(l.backupRestoreWarn),
+                const SizedBox(height: 10),
+                Text(l.backupDeviceNote,
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -584,6 +698,61 @@ class _BackupScreenState extends State<BackupScreen> {
         BackupRejection.notABackup => context.l10n.backupNotABackup,
         BackupRejection.tooNew     => context.l10n.backupTooNew,
       };
+
+  /// What a database holds, in the same four lines wherever it is shown: on the
+  /// way out beside the code, and on the way in beside the question.
+  Widget _summaryCard(AppLocalizations l, BackupInfo info,
+      {required String title}) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Icon(icon, size: 15, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
+              const Spacer(),
+              Text(value,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: cs.primary, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            row(Icons.schedule_rounded, l.backupWhen, _whenOf(l, info)),
+            row(Icons.smartphone_rounded, l.backupDevice,
+                info.deviceLabel ?? l.unknownDevice),
+            row(Icons.people_alt_rounded, l.players, '${info.playerCount}'),
+            row(Icons.sports_esports_rounded, l.backupGames, '${info.gameCount}'),
+            row(Icons.data_usage_rounded, l.backupSize, _sizeOf(info)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The backup's timestamp, or a stand-in for a file that carries none.
+  String _whenOf(AppLocalizations l, BackupInfo info) => info.createdAt == null
+      ? l.backupUnknownDate
+      : DateFormat('dd.MM.yy  HH:mm').format(info.createdAt!);
+
+  /// The file size, in whichever unit keeps it to a couple of digits.
+  String _sizeOf(BackupInfo info) {
+    final kb = info.sizeBytes / 1024;
+    if (kb < 1024) return '${kb.round()} KB';
+    return '${(kb / 1024).toStringAsFixed(1)} MB';
+  }
 
   /// A bordered line of explanation above whatever the mode is showing.
   Widget _note(String text, {bool isError = false}) {
