@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -149,10 +150,29 @@ class _QrScannerState extends State<QrScanner> with WidgetsBindingObserver {
 /// The number is what tells the user that the device asking is the one in front
 /// of them. The token in the connection code is what actually keeps everyone
 /// else out; this is the part the user can see.
-class PairingDialog extends StatelessWidget {
+///
+/// Opening buzzes once. This dialog is the one moment in a transfer that waits
+/// on the user, and it arrives while they are looking at the other device, so
+/// without a nudge the pairing sits there until somebody happens to glance
+/// back.
+class PairingDialog extends StatefulWidget {
   final String pin;
 
   const PairingDialog({super.key, required this.pin});
+
+  @override
+  State<PairingDialog> createState() => _PairingDialogState();
+}
+
+class _PairingDialogState extends State<PairingDialog> {
+  @override
+  void initState() {
+    super.initState();
+    // Short rather than a full vibrate: this is a "look here", not an alarm.
+    // Goes through the view's own haptics on Android, so it needs no VIBRATE
+    // permission, and it is silently ignored where the hardware has none.
+    HapticFeedback.mediumImpact();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +197,7 @@ class PairingDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  pin,
+                  widget.pin,
                   style: theme.textTheme.displaySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 8,

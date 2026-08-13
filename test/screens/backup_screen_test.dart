@@ -5,6 +5,7 @@ import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/screens/backup_screen.dart';
 import 'package:dartscore_app/services/device_identity.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -168,6 +169,61 @@ void main() {
       expect(tester.getSize(find.text(device)).width,
           lessThanOrEqualTo(dialog.width),
           reason: 'the device name has to fit the dialog that shows it');
+    });
+
+    testWidgets('writes the confirming button in the colour that goes with it',
+        (tester) async {
+      // A FilledButton given only a background writes in onPrimary, which is
+      // white in both themes. Against the dark theme's error, a light red,
+      // that is barely readable. The pair has to be set together.
+      pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      final button = tester.widget<FilledButton>(find.ancestor(
+        of: find.text('Restore backup'),
+        matching: find.byType(FilledButton),
+      ));
+      final cs = Theme.of(tester.element(find.byType(AlertDialog).last))
+          .colorScheme;
+
+      expect(button.style?.backgroundColor?.resolve({}), cs.error);
+      expect(button.style?.foregroundColor?.resolve({}), cs.onError,
+          reason: 'the colour named for what is behind it, not onPrimary');
+    });
+
+    /// Opens the restore confirmation on a screen of [size] and reports how
+    /// wide the dialog ended up.
+    Future<double> confirmationWidthAt(WidgetTester tester, Size size) async {
+      usePhoneSurface(tester, size: size);
+      pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      return tester
+          .getSize(find.ancestor(
+              of: find.text('Restore backup?'),
+              matching: find.byType(AlertDialog)))
+          .width;
+    }
+
+    // An AlertDialog takes the width it is offered, and on an iPad that is most
+    // of the screen for a few lines of text. Every dialog in the sync screen is
+    // bounded; the two here were the ones that were not.
+    testWidgets('keeps the confirmation readable on a tablet in landscape',
+        (tester) async {
+      expect(await confirmationWidthAt(tester, const Size(1194, 834)),
+          lessThanOrEqualTo(kMaxContentWidth));
+    });
+
+    testWidgets('keeps the confirmation readable on a tablet in portrait',
+        (tester) async {
+      expect(await confirmationWidthAt(tester, const Size(834, 1194)),
+          lessThanOrEqualTo(kMaxContentWidth));
     });
 
     testWidgets('changes nothing when the question is declined', (tester) async {
