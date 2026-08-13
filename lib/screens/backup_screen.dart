@@ -51,6 +51,14 @@ class _BackupScreenState extends State<BackupScreen> {
   bool _sent = false;
   String? _error;
 
+  /// The pairing number this device is waiting on while receiving, shown so the
+  /// user can compare it against the sending device.
+  String? _pairingPin;
+
+  /// How much of the database has arrived, and how much is coming. Null until
+  /// the transfer is actually running.
+  (int, int)? _received;
+
   /// Set while the approval dialog is up, so a peer asking again does not open
   /// a second one.
   bool _askingApproval = false;
@@ -249,9 +257,30 @@ class _BackupScreenState extends State<BackupScreen> {
     return [
       _note(l.backupSendHint),
       const SizedBox(height: 20),
-      PairingQrCard(data: connection.qrPayload),
+      ValueListenableBuilder<double>(
+        valueListenable: _server.progress,
+        builder: (context, progress, child) => progress == 0
+            ? child!
+            : Column(
+                children: [
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                      value: progress,
+                      borderRadius: BorderRadius.circular(4)),
+                  const SizedBox(height: 10),
+                  Text(l.backupSending(_percent(progress)),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: cs.onSurfaceVariant)),
+                ],
+              ),
+        child: PairingQrCard(data: connection.qrPayload),
+      ),
     ];
   }
+
+  /// A fraction as whole percent, for the transfer labels.
+  int _percent(double fraction) => (fraction * 100).round();
 
   /// Prepares the database and puts it on the network for one peer.
   Future<void> _startSending() async {
@@ -331,13 +360,42 @@ class _BackupScreenState extends State<BackupScreen> {
     final cs    = theme.colorScheme;
 
     if (_busy) {
+      final received = _received;
       return [
         const Center(child: CircularProgressIndicator()),
-        const SizedBox(height: 16),
-        Text(l.backupReceiving,
+        // The number both devices show, so the user can tell that the device
+        // asking is the one in front of them.
+        if (_pairingPin != null) ...[
+          const SizedBox(height: 20),
+          Text(
+            _pairingPin!,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant)),
+            style: theme.textTheme.displaySmall
+                ?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 8),
+          ),
+          const SizedBox(height: 6),
+          Text(l.syncPairWaiting,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
+        if (received != null && received.$2 > 0) ...[
+          const SizedBox(height: 20),
+          LinearProgressIndicator(
+              value: received.$1 / received.$2,
+              borderRadius: BorderRadius.circular(4)),
+          const SizedBox(height: 10),
+          Text(l.backupReceivingAt(_percent(received.$1 / received.$2)),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ] else ...[
+          const SizedBox(height: 16),
+          Text(l.backupReceiving,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
       ];
     }
 
@@ -369,9 +427,22 @@ class _BackupScreenState extends State<BackupScreen> {
       return;
     }
 
-    setState(() { _busy = true; _error = null; });
+    setState(() {
+      _busy       = true;
+      _error      = null;
+      _pairingPin = null;
+      _received   = null;
+    });
     try {
-      final bytes = await SyncClient().fetchBytes(connection);
+      final bytes = await SyncClient().fetchBytes(
+        connection,
+        onPin: (pin) {
+          if (mounted) setState(() => _pairingPin = pin);
+        },
+        onProgress: (received, total) {
+          if (mounted) setState(() => _received = (received, total));
+        },
+      );
       if (!mounted) return;
       await _confirmAndRestore(await BackupService.acceptTransfer(bytes));
     } on BackupRejectedException catch (e) {
@@ -386,7 +457,13 @@ class _BackupScreenState extends State<BackupScreen> {
             });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy       = false;
+          _pairingPin = null;
+          _received   = null;
+        });
+      }
     }
   }
 
