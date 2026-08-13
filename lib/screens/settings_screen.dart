@@ -6,9 +6,11 @@ import '../providers/donation_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import 'about_screen.dart';
+import 'backup_screen.dart';
 import 'donation_screen.dart';
 
-/// Settings screen grouping theme, language, support, and about sections.
+/// Settings screen holding the two display choices and the screens the app
+/// links on to.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -25,146 +27,79 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
         children: [
-          const _ThemeSection(),
-          const SizedBox(height: 20),
-          const _LanguageSection(),
-          const SizedBox(height: 20),
-          const _SupportSection(),
-          const SizedBox(height: 20),
-          const _AboutSection(),
+          const _DisplaySection(),
+          const SizedBox(height: 14),
+          const _AppSection(),
         ],
       ),
     );
   }
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
+// ── Display ───────────────────────────────────────────────────────────────────
 
-/// Settings section to choose the theme (light/dark/system).
-class _ThemeSection extends StatelessWidget {
-  const _ThemeSection();
+/// The theme and the language, each as one row that opens a menu.
+class _DisplaySection extends StatelessWidget {
+  const _DisplaySection();
 
   @override
   Widget build(BuildContext context) {
     final tp = context.watch<ThemeProvider>();
-    final cs = Theme.of(context).colorScheme;
-    final l = context.l10n;
-
-    return _Card(
-      title: l.appearance,
-      icon: Icons.palette_outlined,
-      child: Column(
-        children: [
-          _ChoiceTile(
-            label: l.system,
-            subtitle: l.systemDesc,
-            icon: Icons.brightness_auto_rounded,
-            selected: tp.mode == ThemeMode.system,
-            onTap: () => tp.setMode(ThemeMode.system),
-            cs: cs,
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            label: l.light,
-            subtitle: l.lightDesc,
-            icon: Icons.light_mode_rounded,
-            selected: tp.mode == ThemeMode.light,
-            onTap: () => tp.setMode(ThemeMode.light),
-            cs: cs,
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            label: l.dark,
-            subtitle: l.darkDesc,
-            icon: Icons.dark_mode_rounded,
-            selected: tp.mode == ThemeMode.dark,
-            onTap: () => tp.setMode(ThemeMode.dark),
-            cs: cs,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A selectable tile for one option of a settings section, marked with a
-/// check when it is the active choice.
-class _ChoiceTile extends StatelessWidget {
-  final String label;
-  final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-  final ColorScheme cs;
-
-  const _ChoiceTile({
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    required this.cs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: selected ? cs.primary : cs.onSurfaceVariant),
-      title: Text(label,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? cs.primary : null,
-          )),
-      subtitle: Text(subtitle),
-      trailing:
-          selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
-      onTap: onTap,
-    );
-  }
-}
-
-// ── Language ──────────────────────────────────────────────────────────────────
-
-/// Settings section to choose the app language (system/English/German).
-class _LanguageSection extends StatelessWidget {
-  const _LanguageSection();
-
-  @override
-  Widget build(BuildContext context) {
     final lp = context.watch<LanguageProvider>();
     final cs = Theme.of(context).colorScheme;
-    final l = context.l10n;
+    final l  = context.l10n;
 
     return _Card(
-      title: l.language,
-      icon: Icons.language_rounded,
+      title: l.displaySection,
+      icon: Icons.tune_rounded,
       child: Column(
         children: [
-          _LangTile(
-            label: l.system,
-            subtitle: l.systemDesc,
-            flag: '🌐',
-            selected: lp.languageCode == null,
-            onTap: () => lp.setLanguage(null),
-            cs: cs,
+          _MenuRow<ThemeMode>(
+            icon: Icons.palette_outlined,
+            label: l.theme,
+            value: tp.mode,
+            onSelected: tp.setMode,
+            options: [
+              _MenuOption(
+                value: ThemeMode.system,
+                label: l.system,
+                leading: const Icon(Icons.brightness_auto_rounded),
+              ),
+              _MenuOption(
+                value: ThemeMode.light,
+                label: l.light,
+                leading: const Icon(Icons.light_mode_rounded),
+              ),
+              _MenuOption(
+                value: ThemeMode.dark,
+                label: l.dark,
+                leading: const Icon(Icons.dark_mode_rounded),
+              ),
+            ],
           ),
           const Divider(height: 1),
-          _LangTile(
-            label: 'English',
-            subtitle: 'English',
-            flag: '🇬🇧',
-            selected: lp.languageCode == 'en',
-            onTap: () => lp.setLanguage('en'),
-            cs: cs,
-          ),
-          const Divider(height: 1),
-          _LangTile(
-            label: 'Deutsch',
-            subtitle: 'German',
-            flag: '🇩🇪',
-            selected: lp.languageCode == 'de',
-            onTap: () => lp.setLanguage('de'),
-            cs: cs,
+          _MenuRow<String?>(
+            icon: Icons.language_rounded,
+            label: l.language,
+            value: lp.languageCode,
+            onSelected: lp.setLanguage,
+            options: [
+              _MenuOption(
+                value: null,
+                label: l.system,
+                leading: const Icon(Icons.language_rounded),
+              ),
+              _MenuOption(
+                value: 'en',
+                label: 'English',
+                leading: _LanguageBadge('EN', cs: cs),
+              ),
+              _MenuOption(
+                value: 'de',
+                label: 'Deutsch',
+                leading: _LanguageBadge('DE', cs: cs),
+              ),
+            ],
           ),
         ],
       ),
@@ -172,95 +107,236 @@ class _LanguageSection extends StatelessWidget {
   }
 }
 
-/// A selectable radio tile for one language option.
-class _LangTile extends StatelessWidget {
-  final String label;
-  final String subtitle;
-  final String flag;
-  final bool selected;
-  final VoidCallback onTap;
+/// The language code of an option, drawn where the other menus carry an icon.
+///
+/// A language has no icon of its own, and a flag would name a country rather
+/// than a language and fall back to two letter boxes on the devices that ship
+/// without the emoji. The width matches an icon so both menus line up.
+class _LanguageBadge extends StatelessWidget {
+  final String code;
   final ColorScheme cs;
 
-  const _LangTile({
-    required this.label,
-    required this.subtitle,
-    required this.flag,
-    required this.selected,
-    required this.onTap,
-    required this.cs,
-  });
+  const _LanguageBadge(this.code, {required this.cs});
 
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Text(flag, style: const TextStyle(fontSize: 24)),
-      title: Text(label,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? cs.primary : null,
-          )),
-      subtitle: Text(subtitle,
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-      trailing:
-          selected ? Icon(Icons.check_circle_rounded, color: cs.primary) : null,
-      onTap: onTap,
-    );
-  }
+  Widget build(BuildContext context) => SizedBox(
+        width: 24,
+        child: Text(code,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurfaceVariant,
+            )),
+      );
 }
 
-// ── Support ───────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
 
-/// Settings section linking to the donation/support screen.
-class _SupportSection extends StatelessWidget {
-  const _SupportSection();
+/// The screens the settings link on to: backup, support and about.
+class _AppSection extends StatelessWidget {
+  const _AppSection();
 
   @override
   Widget build(BuildContext context) {
-    final l = context.l10n;
+    final l  = context.l10n;
     final cs = Theme.of(context).colorScheme;
     final isSupporter = context.watch<DonationProvider>().isSupporter;
 
     return _Card(
-      title: l.donationSectionTitle,
-      icon: Icons.favorite_rounded,
+      title: l.appSection,
+      icon: Icons.apps_rounded,
+      child: Column(
+        children: [
+          _LinkRow(
+            icon: Icons.backup_outlined,
+            title: l.backupTitle,
+            subtitle: l.backupSectionDesc,
+            onTap: () => _open(context, const BackupScreen()),
+          ),
+          const Divider(height: 1),
+          _LinkRow(
+            icon: Icons.favorite_rounded,
+            iconColor: cs.primary,
+            title: l.donationSectionTitle,
+            subtitle: l.donationSectionDesc,
+            trailing: isSupporter
+                ? Icon(Icons.star_rounded, color: cs.primary, size: 20)
+                : null,
+            onTap: () => _open(context, const DonationScreen()),
+          ),
+          const Divider(height: 1),
+          _LinkRow(
+            icon: Icons.info_outline_rounded,
+            title: l.about,
+            subtitle: l.aboutDesc,
+            onTap: () => _open(context, const AboutScreen()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pushes [screen] onto the navigator.
+  void _open(BuildContext context, Widget screen) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => screen),
+      );
+}
+
+/// A row that leads to another screen.
+class _LinkRow extends StatelessWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final String title;
+  final String subtitle;
+
+  /// Replaces the chevron when the row has something to report, as the support
+  /// row does once the purchase went through.
+  final Widget? trailing;
+
+  final VoidCallback onTap;
+
+  const _LinkRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.iconColor,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      leading : Icon(icon, color: iconColor ?? cs.onSurfaceVariant),
+      title   : Text(title),
+      subtitle: Text(subtitle,
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+      trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
+      onTap   : onTap,
+    );
+  }
+}
+
+// ── Menu row ──────────────────────────────────────────────────────────────────
+
+/// One option of a [_MenuRow].
+class _MenuOption<T> {
+  /// What picking this option sets.
+  final T value;
+
+  /// The name of the option, shown in the menu and, for the active one, as the
+  /// value of the row itself.
+  final String label;
+
+  /// Drawn ahead of the label. An icon for most menus, a language code for the
+  /// one that has no icons to give.
+  final Widget leading;
+
+  const _MenuOption({
+    required this.value,
+    required this.label,
+    required this.leading,
+  });
+}
+
+/// A settings row that names its current value and opens a menu to change it.
+///
+/// The whole row is the target, not just the value at its end, which is why
+/// the anchor is driven through a controller instead of building the menu
+/// around a button. The trailing icon is deliberately not the chevron the link
+/// rows carry: in the same card the two have to say apart whether a tap opens
+/// a menu or leaves for another screen.
+class _MenuRow<T> extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final T value;
+  final List<_MenuOption<T>> options;
+  final ValueChanged<T> onSelected;
+
+  const _MenuRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+  });
+
+  @override
+  State<_MenuRow<T>> createState() => _MenuRowState<T>();
+}
+
+class _MenuRowState<T> extends State<_MenuRow<T>> {
+  final _controller = MenuController();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final current = widget.options.firstWhere((o) => o.value == widget.value);
+
+    // The row is the anchor, not the value at its end: MenuAnchor counts a tap
+    // on its own child as inside the menu, and a tap anywhere else closes it.
+    // Anchoring the value alone would let a tap on the label close the menu and
+    // reopen it in the same gesture.
+    return MenuAnchor(
+      controller  : _controller,
+      style       : const MenuStyle(alignment: AlignmentDirectional.bottomEnd),
+      menuChildren: [
+        for (final option in widget.options)
+          _MenuEntry<T>(
+            option  : option,
+            selected: option.value == widget.value,
+            onTap   : () => widget.onSelected(option.value),
+          ),
+      ],
       child: ListTile(
-        leading: Icon(Icons.favorite_rounded, color: cs.primary),
-        title: Text(l.donationSectionDesc),
-        trailing: isSupporter
-            ? Icon(Icons.star_rounded, color: cs.primary, size: 20)
-            : const Icon(Icons.chevron_right_rounded),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DonationScreen()),
+        leading: Icon(widget.icon, color: cs.onSurfaceVariant),
+        title  : Text(widget.label),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(current.label, style: TextStyle(color: cs.onSurfaceVariant)),
+            const SizedBox(width: 4),
+            Icon(Icons.unfold_more_rounded, size: 18, color: cs.onSurfaceVariant),
+          ],
         ),
+        onTap: () =>
+            _controller.isOpen ? _controller.close() : _controller.open(),
       ),
     );
   }
 }
 
-// ── About ─────────────────────────────────────────────────────────────────────
+/// One entry of the menu a [_MenuRow] opens, checked while it is the active
+/// choice.
+class _MenuEntry<T> extends StatelessWidget {
+  final _MenuOption<T> option;
+  final bool selected;
+  final VoidCallback onTap;
 
-/// Settings section linking to the about screen.
-class _AboutSection extends StatelessWidget {
-  const _AboutSection();
+  const _MenuEntry({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final l = context.l10n;
     final cs = Theme.of(context).colorScheme;
-
-    return _Card(
-      title: l.about,
-      icon: Icons.info_outline_rounded,
-      child: ListTile(
-        leading: Icon(Icons.info_outline_rounded, color: cs.onSurfaceVariant),
-        title: Text(l.about),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AboutScreen()),
-        ),
-      ),
+    return MenuItemButton(
+      leadingIcon : option.leading,
+      trailingIcon: selected
+          ? Icon(Icons.check_rounded, size: 18, color: cs.primary)
+          : null,
+      onPressed: onTap,
+      child: Text(option.label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            color: selected ? cs.primary : null,
+          )),
     );
   }
 }

@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:qr_flutter/qr_flutter.dart';
+
 import 'sync_service.dart';
 
 // ── Wire prefixes ─────────────────────────────────────────────────────────────
@@ -710,6 +712,48 @@ final Map<int, int> _base45Values = {
 
 /// Whether [data] consists only of characters a QR code can carry in its
 /// alphanumeric mode.
+/// Builds a QR code for [data] at the smallest version that holds it.
+///
+/// Sync payloads are base45, which lets the code use its alphanumeric mode and
+/// carry about a third more than the byte mode would. `QrCode.fromData` always
+/// picks the byte mode, so the code is assembled here instead. Anything outside
+/// the alphanumeric character set, such as the connection details of a Wi-Fi
+/// transfer, falls back to the byte mode.
+///
+/// Throws an [InputTooLongException] if [data] does not fit any version, which
+/// the transport choice is meant to prevent from ever happening.
+QrCode buildQrCode(String data) {
+  final alphanumeric = isAlphanumericSafe(data);
+
+  // In the alphanumeric mode the character count fixes the bit count exactly,
+  // so the version that fitted a payload of this length fits every other one.
+  // Every frame of an animated transfer is the same length, which turns the
+  // search below into a single attempt from the second frame onwards.
+  final cached = alphanumeric ? _qrVersionCache[data.length] : null;
+
+  for (var version = cached ?? 1; version <= 40; version++) {
+    final qr = QrCode(version, QrErrorCorrectLevel.M);
+    if (alphanumeric) {
+      qr.addAlphaNumeric(data);
+    } else {
+      qr.addData(data);
+    }
+    try {
+      // The size check only runs once the modules are laid out.
+      QrImage(qr);
+      if (alphanumeric) _qrVersionCache[data.length] = version;
+      return qr;
+    } on InputTooLongException {
+      continue;
+    }
+  }
+
+  throw InputTooLongException(data.length, 0);
+}
+
+/// Smallest QR version known to hold an alphanumeric payload of a given length.
+final Map<int, int> _qrVersionCache = {};
+
 bool isAlphanumericSafe(String data) =>
     data.codeUnits.every(_base45Values.containsKey);
 

@@ -33,7 +33,7 @@ void main() {
 
   setUp(() async {
     server = SyncServer();
-    connection = await server.start(payload);
+    connection = await server.start(utf8.encode(payload));
   });
 
   tearDown(() async {
@@ -69,7 +69,7 @@ void main() {
 
     test('every session gets its own token and number', () async {
       final other = SyncServer();
-      final second = await other.start(payload);
+      final second = await other.start(utf8.encode(payload));
 
       expect(second.token, isNot(connection.token));
       expect(second.token.length, 16);
@@ -113,7 +113,7 @@ void main() {
       // that only shows up once the body no longer fits in one buffer.
       final big = 'DS2:${'W' * 250000}';
       final other = SyncServer();
-      final where = await other.start(big);
+      final where = await other.start(utf8.encode(big));
 
       // The screen stops the server the moment it reports the hand-over, so
       // that has to be the moment the last byte is out.
@@ -141,6 +141,73 @@ void main() {
       server.reject();
 
       await expectLater(fetch, throwsA(isA<SyncRejectedException>()));
+    });
+  });
+
+  group('the return leg', () {
+    /// Plays the receiver: takes the payload, then answers with [reply].
+    Future<void> exchange(String reply) async {
+      final client = SyncClient();
+      final fetch = client.fetch(loopback(connection.token));
+      await _until(() => server.state.value == SyncServerState.pending);
+      server.approve();
+      await fetch;
+      await client.post(loopback(connection.token), reply);
+    }
+
+    test('the peer answers with its own side, and that ends the session',
+        () async {
+      await exchange('DS2:THEIRS');
+
+      await _until(() => server.state.value == SyncServerState.returned);
+      expect(server.returnedPayload, 'DS2:THEIRS');
+    });
+
+    test('an empty answer ends the wait with nothing to import', () async {
+      // What a receiver sends when it does not know the player at all. It has
+      // to answer anyway, or the sender sits on its timeout for no reason.
+      await exchange('');
+
+      await _until(() => server.state.value == SyncServerState.returned);
+      expect(server.returnedPayload, isNull);
+    });
+
+    test('nothing is taken before the payload has gone out', () async {
+      final client = SyncClient();
+
+      await expectLater(
+        client.post(loopback(connection.token), 'DS2:THEIRS'),
+        throwsA(isA<Exception>()),
+        reason: 'an unapproved peer holding the token must not push data in',
+      );
+      expect(server.state.value, SyncServerState.waiting);
+      expect(server.returnedPayload, isNull);
+    });
+
+    test('an answer without the token is refused', () async {
+      final client = SyncClient();
+      final fetch = client.fetch(loopback(connection.token));
+      await _until(() => server.state.value == SyncServerState.pending);
+      server.approve();
+      await fetch;
+
+      await expectLater(
+        client.post(loopback('${connection.token}X'), 'DS2:THEIRS'),
+        throwsA(isA<Exception>()),
+      );
+      expect(server.state.value, SyncServerState.served);
+      expect(server.returnedPayload, isNull);
+    });
+
+    test('the payload is not handed out again once the exchange is over',
+        () async {
+      await exchange('DS2:THEIRS');
+      await _until(() => server.state.value == SyncServerState.returned);
+
+      final (status, body) = await get('/${connection.token}');
+
+      expect(status, HttpStatus.gone);
+      expect(body, isNot(contains(payload)));
     });
   });
 

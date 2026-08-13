@@ -1,0 +1,791 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../l10n/app_localizations.dart';
+import '../providers/players_provider.dart';
+import '../database/db_helper.dart' show BackupInfo;
+import '../services/backup_service.dart';
+import '../services/sync_service.dart';
+import '../utils/layout.dart';
+import '../widgets/wifi_pairing.dart';
+
+/// Which half of the screen the user is in.
+enum _Mode {
+  /// The two entries, waiting to be picked.
+  idle,
+
+  /// What restoring will do, and the offer to save the current data first.
+  restoreWarning,
+
+  /// Where the backup should come from, and the last word before anything is
+  /// replaced.
+  restoreSource,
+
+  /// Serving this device's database to a peer over the local network.
+  sending,
+
+  /// Camera up, waiting for the other device's code.
+  receiving,
+}
+
+/// Writes the whole local database out, and reads one back in.
+///
+/// Both halves offer the same two routes, a file or the other device directly.
+/// Past that they are deliberately unequal, because they are not equally
+/// dangerous. Creating a backup is two taps. Taking one in walks through what a
+/// restore costs, the offer to save the current data first, where the file
+/// comes from, and finally what was actually found in it, and only then does
+/// anything get replaced.
+///
+/// Whatever is being handed over or taken in is described in the same terms on
+/// both sides: when it was made, which device made it, and what is in it.
+class BackupScreen extends StatefulWidget {
+  const BackupScreen({super.key});
+
+  @override
+  State<BackupScreen> createState() => _BackupScreenState();
+}
+
+class _BackupScreenState extends State<BackupScreen> {
+  /// Anchor the share sheet on an iPad, where a popover without an anchor
+  /// fails instead of opening. One per entry that can start a share, because
+  /// only the one on screen has anything to measure.
+  final _exportKey    = GlobalKey();
+  final _saveFirstKey = GlobalKey();
+
+  final SyncServer _server = SyncServer();
+
+  _Mode _mode = _Mode.idle;
+  bool _busy = false;
+  SyncConnection? _connection;
+  bool _sent = false;
+  String? _error;
+
+  /// The pairing number this device is waiting on while receiving, shown so the
+  /// user can compare it against the sending device.
+  String? _pairingPin;
+
+  /// How much of the database has arrived, and how much is coming. Null until
+  /// the transfer is actually running.
+  (int, int)? _received;
+
+  /// What this device is offering the peer, shown beside the code so the user
+  /// can see what is about to leave.
+  BackupInfo? _outgoing;
+
+  /// Set while the approval dialog is up, so a peer asking again does not open
+  /// a second one.
+  bool _askingApproval = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _server.state.addListener(_onServerState);
+  }
+
+  @override
+  void dispose() {
+    _server.state.removeListener(_onServerState);
+    unawaited(_server.stop());
+    _server.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TabletTextScale(child: _build(context));
+
+  /// The screen itself. [build] only wraps it, so that a tablet renders the
+  /// same layout at a size that suits the distance it is read from.
+  Widget _build(BuildContext context) {
+    final l = context.l10n;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l.backupTitle),
+        leading: _mode == _Mode.idle
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _leaveMode,
+              ),
+      ),
+      body: ListView(
+        padding: contentPadding(context, top: 12, bottom: 28, innerH: 14),
+        children: switch (_mode) {
+          _Mode.idle           => _idleBody(l),
+          _Mode.restoreWarning => _restoreWarningBody(l),
+          _Mode.restoreSource  => _restoreSourceBody(l),
+          _Mode.sending        => _sendingBody(l),
+          _Mode.receiving      => _receivingBody(l),
+        },
+      ),
+    );
+  }
+
+  // ── The two entries ───────────────────────────────────────────────────────
+
+  List<Widget> _idleBody(AppLocalizations l) {
+    final cs = Theme.of(context).colorScheme;
+    return [
+      _note(l.backupWhereHint),
+      const SizedBox(height: 16),
+      Card(
+        child: Column(
+          children: [
+            ListTile(
+              key: _exportKey,
+              leading: Icon(Icons.save_alt_rounded, color: cs.primary),
+              title: Text(l.backupCreate),
+              subtitle: Text(l.backupCreateDesc),
+              enabled: !_busy,
+              onTap: _chooseCreate,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.restore_rounded, color: cs.error),
+              title: Text(l.backupRestore),
+              subtitle: Text(l.backupRestoreDesc),
+              enabled: !_busy,
+              onTap: () => setState(() => _mode = _Mode.restoreWarning),
+            ),
+          ],
+        ),
+      ),
+      if (_busy) ...[
+        const SizedBox(height: 24),
+        const Center(child: CircularProgressIndicator()),
+      ],
+    ];
+  }
+
+  /// Asks whether the backup should become a file or go straight to the other
+  /// device.
+  Future<void> _chooseCreate() async {
+    final l = context.l10n;
+    final route = await _askRoute(
+      title: l.backupCreate,
+      first: (Icons.folder_outlined, l.backupToFile, l.backupToFileDesc),
+      second: (Icons.wifi_rounded, l.backupToDevice, l.backupToDeviceDesc),
+    );
+    if (route == null || !mounted) return;
+    if (route) {
+      await _export(_exportKey);
+    } else {
+      await _startSending();
+    }
+  }
+
+  // ── Restoring, step one: what it costs ────────────────────────────────────
+
+  /// Says what a restore does before anything is picked, and offers to put the
+  /// current data somewhere safe first.
+  ///
+  /// The way out of a restore that turns out to be the wrong one is a copy of
+  /// what was there before, and the only moment the user can still make one is
+  /// now.
+  List<Widget> _restoreWarningBody(AppLocalizations l) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    return [
+      Card(
+        color: cs.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: cs.onErrorContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(l.backupRestoreQ,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: cs.onErrorContainer,
+                          fontWeight: FontWeight.bold,
+                        )),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(l.backupRestoreWarn,
+                  style: TextStyle(color: cs.onErrorContainer)),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 20),
+      Text(l.backupSaveFirstQ,
+          style: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Card(
+        child: ListTile(
+          key: _saveFirstKey,
+          leading: Icon(Icons.save_alt_rounded, color: cs.primary),
+          title: Text(l.backupSaveFirst),
+          subtitle: Text(l.backupSaveFirstDesc),
+          enabled: !_busy,
+          onTap: () => _export(_saveFirstKey),
+        ),
+      ),
+      const SizedBox(height: 24),
+      if (_busy)
+        const Center(child: CircularProgressIndicator())
+      else
+        FilledButton(
+          onPressed: () => setState(() => _mode = _Mode.restoreSource),
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+          child: Text(l.backupContinueAnyway),
+        ),
+    ];
+  }
+
+  // ── Restoring, step two: from where, and the last word ────────────────────
+
+  /// Where the backup comes from. Picking one is the last thing that happens
+  /// before the file is read, and the dialog after it names what was found.
+  List<Widget> _restoreSourceBody(AppLocalizations l) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_busy) {
+      return [const Center(child: CircularProgressIndicator())];
+    }
+
+    return [
+      _note(l.backupSourceHint),
+      const SizedBox(height: 16),
+      Card(
+        child: Column(
+          children: [
+            ListTile(
+              leading: Icon(Icons.folder_outlined, color: cs.primary),
+              title: Text(l.backupFromFile),
+              subtitle: Text(l.backupFromFileDesc),
+              onTap: _restoreFromFile,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading:
+                  Icon(Icons.qr_code_scanner_rounded, color: cs.primary),
+              title: Text(l.backupFromDevice),
+              subtitle: Text(l.backupFromDeviceDesc),
+              onTap: () => setState(() {
+                _mode  = _Mode.receiving;
+                _error = null;
+              }),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// Offers the two routes out and returns true for the file one, false for the
+  /// other device, or null when the user backed out.
+  Future<bool?> _askRoute({
+    required String title,
+    required (IconData, String, String) first,
+    required (IconData, String, String) second,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        Widget option((IconData, String, String) o, bool value) => ListTile(
+              leading: Icon(o.$1, color: cs.primary),
+              title: Text(o.$2),
+              subtitle: Text(o.$3),
+              onTap: () => Navigator.pop(ctx, value),
+            );
+
+        return AlertDialog(
+          title: Text(title),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [option(first, true), option(second, false)],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(ctx.l10n.cancel),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Sending over the network ──────────────────────────────────────────────
+
+  List<Widget> _sendingBody(AppLocalizations l) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    if (_sent) {
+      return [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle_outline,
+                color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Text(l.backupSent,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        FilledButton(
+          onPressed: _finishToHome,
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+          child: Text(l.done),
+        ),
+      ];
+    }
+
+    final connection = _connection;
+    if (connection == null) {
+      return [
+        const Center(child: CircularProgressIndicator()),
+        const SizedBox(height: 16),
+        Text(_error ?? l.backupSendPrep,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+                color: _error == null ? cs.onSurfaceVariant : cs.error)),
+      ];
+    }
+
+    return [
+      _note(l.backupSendHint),
+      if (_outgoing != null) ...[
+        const SizedBox(height: 12),
+        _summaryCard(l, _outgoing!, title: l.backupOutgoingTitle),
+      ],
+      const SizedBox(height: 20),
+      ValueListenableBuilder<double>(
+        valueListenable: _server.progress,
+        builder: (context, progress, child) => progress == 0
+            ? child!
+            : Column(
+                children: [
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                      value: progress,
+                      borderRadius: BorderRadius.circular(4)),
+                  const SizedBox(height: 10),
+                  Text(l.backupSending(_percent(progress)),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: cs.onSurfaceVariant)),
+                ],
+              ),
+        child: PairingQrCard(data: connection.qrPayload),
+      ),
+    ];
+  }
+
+  /// A fraction as whole percent, for the transfer labels.
+  int _percent(double fraction) => (fraction * 100).round();
+
+  /// Prepares the database and puts it on the network for one peer.
+  Future<void> _startSending() async {
+    setState(() {
+      _mode       = _Mode.sending;
+      _sent       = false;
+      _error      = null;
+      _connection = null;
+      _outgoing   = null;
+    });
+
+    try {
+      final (bytes, info) = await BackupService.exportBytes();
+      if (!mounted) return;
+      setState(() => _outgoing = info);
+
+      if (_server.isRunning) await _server.stop();
+      // One way on purpose. A database replaces the device that takes it, so
+      // there is nothing it could hand back.
+      final connection = await _server.start(
+        bytes,
+        twoWay: false,
+        contentType: ContentType.binary,
+        codePrefix: kBackupWifiPrefix,
+      );
+      if (!mounted) return;
+      setState(() => _connection = connection);
+    } catch (e) {
+      if (mounted) setState(() => _error = '${context.l10n.error}: $e');
+    }
+  }
+
+  /// Follows the transfer: asks about a waiting peer, and closes the session
+  /// once the database is out.
+  void _onServerState() {
+    switch (_server.state.value) {
+      case SyncServerState.pending:
+        _askApproval();
+      case SyncServerState.served:
+      case SyncServerState.rejected:
+        _finishSending();
+      case SyncServerState.waiting:
+      case SyncServerState.approved:
+      case SyncServerState.returned:
+        if (mounted) setState(() {});
+    }
+  }
+
+  /// Shows the peer's request with the pairing number and acts on the answer.
+  Future<void> _askApproval() async {
+    if (_askingApproval || !mounted) return;
+    _askingApproval = true;
+
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PairingDialog(pin: _server.pin),
+    );
+
+    _askingApproval = false;
+    if (approved == true) {
+      _server.approve();
+    } else {
+      _server.reject();
+    }
+  }
+
+  /// Takes the server down once the session is over, either way.
+  Future<void> _finishSending() async {
+    final sent = _server.state.value == SyncServerState.served;
+    await _server.stop();
+    if (mounted) setState(() { _connection = null; _sent = sent; });
+  }
+
+  // ── Receiving over the network ────────────────────────────────────────────
+
+  List<Widget> _receivingBody(AppLocalizations l) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    if (_busy) {
+      final received = _received;
+      return [
+        const Center(child: CircularProgressIndicator()),
+        // The number both devices show, so the user can tell that the device
+        // asking is the one in front of them.
+        if (_pairingPin != null) ...[
+          const SizedBox(height: 20),
+          Text(
+            _pairingPin!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.displaySmall
+                ?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 8),
+          ),
+          const SizedBox(height: 6),
+          Text(l.syncPairWaiting,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
+        if (received != null && received.$2 > 0) ...[
+          const SizedBox(height: 20),
+          LinearProgressIndicator(
+              value: received.$1 / received.$2,
+              borderRadius: BorderRadius.circular(4)),
+          const SizedBox(height: 10),
+          Text(l.backupReceivingAt(_percent(received.$1 / received.$2)),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ] else ...[
+          const SizedBox(height: 16),
+          Text(l.backupReceiving,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
+      ];
+    }
+
+    return [
+      _note(_error ?? l.backupReceiveHint, isError: _error != null),
+      const SizedBox(height: 16),
+      SizedBox(
+        height: 320,
+        child: QrScanner(onScanned: _onScanned),
+      ),
+    ];
+  }
+
+  /// Reads a scanned code and, if it opens a database transfer, takes it.
+  Future<void> _onScanned(String raw) async {
+    if (_busy) return;
+
+    final connection =
+        SyncConnection.parse(raw, prefix: kBackupWifiPrefix);
+    if (connection == null) {
+      // A profile sync code is the one wrong code worth naming, because it
+      // looks right and belongs to a different screen.
+      final isSyncCode = SyncConnection.parse(raw) != null;
+      if (mounted) {
+        setState(() => _error = isSyncCode
+            ? context.l10n.backupNotSyncCode
+            : context.l10n.backupNotABackup);
+      }
+      return;
+    }
+
+    setState(() {
+      _busy       = true;
+      _error      = null;
+      _pairingPin = null;
+      _received   = null;
+    });
+    try {
+      final bytes = await SyncClient().fetchBytes(
+        connection,
+        onPin: (pin) {
+          if (mounted) setState(() => _pairingPin = pin);
+        },
+        onProgress: (received, total) {
+          if (mounted) setState(() => _received = (received, total));
+        },
+      );
+      if (!mounted) return;
+      await _confirmAndRestore(await BackupService.acceptTransfer(bytes));
+    } on BackupRejectedException catch (e) {
+      if (mounted) setState(() => _error = _rejectionMessage(e));
+    } catch (e) {
+      if (mounted) {
+        final l = context.l10n;
+        setState(() => _error = switch (e) {
+              SyncRejectedException() => l.syncRejected,
+              TimeoutException()      => l.syncNotConfirmed,
+              _ => '${l.connectionFailed}\n\n${l.error}: $e',
+            });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy       = false;
+          _pairingPin = null;
+          _received   = null;
+        });
+      }
+    }
+  }
+
+  // ── Shared ────────────────────────────────────────────────────────────────
+
+  /// Copies the database out and hands it to the share sheet, anchored on the
+  /// entry the user tapped.
+  Future<void> _export(GlobalKey anchor) async {
+    final box    = anchor.currentContext?.findRenderObject() as RenderBox?;
+    final origin = box == null || !box.hasSize
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+
+    setState(() => _busy = true);
+    try {
+      final shared = await BackupService.exportAndShare(
+          sharePositionOrigin: origin);
+      if (shared && mounted) _toast(context.l10n.backupCreated);
+    } catch (e) {
+      if (mounted) _toast('${context.l10n.error}: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Picks a backup file and replaces the local data once that is confirmed.
+  Future<void> _restoreFromFile() async {
+    setState(() => _busy = true);
+    try {
+      final picked = await BackupService.pick();
+      if (picked == null) return;
+      if (!mounted) return await picked.discard();
+      await _confirmAndRestore(picked);
+    } on BackupRejectedException catch (e) {
+      if (mounted) _toast(_rejectionMessage(e));
+    } catch (e) {
+      if (mounted) _toast('${context.l10n.error}: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// The last step of both routes in: show what is about to replace everything,
+  /// and carry it out if the user says so.
+  Future<void> _confirmAndRestore(PickedBackup picked) async {
+    if (!await _confirm(picked)) return await picked.discard();
+    if (!mounted) return await picked.discard();
+
+    await BackupService.restore(picked);
+    if (!mounted) return;
+    await context.read<PlayersProvider>().load();
+    if (!mounted) return;
+
+    _toast(context.l10n.backupRestored);
+    // The screens underneath were built from data that no longer exists.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  /// Asks whether [picked] should really replace everything on this device,
+  /// showing when it was made and what it contains so two backups can be told
+  /// apart.
+  Future<bool> _confirm(PickedBackup picked) async {
+    final l    = context.l10n;
+    final info = picked.info;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: Text(l.backupRestoreQ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryCard(l, info, title: l.backupIncomingTitle),
+                const SizedBox(height: 14),
+                Text(l.backupRestoreWarn),
+                const SizedBox(height: 10),
+                Text(l.backupDeviceNote,
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: cs.error),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.backupRestore),
+            ),
+          ],
+        );
+      },
+    );
+    return ok ?? false;
+  }
+
+  /// Leaves the backup screen altogether, back to where the user started.
+  ///
+  /// The transfer is over and there is nothing left to do here, so the way out
+  /// is one tap rather than a walk back up through the settings. The server is
+  /// shut down by [dispose] on the way.
+  void _finishToHome() =>
+      Navigator.of(context).popUntil((route) => route.isFirst);
+
+  /// Back to the two entries, shutting down whatever the mode was running.
+  Future<void> _leaveMode() async {
+    await _server.stop();
+    if (!mounted) return;
+    setState(() {
+      _mode       = _Mode.idle;
+      _connection = null;
+      _sent       = false;
+      _error      = null;
+    });
+  }
+
+  String _rejectionMessage(BackupRejectedException e) => switch (e.reason) {
+        BackupRejection.notABackup => context.l10n.backupNotABackup,
+        BackupRejection.tooNew     => context.l10n.backupTooNew,
+      };
+
+  /// What a database holds, in the same four lines wherever it is shown: on the
+  /// way out beside the code, and on the way in beside the question.
+  Widget _summaryCard(AppLocalizations l, BackupInfo info,
+      {required String title}) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Icon(icon, size: 15, color: cs.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
+              const Spacer(),
+              Text(value,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: cs.primary, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            row(Icons.schedule_rounded, l.backupWhen, _whenOf(l, info)),
+            row(Icons.smartphone_rounded, l.backupDevice,
+                info.deviceLabel ?? l.unknownDevice),
+            row(Icons.people_alt_rounded, l.players, '${info.playerCount}'),
+            row(Icons.sports_esports_rounded, l.backupGames, '${info.gameCount}'),
+            row(Icons.data_usage_rounded, l.backupSize, _sizeOf(info)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The backup's timestamp, or a stand-in for a file that carries none.
+  String _whenOf(AppLocalizations l, BackupInfo info) => info.createdAt == null
+      ? l.backupUnknownDate
+      : DateFormat('dd.MM.yy  HH:mm').format(info.createdAt!);
+
+  /// The file size, in whichever unit keeps it to a couple of digits.
+  String _sizeOf(BackupInfo info) {
+    final kb = info.sizeBytes / 1024;
+    if (kb < 1024) return '${kb.round()} KB';
+    return '${(kb / 1024).toStringAsFixed(1)} MB';
+  }
+
+  /// A bordered line of explanation above whatever the mode is showing.
+  Widget _note(String text, {bool isError = false}) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(isError ? Icons.error_outline : Icons.info_outline_rounded,
+                size: 18, color: isError ? cs.error : cs.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(text,
+                  style:
+                      TextStyle(color: isError ? cs.error : cs.onSurfaceVariant)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Shows [message] in a snackbar.
+  void _toast(String message) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(message)));
+}

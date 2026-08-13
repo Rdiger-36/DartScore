@@ -352,12 +352,24 @@ enum SyncServerState {
   /// The user approved, the payload goes out on the next request.
   approved,
 
-  /// The payload has been handed over.
+  /// The payload has been handed over, and the peer's own is now awaited.
   served,
+
+  /// The peer has answered with its side of the exchange. Whether that answer
+  /// carried anything is [SyncServer.returnedPayload].
+  returned,
 
   /// The user turned the peer away.
   rejected,
 }
+
+/// Marks the QR code that carries a whole-database transfer's connection
+/// details.
+///
+/// Its own prefix so the two cannot be mixed up: a database replaces the
+/// receiving device, a profile is merged into it, and scanning one code in the
+/// screen meant for the other has to fail rather than half work.
+const String kBackupWifiPrefix = 'DSB:';
 
 /// Where and how a peer reaches a running [SyncServer].
 class SyncConnection {
@@ -367,37 +379,80 @@ class SyncConnection {
   /// Random per session, and the only way past the server's front door.
   final String token;
 
-  const SyncConnection(this.ip, this.port, this.token);
+  /// Which kind of transfer this code opens, [kSyncWifiPrefix] or
+  /// [kBackupWifiPrefix].
+  final String prefix;
+
+  const SyncConnection(this.ip, this.port, this.token,
+      {this.prefix = kSyncWifiPrefix});
 
   /// The connection QR's contents. Uppercase and punctuation only, so the code
   /// can use the dense alphanumeric mode.
-  String get qrPayload => '$kSyncWifiPrefix$ip:$port:$token';
+  String get qrPayload => '$prefix$ip:$port:$token';
 
-  /// Parses what [qrPayload] produced, or null if [raw] is something else.
-  static SyncConnection? parse(String raw) {
-    if (!raw.startsWith(kSyncWifiPrefix)) return null;
-    final parts = raw.substring(kSyncWifiPrefix.length).split(':');
+  /// Parses what [qrPayload] produced, or null if [raw] is something else,
+  /// including a code of the other kind.
+  static SyncConnection? parse(String raw,
+      {String prefix = kSyncWifiPrefix}) {
+    if (!raw.startsWith(prefix)) return null;
+    final parts = raw.substring(prefix.length).split(':');
     if (parts.length != 3) return null;
     final port = int.tryParse(parts[1]);
     if (port == null) return null;
-    return SyncConnection(parts[0], port, parts[2]);
+    return SyncConnection(parts[0], port, parts[2], prefix: prefix);
   }
 }
 
-/// Hosts a one-shot local HTTP server that hands a payload to one peer over the
-/// local network, once the user has confirmed the peer is the right one.
+/// Hosts a one-shot local HTTP server that exchanges a payload with one peer
+/// over the local network, once the user has confirmed the peer is the right
+/// one.
 ///
 /// A peer needs the token from the connection QR to get any answer at all,
 /// which is what keeps the payload from anyone else who happens to be on the
 /// same Wi-Fi. Past that door it still waits: the first request only starts a
 /// pairing, both devices show the same four digits, and the payload is released
-/// when the user approves it here. The server then stops itself rather than
-/// staying open for the rest of the session.
+/// when the user approves it here.
+///
+/// The exchange goes both ways in one pairing. After the payload has gone out
+/// the server stays up briefly for the peer to post its own side back, which is
+/// what makes two devices reconcile in one confirmation instead of two runs
+/// with the roles swapped. The peer always answers, with an empty body when it
+/// has nothing to give, so the wait ends on an answer rather than on the
+/// timeout. Then the server stops rather than staying open for the rest of the
+/// session.
 class SyncServer {
+  /// How long to wait for the peer's side after the payload has gone out. Only
+  /// reached when the peer disappears mid-exchange; an ordinary run answers at
+  /// once.
+  static const Duration returnTimeout = Duration(seconds: 90);
+
+  /// How much of the payload goes out before the progress is reported again.
+  ///
+  /// The whole body used to be handed to the socket in one call, which is fine
+  /// for a sync packet and useless for a database: the user would watch a still
+  /// screen for as long as it takes. Small enough to move a bar, large enough
+  /// that the flush per slice costs nothing next to the write.
+  static const int _kChunkBytes = 64 * 1024;
+
   HttpServer? _server;
-  String? _payload;
+  List<int>? _payload;
+  ContentType _contentType = ContentType.text;
+  bool _twoWay = true;
+  String? _returned;
+  Timer? _returnTimer;
   String _token = '';
   String _pin = '';
+
+  final ValueNotifier<double> _progress = ValueNotifier(0);
+
+  /// How much of the payload has gone out, from 0 to 1. Stays at 0 until a peer
+  /// is actually being served.
+  ValueListenable<double> get progress => _progress;
+
+  /// What the peer sent back, or null when it had nothing for this device.
+  /// Only meaningful once the state is [SyncServerState.returned].
+  String? get returnedPayload =>
+      _returned == null || _returned!.isEmpty ? null : _returned;
 
   final ValueNotifier<SyncServerState> _state =
       ValueNotifier(SyncServerState.waiting);
@@ -413,10 +468,26 @@ class SyncServer {
 
   /// Binds the server on a free port, ready to serve [payload], and returns
   /// where the peer should connect.
-  Future<SyncConnection> start(String payload) async {
+  ///
+  /// [twoWay] is what a profile sync wants: the peer answers with its own side
+  /// and one pairing settles both devices. Handing a whole database over is not
+  /// like that, it replaces the receiver, so there is nothing to hand back and
+  /// the session ends as soon as the payload is out.
+  ///
+  /// [codePrefix] picks which kind of transfer the returned code opens.
+  Future<SyncConnection> start(
+    List<int> payload, {
+    bool twoWay = true,
+    ContentType? contentType,
+    String codePrefix = kSyncWifiPrefix,
+  }) async {
     final random = Random.secure();
 
     _payload = payload;
+    _contentType = contentType ?? ContentType.text;
+    _twoWay = twoWay;
+    _returned = null;
+    _progress.value = 0;
     _token = List.generate(
         16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
     _pin = random.nextInt(10000).toString().padLeft(4, '0');
@@ -426,7 +497,8 @@ class SyncServer {
     _server!.listen((req) => _handle(req).catchError((_) {}),
         onError: (_) {}, cancelOnError: false);
 
-    return SyncConnection(await _localIp(), _server!.port, _token);
+    return SyncConnection(await _localIp(), _server!.port, _token,
+        prefix: codePrefix);
   }
 
   /// Releases the payload to the waiting peer.
@@ -458,6 +530,11 @@ class SyncServer {
       return;
     }
 
+    if (req.method == 'POST') {
+      await _handleReturn(req, response);
+      return;
+    }
+
     if (_state.value == SyncServerState.waiting) {
       _state.value = SyncServerState.pending;
     }
@@ -468,18 +545,38 @@ class SyncServer {
         await response.close();
       case SyncServerState.approved:
       case SyncServerState.served:
+        final payload = _payload!;
         response
           ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.text
-          ..headers.set(HttpHeaders.connectionHeader, 'close')
-          ..write(_payload);
+          ..headers.contentType = _contentType
+          ..headers.contentLength = payload.length
+          ..headers.set(HttpHeaders.connectionHeader, 'close');
+
+        // Written in slices so the sending screen has something to show. A
+        // database takes long enough that one write and a still screen look
+        // like a transfer that died.
+        for (var start = 0; start < payload.length; start += _kChunkBytes) {
+          final end = min(start + _kChunkBytes, payload.length);
+          response.add(payload.sublist(start, end));
+          await response.flush();
+          _progress.value = end / payload.length;
+        }
 
         // The state has to wait for the last byte. Announcing the hand-over
         // any earlier lets the screen shut the server down mid-response, and
-        // a payload of a few tens of kilobytes is still in flight at that
-        // point, so the receiver sees the connection break instead.
+        // a payload of a few tens of kilobytes, or a whole database, is still
+        // in flight at that point, so the receiver sees the connection break
+        // instead.
         await response.close();
-        _state.value = SyncServerState.served;
+        _progress.value = 1;
+        if (_state.value != SyncServerState.served) {
+          _state.value = SyncServerState.served;
+          if (_twoWay) _startReturnTimer();
+        }
+      case SyncServerState.returned:
+        // The exchange is over. Nothing is served twice.
+        response.statusCode = HttpStatus.gone;
+        await response.close();
       case SyncServerState.waiting:
       case SyncServerState.pending:
         response
@@ -489,12 +586,52 @@ class SyncServer {
     }
   }
 
+  /// Takes the peer's side of the exchange.
+  ///
+  /// Only once this device's own payload is out: before that there is no
+  /// approved peer, and taking a packet from an unconfirmed one would let
+  /// anyone holding the token push data in. An empty body is a valid answer and
+  /// means the peer had nothing to send.
+  Future<void> _handleReturn(HttpRequest req, HttpResponse response) async {
+    if (!_twoWay || _state.value != SyncServerState.served) {
+      response.statusCode = HttpStatus.conflict;
+      await response.close();
+      return;
+    }
+
+    final body = await utf8.decoder.bind(req).join();
+    _returned = body;
+
+    response.statusCode = HttpStatus.ok;
+
+    // Same reason as the payload above, the other way round: the screen reacts
+    // to `returned` by shutting the server down, so the answer has to be fully
+    // written before the state says so, or the peer never sees it.
+    await response.close();
+    _returnTimer?.cancel();
+    _state.value = SyncServerState.returned;
+  }
+
+  /// Gives up waiting for the peer's side after [returnTimeout], so a peer that
+  /// vanished mid-exchange does not leave the sender's screen waiting forever.
+  void _startReturnTimer() {
+    _returnTimer?.cancel();
+    _returnTimer = Timer(returnTimeout, () {
+      if (_state.value == SyncServerState.served) {
+        _returned = null;
+        _state.value = SyncServerState.returned;
+      }
+    });
+  }
+
   /// Stops the server and clears the payload and the session secrets.
   ///
   /// The state is deliberately left where it was. A screen shutting down calls
   /// this and then [dispose] without waiting, so a write here would land on a
   /// notifier that is already gone; [start] resets the state anyway.
   Future<void> stop() async {
+    _returnTimer?.cancel();
+    _returnTimer = null;
     await _server?.close(force: true);
     _server = null;
     _payload = null;
@@ -502,9 +639,11 @@ class SyncServer {
     _pin = '';
   }
 
-  /// Releases the state notifier. Call when the owning screen goes away.
+  /// Releases the notifiers. Call when the owning screen goes away.
   void dispose() {
+    _returnTimer?.cancel();
     _state.dispose();
+    _progress.dispose();
   }
 
   /// Characters a session token is built from: unambiguous, and all inside the
@@ -552,13 +691,22 @@ class SyncClient {
   /// How long to wait between asking again.
   static const _kPollInterval = Duration(milliseconds: 600);
 
+  /// The text payload of a profile sync. See [fetchBytes], which this decodes.
+  Future<String> fetch(SyncConnection connection,
+          {void Function(String pin)? onPin}) async =>
+      utf8.decode(await fetchBytes(connection, onPin: onPin));
+
   /// Connects to [connection] and returns the payload once the sending device
   /// has approved the transfer.
   ///
   /// [onPin] is called with the four digits as soon as the server names them,
-  /// so the receiver can show the user what to compare against.
-  Future<String> fetch(SyncConnection connection,
-      {void Function(String pin)? onPin}) async {
+  /// so the receiver can show the user what to compare against. [onProgress]
+  /// reports the bytes arrived and the total expected, which is what a database
+  /// transfer needs: it is large enough that a screen without a bar looks
+  /// stuck. The total is 0 when the sender announced no length.
+  Future<List<int>> fetchBytes(SyncConnection connection,
+      {void Function(String pin)? onPin,
+      void Function(int received, int total)? onProgress}) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10)
       ..idleTimeout = const Duration(seconds: 10);
@@ -573,7 +721,17 @@ class SyncClient {
         final res = await (await client.getUrl(url))
             .close()
             .timeout(const Duration(seconds: 10));
-        final body = await res.transform(utf8.decoder).join();
+
+        // Collected as bytes, because the payload may be a database rather
+        // than text. Only the small status answers below are ever decoded.
+        final total = res.contentLength < 0 ? 0 : res.contentLength;
+        final body = <int>[];
+        await for (final chunk in res) {
+          body.addAll(chunk);
+          if (res.statusCode == HttpStatus.ok) {
+            onProgress?.call(body.length, total);
+          }
+        }
 
         switch (res.statusCode) {
           case HttpStatus.ok:
@@ -582,7 +740,8 @@ class SyncClient {
             throw const SyncRejectedException();
           case HttpStatus.accepted:
             if (!announced) {
-              final pin = (jsonDecode(body) as Map<String, dynamic>)['pin'];
+              final pin = (jsonDecode(utf8.decode(body))
+                  as Map<String, dynamic>)['pin'];
               if (pin is String) {
                 announced = true;
                 onPin?.call(pin);
@@ -596,6 +755,37 @@ class SyncClient {
           throw TimeoutException('The transfer was not confirmed in time');
         }
         await Future<void>.delayed(_kPollInterval);
+      }
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Sends this device's own side of the exchange back to [connection].
+  ///
+  /// Always called after a successful [fetch], with an empty [payload] when
+  /// there is nothing to return: the sender is waiting on an answer either way,
+  /// and an empty one ends its wait immediately instead of after the timeout.
+  ///
+  /// A failure here is deliberately not fatal to the caller. The data this
+  /// device received is already stored, and the only thing lost is the other
+  /// direction, which the user can run again.
+  Future<void> post(SyncConnection connection, String payload) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..idleTimeout = const Duration(seconds: 10);
+
+    try {
+      final url = Uri.parse(
+          'http://${connection.ip}:${connection.port}/${connection.token}');
+      final request = await client.postUrl(url);
+      request.headers.contentType = ContentType.text;
+      request.write(payload);
+
+      final res = await request.close().timeout(const Duration(seconds: 30));
+      await res.drain<void>();
+      if (res.statusCode != HttpStatus.ok) {
+        throw Exception('Server responded with ${res.statusCode}');
       }
     } finally {
       client.close(force: true);
