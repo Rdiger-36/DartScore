@@ -25,30 +25,20 @@ void main() {
     DeviceDescription.debugSetLabel(null);
   });
 
-  group('the name a model identifier stands for', () {
-    test('resolves an identifier iOS reports to what it is sold as', () {
-      expect(DeviceDescription.resolveName('iPhone16,1'), 'iPhone 15 Pro');
-      expect(DeviceDescription.resolveName('iPhone17,3'), 'iPhone 16');
-    });
-
-    test('hands back an identifier it does not know, rather than a guess', () {
-      // A generation the table has not been told about yet. Saying the code is
-      // dry; saying the wrong phone would be worse, and this is the visible
-      // sign that the table is due a line.
-      expect(DeviceDescription.resolveName('iPhone99,9'), 'iPhone99,9');
-    });
-
-    test('leaves alone what already reads as a name', () {
-      // Android answers with something readable, so there is nothing to look up.
-      expect(DeviceDescription.resolveName("Niklas' S23"), "Niklas' S23");
-    });
-  });
-
   group('the label put on anything leaving the device', () {
     test('puts the operating system after the name, in brackets', () async {
       mockPlatform({'name': 'iPhone16,1', 'os': 'iOS 18.5'});
 
-      expect(await DeviceDescription.label, 'iPhone 15 Pro (iOS 18.5)');
+      expect(await DeviceDescription.label, 'iPhone16,1 (iOS 18.5)');
+    });
+
+    test('reports what the platform said, without translating it', () async {
+      // No table of marketing names in between. iOS reports a model identifier
+      // and that is what travels: it is exact and unique per model, where a
+      // table would need a line for every phone Apple ships.
+      mockPlatform({'name': 'iPhone99,9', 'os': 'iOS 30.0'});
+
+      expect(await DeviceDescription.label, 'iPhone99,9 (iOS 30.0)');
     });
 
     test('passes an Android name straight through', () async {
@@ -92,7 +82,7 @@ void main() {
         'brackets', () async {
       mockPlatform({'name': 'iPhone16,1'});
 
-      expect(await DeviceDescription.label, 'iPhone 15 Pro');
+      expect(await DeviceDescription.label, 'iPhone16,1');
     });
   });
 }

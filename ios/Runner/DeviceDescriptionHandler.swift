@@ -11,9 +11,13 @@ import UIKit
 /// The name the owner gave the device is deliberately not read. Since iOS 16
 /// `UIDevice.name` answers with the model instead of that name unless the app
 /// carries an entitlement Apple grants case by case, so asking for it would
-/// only look like it worked. The model identifier goes back raw and Dart turns
-/// it into a marketing name, which keeps that table somewhere it can be tested
-/// and updated without touching Xcode.
+/// only look like it worked.
+///
+/// What goes back is the model identifier as it stands, "iPhone16,1". Turning
+/// that into the name the phone is sold under would take a table with a line
+/// per model, and a line missing every time Apple ships one. The identifier is
+/// exact, unique per model and never goes stale, which is worth more here than
+/// being pretty.
 class DeviceDescriptionHandler: NSObject, FlutterPlugin {
   /// Shared with `DeviceDescription` on the Dart side.
   private static let channelName = "dartscore/device_description"
