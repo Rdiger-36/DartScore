@@ -1,7 +1,9 @@
 import 'package:dartscore_app/models/around_the_clock_game.dart';
+import 'package:dartscore_app/models/cricket_game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/models/shanghai_game.dart';
 import 'package:dartscore_app/providers/around_the_clock_provider.dart';
+import 'package:dartscore_app/providers/cricket_provider.dart';
 import 'package:dartscore_app/providers/shanghai_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -261,6 +263,72 @@ void main() {
 
       expect(fresh.playerStates[0].progress, 1);
       expect(fresh.currentPlayerIndex, 1);
+    });
+  });
+
+  group('CricketProvider against a real database', () {
+    useInMemoryDatabase();
+
+    late CricketProvider provider;
+    late List<Player> players;
+
+    setUp(() async {
+      provider = CricketProvider();
+      players = await insertPlayers(['A', 'B']);
+    });
+
+    CricketGame game() => CricketGame(
+          variant: CricketVariant.normal,
+          scoringMode: CricketScoringMode.standard,
+          legs: 1,
+          sets: 1,
+          createdAt: DateTime.now(),
+          playerIds: players.map((p) => p.id!).toList(),
+        );
+
+    /// Closes every Cricket field for whoever is on turn, three marks at a
+    /// time, handing the other slot a full visit of misses in between.
+    Future<void> closeEverything() async {
+      for (final field in cricketFields) {
+        await provider.recordDart(field, 3);
+        if (provider.gameOver) return;
+        await provider.recordDart(0, 0);
+        await provider.recordDart(0, 0);
+        for (var i = 0; i < 3; i++) {
+          await provider.recordDart(0, 0);
+        }
+      }
+    }
+
+    test('a finished game resumed from history still names its winner',
+        () async {
+      // The history view replays through this provider rather than deriving
+      // the winner itself, so a replay that forgets the win leaves that screen
+      // with no winner at all.
+      await provider.startGame(game(), players);
+      await closeEverything();
+
+      expect(provider.gameOver, isTrue, reason: 'A closed everything first');
+      final winner = provider.winnerId;
+      expect(winner, players.first.id);
+
+      final fresh = CricketProvider();
+      await fresh.resumeGame(provider.game!, players);
+
+      expect(fresh.gameOver, isTrue);
+      expect(fresh.winnerId, winner);
+      expect(fresh.playerStates.first.isWonBy(fresh.winnerId), isTrue);
+    });
+
+    test('an unfinished game resumed from history has no winner', () async {
+      await provider.startGame(game(), players);
+      await provider.recordDart(20, 3);
+
+      final fresh = CricketProvider();
+      await fresh.resumeGame(provider.game!, players);
+
+      expect(fresh.gameOver, isFalse);
+      expect(fresh.winnerId, isNull);
     });
   });
 }

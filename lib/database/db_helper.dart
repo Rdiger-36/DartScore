@@ -1552,6 +1552,13 @@ class DbHelper {
         }
       }
 
+      // The table names above are a weak test: any database that happens to
+      // carry them would pass, and what follows a restore is not undoable. The
+      // marker is the strong one, and no backup this app ever wrote is without
+      // it: [prepareBackup] stamps it on every way out, and the backup feature
+      // and the `app_meta` table arrived in the same schema version.
+      if (meta['format'] != kBackupMarker) return null;
+
       final createdAt = int.tryParse(meta['created_at'] ?? '');
       var games = 0;
       for (final table in [
