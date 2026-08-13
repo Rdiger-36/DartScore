@@ -721,9 +721,15 @@ class _BackupScreenState extends State<BackupScreen> {
               Icon(icon, size: 15, color: cs.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
-              const Spacer(),
-              Text(value,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 12),
+              // Takes the rest of the row and wraps inside it rather than
+              // being pushed past its edge by a Spacer: the device is named
+              // here, and a name is as long as the device's owner made it.
+              Expanded(
+                child: Text(value,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ],
           ),
         );

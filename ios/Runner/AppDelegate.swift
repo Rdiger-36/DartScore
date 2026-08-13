@@ -17,5 +17,10 @@ import UIKit
     ) {
       DocumentPickerHandler.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "DeviceDescriptionHandler"
+    ) {
+      DeviceDescriptionHandler.register(with: registrar)
+    }
   }
 }

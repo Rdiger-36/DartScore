@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import '../providers/players_provider.dart';
 import '../database/db_helper.dart';
 import '../models/dart_throw.dart';
 import '../models/player.dart';
+import '../services/device_description.dart';
 import '../services/device_identity.dart';
 import '../services/sync_codec.dart';
 import '../services/sync_service.dart';
@@ -565,7 +565,7 @@ class _SenderTabState extends State<_SenderTab>
     });
 
     final packet = await buildSyncPacket(
-        player, Platform.isIOS ? 'iPhone' : 'Android', _range);
+        player, await DeviceDescription.label, _range);
     final transmission = prepareTransmission(packet);
 
     if (!mounted) return;
@@ -1271,7 +1271,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
         // Encoded straight, with no transport decision to make: this always
         // goes back over the connection it came in on, whatever its size.
         final own = await buildSyncPacket(
-            player, Platform.isIOS ? 'iPhone' : 'Android', SyncRange.all);
+            player, await DeviceDescription.label, SyncRange.all);
         payload = encodeSyncPayload(own);
       }
     } catch (_) {

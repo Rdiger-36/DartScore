@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../database/db_helper.dart';
+import 'device_description.dart';
 import 'device_identity.dart';
 import 'document_picker.dart';
 
@@ -63,7 +64,7 @@ class BackupService {
   /// path to read it from.
   static Future<String> _prepare() async => DbHelper.instance.prepareBackup(
         await DeviceIdentity.id,
-        Platform.isIOS ? 'iPhone' : 'Android',
+        await DeviceDescription.label,
       );
 
   /// The database as bytes, ready to be handed to another device over the
