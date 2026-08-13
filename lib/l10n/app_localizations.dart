@@ -352,14 +352,13 @@ class AppLocalizations {
 
   // ── Settings ─────────────────────────────────────────────────────────────
   String get settingsTitle     => _t('Settings', 'Einstellungen');
+  String get displaySection    => _t('Display', 'Darstellung');
+  String get appSection        => _t('App', 'App');
   String get language          => _t('Language', 'Sprache');
-  String get appearance        => _t('Appearance', 'Erscheinungsbild');
+  String get theme             => _t('Theme', 'Design');
   String get system            => _t('System', 'System');
-  String get systemDesc        => _t('Follows System setting', 'Folgt der System-Einstellung');
   String get light             => _t('Light', 'Hell');
-  String get lightDesc         => _t('Always light theme', 'Immer helles Design');
   String get dark              => _t('Dark', 'Dunkel');
-  String get darkDesc          => _t('Always dark theme', 'Immer dunkles Design');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',
@@ -393,7 +392,8 @@ class AppLocalizations {
       'Deine Unterstützung bedeutet mir viel und hilft dabei, DartScore für alle kostenlos zu halten.');
 
   // ── About ────────────────────────────────────────────────────────────────
-  String get about             => _t('About', 'Info');
+  String get about             => _t('About', 'Über die App');
+  String get aboutDesc         => _t('Version, license, project', 'Version, Lizenz, Projekt');
   String get aboutTitle        => _t('About DartScore', 'Über DartScore');
   String get version           => _t('Version', 'Version');
   String get developer         => _t('Developer', 'Entwickler');
@@ -522,6 +522,9 @@ class AppLocalizations {
   String get alternativeName   => _t('Alternative name', 'Alternativer Name');
   String fromDevice(String d)  => _t('From: $d', 'Von: $d');
   String get import_           => _t('Import', 'Importieren');
+  String get syncAwaitingReturn =>
+      _t('The data is through. Waiting for the other device to send its own back, so both are up to date after one transfer.',
+         'Die Daten sind durch. Warte darauf, dass das andere Gerät seine eigenen zurückschickt, damit beide nach einer Übertragung aktuell sind.');
   String get update            => _t('Update', 'Aktualisieren');
   String importedMsg(String name) => _t('$name imported.', '$name importiert.');
   String updatedMsg(String name) => _t('$name updated.', '$name aktualisiert.');
@@ -536,6 +539,90 @@ class AppLocalizations {
          'Das Profil von "$name" wird mit diesen Daten überschrieben.');
   String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
   String get throws            => _t('Throws', 'Würfe');
+
+  // ── Backup ────────────────────────────────────────────────────────────────
+  String get backupTitle       => _t('Backup', 'Sicherung');
+  String get backupSectionDesc =>
+      _t('Back up and restore', 'Sichern und wiederherstellen');
+  String get backupCreate      => _t('Create backup', 'Sicherung erstellen');
+  String get backupCreateDesc  =>
+      _t('Writes all players, games and throws into one file',
+         'Schreibt alle Spieler, Spiele und Würfe in eine Datei');
+  String get backupRestore     => _t('Restore backup', 'Sicherung wiederherstellen');
+  String get backupRestoreDesc =>
+      _t('Reads a backup file back in',
+         'Liest eine Sicherungsdatei wieder ein');
+  String get backupWhereHint   =>
+      _t('Pick where the file goes: iCloud Drive, Google Drive, Files, mail or a chat. Nothing is uploaded anywhere by the app itself.',
+         'Du wählst, wohin die Datei geht: iCloud Drive, Google Drive, Dateien, E-Mail oder ein Chat. Die App selbst lädt nichts irgendwo hoch.');
+  String get backupCreated     => _t('Backup created.', 'Sicherung erstellt.');
+  String get backupToFile      => _t('Save to a file', 'In eine Datei speichern');
+  String get backupToFileDesc  =>
+      _t('iCloud Drive, Google Drive, Files, mail, anywhere you like',
+         'iCloud Drive, Google Drive, Dateien, E-Mail, wohin du magst');
+  String get backupToDevice    => _t('Send to another device', 'An anderes Gerät senden');
+  String get backupToDeviceDesc =>
+      _t('Straight over Wi-Fi, both devices on the same network',
+         'Direkt über WLAN, beide Geräte im selben Netz');
+  String get backupFromFile    => _t('From a file', 'Aus einer Datei');
+  String get backupFromFileDesc =>
+      _t('Pick a backup you saved earlier',
+         'Eine zuvor gespeicherte Sicherung auswählen');
+  String get backupFromDevice  => _t('From another device', 'Von einem anderen Gerät');
+  String get backupFromDeviceDesc =>
+      _t('Scan the code the other device is showing',
+         'Den Code scannen, den das andere Gerät anzeigt');
+  String get backupSendHint    =>
+      _t('Show this code to the other device and confirm the number both screens display. Everything on that device is replaced by this database.',
+         'Zeige diesen Code dem anderen Gerät und bestätige die Zahl, die beide Bildschirme anzeigen. Alles auf jenem Gerät wird durch diese Datenbank ersetzt.');
+  String get backupSendPrep    => _t('Preparing the database', 'Datenbank wird vorbereitet');
+  String get backupSent        => _t('Database transferred.', 'Datenbank übertragen.');
+  String get backupSendAgain   => _t('Send again', 'Erneut senden');
+  String get backupReceiveHint =>
+      _t('Scan the code on the device you want the data from.',
+         'Scanne den Code auf dem Gerät, dessen Daten du übernehmen willst.');
+  String get backupReceiving   => _t('Receiving the database', 'Datenbank wird empfangen');
+  String backupReceivingAt(int percent) =>
+      _t('Receiving the database, $percent%',
+         'Datenbank wird empfangen, $percent%');
+  String backupSending(int percent) =>
+      _t('Sending the database, $percent%',
+         'Datenbank wird gesendet, $percent%');
+  String get backupNotSyncCode =>
+      _t('That is a profile sync code. Use it in the sync screen of the player list.',
+         'Das ist ein Code für den Profil-Sync. Verwende ihn in der Sync-Ansicht der Spielerliste.');
+  String get backupNotABackup  =>
+      _t('This file is not a DartScore backup.',
+         'Diese Datei ist keine DartScore-Sicherung.');
+  String get backupTooNew      =>
+      _t('This backup comes from a newer version of DartScore. Update the app first.',
+         'Diese Sicherung stammt aus einer neueren Version von DartScore. Aktualisiere zuerst die App.');
+  String get backupRestoreQ    => _t('Restore backup?', 'Sicherung wiederherstellen?');
+  String get backupRestoreWarn =>
+      _t('Every player, game and statistic on this device is replaced by the backup. That cannot be undone.',
+         'Alle Spieler, Spiele und Statistiken auf diesem Gerät werden durch die Sicherung ersetzt. Das lässt sich nicht rückgängig machen.');
+  String get backupDeviceNote  =>
+      _t('Games from the backup stay filed under the device they were played on, so this device and that one can still sync afterwards.',
+         'Spiele aus der Sicherung bleiben dem Gerät zugeordnet, auf dem sie gespielt wurden. Dieses und jenes Gerät können danach weiterhin synchronisieren.');
+  String get backupRestored    => _t('Backup restored.', 'Sicherung wiederhergestellt.');
+  String get backupUnknownDate => _t('Date unknown', 'Datum unbekannt');
+  String get backupSaveFirstQ  =>
+      _t('Save the current data first?',
+         'Vorher die aktuellen Daten sichern?');
+  String get backupSaveFirst   => _t('Create a backup now', 'Jetzt eine Sicherung erstellen');
+  String get backupSaveFirstDesc =>
+      _t('The only way back if the restored data turns out to be the wrong one',
+         'Der einzige Weg zurück, falls die wiederhergestellten Daten die falschen sind');
+  String get backupContinueAnyway => _t('Continue', 'Weiter');
+  String get backupSourceHint  =>
+      _t('Where should the backup come from? You get to see what it holds before anything is replaced.',
+         'Woher soll die Sicherung kommen? Was sie enthält, siehst du, bevor irgendetwas ersetzt wird.');
+  String get backupOutgoingTitle => _t('Being handed over', 'Wird übergeben');
+  String get backupIncomingTitle => _t('This backup', 'Diese Sicherung');
+  String get backupWhen        => _t('Version of', 'Stand');
+  String get backupDevice      => _t('From', 'Von');
+  String get backupSize        => _t('Size', 'Größe');
+  String get backupGames       => _t('Games', 'Spiele');
 
   // ── Game Mode Selection ──────────────────────────────────────────────────
   String get selectGameMode       => _t('Select Game Mode', 'Spielmodus wählen');
