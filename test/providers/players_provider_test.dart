@@ -30,6 +30,37 @@ void main() {
       expect(provider.players.map((p) => p.name), ['Nik', 'Ada', 'Zoe']);
     });
 
+    test('ignores case, so a lower case name is not exiled to the end',
+        () async {
+      // Ordering by code unit puts every capital ahead of every lower case
+      // letter, which is how "anna" ends up behind "Zoe" in a list of names.
+      await provider.addPlayer('Zoe');
+      await provider.addPlayer('anna');
+      await provider.addPlayer('Bob');
+
+      expect(provider.players.map((p) => p.name), ['anna', 'Bob', 'Zoe']);
+    });
+
+    test('files the umlauts under their base letter', () async {
+      // By code unit these all sort behind "Zoe", far up in the code space.
+      await provider.addPlayer('Zoe');
+      await provider.addPlayer('Ärger');
+      await provider.addPlayer('Über');
+      await provider.addPlayer('Öl');
+
+      expect(provider.players.map((p) => p.name),
+          ['Ärger', 'Öl', 'Über', 'Zoe']);
+    });
+
+    test('treats ß as ss', () async {
+      await provider.addPlayer('Strauss');
+      await provider.addPlayer('Strauß');
+      await provider.addPlayer('Straub');
+
+      expect(provider.players.map((p) => p.name),
+          ['Straub', 'Strauss', 'Strauß']);
+    });
+
     test('sorts the same way after reloading from the database', () async {
       await provider.addPlayer('Zoe');
       await provider.addPlayer('Ada');
