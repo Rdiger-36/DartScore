@@ -106,16 +106,22 @@ class BackupService {
     if (await file.exists()) await file.delete();
   }
 
-  /// Replaces the local database with [picked] and takes over the device
-  /// identity stored in it.
+  /// Replaces the local database with [picked].
+  ///
+  /// This device keeps its own identity. When the backup came from a different
+  /// device, the history in it is re-stamped as that device's on the way in,
+  /// see [DbHelper.attributeRestoredHistory], which is what lets the two go on
+  /// syncing afterwards.
   ///
   /// The caller has to reload every provider afterwards: the data behind them
   /// is not the data they were built from any more.
   static Future<void> restore(PickedBackup picked) async {
+    final localId = await DeviceIdentity.id;
     await DbHelper.instance.replaceDatabase(picked.path);
-    final deviceId = picked.info.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      await DeviceIdentity.adopt(deviceId);
+
+    final source = picked.info.deviceId;
+    if (source != null && source.isNotEmpty && source != localId) {
+      await DbHelper.instance.attributeRestoredHistory(source);
     }
     await _discard(picked.path);
   }

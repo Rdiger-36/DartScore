@@ -568,9 +568,9 @@ class AppLocalizations {
   String get backupRestoreWarn =>
       _t('Every player, game and statistic on this device is replaced by the backup. That cannot be undone.',
          'Alle Spieler, Spiele und Statistiken auf diesem Gerät werden durch die Sicherung ersetzt. Das lässt sich nicht rückgängig machen.');
-  String get backupDeviceWarn  =>
-      _t('This device also takes over the identity of the device the backup was made on. If that device still exists, do not sync it with this one again.',
-         'Dieses Gerät übernimmt außerdem die Kennung des Geräts, auf dem die Sicherung erstellt wurde. Falls es dieses Gerät noch gibt, synchronisiere es danach nicht mehr mit diesem.');
+  String get backupDeviceNote  =>
+      _t('Games from the backup stay filed under the device they were played on, so this device and that one can still sync afterwards.',
+         'Spiele aus der Sicherung bleiben dem Gerät zugeordnet, auf dem sie gespielt wurden. Dieses und jenes Gerät können danach weiterhin synchronisieren.');
   String get backupRestored    => _t('Backup restored.', 'Sicherung wiederhergestellt.');
   String get backupUnknownDate => _t('Date unknown', 'Datum unbekannt');
   String backupContents(int players, int games) =>

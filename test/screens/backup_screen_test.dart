@@ -120,7 +120,7 @@ void main() {
       // The two things a restore cannot take back: the data, and the identity
       // this device syncs under.
       expect(find.textContaining('cannot be undone'), findsOneWidget);
-      expect(find.textContaining('takes over the identity'), findsOneWidget);
+      expect(find.textContaining('stay filed under the device'), findsOneWidget);
     });
 
     testWidgets('changes nothing when the question is declined', (tester) async {
@@ -151,7 +151,9 @@ void main() {
       final names = (await tester.runAsync(DbHelper.instance.getPlayers))!
           .map((p) => p.name);
       expect(names, ['Ann']);
-      expect(await DeviceIdentity.id, 'DEVICEAAAA000001');
+      expect(await DeviceIdentity.id, isNot('DEVICEAAAA000001'),
+          reason: 'this device keeps its own id, or it could never sync with '
+              'the one the backup came from again');
     });
 
     testWidgets('says so when the file is not a backup', (tester) async {
