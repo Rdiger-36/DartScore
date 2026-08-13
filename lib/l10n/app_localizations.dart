@@ -86,6 +86,8 @@ class AppLocalizations {
   String get minOnePlayer      => _t('Select at least 1 player', 'Mindestens 1 Spieler auswählen');
   String get openPlayHint      => _t('1 player = Solo Game (no opponent)', '1 Spieler = Solo Spiel (kein Gegner)');
   String playerN(int n)        => _t('Player $n', 'Spieler $n');
+  String morePlayers(int n)    => _t('Show $n more', '$n weitere anzeigen');
+  String get fewerPlayers      => _t('Show fewer', 'Weniger anzeigen');
 
   // ── Match format presets ─────────────────────────────────────────────────
   String get matchFormat       => _t('Match Format', 'Match-Format');

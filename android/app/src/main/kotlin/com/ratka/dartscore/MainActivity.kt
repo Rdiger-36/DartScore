@@ -3,23 +3,31 @@ package com.ratka.dartscore
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.util.Locale
 
 /**
- * Hosts the Flutter engine and adds the one thing this app needs from the
- * platform directly: the system document picker.
+ * Hosts the Flutter engine and adds the two things this app needs from the
+ * platform directly: the system document picker, and what this device calls
+ * itself.
  *
  * Written by hand instead of taken from a package because every file picking
  * plugin still wants CocoaPods on the iOS side, which this project deliberately
- * does not use. The iOS half of this lives in `DocumentPickerHandler.swift`.
+ * does not use. The iOS halves live in `DocumentPickerHandler.swift` and
+ * `DeviceDescriptionHandler.swift`.
  */
 class MainActivity : FlutterActivity() {
     /** Shared with `DocumentPicker` on the Dart side. */
     private val channelName = "dartscore/document_picker"
+
+    /** Shared with `DeviceDescription` on the Dart side. */
+    private val deviceChannelName = "dartscore/device_description"
 
     private val requestPickFile = 0x0BAC
 
@@ -35,6 +43,47 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, deviceChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "describe" -> result.success(describeDevice())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * What to call this device, and which Android it runs.
+     *
+     * Prefers the name the owner gave the device in its settings, because that
+     * is what they will recognise on the other end of a transfer. It is not
+     * always set and not readable on every build, so the manufacturer and model
+     * stand in, which is a part code rather than a name but still tells two
+     * devices apart.
+     */
+    private fun describeDevice(): Map<String, String> = mapOf(
+        "name" to (userAssignedName() ?: modelName()),
+        "os" to "Android ${Build.VERSION.RELEASE}",
+    )
+
+    /** The name from the device settings, or null when there is none to read. */
+    private fun userAssignedName(): String? = try {
+        Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+            ?.trim()
+            ?.ifEmpty { null }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Manufacturer and model, without repeating the manufacturer twice. */
+    private fun modelName(): String {
+        val manufacturer = Build.MANUFACTURER.orEmpty()
+        val model = Build.MODEL.orEmpty()
+        if (model.startsWith(manufacturer, ignoreCase = true)) return model
+        val prefix = manufacturer.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        }
+        return "$prefix $model".trim()
     }
 
     /**

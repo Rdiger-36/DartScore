@@ -32,10 +32,15 @@ class ShanghaiSummaryScreen extends StatelessWidget {
 
     final isSequential = game.variant == ShanghaiVariant.sequential;
 
+    // The winning slot, looked up once. Null when the game has no winner, and
+    // null too if the id names nobody on the board, which keeps a mismatch a
+    // missing banner rather than an exception out of the middle of a build.
+    final winnerSlot = states.where((s) => s.isWonBy(winnerId)).firstOrNull;
+
     final sorted = List.of(states)
       ..sort((a, b) {
-        if (a.player.id == winnerId) return -1;
-        if (b.player.id == winnerId) return 1;
+        if (a.isWonBy(winnerId)) return -1;
+        if (b.isWonBy(winnerId)) return 1;
         if (isSequential) {
           final fa = a.finishedAtDart ?? 1 << 30;
           final fb = b.finishedAtDart ?? 1 << 30;
@@ -46,7 +51,7 @@ class ShanghaiSummaryScreen extends StatelessWidget {
 
     // Who won, which on two columns belongs over both of them
     // rather than in the half that happens to hold it.
-    final winnerBanner = winnerId == null
+    final winnerBanner = winnerSlot == null
         ? null
         : Center(
             child: Column(
@@ -62,8 +67,7 @@ class ShanghaiSummaryScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.shanghaiWinner(
-                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  l.shanghaiWinner(winnerSlot.displayName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -103,7 +107,7 @@ class ShanghaiSummaryScreen extends StatelessWidget {
                   const Divider(height: 1),
                   const SizedBox(height: 8),
                   ...sorted.map((s) {
-                    final isWinner = s.player.id == winnerId;
+                    final isWinner = s.isWonBy(winnerId);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(

@@ -43,6 +43,15 @@ class AroundTheClockPlayerState {
   /// The player who throws next (backward-compatible accessor).
   Player get player => players[currentPlayerIdx];
 
+  /// Whether [winnerId] names anyone in this slot.
+  ///
+  /// Matched against every member rather than against [player]: in team mode
+  /// [player] is only whoever the rotation has on turn, and it moves on as the
+  /// game runs, so comparing against it makes the winning slot unrecognisable
+  /// from one moment to the next.
+  bool isWonBy(int? winnerId) =>
+      winnerId != null && players.any((p) => p.id == winnerId);
+
   /// The number this slot must currently hit.
   int get currentTarget => aroundTheClockOrder[progress.clamp(0, aroundTheClockOrder.length - 1)];
 

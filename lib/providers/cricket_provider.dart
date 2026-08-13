@@ -40,6 +40,15 @@ class CricketPlayerState {
   /// The player who throws next (backward-compatible accessor).
   Player get player => players[currentPlayerIdx];
 
+  /// Whether [winnerId] names anyone in this slot.
+  ///
+  /// Matched against every member rather than against [player]: in team mode
+  /// [player] is only whoever the rotation has on turn, and it moves on as the
+  /// game runs, so comparing against it makes the winning slot unrecognisable
+  /// from one moment to the next.
+  bool isWonBy(int? winnerId) =>
+      winnerId != null && players.any((p) => p.id == winnerId);
+
   /// Whether this slot has closed [field] (three or more marks).
   bool hasClosedField(int field) => (marks[field] ?? 0) >= 3;
 
@@ -421,12 +430,34 @@ class CricketProvider extends ChangeNotifier {
     // Replay all darts in chronological order, each routed to the slot of the
     // player that threw it. Shanghai and Around the Clock instead follow the
     // turn order; both work, this one also survives a dart stored out of turn.
+    //
+    // The win is decided here as well, on the same two rules [recordDart] and
+    // [_endVisit] use, so that a finished game resumed from history reports its
+    // winner rather than none. Deriving it a second time somewhere else is how
+    // the summary and the history would start naming different winners.
     for (final t in allThrows) {
       if (t.isMiss) continue;
       final slotIdx = _playerStates
           .indexWhere((s) => s.players.any((p) => p.id == t.playerId));
       if (slotIdx < 0) continue;
       _applyDart(slotIdx, t.field, t.multiplier);
+
+      // Closing the last field while ahead ends the leg on this very dart, so
+      // the winner is the player who threw it.
+      if (_checkWin(slotIdx)) {
+        _gameOver = true;
+        _winnerId = t.playerId;
+        break;
+      }
+      // Everyone has closed everything: nothing can score any more, so the
+      // score decides. Live play settles this at the end of the visit, which
+      // reaches the same slot because no dart after this one can change a
+      // score.
+      if (_playerStates.every((s) => s.hasClosedAll)) {
+        _gameOver = true;
+        _winnerId = _playerStates[_scoreWinnerIndex()].player.id;
+        break;
+      }
     }
 
     // Throws per slot, chronological, used to determine turn order

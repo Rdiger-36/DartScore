@@ -89,7 +89,43 @@ class PlayersProvider extends ChangeNotifier {
     _players.sort((a, b) {
       if (a.isPrimary && !b.isPrimary) return -1;
       if (!a.isPrimary && b.isPrimary) return 1;
-      return a.name.compareTo(b.name);
+      return comparePlayerNames(a.name, b.name);
     });
   }
+}
+
+/// Compares two player names the way a reader expects to find them in a list.
+///
+/// Not `String.compareTo`, which orders by code unit: that puts every capital
+/// ahead of every lower case letter, so "anna" lands behind "Zoe", and sorts
+/// the umlauts after "z" because they sit far up in the code space. Both are
+/// wrong in a list of names, and both are common in German ones.
+///
+/// Umlauts are folded to their base letter (DIN 5007 variant 1, the ordering
+/// used in dictionaries) and "ß" to "ss". The raw names decide any remaining
+/// tie, so that two names differing only in case keep a stable order rather
+/// than swapping around on every reload.
+int comparePlayerNames(String a, String b) {
+  final folded = _foldForSort(a).compareTo(_foldForSort(b));
+  return folded != 0 ? folded : a.compareTo(b);
+}
+
+/// Lower cases [name] and folds the German letters that would otherwise sort
+/// outside the alphabet.
+String _foldForSort(String name) {
+  const replacements = {
+    'ä': 'a', 'ö': 'o', 'ü': 'u', 'ß': 'ss',
+    'á': 'a', 'à': 'a', 'â': 'a', 'å': 'a', 'ã': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ø': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u',
+    'ñ': 'n', 'ç': 'c',
+  };
+  final buffer = StringBuffer();
+  for (final rune in name.toLowerCase().runes) {
+    final char = String.fromCharCode(rune);
+    buffer.write(replacements[char] ?? char);
+  }
+  return buffer.toString();
 }

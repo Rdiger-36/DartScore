@@ -564,6 +564,39 @@ void main() {
       expect(decoder.sourceBlocks, 0);
     });
 
+    test('refuses a frame claiming more length than its blocks hold', () {
+      // The header decides where [assemble] cuts the payload, so a length past
+      // the blocks would leave the cut out of range rather than merely wrong.
+      final encoder = SyncFountainEncoder(
+          Uint8List.fromList(List.generate(300, (i) => i % 256)),
+          startOffset: 0);
+      final parts = encoder.frameAt(0).substring(kSyncFramePrefix.length).split(':');
+      final overlong = '$kSyncFramePrefix${parts[0]}:${parts[1]}:'
+          'zzzz:${parts[3]}:${parts.sublist(4).join(':')}';
+
+      final decoder = SyncFountainDecoder();
+      expect(decoder.add(overlong), isFalse);
+      expect(decoder.isComplete, isFalse);
+      expect(decoder.sourceBlocks, 0);
+    });
+
+    test('a payload that arrives corrupt is refused, not handed on', () {
+      // The checksum covers the data, not the header, so a frame whose blocks
+      // do not add up to it completes the transfer and fails here. The scan
+      // screen has to see this as a read failure it can report.
+      final data = Uint8List.fromList(List.generate(300, (i) => i % 256));
+      final encoder = SyncFountainEncoder(data, startOffset: 0);
+      final parts = encoder.frameAt(0).substring(kSyncFramePrefix.length).split(':');
+      final wrongSum = '$kSyncFramePrefix${parts[0]}:${parts[1]}:'
+          '${parts[2]}:abcd:${parts.sublist(4).join(':')}';
+
+      final decoder = SyncFountainDecoder();
+      decoder.add(wrongSum);
+      expect(decoder.isComplete, isTrue,
+          reason: 'the blocks are all there, only they do not add up');
+      expect(decoder.assemble, throwsFormatException);
+    });
+
     test('the two sides agree on which blocks a frame combines', () {
       // Sender and receiver each derive this from the seed alone, so a drift
       // between the two generators would decode to plausible looking rubbish

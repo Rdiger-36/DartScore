@@ -104,6 +104,31 @@ void main() {
       expect(await DbHelper.instance.inspectBackup(path), isNull);
     });
 
+    test('refuses a database that only looks like this app', () async {
+      // The table names alone are a weak test, and a restore cannot be undone.
+      // A file carrying the right tables but not the marker is not one this
+      // app wrote, and must not be offered as something to replace the live
+      // database with.
+      final path = '${dir.path}/lookalike.db';
+      final lookalike = await databaseFactory.openDatabase(path);
+      for (final table in ['players', 'games', 'dart_throws']) {
+        await lookalike.execute('CREATE TABLE $table (id INTEGER PRIMARY KEY)');
+      }
+      await lookalike.close();
+
+      expect(await DbHelper.instance.inspectBackup(path), isNull);
+    });
+
+    test('refuses a backup whose marker was tampered with', () async {
+      final path = await writeBackup('DEVICE0000000001');
+      final file = await databaseFactory.openDatabase(path);
+      await file.update('app_meta', {'value': 'something-else'},
+          where: 'key = ?', whereArgs: ['format']);
+      await file.close();
+
+      expect(await DbHelper.instance.inspectBackup(path), isNull);
+    });
+
     test('describes a file from a newer app version instead of failing',
         () async {
       final path = await writeBackup('DEVICE0000000001');

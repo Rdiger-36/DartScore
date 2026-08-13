@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -149,10 +150,31 @@ class _QrScannerState extends State<QrScanner> with WidgetsBindingObserver {
 /// The number is what tells the user that the device asking is the one in front
 /// of them. The token in the connection code is what actually keeps everyone
 /// else out; this is the part the user can see.
-class PairingDialog extends StatelessWidget {
+///
+/// Opening vibrates once, like a notification. This dialog is the one moment in
+/// a transfer that waits on the user, and it arrives while they are looking at
+/// the other device, so without a nudge the pairing sits there until somebody
+/// happens to glance back.
+class PairingDialog extends StatefulWidget {
   final String pin;
 
   const PairingDialog({super.key, required this.pin});
+
+  @override
+  State<PairingDialog> createState() => _PairingDialogState();
+}
+
+class _PairingDialogState extends State<PairingDialog> {
+  @override
+  void initState() {
+    super.initState();
+    // The full vibrate rather than one of the impact taps, so it carries like
+    // a notification: the user is holding the other device when this arrives
+    // and a tap is easy to miss. This is the strongest haptic available
+    // without the VIBRATE permission and the vibrator API behind it, and it is
+    // silently ignored where the hardware has none.
+    HapticFeedback.vibrate();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +199,7 @@ class PairingDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  pin,
+                  widget.pin,
                   style: theme.textTheme.displaySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 8,
