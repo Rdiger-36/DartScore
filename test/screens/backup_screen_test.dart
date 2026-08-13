@@ -5,6 +5,7 @@ import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/screens/backup_screen.dart';
 import 'package:dartscore_app/services/device_identity.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,12 +69,13 @@ void main() {
     /// returns on, and awaiting one there hangs the test rather than failing
     /// it.
     Future<String> backupOf(WidgetTester tester, List<String> names,
-        {String? thenAdd}) async {
+        {String? thenAdd, String device = 'iPhone'}) async {
       return (await tester.runAsync(() async {
         for (final name in names) {
           await DbHelper.instance.insertPlayer(Player(name: name));
         }
-        final source = await DbHelper.instance.prepareBackup('DEVICEAAAA000001', 'iPhone');
+        final source =
+            await DbHelper.instance.prepareBackup('DEVICEAAAA000001', device);
         final path = '${dir.path}/backup.db';
         await File(source).copy(path);
         if (thenAdd != null) {
@@ -139,6 +141,89 @@ void main() {
       expect(find.text('iPhone'), findsOneWidget, reason: 'the device it came from');
       expect(find.textContaining('cannot be undone'), findsWidgets);
       expect(find.textContaining('stay filed under the device'), findsOneWidget);
+    });
+
+    testWidgets('has room for a device that names itself in full',
+        (tester) async {
+      // The label names the device and its operating system now, not just
+      // "iPhone", so this row has to hold a good deal more than it used to.
+      // On a narrow phone, which is where it runs out of room.
+      const device = "Niklas' Galaxy S23 Ultra (Android 14)";
+      usePhoneSurface(tester, size: const Size(360, 800));
+      pickedPath =
+          await backupOf(tester, ['Ann'], thenAdd: 'Later', device: device);
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      expect(find.text(device), findsOneWidget);
+
+      // Measured rather than left to an overflow error, because there is none
+      // to catch: the row sits in a box that lets it grow, so a value too long
+      // for the dialog is quietly cut off at the edge instead of reported. Laid
+      // out behind a Spacer this text takes 513 logical pixels on a 360 pixel
+      // screen, and everything past the edge is simply not there for the user.
+      final dialog = tester.getSize(find.ancestor(
+          of: find.text('Restore backup?'), matching: find.byType(AlertDialog)));
+      expect(tester.getSize(find.text(device)).width,
+          lessThanOrEqualTo(dialog.width),
+          reason: 'the device name has to fit the dialog that shows it');
+    });
+
+    testWidgets('writes the confirming button in the colour that goes with it',
+        (tester) async {
+      // A FilledButton given only a background writes in onPrimary, which is
+      // white in both themes. Against the dark theme's error, a light red,
+      // that is barely readable. The pair has to be set together.
+      pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      final button = tester.widget<FilledButton>(find.ancestor(
+        of: find.text('Restore backup'),
+        matching: find.byType(FilledButton),
+      ));
+      final cs = Theme.of(tester.element(find.byType(AlertDialog).last))
+          .colorScheme;
+
+      expect(button.style?.backgroundColor?.resolve({}), cs.error);
+      expect(button.style?.foregroundColor?.resolve({}), cs.onError,
+          reason: 'the colour named for what is behind it, not onPrimary');
+    });
+
+    /// Opens the restore confirmation on a screen of [size] and reports how
+    /// wide the dialog ended up.
+    Future<double> confirmationWidthAt(WidgetTester tester, Size size) async {
+      usePhoneSurface(tester, size: size);
+      pickedPath = await backupOf(tester, ['Ann'], thenAdd: 'Later');
+      await pumpScreen(tester);
+
+      await tapRestoreFromFile(tester);
+      await pumpUntil(tester, find.text('Restore backup?'));
+
+      return tester
+          .getSize(find.ancestor(
+              of: find.text('Restore backup?'),
+              matching: find.byType(AlertDialog)))
+          .width;
+    }
+
+    // An AlertDialog takes the width it is offered, and on an iPad that is most
+    // of the screen for a few lines of text. Every dialog in the sync screen is
+    // bounded; the two here were the ones that were not.
+    testWidgets('keeps the confirmation readable on a tablet in landscape',
+        (tester) async {
+      expect(await confirmationWidthAt(tester, const Size(1194, 834)),
+          lessThanOrEqualTo(kMaxContentWidth));
+    });
+
+    testWidgets('keeps the confirmation readable on a tablet in portrait',
+        (tester) async {
+      expect(await confirmationWidthAt(tester, const Size(834, 1194)),
+          lessThanOrEqualTo(kMaxContentWidth));
     });
 
     testWidgets('changes nothing when the question is declined', (tester) async {

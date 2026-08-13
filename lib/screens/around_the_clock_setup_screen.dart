@@ -7,6 +7,7 @@ import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../widgets/player_dialog.dart';
+import '../widgets/player_select_section.dart';
 import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
 import '../utils/layout.dart';
@@ -176,7 +177,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
           const SizedBox(height: 16),
 
           // ── Players ───────────────────────────────────────────────────────
-          _PlayersSection(
+          PlayerSelectSection(
             allPlayers: allPlayers,
             selectedPlayers: _selectedPlayers,
             onToggle: (p, selected) {
@@ -350,67 +351,3 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// Player picker listing all players with selection toggles and an add button.
-class _PlayersSection extends StatelessWidget {
-  final List<Player> allPlayers;
-  final List<Player> selectedPlayers;
-  final void Function(Player, bool) onToggle;
-  final VoidCallback onAddPlayer;
-
-  const _PlayersSection({
-    required this.allPlayers,
-    required this.selectedPlayers,
-    required this.onToggle,
-    required this.onAddPlayer,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l     = context.l10n;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(l.players,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ),
-                TextButton.icon(
-                  onPressed: onAddPlayer,
-                  icon: const Icon(Icons.person_add_outlined, size: 18),
-                  label: Text(l.addPlayer),
-                  style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (allPlayers.isEmpty)
-              Text(l.noPlayersAvail,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant))
-            else
-              ...allPlayers.map((p) {
-                final selected = selectedPlayers.any((s) => s.id == p.id);
-                final idx =
-                    selectedPlayers.indexWhere((s) => s.id == p.id);
-                return CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(p.name),
-                  subtitle: selected ? Text(l.playerN(idx + 1)) : null,
-                  value: selected,
-                  onChanged: (v) => onToggle(p, v == true),
-                );
-              }),
-          ],
-        ),
-      ),
-    );
-  }
-}

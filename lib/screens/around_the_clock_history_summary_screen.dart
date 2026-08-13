@@ -116,10 +116,15 @@ class _Body extends StatelessWidget {
     final winnerId = provider.winnerId;
     final total    = aroundTheClockOrder.length;
 
+    // The winning slot, looked up once. Null when the game has no winner, and
+    // null too if the id names nobody on the board, which keeps a mismatch a
+    // missing banner rather than an exception out of the middle of a build.
+    final winnerSlot = states.where((s) => s.isWonBy(winnerId)).firstOrNull;
+
     final sorted = List.of(states)
       ..sort((a, b) {
-        if (a.player.id == winnerId) return -1;
-        if (b.player.id == winnerId) return 1;
+        if (a.isWonBy(winnerId)) return -1;
+        if (b.isWonBy(winnerId)) return 1;
         final fa = a.finishedAtDart ?? 1 << 30;
         final fb = b.finishedAtDart ?? 1 << 30;
         if (fa != fb) return fa.compareTo(fb);
@@ -149,7 +154,7 @@ class _Body extends StatelessWidget {
       // margin of a whole screen on either side of half of one.
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       children: [
-        if (winnerId != null) ...[
+        if (winnerSlot != null) ...[
           Center(
             child: Column(
               children: [
@@ -163,8 +168,7 @@ class _Body extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.aroundClockWinner(
-                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  l.aroundClockWinner(winnerSlot.displayName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -200,7 +204,7 @@ class _Body extends StatelessWidget {
                 const Divider(height: 1),
                 const SizedBox(height: 8),
                 ...sorted.map((s) {
-                  final isWinner = s.player.id == winnerId;
+                  final isWinner = s.isWonBy(winnerId);
                   final hit = s.progress.clamp(0, total);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),

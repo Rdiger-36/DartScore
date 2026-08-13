@@ -42,6 +42,15 @@ class ShanghaiPlayerState {
   /// The player who throws next (backward-compatible accessor).
   Player get player => players[currentPlayerIdx];
 
+  /// Whether [winnerId] names anyone in this slot.
+  ///
+  /// Matched against every member rather than against [player]: in team mode
+  /// [player] is only whoever the rotation has on turn, and it moves on as the
+  /// game runs, so comparing against it makes the winning slot unrecognisable
+  /// from one moment to the next.
+  bool isWonBy(int? winnerId) =>
+      winnerId != null && players.any((p) => p.id == winnerId);
+
   /// Returns a copy with score/progress/finish/active player replaced;
   /// identity is preserved.
   ShanghaiPlayerState copyWith({
@@ -94,6 +103,14 @@ class ShanghaiProvider extends ChangeNotifier {
   /// Index of a player who threw a Shanghai and is awaiting confirmation
   /// (voided if the very next player also throws a Shanghai).
   int? _pendingShanghaiIdx;
+
+  /// Who actually threw the pending Shanghai.
+  ///
+  /// Kept beside the slot index because the two stop agreeing the moment the
+  /// turn moves on: confirming happens a visit later, and by then a team slot
+  /// has rotated to its next member, so reading the thrower back off the slot
+  /// would credit the win to whoever happens to be on turn.
+  int? _pendingShanghaiPlayerId;
 
   ShanghaiGame? get game => _game;
   List<ShanghaiPlayerState> get playerStates => _playerStates;
@@ -220,6 +237,7 @@ class ShanghaiProvider extends ChangeNotifier {
     _gameOver = false;
     _winnerId = null;
     _pendingShanghaiIdx = null;
+    _pendingShanghaiPlayerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
     await _replayState();
@@ -247,6 +265,7 @@ class ShanghaiProvider extends ChangeNotifier {
     _gameOver = false;
     _winnerId = null;
     _pendingShanghaiIdx = null;
+    _pendingShanghaiPlayerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
     notifyListeners();
@@ -384,9 +403,11 @@ class ShanghaiProvider extends ChangeNotifier {
       // void the first; if they don't, the original Shanghai thrower wins.
       if (_pendingShanghaiIdx != null) {
         final pendingIdx = _pendingShanghaiIdx!;
+        final pendingPlayerId = _pendingShanghaiPlayerId;
         _pendingShanghaiIdx = null;
+        _pendingShanghaiPlayerId = null;
         if (!shanghai) {
-          await _handleWin(pendingIdx);
+          await _handleWin(pendingIdx, playerId: pendingPlayerId);
           return;
         }
         // Both threw a Shanghai back-to-back: voided, game continues.
@@ -396,6 +417,7 @@ class ShanghaiProvider extends ChangeNotifier {
           return;
         }
         _pendingShanghaiIdx = _currentPlayerIndex;
+        _pendingShanghaiPlayerId = currentPlayerState.player.id;
       }
     }
 
@@ -403,6 +425,7 @@ class ShanghaiProvider extends ChangeNotifier {
     if (_variant == ShanghaiVariant.sequential &&
         currentPlayerState.finishedAtDart != null) {
       _pendingShanghaiIdx = null;
+      _pendingShanghaiPlayerId = null;
       await _handleWin(_currentPlayerIndex);
       return;
     }
@@ -495,9 +518,11 @@ class ShanghaiProvider extends ChangeNotifier {
   }
 
   /// Marks the game over with [playerIdx] as the winner and persists the finish time.
-  Future<void> _handleWin(int playerIdx) async {
+  /// [playerId] names the winner outright, for the one case where the slot no
+  /// longer knows them: a Shanghai confirmed a visit after it was thrown.
+  Future<void> _handleWin(int playerIdx, {int? playerId}) async {
     _gameOver = true;
-    _winnerId = _playerStates[playerIdx].player.id;
+    _winnerId = playerId ?? _playerStates[playerIdx].player.id;
     await _db.updateShanghaiGame(_game!.copyWith(finishedAt: DateTime.now()));
     notifyListeners();
   }
@@ -552,6 +577,7 @@ class ShanghaiProvider extends ChangeNotifier {
     _gameOver = false;
     _winnerId = null;
     _pendingShanghaiIdx = null;
+    _pendingShanghaiPlayerId = null;
     _currentPlayerIndex = 0;
     _currentRound = 1;
     _visitBuffer.clear();
@@ -587,10 +613,13 @@ class ShanghaiProvider extends ChangeNotifier {
     } else {
       if (_pendingShanghaiIdx != null) {
         final pendingIdx = _pendingShanghaiIdx!;
+        final pendingPlayerId = _pendingShanghaiPlayerId;
         _pendingShanghaiIdx = null;
+        _pendingShanghaiPlayerId = null;
         if (!shanghai) {
           _gameOver = true;
-          _winnerId = _playerStates[pendingIdx].player.id;
+          _winnerId =
+              pendingPlayerId ?? _playerStates[pendingIdx].player.id;
           return;
         }
       } else if (shanghai) {
@@ -600,12 +629,14 @@ class ShanghaiProvider extends ChangeNotifier {
           return;
         }
         _pendingShanghaiIdx = _currentPlayerIndex;
+        _pendingShanghaiPlayerId = currentPlayerState.player.id;
       }
     }
 
     if (_variant == ShanghaiVariant.sequential &&
         currentPlayerState.finishedAtDart != null) {
       _pendingShanghaiIdx = null;
+      _pendingShanghaiPlayerId = null;
       _gameOver = true;
       _winnerId = currentPlayerState.player.id;
       return;
