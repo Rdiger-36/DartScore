@@ -483,6 +483,11 @@ class SyncFountainDecoder {
     if (seed <= 0 || blocks <= 0 || blocks > kMaxSourceBlocks || length <= 0) {
       return false;
     }
+    // The length has to fit the blocks the same header announces, because
+    // [assemble] cuts the reassembled payload down to it. A frame that claims
+    // more than its blocks can hold is not one this app wrote, and taking it
+    // would turn a bad scan into a RangeError out of [assemble].
+    if (length > blocks * kBlockSizeBytes) return false;
 
     final Uint8List value;
     try {

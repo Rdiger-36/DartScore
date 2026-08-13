@@ -32,11 +32,16 @@ class CricketSummaryScreen extends StatelessWidget {
 
     final isCutThroat = game.variant == CricketVariant.cutThroat;
 
+    // The winning slot, looked up once. Null when the game has no winner, and
+    // null too if the id names nobody on the board, which keeps a mismatch a
+    // missing banner rather than an exception out of the middle of a build.
+    final winnerSlot = states.where((s) => s.isWonBy(winnerId)).firstOrNull;
+
     // Sort for display: winner first, then by score (asc for CT, desc for normal)
     final sorted = List.of(states)
       ..sort((a, b) {
-        if (a.player.id == winnerId) return -1;
-        if (b.player.id == winnerId) return 1;
+        if (a.isWonBy(winnerId)) return -1;
+        if (b.isWonBy(winnerId)) return 1;
         return isCutThroat
             ? a.score.compareTo(b.score)
             : b.score.compareTo(a.score);
@@ -44,7 +49,7 @@ class CricketSummaryScreen extends StatelessWidget {
 
     // Who won, which on two columns belongs over both of them
     // rather than in the half that happens to hold it.
-    final winnerBanner = winnerId == null
+    final winnerBanner = winnerSlot == null
         ? null
         : Center(
             child: Column(
@@ -60,8 +65,7 @@ class CricketSummaryScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.cricketWinner(
-                      states.firstWhere((s) => s.player.id == winnerId).displayName),
+                  l.cricketWinner(winnerSlot.displayName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -103,7 +107,7 @@ class CricketSummaryScreen extends StatelessWidget {
                   const Divider(height: 1),
                   const SizedBox(height: 8),
                   ...sorted.map((s) {
-                    final isWinner = s.player.id == winnerId;
+                    final isWinner = s.isWonBy(winnerId);
                     final fieldsClosed =
                         cricketFields.where((f) => s.hasClosedField(f)).length;
                     return Padding(

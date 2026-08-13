@@ -1157,9 +1157,15 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
       if (!_decoder.isComplete) return;
 
       _handled = true;
-      final data = _decoder.assemble();
-      _decoder.reset();
-      await _finishScan(() async => decodeSyncBytes(data));
+      // Assembling belongs inside the guarded read, not before it: it verifies
+      // the checksum and so throws on a transfer that arrived corrupt. Outside,
+      // that exception escapes the scanner callback and leaves the screen with
+      // _handled already set, deaf to every further code and showing nothing.
+      await _finishScan(() async {
+        final data = _decoder.assemble();
+        _decoder.reset();
+        return decodeSyncBytes(data);
+      });
       return;
     }
 
