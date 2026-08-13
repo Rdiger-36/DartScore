@@ -558,6 +558,35 @@ class AppLocalizations {
       _t('Pick where the file goes: iCloud Drive, Google Drive, Files, mail or a chat. Nothing is uploaded anywhere by the app itself.',
          'Du wählst, wohin die Datei geht: iCloud Drive, Google Drive, Dateien, E-Mail oder ein Chat. Die App selbst lädt nichts irgendwo hoch.');
   String get backupCreated     => _t('Backup created.', 'Sicherung erstellt.');
+  String get backupToFile      => _t('Save to a file', 'In eine Datei speichern');
+  String get backupToFileDesc  =>
+      _t('iCloud Drive, Google Drive, Files, mail, anywhere you like',
+         'iCloud Drive, Google Drive, Dateien, E-Mail, wohin du magst');
+  String get backupToDevice    => _t('Send to another device', 'An anderes Gerät senden');
+  String get backupToDeviceDesc =>
+      _t('Straight over Wi-Fi, both devices on the same network',
+         'Direkt über WLAN, beide Geräte im selben Netz');
+  String get backupFromFile    => _t('From a file', 'Aus einer Datei');
+  String get backupFromFileDesc =>
+      _t('Pick a backup you saved earlier',
+         'Eine zuvor gespeicherte Sicherung auswählen');
+  String get backupFromDevice  => _t('From another device', 'Von einem anderen Gerät');
+  String get backupFromDeviceDesc =>
+      _t('Scan the code the other device is showing',
+         'Den Code scannen, den das andere Gerät anzeigt');
+  String get backupSendHint    =>
+      _t('Show this code to the other device and confirm the number both screens display. Everything on that device is replaced by this database.',
+         'Zeige diesen Code dem anderen Gerät und bestätige die Zahl, die beide Bildschirme anzeigen. Alles auf jenem Gerät wird durch diese Datenbank ersetzt.');
+  String get backupSendPrep    => _t('Preparing the database', 'Datenbank wird vorbereitet');
+  String get backupSent        => _t('Database transferred.', 'Datenbank übertragen.');
+  String get backupSendAgain   => _t('Send again', 'Erneut senden');
+  String get backupReceiveHint =>
+      _t('Scan the code on the device you want the data from.',
+         'Scanne den Code auf dem Gerät, dessen Daten du übernehmen willst.');
+  String get backupReceiving   => _t('Receiving the database', 'Datenbank wird empfangen');
+  String get backupNotSyncCode =>
+      _t('That is a profile sync code. Use it in the sync screen of the player list.',
+         'Das ist ein Code für den Profil-Sync. Verwende ihn in der Sync-Ansicht der Spielerliste.');
   String get backupNotABackup  =>
       _t('This file is not a DartScore backup.',
          'Diese Datei ist keine DartScore-Sicherung.');
