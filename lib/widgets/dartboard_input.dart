@@ -347,10 +347,11 @@ class _DartboardInputState extends State<DartboardInput> {
                 : widget.fillHeight
                     ? 18.0
                     : 8.0;
-        // More air above the switch than below it, so it reads with the grid
-        // it changes rather than with the visit above it.
-        final gapAfterProgress = compact ? 6.0 : (widget.fillHeight ? 20.0 : 10.0);
-        final gapAfterSegment = compact ? 6.0 : (widget.fillHeight ? 8.0 : 12.0);
+        // One value for both sides of the switch, carried as its own padding so
+        // that the leftover height a tall pane spreads over the column lands in
+        // one gap above it and one below it. Two spacer children would take two
+        // shares each and only stay even by accident.
+        final segmentGap = compact ? 6.0 : (widget.fillHeight ? 14.0 : 11.0);
         final gapBeforeActions = compact ? 10.0 : 16.0;
         final actionVPadding = compact ? 7.0 : 11.0;
         final bottomPad = compact ? 8.0 : 14.0;
@@ -375,14 +376,15 @@ class _DartboardInputState extends State<DartboardInput> {
               onUndo: provider.undoLastDart,
               onRedo: provider.redoLastDart,
             ),
-            SizedBox(height: gapAfterProgress),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on
             // the middle line of the pane whatever the grid does, and fills
             // what the pane gives it up to a width past which three segments
-            // stop reading as one switch.
+            // stop reading as one switch. It sits halfway between the visit
+            // row and the numbers at every pane size and text size.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+              padding: EdgeInsets.symmetric(
+                  horizontal: _sidePadding, vertical: segmentGap),
               child: SizedBox(
                 width: widget.fillHeight
                     ? min(constraints.maxWidth - 2 * _sidePadding,
@@ -423,7 +425,6 @@ class _DartboardInputState extends State<DartboardInput> {
                 ),
               ),
             ),
-            SizedBox(height: gapAfterSegment),
             // Number grid, with the actions beside it where the pane is wide
             // enough that moving them there does not cost the numbers width.
             if (fitted)

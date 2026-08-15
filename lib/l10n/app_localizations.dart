@@ -361,6 +361,11 @@ class AppLocalizations {
   String get system            => _t('System', 'System');
   String get light             => _t('Light', 'Hell');
   String get dark              => _t('Dark', 'Dunkel');
+  String get textSize          => _t('Text size', 'Schriftgröße');
+  String get textSizeHint      =>
+      _t('How large the app draws its text on this device.',
+         'Wie groß die App ihre Schrift auf diesem Gerät zeichnet.');
+  String get textSizeReset     => _t('Standard', 'Standard');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',

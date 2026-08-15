@@ -31,12 +31,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   _PaneView _view = _PaneView.stats;
 
   @override
-  Widget build(BuildContext context) =>
-      TabletTextScale(child: _build(context));
-
-  /// The screen itself. [build] only wraps it, so that a tablet renders the
-  /// same layout at a size that suits the distance it is read from.
-  Widget _build(BuildContext context) {
+  Widget build(BuildContext context) {
     final l = context.l10n;
     final cs = Theme.of(context).colorScheme;
     final syncFab = FloatingActionButton.extended(

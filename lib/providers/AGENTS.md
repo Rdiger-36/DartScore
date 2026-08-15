@@ -12,6 +12,7 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 - `donation_provider.dart`, in-app purchase / supporter state via `in_app_purchase`
 - `theme_provider.dart` and `language_provider.dart`, light/dark and en/de, both persisted via `shared_preferences`
 - `tablet_layout_provider.dart`, which side the input sits on and where each divider stands, persisted via `shared_preferences`
+- `text_scale_provider.dart`, the text size the reader picked, persisted via `shared_preferences`
 
 ## Contracts and Invariants
 
@@ -20,6 +21,7 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 - Changing a model means changing the schema and the migrations in `db_helper.dart` in the same step
 - Statistics come from `ThrowStats` in `utils/throw_stats.dart`. A provider does not carry a second formula for an average, a high, a bust count or a checkout rate
 - `DonationProvider` owns everything `in_app_purchase` touches. No screen talks to the plugin
+- `TextScaleProvider` holds a factor, not a font size, and the app applies it in one place: the `MaterialApp` builder in `main.dart`, and only on a tablet sized window. A screen that scales its own text again is a screen the setting no longer describes
 - `TabletLayoutProvider` keys a divider by the screen **and** the orientation it belongs to. A scoreboard next to an input divides differently than a list next to a page of statistics, and a share that reads well across a landscape tablet leaves an upright one with two columns too narrow. The values are loaded on a phone too, they are simply never read there
 
 ## Patterns

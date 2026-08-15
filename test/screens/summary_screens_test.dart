@@ -174,12 +174,14 @@ void main() {
     testWidgets('draws the exported card at one size, whatever the screen is '
         'read at', (tester) async {
       usePhoneSurface(tester, size: const Size(1180, 820));
-      await tester.pumpWidget(
-          testApp(const GameSummaryScreen(), game: provider));
+      await tester.pumpWidget(testApp(
+        const TextScaleBy(factor: 1.3, child: GameSummaryScreen()),
+        game: provider,
+      ));
       await tester.pumpAndSettle();
 
-      // The screen grows its text with the device, like every other screen
-      // that is mostly text.
+      // The screen is drawn at the size the reader set, the way the app draws
+      // every screen.
       final onScreen =
           MediaQuery.textScalerOf(tester.element(find.text('All Throws')));
       expect(onScreen.scale(14), greaterThan(14));

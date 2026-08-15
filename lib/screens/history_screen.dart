@@ -304,12 +304,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      TabletTextScale(child: _build(context));
-
-  /// The screen itself. [build] only wraps it, so that a tablet renders the
-  /// same layout at a size that suits the distance it is read from.
-  Widget _build(BuildContext context) {
+  Widget build(BuildContext context) {
     final tablet = isTabletLayout(context);
     // The divider is one setting for the whole app: wherever two panes share a
     // screen, they share the position the player dragged them to.
