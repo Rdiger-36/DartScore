@@ -410,7 +410,15 @@ class _TabletBody extends StatelessWidget {
                         ],
                       )
                     : const DartboardInput(fillHeight: true),
-                secondary: stats,
+                // The stats hang under the same scoreboard the input does, so
+                // they keep the same gap to it instead of touching the card.
+                secondary: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: scoreboardGap),
+                    Expanded(child: stats),
+                  ],
+                ),
               ),
             ),
           ],
