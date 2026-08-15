@@ -250,11 +250,7 @@ class LivePlayerStatsPanel extends StatelessWidget {
             final side =
                 ((box.maxWidth - kStatsPaneMaxWidth) / 2).clamp(12.0, 200.0);
 
-            // A tablet is read from further away than a phone, and this pane
-            // is nothing but text. Scaling the subtree beats touching every
-            // label, and it keeps whatever the system already asks for.
-            return TabletTextScale(
-              child: _SlotStatsPage(
+            return _SlotStatsPage(
               padding:       EdgeInsets.fromLTRB(side, 8, side, 20),
               showHeader:    showHeader,
               state:         states[index],
@@ -267,7 +263,6 @@ class LivePlayerStatsPanel extends StatelessWidget {
               liveRemaining: provider.liveDisplayRemaining,
               liveBust:      provider.liveBust,
               dartsInVisit:  provider.dartsInVisit,
-              ),
             );
           },
         );

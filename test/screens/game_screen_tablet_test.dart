@@ -230,6 +230,21 @@ void main() {
       expect(miss.top, greaterThan(field.bottom));
     });
 
+    testWidgets('hangs input, stats and divider off the scoreboard alike',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletPortrait);
+
+      final hint    = tester.getRect(find.byType(FinishSuggestionWidget));
+      final input   = tester.getRect(find.byType(DartboardInput));
+      final stats   = tester.getRect(find.byType(LivePlayerStatsPanel));
+      final divider = tester.getRect(find.byKey(kPaneDividerKey));
+
+      expect(input.top, closeTo(stats.top, 0.5));
+      expect(divider.top, closeTo(stats.top, 0.5));
+      // And all three start below the score block rather than against it.
+      expect(stats.top, greaterThan(hint.bottom));
+    });
+
     testWidgets('starts with the divider in the middle', (tester) async {
       await pumpGame(tester, surface: _tabletLandscape);
 

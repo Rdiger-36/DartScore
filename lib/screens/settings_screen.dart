@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/donation_provider.dart';
+import '../providers/text_scale_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/layout.dart';
 import 'about_screen.dart';
@@ -15,12 +16,7 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      TabletTextScale(child: _build(context));
-
-  /// The screen itself. [build] only wraps it, so that a tablet renders the
-  /// same layout at a size that suits the distance it is read from.
-  Widget _build(BuildContext context) {
+  Widget build(BuildContext context) {
     final l = context.l10n;
     return Scaffold(
       appBar: AppBar(title: Text(l.settingsTitle)),
@@ -100,6 +96,76 @@ class _DisplaySection extends StatelessWidget {
                 leading: _LanguageBadge('DE', cs: cs),
               ),
             ],
+          ),
+          // Only where the app acts on it: a phone draws its text at the size
+          // the system asks for, so a slider there would move nothing.
+          if (isTabletLayout(context)) ...[
+            const Divider(height: 1),
+            const _TextSizeRow(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The text size, as a slider over the range the app allows.
+///
+/// The screen it sits on is drawn at the size it sets, so a drag shows what it
+/// does while it happens, and the value beside the label says the same thing in
+/// numbers for a reader who wants the size they had back.
+class _TextSizeRow extends StatelessWidget {
+  const _TextSizeRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs      = Theme.of(context).colorScheme;
+    final l       = context.l10n;
+    final scale   = context.watch<TextScaleProvider>();
+    final percent = (scale.factor * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.format_size_rounded, color: cs.onSurfaceVariant),
+              const SizedBox(width: 16),
+              Expanded(child: Text(l.textSize)),
+              Text('$percent %', style: TextStyle(color: cs.onSurfaceVariant)),
+              // Finding 100 percent again by dragging is fiddly, so the way
+              // back to it is one tap and only offered when there is a way back.
+              if (scale.factor != kDefaultTextScale)
+                TextButton(
+                  onPressed: scale.reset,
+                  child: Text(l.textSizeReset),
+                ),
+            ],
+          ),
+          Row(
+            children: [
+              Text('A', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              Expanded(
+                child: Slider(
+                  value: scale.factor,
+                  min: kMinTextScale,
+                  max: kMaxTextScale,
+                  divisions: kTextScaleDivisions,
+                  label: '$percent %',
+                  onChanged: scale.setFactor,
+                ),
+              ),
+              Text('A', style: TextStyle(fontSize: 20, color: cs.onSurfaceVariant)),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              l.textSizeHint,
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+            ),
           ),
         ],
       ),

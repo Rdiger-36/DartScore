@@ -69,29 +69,27 @@ const double kMinPaneWidth = 300.0;
 /// score cards and a checkout hint need more width than the input alone.
 const double kMinGamePaneWidth = 420.0;
 
-/// Grows the text of a subtree with the size of the device it is read on.
+/// How far the text size may be taken from what the system asks for, and where
+/// it starts.
 ///
-/// A tablet is held further away than a phone and its screens are mostly text,
-/// so the same point size reads smaller there. The factor follows the shortest
-/// side of the window: a phone keeps exactly what it had, a 10 inch tablet
-/// gains about a sixth, and past that it stops, because the column the text
-/// sits in does not keep growing either.
-class TabletTextScale extends StatelessWidget {
-  final Widget child;
+/// A tablet is held further away than a phone, but how much further is a matter
+/// of the desk, the chair and the eyes of whoever reads it, so the size is the
+/// reader's to set rather than something derived from the screen. The default
+/// is exactly what the system asks for, and the range reaches a little below it
+/// for a large tablet that fits more than it needs and well above it for one
+/// read from across the room.
+const double kMinTextScale     = 0.8;
+const double kMaxTextScale     = 1.4;
+const double kDefaultTextScale = 1.0;
 
-  const TabletTextScale({super.key, required this.child});
+/// Steps the text size slider snaps to, in units of the factor. Fine enough to
+/// find a size that fits, coarse enough that the same one is found again.
+const double kTextScaleStep = 0.05;
 
-  /// The factor for the current window. 1.0 on anything phone sized.
-  static double factorOf(BuildContext context) {
-    final shortest = MediaQuery.sizeOf(context).shortestSide;
-    if (shortest < kTabletBreakpoint) return 1.0;
-    return (1 + (shortest - kTabletBreakpoint) / 1200).clamp(1.0, 1.3);
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      TextScaleBy(factor: factorOf(context), child: child);
-}
+/// Number of steps between [kMinTextScale] and [kMaxTextScale], for the slider
+/// that has to express the same range in divisions.
+int get kTextScaleDivisions =>
+    ((kMaxTextScale - kMinTextScale) / kTextScaleStep).round();
 
 /// Multiplies the text of a subtree by [factor].
 ///

@@ -225,7 +225,8 @@ From 600 dp on the shortest side, the screens that have two things to show put t
 - **Two panes** wherever a screen has two things to show: input next to scoreboard in every mode, list next to detail in the history and the player list, settings next to players in the setup screens
 - **The divider can be dragged** on the live game, the history and the player list, and where it ends up is remembered per screen and per orientation, because a scoreboard next to an input wants a different share than a list of names next to a page of statistics. Neither pane can be dragged narrower than it stays usable at
 - **The input side can be swapped** in the X01 game and stays where it was put
-- **Text grows with the device**: a tablet is held further away, so the same point size reads smaller there. A phone keeps exactly what it had
+- **The X01 input keeps its proportions** while the divider moves: the height a wider or narrower pane leaves over is spread through the column, and the Single / Double / Triple switch keeps the same air above and below it at every divider position and every text size
+- **The text size is the reader's to set**: a tablet is held further away than a phone, but how much further depends on the desk and the eyes, so the settings carry a slider from 80 to 140 percent and the app starts at exactly what the system asks for. A phone keeps what the system asks for and shows no slider
 
 ---
 
@@ -234,7 +235,7 @@ From 600 dp on the shortest side, the screens that have two things to show put t
 - **Onboarding**: name entry on first launch, sets the primary player
 - **Manage Players**: add, edit, delete (soft-delete preserves history), set favourite double
 - **Player selection**: all four setup screens share one player list, sorted the way names actually sort
-- **Settings**: theme and language as menu rows in a display section; backup, donations, about and licences in an app section
+- **Settings**: theme and language as menu rows in a display section, with the text size slider beside them on a tablet; backup, donations, about and licences in an app section
 - **Dark / Light / System theme**
 - **German / English localisation**: auto-detected from device locale, switchable in settings
 - **Leaving a running game** needs a deliberate act: the close button and the Android back button ask for confirmation, and the iOS edge swipe stays disabled for as long as the game runs
@@ -332,13 +333,14 @@ lib/
 │   ├── donation_provider.dart             # In-app purchase / supporter state
 │   ├── theme_provider.dart                # Light/dark theme toggle, persisted via shared_preferences
 │   ├── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
-│   └── tablet_layout_provider.dart        # Input side and divider positions of the two-pane layouts
+│   ├── tablet_layout_provider.dart        # Input side and divider positions of the two-pane layouts
+│   └── text_scale_provider.dart           # The text size the reader set, persisted via shared_preferences
 ├── screens/
 │   ├── home_screen.dart                   # Entry screen; navigation to setup, history, players
 │   ├── onboarding_screen.dart             # First-launch walkthrough
 │   ├── about_screen.dart                  # Version info and open-source licences
 │   ├── licenses_screen.dart               # Open-source licence list
-│   ├── settings_screen.dart               # Display and app sections; theme, language, backup, about
+│   ├── settings_screen.dart               # Display and app sections; theme, language, text size, backup, about
 │   ├── donation_screen.dart               # Support the developer via in-app purchases
 │   ├── sync_screen.dart                   # Device-to-device profile sync (QR and Wi-Fi)
 │   ├── backup_screen.dart                 # Create and restore a full database backup (file or Wi-Fi)
