@@ -190,9 +190,42 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 - **Nothing is lost by picking a shorter range.** Only the individual visits are cut off; everything older is folded into the stats snapshot that travels along, so lifetime averages, checkout rates, the dartboard heatmap and the top doubles all arrive in full. What a short range gives up is only how far back the receiving device's "All Throws" list reaches
 - **Animated QR codes are fountain coded**, so the receiver needs any set of frames slightly larger than the payload rather than particular ones. A frame the camera blinks through costs nothing, and there is no waiting for it to come round again
 - **The Wi-Fi transfer is paired like Bluetooth.** The connection code carries a session token, so nobody else on the network gets an answer at all. Past that the sending device shows a four digit number, the receiving device shows the same one, and the payload only moves once the sender confirms. The server hands it over once and then stops
+- **The Wi-Fi transfer runs both ways in one pairing.** Once the payload is out, the receiving device sends its own side back on the same connection, so a single pairing settles both devices. A QR code is a picture on a screen and stays one-way
+- **Every part of a history is filed under the device it was played on.** That is what makes syncing in both directions safe: a device recognises and drops its own data when it comes back around, an incoming packet only replaces what that same device sent before, and what a third device contributed is left alone. Repeated syncs in either direction never double a number
+- Both screens name the device a transfer came from, the actual model rather than just "iPhone" or "Android"
 - Import new players or update existing ones, with a name-clash prompt
-- An incoming packet replaces what an earlier sync from that device brought in, so repeated syncs never double a number
 - Works with no internet at all; the Wi-Fi transfer needs both devices on the same network, the QR codes need nothing
+
+---
+
+### Backup & Restore
+
+A backup is the whole app database, every player, every game and every throw of every mode. Sync merges two devices, a backup replaces one.
+
+**Creating a backup** offers two routes: save or share the file through the system share sheet (iCloud Drive, Google Drive, Files, mail, whatever the device offers), or send it straight to another device over local Wi-Fi, on the same paired connection the profile sync uses.
+
+**Restoring** walks through the steps in order, because it is the half that cannot be undone:
+
+1. What a restore costs, with the offer to back up the current data first
+2. Where the backup comes from, a file or the other device
+3. A last confirmation naming what was actually found
+
+- **A database is described in the same five lines wherever it appears**, on the way out next to the connection code and on the way in next to the question: when it was made, which device made it, how many players, how many games, how large. The device name is reported by the device itself, so it stays correct without a lookup table
+- **A backup is the SQLite file itself**, not a dump of it, which keeps a restore exact. The price is that a file written by a newer version of the app is refused rather than half read
+- **A restored database keeps talking to where it came from.** The restoring device keeps its own identity and stamps the source's onto the history it took over, so the two devices can still sync afterwards without either claiming the other's games
+- **The two transfers refuse each other's codes.** One merges and one replaces, so a code scanned in the wrong screen fails instead of half working
+- The file picker for the restore is written by hand on both platforms, so no file picking package is needed
+
+---
+
+### Tablet Layout
+
+From 600 dp on the shortest side, the screens that have two things to show put them side by side instead of stacking them. Phones keep the single column and stay locked to portrait; a device that gets the two-pane layout is exactly a device that is allowed to rotate.
+
+- **Two panes** wherever a screen has two things to show: input next to scoreboard in every mode, list next to detail in the history and the player list, settings next to players in the setup screens
+- **The divider can be dragged** on the live game, the history and the player list, and where it ends up is remembered per screen and per orientation, because a scoreboard next to an input wants a different share than a list of names next to a page of statistics. Neither pane can be dragged narrower than it stays usable at
+- **The input side can be swapped** in the X01 game and stays where it was put
+- **Text grows with the device**: a tablet is held further away, so the same point size reads smaller there. A phone keeps exactly what it had
 
 ---
 
@@ -200,9 +233,10 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 
 - **Onboarding**: name entry on first launch, sets the primary player
 - **Manage Players**: add, edit, delete (soft-delete preserves history), set favourite double
+- **Player selection**: all four setup screens share one player list, sorted the way names actually sort
+- **Settings**: theme and language as menu rows in a display section; backup, donations, about and licences in an app section
 - **Dark / Light / System theme**
 - **German / English localisation**: auto-detected from device locale, switchable in settings
-- **Responsive layout**: content width capped on tablets; portrait orientation locked on phones
 - **Leaving a running game** needs a deliberate act: the close button and the Android back button ask for confirmation, and the iOS edge swipe stays disabled for as long as the game runs
 - **About screen**: version info, open-source licences
 - **Support the developer**: optional one-time donations via in-app purchase
@@ -218,7 +252,8 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 | Flutter | 3.32 |
 | Dart SDK | 3.12 |
 | Xcode (iOS builds) | 15 |
-| Android SDK | API 21 (Android 5.0) |
+| iOS deployment target | 15.0 |
+| Android SDK | API 24 (Android 7.0) |
 
 ### Install dependencies
 
@@ -279,8 +314,6 @@ lib/
 ├── main.dart                              # Entry point, provider setup, theme/locale init
 ├── database/
 │   └── db_helper.dart                     # Singleton SQLite wrapper; all schema definitions and migrations
-├── l10n/
-│   └── app_localizations.dart             # DE/EN localisation strings
 ├── models/
 │   ├── player.dart                        # Player entity with favourite doubles
 │   ├── game.dart                          # X01 Game entity; GameMode/CheckoutMode enums
@@ -298,14 +331,17 @@ lib/
 │   ├── around_the_clock_provider.dart     # Around the Clock game state machine
 │   ├── donation_provider.dart             # In-app purchase / supporter state
 │   ├── theme_provider.dart                # Light/dark theme toggle, persisted via shared_preferences
-│   └── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
+│   ├── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
+│   └── tablet_layout_provider.dart        # Input side and divider positions of the two-pane layouts
 ├── screens/
 │   ├── home_screen.dart                   # Entry screen; navigation to setup, history, players
 │   ├── onboarding_screen.dart             # First-launch walkthrough
 │   ├── about_screen.dart                  # Version info and open-source licences
-│   ├── settings_screen.dart               # Theme, language, donation and about links
+│   ├── licenses_screen.dart               # Open-source licence list
+│   ├── settings_screen.dart               # Display and app sections; theme, language, backup, about
 │   ├── donation_screen.dart               # Support the developer via in-app purchases
-│   ├── sync_screen.dart                   # Device-to-device data sync (QR and Wi-Fi)
+│   ├── sync_screen.dart                   # Device-to-device profile sync (QR and Wi-Fi)
+│   ├── backup_screen.dart                 # Create and restore a full database backup (file or Wi-Fi)
 │   ├── players_screen.dart                # Player management list
 │   ├── player_stats_screen.dart           # Per-player lifetime statistics + dartboard heatmap
 │   ├── history_screen.dart                # Game history with Open/Finished tabs and mode filter chips
@@ -330,7 +366,11 @@ lib/
 │   └── around_the_clock_history_summary_screen.dart
 ├── services/
 │   ├── sync_codec.dart                    # Sync wire format: binary packet, base45, fountain coded frames
-│   └── sync_service.dart                  # Sync payload types, the Wi-Fi server and its paired client
+│   ├── sync_service.dart                  # Sync payload types, the Wi-Fi server and its paired client
+│   ├── backup_service.dart                # Writes the database out as one file and reads one back in
+│   ├── device_identity.dart               # This device's sync id, the key behind all origin tracking
+│   ├── device_description.dart            # The device name shown on a transfer, reported by the device
+│   └── document_picker.dart               # Dart side of the hand-written system file picker
 ├── utils/
 │   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles
 │   ├── game_labels.dart                   # Localised names for per-mode settings and handicap rules
@@ -339,7 +379,7 @@ lib/
 │   ├── throw_stats.dart                   # ThrowStats: the one aggregation over recorded throws
 │   ├── team_color.dart                    # Shared team accent palette
 │   ├── triple_color.dart                  # Shared blue tones for triple-field UI
-│   └── layout.dart                        # Responsive max-width helper
+│   └── layout.dart                        # Breakpoint, max widths, split panes, input side, text scale
 ├── l10n/
 │   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
 └── widgets/
@@ -351,14 +391,30 @@ lib/
     ├── favorite_double_picker.dart         # Picks a player's favourite doubles
     ├── team_section.dart                   # Shared team assignment UI for setup screens
     ├── starting_order_section.dart         # Shared starting-order picker with drag-to-sort list
+    ├── player_select_section.dart          # Shared player list for all four setup screens
     ├── game_info_card.dart                 # Shared card listing a finished game's settings
+    ├── summary_body.dart                   # Shared summary/history detail body and its tablet layout
     ├── summary_player_card.dart            # Shared X01 player/team result card
     ├── final_ranking_card.dart             # Shared placement-mode ranking and per-leg table
     ├── throw_log_card.dart                 # Shared "All Throws" log
     ├── stat_row.dart                       # Shared label/value row for every stat list
     ├── rematch_button.dart                 # "Play Again" button and its confirmation dialog
+    ├── wifi_pairing.dart                   # Scanner, pairing number dialog and QR card, shared by sync and backup
     └── player_dialog.dart                  # Create/edit player dialog
 ```
+
+The native halves of the two hand-written platform channels sit outside `lib/`:
+
+```
+ios/Runner/DocumentPickerHandler.swift      # System file picker (iOS)
+ios/Runner/DeviceDescriptionHandler.swift   # Device name (iOS)
+android/app/src/main/kotlin/com/ratka/dartscore/MainActivity.kt
+                                            # File picker and device name (Android)
+```
+
+### Intent layer
+
+Each of the four directories that carry rules of their own has an `AGENTS.md` next to the code, holding the local patterns and invariants: `lib/screens/`, `lib/providers/`, `lib/services/` and `lib/widgets/`. The root `AGENTS.md` summarises them and points into each (`CLAUDE.md` is a symlink to it).
 
 ---
 
@@ -371,8 +427,9 @@ players      (id, name, favorite_doubles, is_deleted, is_primary,
               uuid, last_synced_at, synced_stats, local_stats_json)
 
 games        (id, start_score, game_mode, checkout_mode, legs, sets,
-              created_at, finished_at, is_synced, team_config_json,
-              handicap_json, placement_mode, starting_order)
+              created_at, finished_at, is_synced, origin_device,
+              team_config_json, handicap_json, placement_mode,
+              starting_order)
 
 game_players (game_id, player_id, sort_order)
 
@@ -381,6 +438,7 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 ```
 
 `handicap_json` holds per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
+`origin_device` names the device the game was played on. Null means this one, so a game costs nothing to record locally; a restore stamps the source's ID onto what it hands over.  
 `placement_mode` is 1 when every leg is played to the end for a final ranking.  
 `starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all four game tables; games created before the setting existed read as 0, which is how they were actually played.
 
@@ -428,6 +486,18 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
 
 `field` is the number just hit (1–20, 25 for Bull).
 
+### Sync and backup
+
+```sql
+player_origin_stats (player_id, origin_device, snapshot_json)
+
+app_meta            (key, value)
+```
+
+`player_origin_stats` holds one stats snapshot per player and per device the data came from, while `players.local_stats_json` holds only what this device produced itself. That split is what lets a device recognise its own numbers coming back and lets an import from one device leave what another sent alone.
+
+`app_meta` describes the database file rather than anything in it. A backup is the file, so whatever has to travel with it lives inside it: the marker identifying the file as a DartScore backup, the ID of the device that wrote it, and the device name shown when the file is read back.
+
 ---
 
 ## Dependencies
@@ -441,14 +511,18 @@ around_the_clock_throws  (id, game_id, player_id, field, multiplier,
 | `shared_preferences` | Theme / language persistence |
 | `qr_flutter` | QR code generation |
 | `mobile_scanner` | QR code scanning |
-| `image_picker` | Import QR from photo library |
-| `share_plus` | Share QR image |
+| `share_plus` | Share the QR image and the backup file |
 | `gal` | Save image to photo library |
-| `path_provider` | App directories |
+| `path_provider` | App directories and the cache the picked file lands in |
 | `package_info_plus` | App version info |
 | `url_launcher` | Open external links |
 | `in_app_purchase` | Donation / supporter purchases |
 | `flutter_launcher_icons` *(dev)* | Icon generation |
+| `sqflite_common_ffi` *(dev)* | Runs SQLite in the Dart VM so tests drive a real database |
+
+There is deliberately **no file picking package**: every one of them still requires CocoaPods on iOS, which this project does not use, so the document picker is written by hand on both platforms instead.
+
+`share_plus` and `package_info_plus` are held to a version range on purpose. From `share_plus` 13.2 on, both expect AGP's built-in Kotlin to compile them, which this project cannot switch on yet. The full reasoning sits in `pubspec.yaml` next to the constraints.
 
 ---
 
