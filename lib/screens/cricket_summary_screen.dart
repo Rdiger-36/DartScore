@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
-import '../utils/layout.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/game_labels.dart';
@@ -16,12 +15,7 @@ class CricketSummaryScreen extends StatelessWidget {
   const CricketSummaryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      TabletTextScale(child: _build(context));
-
-  /// The screen itself. [build] only wraps it, so that a tablet renders the
-  /// same layout at a size that suits the distance it is read from.
-  Widget _build(BuildContext context) {
+  Widget build(BuildContext context) {
     final provider = context.read<CricketProvider>();
     final game     = provider.game!;
     final states   = provider.playerStates;

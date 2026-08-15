@@ -61,12 +61,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      TabletTextScale(child: _build(context));
-
-  /// The screen itself. [build] only wraps it, so that a tablet renders the
-  /// same layout at a size that suits the distance it is read from.
-  Widget _build(BuildContext context) {
+  Widget build(BuildContext context) {
     final l      = context.l10n;
     final tablet = isTabletLayout(context);
 
@@ -135,11 +130,9 @@ class _PackageLicenseScreen extends StatelessWidget {
   const _PackageLicenseScreen({required this.package});
 
   @override
-  Widget build(BuildContext context) => TabletTextScale(
-        child: Scaffold(
-          appBar: AppBar(title: Text(package.name)),
-          body: _LicenseText(package: package),
-        ),
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(package.name)),
+        body: _LicenseText(package: package),
       );
 }
 

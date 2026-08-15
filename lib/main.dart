@@ -12,9 +12,11 @@ import 'providers/around_the_clock_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/tablet_layout_provider.dart';
+import 'providers/text_scale_provider.dart';
 import 'providers/donation_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'utils/layout.dart';
 
 /// App entry point: initializes the binding, enables edge-to-edge on Android,
 /// and runs the app.
@@ -209,6 +211,7 @@ class DartScoreApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => TabletLayoutProvider()),
+        ChangeNotifierProvider(create: (_) => TextScaleProvider()),
         ChangeNotifierProvider(create: (_) => DonationProvider()),
         ChangeNotifierProvider(create: (_) => PlayersProvider()..load()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
@@ -233,7 +236,16 @@ class DartScoreApp extends StatelessWidget {
                   ? SafeArea(top: false, child: child!)
                   : child!,
             );
-            return wrapped;
+            // The text size the reader set, applied once for the whole app so
+            // that no screen can be left out of it. A phone keeps exactly what
+            // the system asks for: the setting is about the distance a tablet
+            // is read from, and the phone screens have no room to spare.
+            return TextScaleBy(
+              factor: isTabletLayout(context)
+                  ? context.watch<TextScaleProvider>().factor
+                  : 1.0,
+              child: wrapped,
+            );
           },
           localizationsDelegates: const [
             AppLocalizationsDelegate(),
