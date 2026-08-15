@@ -225,6 +225,7 @@ From 600 dp on the shortest side, the screens that have two things to show put t
 - **Two panes** wherever a screen has two things to show: input next to scoreboard in every mode, list next to detail in the history and the player list, settings next to players in the setup screens
 - **The divider can be dragged** on the live game, the history and the player list, and where it ends up is remembered per screen and per orientation, because a scoreboard next to an input wants a different share than a list of names next to a page of statistics. Neither pane can be dragged narrower than it stays usable at
 - **The input side can be swapped** in the X01 game and stays where it was put
+- **The X01 input keeps its proportions** while the divider moves: the height a wider or narrower pane leaves over is spread through the column, and the Single / Double / Triple switch keeps the same air above and below it at every divider position and every text size
 - **The text size is the reader's to set**: a tablet is held further away than a phone, but how much further depends on the desk and the eyes, so the settings carry a slider from 80 to 140 percent and the app starts at exactly what the system asks for. A phone keeps what the system asks for and shows no slider
 
 ---
