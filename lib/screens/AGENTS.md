@@ -34,6 +34,8 @@ X01 has one screen the others do not: `live_player_stats_screen.dart`, the playe
 - No screen queries SQLite. Everything goes through the provider, which goes through `db_helper.dart`
 - The X01 summary and the X01 history detail render the same result through `SummaryPlayerCard`, `FinalRankingCard` and `ThrowLogCard`. A change to one view belongs in the shared widget, not in one screen
 - `GameInfoCard` is deliberately `dense: true` in all four history detail screens and default in all four post-game summaries. It looks like an oversight per mode but is a convention across both sets; change it for all eight or for none
+- A screen wide enough for two panes builds them with `SidePaneLayout` from `../utils/layout.dart`, gated on `isTabletLayout(context)`, and keeps the stacked single column for everything below it. Both branches render the same widgets; a layout that only one of the two reaches is how the phone and the tablet start drifting apart
+- Only the live game, the history and the player list let their divider be dragged, and those three read it from `TabletLayoutProvider`. The rest divide in the middle and stay there: they put two things of the same kind beside each other, so there is nothing to rebalance
 - The live game screens answer the system back with their quit dialog via `PopScope(canPop: false)`. That also suppresses the iOS edge swipe for as long as the game runs, which is the point: Flutter only installs the Cupertino back gesture on a route that may pop, so a confirmation cannot be shown from the gesture itself
 - Every user-visible string comes from `AppLocalizations`, every themed color from `ThemeProvider`
 

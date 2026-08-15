@@ -79,7 +79,7 @@ lib/
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
 │   ├── triple_color.dart       # Shared blue tones for triple-field UI across all game modes
-│   └── layout.dart             # Shared layout helpers/constants
+│   └── layout.dart             # Tablet breakpoint, max widths, SidePaneLayout, input side, text scale
 └── l10n/
     └── app_localizations.dart  # Hand-written localization strings (no .arb, no codegen)
 ```
@@ -119,6 +119,7 @@ These hold in every directory, whatever the local node says.
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes
+- Two panes side by side come from `SidePaneLayout` in `layout.dart`, and whether a window gets them is `isTabletLayout(context)`, never a width read by hand. The same rule drives the orientation lock in `main.dart`, so a window that may rotate is exactly a window that divides
 - Never run `dart format`. The codebase aligns constructor arguments and the `=>` of the localization getters in columns by hand, and the formatter collapses all of it
 
 ## Key Conventions

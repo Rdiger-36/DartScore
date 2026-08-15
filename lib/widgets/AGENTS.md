@@ -17,10 +17,12 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 
 - `team_section.dart`, team naming, add/remove and assignment
 - `starting_order_section.dart`, random vs. fixed plus the drag-to-sort list
+- `player_select_section.dart`, the roster with a checkbox each, the add button and the star on the main profile
 
 ### Shared result rendering
 
 - `game_info_card.dart`, the card listing a finished game's settings
+- `summary_body.dart`, the body every summary and history detail is laid into, one column or two
 - `summary_player_card.dart`, the player/team stat card for the X01 summary and history screens
 - `final_ranking_card.dart`, the placement-mode ranking card and per-leg table
 - `stat_row.dart`, the label/value row used by every stat list
@@ -38,6 +40,8 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 - The shared result widgets are shared on purpose: the X01 summary and the X01 history detail render the same result through `SummaryPlayerCard`, `FinalRankingCard` and `ThrowLogCard`. Fix the widget, not one of the two screens
 - `GameInfoCard` takes `dense: true` from the four history detail screens and the default from the four post-game summaries. That split is a convention across both sets, not a per-mode oversight
 - Colors come from `ThemeProvider`, team accents from `utils/team_color.dart`, triple affordances from `utils/triple_color.dart`
+- Two panes side by side are built with `SidePaneLayout` from `utils/layout.dart`, never with a hand rolled `Row`. It is what carries the minimum pane width and the input side, and a second layout would answer both differently
+- `SummaryBody` divides all eight summary and history detail screens. Its divider stands in the middle and stays there, because both columns hold cards of the same kind; only the game, the history and the player list have anything to rebalance, and only those three let it be dragged
 - Strings come from `AppLocalizations`, and the per-mode setting names from `utils/game_labels.dart`
 
 ## Patterns
@@ -49,6 +53,7 @@ A block that a second game mode is about to need belongs here, parameterised, ra
 - Do not compute stats in a widget. `ThrowStats` is the one aggregation
 - Do not hardcode a color that should follow the theme
 - Do not copy `wifi_pairing.dart` for a third transfer flow; both sync and backup already share it
+- Do not build a second player roster into a setup screen. `PlayerSelectSection` is the one, and it takes the order `PlayersProvider` hands it: main profile first, everyone else alphabetically
 
 ## Related Context
 
