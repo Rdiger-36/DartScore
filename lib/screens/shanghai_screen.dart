@@ -65,15 +65,12 @@ class _ShanghaiGameView extends StatelessWidget {
       dartsInVisit: provider.dartsInVisit,
     );
 
-    /// The player list on a tablet: read at the size of the device, standing in
-    /// the middle of its box while it is short and scrolled once it is not.
-    Widget listPane(EdgeInsets padding) => TextScaleBy(
-          factor: TabletTextScale.factorOf(context),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: padding,
-              child: scoreboard,
-            ),
+    /// The player list on a tablet: standing in the middle of its box while it
+    /// is short and scrolled once it is not.
+    Widget listPane(EdgeInsets padding) => Center(
+          child: SingleChildScrollView(
+            padding: padding,
+            child: scoreboard,
           ),
         );
 

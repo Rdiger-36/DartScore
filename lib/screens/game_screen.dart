@@ -389,6 +389,9 @@ class _TabletBody extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (hintOverInput) scoreboard else scoreboardBlock,
+            // Everything below the scoreboard hangs off it at the same
+            // distance: the input, the stats and the divider between them.
+            SizedBox(height: scoreboardGap),
             Expanded(
               child: SidePaneLayout(
                 side: side,
@@ -403,22 +406,13 @@ class _TabletBody extends StatelessWidget {
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(height: scoreboardGap),
                           checkoutHint,
                           const Expanded(
                               child: DartboardInput(fillHeight: true)),
                         ],
                       )
                     : const DartboardInput(fillHeight: true),
-                // The stats hang under the same scoreboard the input does, so
-                // they keep the same gap to it instead of touching the card.
-                secondary: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: scoreboardGap),
-                    Expanded(child: stats),
-                  ],
-                ),
+                secondary: stats,
               ),
             ),
           ],

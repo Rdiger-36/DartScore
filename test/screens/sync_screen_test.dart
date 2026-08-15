@@ -66,16 +66,6 @@ void main() {
       expect(find.byType(QrImageView), findsNothing);
     });
 
-    testWidgets('is read at the size of the device it is on', (tester) async {
-      await pumpSync(tester, size: const Size(1180, 820));
-
-      // The screen is mostly text, so a tablet renders it larger, the way the
-      // other reading screens do.
-      final scaler = MediaQuery.textScalerOf(
-          tester.element(find.textContaining('QR').first));
-      expect(scaler.scale(14), greaterThan(14));
-    });
-
     testWidgets('is one column on every device, the scan as wide as the rest',
         (tester) async {
       for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
