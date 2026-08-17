@@ -255,26 +255,28 @@ class DbHelper {
     }
     if (oldVersion < 22) {
       await db.execute(
-          'ALTER TABLE dart_throws ADD COLUMN checkout_attempt INTEGER NOT NULL DEFAULT 0');
-      await _backfillCheckoutAttempts(db);
+          'ALTER TABLE dart_throws ADD COLUMN checkout_darts INTEGER NOT NULL DEFAULT 0');
+      await _backfillCheckoutDarts(db);
     }
   }
 
-  /// Recomputes `dart_throws.checkout_attempt` for every visit already on the
+  /// Recomputes `dart_throws.checkout_darts` for every visit already on the
   /// device, so the lifetime numbers stop mixing the old "was in checkout
-  /// range" rule with the new "was one dart away" one.
+  /// range" rule with the new "a dart could have finished" one.
   ///
   /// A visit whose individual darts were recorded is replayed exactly. For the
   /// rest, throws that arrived over sync and rows from before `hits_json`
   /// existed, only the remaining the visit started on is known, so the best
-  /// available reading is whether that remaining was already a one-dart finish.
-  /// That undercounts a visit that worked its way into range, which cannot be
-  /// helped: the darts that would prove it were never stored.
+  /// available reading is one dart when that remaining was already a one-dart
+  /// finish or the leg was taken out, and none otherwise. That undercounts both
+  /// a visit that worked its way into range and every second and third dart at
+  /// a double, which cannot be helped: the darts that would prove them were
+  /// never stored.
   ///
   /// Synced throws all hang off one hidden game whose check-out rule says
   /// nothing about how they were really played, so they fall back to
   /// double-out, the app default.
-  static Future<void> _backfillCheckoutAttempts(Database db) async {
+  static Future<void> _backfillCheckoutDarts(Database db) async {
     final gameRows = await db.query('games',
         columns: ['id', 'checkout_mode', 'handicap_json']);
     final modes = <int, CheckoutMode>{};
@@ -315,14 +317,16 @@ class DbHelper {
         final checkedOut = !bust && remaining - score == 0;
 
         final darts = _dartScoresOf(r['hits_json'] as String?);
-        final attempt = darts != null
-            ? visitWasCheckoutAttempt(remaining, darts, mode,
+        final atFinish = darts != null
+            ? checkoutDartsInVisit(remaining, darts, mode,
                 checkedOut: checkedOut)
-            : checkedOut ||
-                FinishCalculator.canFinishWithOneDart(remaining, mode);
+            : (checkedOut ||
+                    FinishCalculator.canFinishWithOneDart(remaining, mode))
+                ? 1
+                : 0;
 
-        if (!attempt) continue;
-        batch.update('dart_throws', {'checkout_attempt': 1},
+        if (atFinish == 0) continue;
+        batch.update('dart_throws', {'checkout_darts': atFinish},
             where: 'id = ?', whereArgs: [r['id']]);
       }
       await batch.commit(noResult: true);
@@ -479,7 +483,7 @@ class DbHelper {
         thrown_at INTEGER NOT NULL,
         bust INTEGER NOT NULL DEFAULT 0,
         hits_json TEXT,
-        checkout_attempt INTEGER NOT NULL DEFAULT 0
+        checkout_darts INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -884,6 +888,7 @@ class DbHelper {
       'count_100_plus':     stats.count100plus,
       'checkout_attempts':  stats.checkoutAttempts,
       'checkout_successes': stats.checkoutSuccesses,
+      'checkout_darts':     stats.checkoutDarts,
       'games_played':       gameIds.length,
       'score_sum_squares':  stats.scoreSumSquares,
       'highest_game_avg':   bestGameAverage(throws),
@@ -989,6 +994,7 @@ class DbHelper {
       'count_140_plus':     add('count_140_plus'),
       'count_100_plus':     add('count_100_plus'),
       'checkout_attempts':  add('checkout_attempts'),
+      'checkout_darts':     add('checkout_darts'),
       'checkout_successes': add('checkout_successes'),
       'games_played':       add('games_played'),
       'games_finished':     add('games_finished'),
@@ -1267,7 +1273,7 @@ class DbHelper {
         'remaining_before': t.remainingBefore,
         'thrown_at': t.thrownAt.millisecondsSinceEpoch,
         'bust': t.bust ? 1 : 0,
-        'checkout_attempt': t.checkoutAttempt ? 1 : 0,
+        'checkout_darts': t.checkoutDarts,
       });
     }
 

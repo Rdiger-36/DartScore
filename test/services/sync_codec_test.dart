@@ -22,7 +22,7 @@ void main() {
     bool bust = false,
     int leg = 1,
     int set = 1,
-    bool checkoutAttempt = false,
+    int checkoutDarts = 0,
   }) =>
       SyncThrow(
         score: score,
@@ -32,7 +32,7 @@ void main() {
         bust: bust,
         leg: leg,
         set: set,
-        checkoutAttempt: checkoutAttempt,
+        checkoutDarts: checkoutDarts,
       );
 
   /// A packet around [throws], with every non-throw field filled in.
@@ -93,7 +93,7 @@ void main() {
       expect(b.bust,            a.bust,            reason: at);
       expect(b.leg,             a.leg,             reason: at);
       expect(b.set,             a.set,             reason: at);
-      expect(b.checkoutAttempt, a.checkoutAttempt, reason: at);
+      expect(b.checkoutDarts,   a.checkoutDarts,   reason: at);
     }
   }
 
@@ -144,9 +144,23 @@ void main() {
         t(score: 60, remainingBefore: 141, thrownAt: start + 77000, bust: true),
         t(score: 60, remainingBefore: 141, thrownAt: start + 118000),
         // The checkout, and the only visit of the leg that ever put a dart on
-        // a finish.
+        // a finish. 81 goes T19, D12, so one of its three darts flew at the
+        // double.
         t(score: 81, dartsUsed: 3, remainingBefore: 81, thrownAt: start + 155000,
-          checkoutAttempt: true),
+          checkoutDarts: 1),
+      ]));
+    });
+
+    test('carries every dart count a visit can put on a finish', () {
+      const start = 1770000000000;
+      expectRoundTrip(packetOf([
+        for (var darts = 0; darts <= 3; darts++)
+          t(
+            score: 0,
+            remainingBefore: 40,
+            thrownAt: start + darts * 40000,
+            checkoutDarts: darts,
+          ),
       ]));
     });
 

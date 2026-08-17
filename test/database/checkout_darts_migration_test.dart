@@ -39,7 +39,7 @@ void main() {
     /// Winds a current database back to how version 21 left it, so the
     /// backfill runs against rows that never carried the flag.
     Future<void> windBackTo21(Database db) async {
-      await db.execute('ALTER TABLE dart_throws DROP COLUMN checkout_attempt');
+      await db.execute('ALTER TABLE dart_throws DROP COLUMN checkout_darts');
       await db.execute('PRAGMA user_version = 21');
     }
 
@@ -66,11 +66,12 @@ void main() {
           'hits_json':        hitsJson,
         });
 
-    /// The stored flag of the visit with [id], after reopening the database.
-    Future<bool> flagOf(int id) async {
+    /// The stored dart count of the visit with [id], after reopening the
+    /// database.
+    Future<int> dartsOf(int id) async {
       final rows = await (await DbHelper.instance.db).query('dart_throws',
-          columns: ['checkout_attempt'], where: 'id = ?', whereArgs: [id]);
-      return (rows.single['checkout_attempt'] as int) == 1;
+          columns: ['checkout_darts'], where: 'id = ?', whereArgs: [id]);
+      return rows.single['checkout_darts'] as int;
     }
 
     test('replays the darts of a visit that recorded them', () async {
@@ -103,9 +104,11 @@ void main() {
       await windBackTo21(db);
       await DbHelper.debugReset();
 
-      expect(await flagOf(noReach), isFalse);
-      expect(await flagOf(reached), isTrue);
-      expect(await flagOf(bustedAfterReaching), isTrue);
+      expect(await dartsOf(noReach), 0);
+      expect(await dartsOf(reached), 2,
+          reason: 'the S9 leaves 16, and both misses fly at D8');
+      expect(await dartsOf(bustedAfterReaching), 2,
+          reason: '16 and the 2 the S14 leaves are both one-dart finishes');
     });
 
     test('reads the check-out rule of the game the visit belongs to', () async {
@@ -137,8 +140,8 @@ void main() {
       await windBackTo21(db);
       await DbHelper.debugReset();
 
-      expect(await flagOf(underMaster), isTrue);
-      expect(await flagOf(underDouble), isFalse);
+      expect(await dartsOf(underMaster), 3);
+      expect(await dartsOf(underDouble), 0);
     });
 
     test('a player handicap beats the game default', () async {
@@ -169,8 +172,8 @@ void main() {
       await windBackTo21(db);
       await DbHelper.debugReset();
 
-      expect(await flagOf(handicapped), isTrue);
-      expect(await flagOf(ordinary), isFalse);
+      expect(await dartsOf(handicapped), 3);
+      expect(await dartsOf(ordinary), 0);
     });
 
     test('falls back to the opening remaining when the darts were not stored',
@@ -193,10 +196,11 @@ void main() {
       await windBackTo21(db);
       await DbHelper.debugReset();
 
-      expect(await flagOf(oneDartAway), isTrue);
-      expect(await flagOf(twoDartsAway), isFalse,
+      expect(await dartsOf(oneDartAway), 1,
+          reason: 'one dart is all the remaining alone can prove');
+      expect(await dartsOf(twoDartsAway), 0,
           reason: 'without the darts there is nothing to say it got closer');
-      expect(await flagOf(finished), isTrue,
+      expect(await dartsOf(finished), 1,
           reason: 'a leg that was finished was an attempt whatever else is known');
     });
   });

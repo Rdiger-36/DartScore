@@ -854,7 +854,7 @@ class GameProvider extends ChangeNotifier {
     // both at hand, and stored on the visit. Nothing downstream can work it
     // out again: a synced throw arrives without its darts and without the game
     // it was really played in.
-    final checkoutAttempt = visitWasCheckoutAttempt(
+    final checkoutDarts = checkoutDartsInVisit(
       remaining,
       (hits ?? const <DartEntry>[]).map((h) => h.score).toList(),
       currentCheckoutMode,
@@ -872,7 +872,7 @@ class GameProvider extends ChangeNotifier {
       thrownAt:        DateTime.now(),
       bust:            bust,
       hitsJson:        hitsJson,
-      checkoutAttempt: checkoutAttempt,
+      checkoutDarts:   checkoutDarts,
     );
 
     final id = await _db.insertThrow(t);
@@ -880,7 +880,7 @@ class GameProvider extends ChangeNotifier {
       id: id, gameId: t.gameId, playerId: t.playerId, score: t.score,
       dartsUsed: t.dartsUsed, leg: t.leg, set: t.set,
       remainingBefore: t.remainingBefore, thrownAt: t.thrownAt, bust: t.bust,
-      hitsJson: t.hitsJson, checkoutAttempt: t.checkoutAttempt,
+      hitsJson: t.hitsJson, checkoutDarts: t.checkoutDarts,
     );
 
     _playerStates[_currentPlayerIndex] = state.copyWith(
@@ -1259,7 +1259,7 @@ class GameProvider extends ChangeNotifier {
       gameId: t.gameId, playerId: t.playerId, score: t.score,
       dartsUsed: t.dartsUsed, leg: t.leg, set: t.set,
       remainingBefore: t.remainingBefore, thrownAt: t.thrownAt, bust: t.bust,
-      hitsJson: t.hitsJson, checkoutAttempt: t.checkoutAttempt,
+      hitsJson: t.hitsJson, checkoutDarts: t.checkoutDarts,
     ));
 
     final preservedRedo = List<_RedoEntry>.from(_redoStack);
