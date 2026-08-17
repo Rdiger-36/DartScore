@@ -200,5 +200,30 @@ void main() {
       expect(provider.playerStates[0].hasClosedField(20), isTrue,
           reason: 'marks belong to the team, not to the member');
     });
+
+    test('a resume restores the rotation of every team', () async {
+      final more = await insertPlayers(['C', 'D']);
+      final all = [...players, ...more];
+      final teams = [
+        TeamConfig(name: 'Team 1', playerIds: [all[0].id!, all[2].id!]),
+        TeamConfig(name: 'Team 2', playerIds: [all[1].id!, all[3].id!]),
+      ];
+      await provider.startGame(game(teams: teams), all);
+
+      await closeField(20);   // Team 1, A
+      await passVisit();      // Team 2, B
+      await hit(19, count: 2);  // Team 1, C, visit still open
+      final stored = provider.game!;
+
+      final fresh = CricketProvider();
+      await fresh.resumeGame(stored, all);
+
+      expect(fresh.currentPlayerIndex, 0);
+      expect(fresh.currentPlayerState.player.name, 'C',
+          reason: 'the member mid visit keeps the board');
+      expect(fresh.dartsInVisit, 2);
+      expect(fresh.playerStates[1].player.name, 'D',
+          reason: 'the idle team keeps the member who steps up next');
+    });
   });
 }
