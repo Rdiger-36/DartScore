@@ -1,4 +1,41 @@
 import '../models/dart_throw.dart';
+import '../models/game.dart';
+import 'finish_calculator.dart';
+
+/// Whether a visit was an attempt at the finish.
+///
+/// True exactly when the player, at some point during the visit, still had a
+/// dart in hand while the remaining score could be taken out by that single
+/// dart. Being in checkout range is not enough: a visit that starts on 156 and
+/// opens with a plain 20 can no longer be finished, and counting it would put
+/// an attempt on the record that never existed on the board.
+///
+/// [dartScores] are the points of the individual darts in throwing order, so
+/// the remaining can be walked dart by dart. [checkedOut] short circuits to
+/// true, because a finished leg is an attempt by definition and the two
+/// counters must never disagree.
+///
+/// The migration in `db_helper.dart` calls this with hits decoded from the
+/// database and the game provider with the visit it is about to record, which
+/// is why it takes plain ints rather than the provider's own dart type.
+bool visitWasCheckoutAttempt(
+  int remainingBefore,
+  List<int> dartScores,
+  CheckoutMode checkoutMode, {
+  bool checkedOut = false,
+}) {
+  if (checkedOut) return true;
+
+  var remaining = remainingBefore;
+  for (final score in dartScores) {
+    if (FinishCalculator.canFinishWithOneDart(remaining, checkoutMode)) {
+      return true;
+    }
+    remaining -= score;
+    if (remaining < 0) return false;
+  }
+  return false;
+}
 
 /// Aggregated statistics derived from a list of X01 visits.
 ///
@@ -39,8 +76,10 @@ class ThrowStats {
   final int count140plus;
   final int count100plus;
 
-  /// Visits that started on a finishable remaining, busts included: starting a
-  /// visit below 171 is an attempt at the finish whether or not it overshot.
+  /// Visits that put the player one dart away from the finish, busts included.
+  /// The flag is decided per visit when it is recorded, see
+  /// [visitWasCheckoutAttempt]; being in checkout range does not by itself make
+  /// a visit an attempt.
   final int checkoutAttempts;
   /// Attempts that actually finished the leg.
   final int checkoutSuccesses;
@@ -160,7 +199,10 @@ class ThrowStats {
         if (t.score >= 100) count100plus++;
       }
 
-      if (t.remainingBefore <= 170) {
+      // The band still follows the remaining the visit started on. Banding by
+      // the remaining at the moment the finish came into reach would put every
+      // attempt below 61 and leave the two upper bands permanently empty.
+      if (t.checkoutAttempt) {
         checkoutAttempts++;
         final success = !t.bust && t.remainingBefore - t.score == 0;
         if (t.remainingBefore <= 40)        { coAt40++;  if (success) coOk40++;  }

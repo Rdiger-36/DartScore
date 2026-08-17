@@ -19,6 +19,10 @@ Future<void> _visit(
 Future<void> _sixty(GameProvider p) =>
     _visit(p, const [(20, 1), (20, 1), (20, 1)]);
 
+/// Three misses: hands the turn on without moving the thrower's remaining.
+Future<void> _missedVisit(GameProvider p) =>
+    _visit(p, const [(0, 1), (0, 1), (0, 1)]);
+
 void main() {
   group('GameProvider against a real database', () {
     useInMemoryDatabase();
@@ -326,6 +330,35 @@ void main() {
 
       expect(provider.playerStates.map((s) => s.displayName), ['A', 'B']);
       expect(provider.game!.startingOrder, StartingOrder.fixed);
+    });
+
+    test('a visit only counts as a checkout attempt once a dart can finish',
+        () async {
+      // The leg from the bug report, played out dart by dart.
+      await provider.startGame(
+          game(startScore: 156, legs: 1, startingOrder: StartingOrder.fixed),
+          players);
+
+      // 156 is shown as T20, T20, D18. The plain 20 takes the finish out of
+      // reach for the rest of the visit, and 136 and 76 are no closer.
+      await _visit(provider, const [(20, 1), (20, 3), (17, 3)]);
+      await _missedVisit(provider);
+      // 25 left: the S9 leaves 16 with two darts still in hand.
+      await _visit(provider, const [(9, 1), (0, 1), (0, 1)]);
+      await _missedVisit(provider);
+      // 16 left, an attempt before the first dart flies. The S3 busts from 2
+      // and ends the visit early.
+      await _visit(provider, const [(14, 1), (3, 1)]);
+      await _missedVisit(provider);
+      // 16 left again, checked out on D8.
+      await _visit(provider, const [(8, 2)]);
+
+      expect(provider.gameOver, isTrue);
+
+      final attempts =
+          provider.playerStates[0].throws.map((t) => t.checkoutAttempt);
+      expect(attempts, [false, true, true, true],
+          reason: 'the 156 visit was never one dart from the finish');
     });
   });
 }

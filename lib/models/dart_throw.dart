@@ -17,6 +17,14 @@ class DartThrow {
   /// JSON-encoded list of individual dart hits: [{"f":20,"m":3}, ...]
   /// f = field (1-20, 25=bull), m = multiplier (1/2/3). Null if not captured.
   final String? hitsJson;
+  /// Whether this visit put the player one dart away from the finish, decided
+  /// when the visit was recorded by `visitWasCheckoutAttempt`.
+  ///
+  /// Stored rather than derived, because deciding it needs the individual darts
+  /// and the check-out rule that applied to this player in this game, and
+  /// neither survives into every place the statistics are counted: throws that
+  /// arrive over sync carry no hits and hang off a game that was never played.
+  final bool checkoutAttempt;
 
   const DartThrow({
     this.id,
@@ -30,6 +38,7 @@ class DartThrow {
     required this.thrownAt,
     this.bust = false,
     this.hitsJson,
+    this.checkoutAttempt = false,
   });
 
   /// Remaining score after this visit; unchanged from [remainingBefore] on a bust.
@@ -48,6 +57,7 @@ class DartThrow {
         'thrown_at': thrownAt.millisecondsSinceEpoch,
         'bust': bust ? 1 : 0,
         'hits_json': hitsJson,
+        'checkout_attempt': checkoutAttempt ? 1 : 0,
       };
 
   /// Reconstructs a throw from a SQLite row map.
@@ -64,5 +74,6 @@ class DartThrow {
             DateTime.fromMillisecondsSinceEpoch(map['thrown_at'] as int),
         bust: (map['bust'] as int) == 1,
         hitsJson: map['hits_json'] as String?,
+        checkoutAttempt: (map['checkout_attempt'] as int? ?? 0) == 1,
       );
 }

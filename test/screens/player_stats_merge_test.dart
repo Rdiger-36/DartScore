@@ -23,9 +23,10 @@ void main() {
     });
 
     /// Plays one 501 leg (double out) with a known shape for A: two 180s down
-    /// to 141, an overshoot from 141, then 141 checked out on a double. That
-    /// gives two checkout attempts of which one succeeded, one bust, two 180s
-    /// and twelve darts. B keeps the turn moving with 60s.
+    /// to 141, a visit from 141 that works down to 24 and then overshoots, then
+    /// 141 checked out on a double. That gives two checkout attempts of which
+    /// one succeeded, one bust, two 180s and twelve darts. B keeps the turn
+    /// moving with 60s.
     ///
     /// Returns the finished game's id.
     Future<int> playGame() async {
@@ -49,7 +50,10 @@ void main() {
       await sixty();      // B
       await oneEighty();  // A: 321 to 141
       await sixty();      // B
-      await oneEighty();  // A: overshoots from 141 on the third dart
+      // A: 141 to 81 to 24, one dart from D12, then the triple 20 overshoots.
+      await provider.tapField(20, 3);
+      await provider.tapField(19, 3);
+      await provider.tapField(20, 3);
       await sixty();      // B
       // A: T20, T19, D12 finishes 141 on a double.
       await provider.tapField(20, 3);
@@ -98,12 +102,13 @@ void main() {
           closeTo(beforeDelete.highestGameAverage, 0.001));
     });
 
-    test('counts the busted attempt from 141 against the checkout rate',
+    test('counts the busted attempt from 24 against the checkout rate',
         () async {
       await playGame();
       final stats = await loadPlayerStats(players.first);
 
-      // Two visits started below 171: the overshoot and the checkout.
+      // Two visits put a dart on a finish: the overshoot from 24 and the
+      // checkout. The two 180s never did, however low they left A.
       expect(stats.checkoutPercent, closeTo(50, 0.001));
       expect(stats.busts, 1);
       expect(stats.count180, 2, reason: 'the busted visit scores nothing');

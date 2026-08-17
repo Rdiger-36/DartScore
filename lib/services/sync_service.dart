@@ -40,6 +40,11 @@ class SyncThrow {
   final bool bust;
   final int leg;
   final int set;
+  /// Whether the visit was one dart away from the finish. Travels as a flag
+  /// because the receiving device cannot work it out: the individual darts
+  /// stay behind, and every imported throw lands in one hidden game whose
+  /// check-out rule is not the one it was played under.
+  final bool checkoutAttempt;
 
   const SyncThrow({
     required this.score,
@@ -49,6 +54,7 @@ class SyncThrow {
     required this.bust,
     required this.leg,
     required this.set,
+    this.checkoutAttempt = false,
   });
 
   /// Builds a transport throw from a stored [DartThrow].
@@ -60,6 +66,7 @@ class SyncThrow {
         bust: t.bust,
         leg: t.leg,
         set: t.set,
+        checkoutAttempt: t.checkoutAttempt,
       );
 
   /// Converts back to a storable [DartThrow] under the given game and player.
@@ -74,6 +81,7 @@ class SyncThrow {
         bust: bust,
         leg: leg,
         set: set,
+        checkoutAttempt: checkoutAttempt,
       );
 
   /// Serializes this throw to its JSON wire representation.
@@ -85,6 +93,7 @@ class SyncThrow {
         'bust': bust,
         'leg': leg,
         'set': set,
+        'checkout_attempt': checkoutAttempt,
       };
 
   /// Parses a throw from JSON, tolerating bool-or-int `bust` encodings and
@@ -98,6 +107,9 @@ class SyncThrow {
     final bust = j['bust'] == true || j['bust'] == 1;
     final leg  = j['leg'] as int;
     final set  = j['set'] as int;
+    // Absent from packets an older app version wrote.
+    final checkoutAttempt =
+        j['checkout_attempt'] == true || j['checkout_attempt'] == 1;
 
     // Bounds validation: reject obviously corrupt/malicious data
     if (score < 0 || score > 180) {
@@ -124,6 +136,7 @@ class SyncThrow {
       bust: bust,
       leg: leg,
       set: set,
+      checkoutAttempt: checkoutAttempt,
     );
   }
 }
