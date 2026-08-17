@@ -69,7 +69,7 @@ Classic countdown game. Supported start scores: **101 / 170 / 201 / 301 / 501 / 
 - Each segment shows notation and resulting score (e.g. `T20 / 60`)
 - Numpad input as alternative
 - Live score update after every dart
-- Dart-level undo and redo, working across visit and player boundaries
+- Dart-level undo and redo, working across visit, player, leg and set boundaries: taking back the dart that won a leg opens that leg again and hands back the leg or set it awarded, with every score and statistic on the board reset with it
 - Finish suggestion always visible, highlighted when checkout is reachable
 
 **Live player info:** tapping a scoreboard card (or one of the compact chips shown from 3 players) slides in a live info screen for that player or team, pageable to the others in throwing order. It carries the current leg, the match so far, 180s / 140+ / 100+ and the check-in and check-out rules in force. A team shows its combined numbers plus every member in upcoming throwing order, each expandable to that member's own full set. The running game is untouched; back or the iOS edge swipe returns to it.
@@ -173,7 +173,7 @@ All stats are shown per player on a dedicated screen.
 - **Bulk delete**: trash icon deletes only the currently visible entries; confirmation dialog states exactly what will be removed
 - **Swipe to delete**: individual games can be swiped away
 - Per-game summary screen with full throw history for all modes
-- Resume open games directly from the history list
+- Resume open games directly from the history list, on the leg, the slot and the team member the game was left on
 
 ---
 
