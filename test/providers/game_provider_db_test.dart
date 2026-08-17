@@ -152,6 +152,30 @@ void main() {
         expect(provider.canRedoDart, isFalse);
       });
 
+      test('returns the turn inside a leg that another player opened',
+          () async {
+        // Leg 2 opens with B, so from B's second visit on the visit counts of
+        // the leg are level and no longer say whose turn it is.
+        final three = [...players, ...await insertPlayers(['C'])];
+        await provider.startGame(game(startScore: 101, legs: 3), three);
+
+        await _visit(provider, const [(17, 3), (25, 2)]);  // A wins leg 1
+        expect(provider.currentLeg, 2);
+        expect(provider.currentPlayerState.player.name, 'B');
+
+        await _missedVisit(provider);   // B
+        await _missedVisit(provider);   // C
+        await _missedVisit(provider);   // A
+        await _missedVisit(provider);   // B again
+        expect(provider.currentPlayerState.player.name, 'C');
+
+        await provider.undoLastDart();
+
+        expect(provider.currentLeg, 2);
+        expect(provider.currentPlayerState.player.name, 'B',
+            reason: 'the turn goes back to whoever threw the undone dart');
+      });
+
       test('undoing the winning dart reopens the game', () async {
         await provider.startGame(game(startScore: 101, legs: 1), players);
 
@@ -247,6 +271,64 @@ void main() {
         await _sixty(provider);                       // Team 2, member B
         expect(provider.currentPlayerState.player.name, 'C',
             reason: 'team 1 hands over to its second member');
+      });
+
+      test('undo keeps the rotation a new leg carried over', () async {
+        // Team 1 throws three visits in leg 1, so leg 2 opens with its second
+        // member. Counting the visits of the running leg would hand the turn
+        // to the first member from there on.
+        final all = [...players, ...four];
+        final teams = [
+          TeamConfig(name: 'Team 1', playerIds: [all[0].id!, all[2].id!]),
+          TeamConfig(name: 'Team 2', playerIds: [all[1].id!, all[3].id!]),
+        ];
+        await provider.startGame(
+            game(startScore: 101, legs: 3, teams: teams), all);
+
+        await _sixty(provider);          // Team 1, A
+        await _sixty(provider);          // Team 2, B
+        await _missedVisit(provider);    // Team 1, C
+        await _missedVisit(provider);    // Team 2, D
+        await _missedVisit(provider);    // Team 1, A
+        await _visit(provider, const [(1, 1), (20, 2)]);  // Team 2, B wins 41
+
+        expect(provider.currentLeg, 2);
+        expect(provider.currentPlayerState.player.name, 'C',
+            reason: 'team 1 carries its rotation into the new leg');
+
+        await _sixty(provider);          // Team 1, C
+        await _sixty(provider);          // Team 2, D
+        await _missedVisit(provider);    // Team 1, A
+        expect(provider.currentPlayerState.player.name, 'B');
+
+        await provider.undoLastDart();
+
+        expect(provider.currentLeg, 2);
+        expect(provider.currentPlayerIndex, 0);
+        expect(provider.currentPlayerState.player.name, 'A',
+            reason: 'the turn goes back to the member who threw');
+      });
+
+      test('a resume restores the rotation of every team', () async {
+        final all = [...players, ...four];
+        final teams = [
+          TeamConfig(name: 'Team 1', playerIds: [all[0].id!, all[2].id!]),
+          TeamConfig(name: 'Team 2', playerIds: [all[1].id!, all[3].id!]),
+        ];
+        await provider.startGame(game(teams: teams), all);
+
+        await _sixty(provider);   // Team 1, A
+        await _sixty(provider);   // Team 2, B
+        await _sixty(provider);   // Team 1, C
+        final stored = provider.game!;
+
+        final fresh = GameProvider();
+        await fresh.resumeGame(stored, all);
+
+        expect(fresh.currentPlayerIndex, 1);
+        expect(fresh.currentPlayerState.player.name, 'D');
+        expect(fresh.playerStates[0].player.name, 'A',
+            reason: 'the idle team keeps the member who steps up next');
       });
 
       test('shares one score across the team', () async {
