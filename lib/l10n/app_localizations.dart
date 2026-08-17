@@ -332,7 +332,6 @@ class AppLocalizations {
   String get handicapDesc        => _t('Individual Check-In / Check-Out rules per player', 'Individuelle Check-In / Check-Out Regeln pro Spieler');
   String get teamGame            => _t('Team Game', 'Team Spiel');
   String get teamGameDesc        => _t('Split players into teams. Each team shares one score.', 'Spieler auf Teams aufteilen. Jedes Team teilt sich einen Score.');
-  String get done_               => _t('Done', 'Fertig');
   String get statsTooltip        => _t('Statistics', 'Statistik');
   String get statsLoadError      => _t('Statistics could not be loaded.', 'Statistiken konnten nicht geladen werden.');
   String get gameMode_           => _t('Mode', 'Modus');
@@ -822,7 +821,6 @@ class AppLocalizations {
   // ── Cricket Game ─────────────────────────────────────────────────────────────
   String get bull                 => 'Bull';
   String get cricketMiss          => _t('Miss', 'Miss');
-  String get cricketConfirmVisit  => _t('Done', 'Fertig');
   String get cricketScore         => _t('Score', 'Punkte');
   String get cricketMarks         => _t('Marks', 'Treffer');
   String get cricketQuit          => _t('Quit', 'Beenden');

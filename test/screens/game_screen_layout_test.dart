@@ -74,7 +74,7 @@ void main() {
       EdgeInsets insets = EdgeInsets.zero,
     }) {
       final limit = surface.height - insets.bottom;
-      for (final label in ['Miss', 'Bull (25)', 'Done']) {
+      for (final label in ['Miss', 'Bull (25)']) {
         final rect = tester.getRect(find.widgetWithText(InkWell, label).first);
         expect(rect.bottom, lessThanOrEqualTo(limit),
             reason: '"$label" reaches into the bottom system inset');

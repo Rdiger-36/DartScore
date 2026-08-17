@@ -32,7 +32,7 @@ class DartEntry {
 /// Two layouts, picked from the height the scoreboard leaves over. With room to
 /// spare the rows keep their preferred size and the column is centred. Below
 /// [_compactHeight] the grid instead takes exactly what the other rows leave,
-/// so the Miss/Bull/Done row stays on screen on a short phone no matter how far
+/// so the Miss/Bull row stays on screen on a short phone no matter how far
 /// the scoreboard above has grown.
 ///
 /// [fillHeight] asks for the second behaviour whatever the height, which is
@@ -113,12 +113,12 @@ class _DartboardInputState extends State<DartboardInput> {
     setState(() => _modifier = 1);
   }
 
-  /// Miss, Bull and Done, either as the row under the grid or as the column
-  /// beside it.
+  /// Miss and Bull, either as the row under the grid or as the column beside
+  /// it.
   ///
-  /// Bull takes twice the share of the other two in the row, where it is also
-  /// the widest label. Stacked it gets an equal share: three buttons of the
-  /// same size read as one control, and the height is not scarce there.
+  /// Both are darts like any number on the grid. There is no button that ends
+  /// a visit: a visit ends when its third dart lands, or the moment the leg is
+  /// checked out or busted, and the provider decides that on its own.
   Widget _actions({required bool vertical, required double verticalPadding}) {
     final cs = Theme.of(context).colorScheme;
     final provider = context.read<GameProvider>();
@@ -142,15 +142,6 @@ class _DartboardInputState extends State<DartboardInput> {
       verticalPadding: verticalPadding,
       onTap: () => _tapField(25),
     );
-    final done = _ActionButton(
-      label: context.l10n.done_,
-      icon: Icons.check,
-      color: Colors.amber,
-      textColor: Colors.black,
-      disabled: dartCount == 0,
-      verticalPadding: verticalPadding,
-      onTap: provider.finishVisitEarly,
-    );
 
     if (vertical) {
       return Column(
@@ -159,19 +150,17 @@ class _DartboardInputState extends State<DartboardInput> {
           Expanded(child: miss),
           const SizedBox(height: 6),
           Expanded(child: bull),
-          const SizedBox(height: 6),
-          Expanded(child: done),
         ],
       );
     }
 
+    // Bull keeps the larger share it had beside three buttons: it carries the
+    // widest label, and Miss needs no more room than a number button.
     return Row(
       children: [
         Expanded(child: miss),
         const SizedBox(width: 6),
         Expanded(flex: 2, child: bull),
-        const SizedBox(width: 6),
-        Expanded(child: done),
       ],
     );
   }
@@ -832,7 +821,7 @@ class _FieldButton extends StatelessWidget {
 
 // ── Action button ─────────────────────────────────────────────────────────────
 
-/// A labeled icon button used for the Miss / Bull / Done row below the grid.
+/// A labeled icon button used for the Miss / Bull row below the grid.
 class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;

@@ -1285,20 +1285,6 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Ends the current player's in-progress visit early, scoring the darts
-  /// entered so far. No-op if no darts have been entered yet.
-  Future<void> finishVisitEarly() async {
-    if (_game == null || _gameOver || _currentVisitDarts.isEmpty) return;
-    _redoStack.clear();
-    final dartsUsed = _currentVisitDarts.length;
-    final score     = _visitScoreSoFar;
-    final hits      = List<DartEntry>.from(_currentVisitDarts);
-    _currentVisitDarts  = [];
-    _checkedInThisVisit = false;
-    await _submitVisit(score, dartsUsed, bust: false, hits: hits);
-    notifyListeners();
-  }
-
   // ── Undo / Redo ───────────────────────────────────────────────────────────
 
   /// Undoes the last individual dart, even across visit and player boundaries.
