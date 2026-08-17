@@ -193,6 +193,84 @@ void main() {
         expect(await storedX01FinishedAt(gameId), isNull,
             reason: 'history has to list the game as open again');
       });
+
+      test('takes the game back into the leg that was just won', () async {
+        await provider.startGame(game(startScore: 101, legs: 3), players);
+
+        await _visit(provider, const [(17, 3), (25, 2)]);   // A wins leg 1
+        expect(provider.currentLeg, 2);
+        expect(provider.playerStates[0].legsWon, 1);
+
+        await provider.undoLastDart();
+
+        expect(provider.currentLeg, 1, reason: 'the won leg opens again');
+        expect(provider.playerStates[0].legsWon, 0);
+        expect(provider.playerStates[0].perfectLegs, 0);
+        expect(provider.playerStates[0].remaining, 101);
+        expect(provider.currentPlayerIndex, 0);
+        expect(provider.dartsInVisit, 1,
+            reason: 'the darts before the undone one are prefilled again');
+        expect(provider.liveRunningRemaining, 50);
+
+        await provider.redoLastDart();
+
+        expect(provider.currentLeg, 2);
+        expect(provider.playerStates[0].legsWon, 1);
+        expect(provider.playerStates[0].perfectLegs, 1);
+      });
+
+      test('stays in the new leg when its first visit is taken back', () async {
+        await provider.startGame(game(startScore: 101, legs: 3), players);
+
+        await _visit(provider, const [(17, 3), (25, 2)]);   // A wins leg 1
+        await _sixty(provider);                             // B opens leg 2
+
+        await provider.undoLastDart();
+
+        expect(provider.currentLeg, 2, reason: 'leg 1 stays won and closed');
+        expect(provider.playerStates[0].legsWon, 1);
+        expect(provider.playerStates[0].remaining, 101);
+        expect(provider.playerStates[1].remaining, 101);
+        expect(provider.currentPlayerIndex, 1);
+        expect(provider.dartsInVisit, 2);
+      });
+
+      test('takes the game back into the set that was just won', () async {
+        await provider.startGame(
+            game(startScore: 101, legs: 1, sets: 3), players);
+
+        await _visit(provider, const [(17, 3), (25, 2)]);   // A wins set 1
+        expect(provider.currentSet, 2);
+        expect(provider.currentLeg, 1);
+        expect(provider.playerStates[0].setsWon, 1);
+
+        await provider.undoLastDart();
+
+        expect(provider.currentSet, 1);
+        expect(provider.currentLeg, 1);
+        expect(provider.playerStates[0].setsWon, 0);
+        expect(provider.playerStates[0].remaining, 101);
+      });
+    });
+
+    test('a leg won but not yet opened resumes on the next leg', () async {
+      await provider.startGame(game(startScore: 101, legs: 3), players);
+
+      await _visit(provider, const [(17, 3), (25, 2)]);   // A wins leg 1
+      final stored = provider.game!;
+
+      final fresh = GameProvider();
+      await fresh.resumeGame(stored, players);
+
+      expect(fresh.currentLeg, 2,
+          reason: 'the leg the checkout decided is over');
+      expect(fresh.playerStates[0].legsWon, 1);
+      expect(fresh.playerStates[0].perfectLegs, 1,
+          reason: '101 in two darts is the minimum the score allows');
+      expect(fresh.playerStates[0].remaining, 101);
+      expect(fresh.playerStates[1].remaining, 101);
+      expect(fresh.currentPlayerIndex, 1,
+          reason: 'the leg opens with the slot after the winner');
     });
 
     test('undo in a later set keeps the leg numbering of that set', () async {

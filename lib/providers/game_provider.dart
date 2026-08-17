@@ -49,6 +49,88 @@ List<({int set, int leg})> playedLegs(List<DartThrow> throws) {
         a.set != b.set ? a.set.compareTo(b.set) : a.leg.compareTo(b.leg));
 }
 
+/// The leg and set the game stands in, given every throw it holds.
+///
+/// Usually that is the leg the last throws fell in. Once those throws have
+/// decided it, the game stands at the start of the next leg, or of the next
+/// set when the checkout also took the set, which is where [_handleCheckout]
+/// leaves it during play. A decided leg is over: resuming on it would put the
+/// winner back on the board at zero, drop the leg it just won, and file the
+/// next dart under a leg number that is spent. A checkout that won the game
+/// moves nothing, there is no leg after it.
+///
+/// Placement games keep the plain position. Every slot plays every leg out
+/// there, so a checkout does not end the leg and the placement resume decides
+/// on its own when it is over.
+({int leg, int set}) openLegAndSet(Game game, List<DartThrow> throws) {
+  final position = currentLegAndSet(throws);
+  if (game.placementMode) return position;
+
+  final legThrows = throwsInLeg(throws, position.leg, position.set)
+    ..sort(_byThrowOrder);
+  if (legThrows.isEmpty) return position;
+
+  final decider = legThrows.last;
+  if (decider.bust || decider.remainingBefore - decider.score != 0) {
+    return position;
+  }
+
+  final winner = _sideOf(game, decider.playerId);
+
+  // Replay the winner's legs and sets the way a live checkout counts them, so
+  // that a leg won as the last of its set moves the game on to the next set.
+  var legsInSet = 0;
+  var setsWon   = 0;
+  var set       = 0;
+  var tookSet   = false;
+  for (final pos in playedLegs(throws)) {
+    if (pos.set != set) {
+      set       = pos.set;
+      legsInSet = 0;
+    }
+    if (!_sideWonLeg(throws, winner, pos.leg, pos.set)) continue;
+    legsInSet++;
+    if (legsInSet >= game.legs) {
+      setsWon++;
+      legsInSet = 0;
+      tookSet   = pos.leg == position.leg && pos.set == position.set;
+    }
+  }
+
+  if (setsWon >= game.sets) return position;
+  return tookSet ? (leg: 1, set: position.set + 1)
+                 : (leg: position.leg + 1, set: position.set);
+}
+
+/// The player ids that share a slot with [playerId]: the whole team in a team
+/// game, the player alone otherwise.
+List<int> _sideOf(Game game, int playerId) {
+  if (game.isTeamGame) {
+    for (final team in game.teams!) {
+      if (team.playerIds.contains(playerId)) return team.playerIds;
+    }
+  }
+  return [playerId];
+}
+
+/// Perfect legs a slot has finished, rebuilt from [slotThrows] alone.
+///
+/// A rebuild loses the counter [_handleCheckout] keeps live, so it is counted
+/// again here rather than left at zero, which would drop the badge the summary
+/// shows. [slotThrows] holds every member's throws for a team, whose darts all
+/// count towards the same leg.
+int _perfectLegsOf(int startScore, List<DartThrow> slotThrows) =>
+    perfectLegsFromThrows(slotThrows, (_) => minimumDartsForScore[startScore]);
+
+/// Whether the slot made up of [ids] checked out in [leg] of [set].
+bool _sideWonLeg(List<DartThrow> throws, List<int> ids, int leg, int set) {
+  for (final t in throws) {
+    if (t.leg != leg || t.set != set || !ids.contains(t.playerId)) continue;
+    if (!t.bust && t.remainingBefore - t.score == 0) return true;
+  }
+  return false;
+}
+
 /// Orders throws the way they were played: by time, and by row id when two
 /// visits fall in the same millisecond.
 int _byThrowOrder(DartThrow a, DartThrow b) {
@@ -369,7 +451,7 @@ class GameProvider extends ChangeNotifier {
       throwsByPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
-    final position = currentLegAndSet(allThrowsRaw);
+    final position = openLegAndSet(game, allThrowsRaw);
     final maxLeg = position.leg;
     final maxSet = position.set;
     // Everything except the leg in play has been decided and counts toward
@@ -467,6 +549,7 @@ class GameProvider extends ChangeNotifier {
         setsWon:          teamSetsWon[ti],
         remaining:        remaining,
         throws:           allTeamThrows,
+        perfectLegs:      _perfectLegsOf(game.startScore, allTeamThrows),
         isTeamSlot:       true,
       );
     }).toList();
@@ -531,6 +614,7 @@ class GameProvider extends ChangeNotifier {
         setsWon:          0,
         remaining:        remaining,
         throws:           allTeamThrows,
+        perfectLegs:      _perfectLegsOf(game.startScore, allTeamThrows),
         isTeamSlot:       true,
         legPlacement:     placement,
         placementSum:     r.placementSum[ti] ?? 0,
@@ -622,6 +706,8 @@ class GameProvider extends ChangeNotifier {
         setsWon:     setsWon[p.id!] ?? 0,
         remaining:   remaining,
         throws:      throwsByPlayer[p.id!] ?? [],
+        perfectLegs: _perfectLegsOf(
+            game.startScore, throwsByPlayer[p.id!] ?? const []),
       );
     }).toList();
 
@@ -712,6 +798,8 @@ class GameProvider extends ChangeNotifier {
         setsWon:      0,
         remaining:    remaining,
         throws:       throwsByPlayer[p.id!] ?? [],
+        perfectLegs:  _perfectLegsOf(
+            game.startScore, throwsByPlayer[p.id!] ?? const []),
         legPlacement: placement,
         placementSum: r.placementSum[p.id!] ?? 0,
       );
