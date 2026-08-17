@@ -89,13 +89,13 @@ void main() {
     test('does not call an ordinary leg perfect', () async {
       await provider.startGame(game(startScore: 101, legs: 2), players);
 
-      await _visit(provider, const [(1, 1)]);      // A: 1, three darts short
-      await provider.finishVisitEarly();
-      await _sixty(provider);                       // B
-      await _visit(provider, const [(20, 3), (20, 2)]); // A: 60 + 40 = 100 left 0
+      await _visit(provider, const [(1, 1), (1, 1), (1, 1)]); // A: 3, leaves 98
+      await _sixty(provider);                                  // B
+      await _visit(provider, const [(20, 3), (19, 2)]); // A: 60 + 38 = 98 left 0
 
       expect(provider.playerStates[0].legsWon, 1);
-      expect(provider.playerStates[0].perfectLegs, 0);
+      expect(provider.playerStates[0].perfectLegs, 0,
+          reason: 'five darts is three more than 101 needs');
     });
 
     group('undo and redo', () {
@@ -292,9 +292,8 @@ void main() {
       expect(provider.currentLeg, 1);
 
       await _sixty(provider);            // B opens set 2
-      await _visit(provider, const [(20, 1), (20, 1)]); // A scores 40
-      await provider.finishVisitEarly();
-      expect(provider.playerStates[0].remaining, 61);
+      await _sixty(provider);            // A scores 60
+      expect(provider.playerStates[0].remaining, 41);
 
       await provider.undoLastDart();
 
@@ -303,10 +302,11 @@ void main() {
           reason: 'legs restart at 1 in every set');
       expect(provider.playerStates[1].remaining, 41,
           reason: 'the running leg of set 2 keeps the scores already thrown');
-      // A's committed visit was taken back, its first dart is prefilled again.
+      // A's committed visit was taken back, the darts before the removed one
+      // are prefilled again.
       expect(provider.playerStates[0].remaining, 101);
-      expect(provider.dartsInVisit, 1);
-      expect(provider.liveRunningRemaining, 81);
+      expect(provider.dartsInVisit, 2);
+      expect(provider.liveRunningRemaining, 61);
       expect(provider.playerStates[0].setsWon, 1);
     });
 
