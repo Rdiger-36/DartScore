@@ -85,6 +85,7 @@ void main() {
       expect(live.count100plus,      stored['count_100_plus']);
       expect(live.checkoutAttempts,  stored['checkout_attempts']);
       expect(live.checkoutSuccesses, stored['checkout_successes']);
+      expect(live.checkoutDarts,     stored['checkout_darts']);
       expect(live.scoreSumSquares,   stored['score_sum_squares']);
       expect(live.coAttemptSub40,    stored['co_at_sub40']);
       expect(live.coSuccessSub40,    stored['co_ok_sub40']);

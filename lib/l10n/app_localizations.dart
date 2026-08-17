@@ -170,6 +170,7 @@ class AppLocalizations {
   String get bestVisitThisLeg   => _t('Best Visit this Leg', 'Beste Aufnahme im Leg');
   String get first9Average      => _t('First 9 Average', 'First-9-Average');
   String get checkoutsHit       => _t('Check-Outs hit', 'Check-Outs getroffen');
+  String get dartsAtFinish      => _t('Darts at a Finish', 'Pfeile aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
 
   // ── Game Summary ─────────────────────────────────────────────────────────
@@ -242,6 +243,7 @@ class AppLocalizations {
   String get threeDartAvg      => _t('3-Dart Average', '3-Dart Average');
   String get bustRate          => _t('Bust Rate', 'Bust-Rate');
   String get checkoutRate      => _t('Check-Out Rate', 'Check-Out-Quote');
+  String get doubleRate        => _t('Double Rate', 'Doppel-Quote');
   String get scoreDistribution => _t('Score Distribution', 'Score-Verteilung');
   String get recentThrows      => _t('Recent Throws', 'Letzte Würfe');
   String get syncedStatsFrom   => _t('Synced statistics from', 'Synchronisierte Statistiken vom');

@@ -355,10 +355,12 @@ void main() {
 
       expect(provider.gameOver, isTrue);
 
-      final attempts =
-          provider.playerStates[0].throws.map((t) => t.checkoutAttempt);
-      expect(attempts, [false, true, true, true],
+      final visits = provider.playerStates[0].throws;
+      expect(visits.map((t) => t.checkoutAttempt), [false, true, true, true],
           reason: 'the 156 visit was never one dart from the finish');
+      expect(visits.map((t) => t.checkoutDarts), [0, 2, 2, 1],
+          reason: 'the two misses from 16 and the S3 from 2 all flew at a '
+              'finish, so the attempts hold more darts than one each');
     });
   });
 }

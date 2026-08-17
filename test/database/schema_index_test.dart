@@ -96,8 +96,8 @@ void main() {
       // Version 20 taught games where their throws came from.
       await db.execute('ALTER TABLE games DROP COLUMN origin_device');
       await db.execute('DROP TABLE player_origin_stats');
-      // Version 22 recorded per visit whether it was one dart from the finish.
-      await db.execute('ALTER TABLE dart_throws DROP COLUMN checkout_attempt');
+      // Version 22 recorded per visit how many darts flew at a finish.
+      await db.execute('ALTER TABLE dart_throws DROP COLUMN checkout_darts');
       await db.execute('PRAGMA user_version = 18');
     }
 
