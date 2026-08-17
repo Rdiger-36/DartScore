@@ -49,6 +49,108 @@ List<({int set, int leg})> playedLegs(List<DartThrow> throws) {
         a.set != b.set ? a.set.compareTo(b.set) : a.leg.compareTo(b.leg));
 }
 
+/// The leg and set the game stands in, given every throw it holds.
+///
+/// Usually that is the leg the last throws fell in. Once those throws have
+/// decided it, the game stands at the start of the next leg, or of the next
+/// set when the checkout also took the set, which is where [_handleCheckout]
+/// leaves it during play. A decided leg is over: resuming on it would put the
+/// winner back on the board at zero, drop the leg it just won, and file the
+/// next dart under a leg number that is spent. A checkout that won the game
+/// moves nothing, there is no leg after it.
+///
+/// Placement games keep the plain position. Every slot plays every leg out
+/// there, so a checkout does not end the leg and the placement resume decides
+/// on its own when it is over.
+({int leg, int set}) openLegAndSet(Game game, List<DartThrow> throws) {
+  final position = currentLegAndSet(throws);
+  if (game.placementMode) return position;
+
+  final legThrows = throwsInLeg(throws, position.leg, position.set)
+    ..sort(_byThrowOrder);
+  if (legThrows.isEmpty) return position;
+
+  final decider = legThrows.last;
+  if (decider.bust || decider.remainingBefore - decider.score != 0) {
+    return position;
+  }
+
+  final winner = _sideOf(game, decider.playerId);
+
+  // Replay the winner's legs and sets the way a live checkout counts them, so
+  // that a leg won as the last of its set moves the game on to the next set.
+  var legsInSet = 0;
+  var setsWon   = 0;
+  var set       = 0;
+  var tookSet   = false;
+  for (final pos in playedLegs(throws)) {
+    if (pos.set != set) {
+      set       = pos.set;
+      legsInSet = 0;
+    }
+    if (!_sideWonLeg(throws, winner, pos.leg, pos.set)) continue;
+    legsInSet++;
+    if (legsInSet >= game.legs) {
+      setsWon++;
+      legsInSet = 0;
+      tookSet   = pos.leg == position.leg && pos.set == position.set;
+    }
+  }
+
+  if (setsWon >= game.sets) return position;
+  return tookSet ? (leg: 1, set: position.set + 1)
+                 : (leg: position.leg + 1, set: position.set);
+}
+
+/// The player ids that share a slot with [playerId]: the whole team in a team
+/// game, the player alone otherwise.
+List<int> _sideOf(Game game, int playerId) {
+  if (game.isTeamGame) {
+    for (final team in game.teams!) {
+      if (team.playerIds.contains(playerId)) return team.playerIds;
+    }
+  }
+  return [playerId];
+}
+
+/// Perfect legs a slot has finished, rebuilt from [slotThrows] alone.
+///
+/// A rebuild loses the counter [_handleCheckout] keeps live, so it is counted
+/// again here rather than left at zero, which would drop the badge the summary
+/// shows. [slotThrows] holds every member's throws for a team, whose darts all
+/// count towards the same leg.
+int _perfectLegsOf(int startScore, List<DartThrow> slotThrows) =>
+    perfectLegsFromThrows(slotThrows, (_) => minimumDartsForScore[startScore]);
+
+/// Whether the slot made up of [ids] checked out in [leg] of [set].
+bool _sideWonLeg(List<DartThrow> throws, List<int> ids, int leg, int set) {
+  for (final t in throws) {
+    if (t.leg != leg || t.set != set || !ids.contains(t.playerId)) continue;
+    if (!t.bust && t.remainingBefore - t.score == 0) return true;
+  }
+  return false;
+}
+
+/// Orders throws the way they were played: by time, and by row id when two
+/// visits fall in the same millisecond.
+int _byThrowOrder(DartThrow a, DartThrow b) {
+  final byTime = a.thrownAt.compareTo(b.thrownAt);
+  return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
+}
+
+/// The index in [members] of the team member who throws the next visit:
+/// the one after whoever threw [teamThrows] last, or the first member for a
+/// team that has not thrown yet. [teamThrows] must be in playing order.
+///
+/// The rotation runs on across legs and sets, so it cannot be recovered from
+/// the number of visits that fell in the leg in play: a leg that opened on the
+/// second member would hand the turn to the wrong one for the rest of the game.
+int _nextMemberIndex(List<Player> members, List<DartThrow> teamThrows) {
+  if (teamThrows.isEmpty) return 0;
+  final last = members.indexWhere((p) => p.id == teamThrows.last.playerId);
+  return last < 0 ? 0 : (last + 1) % members.length;
+}
+
 /// Darts a slot has used in [leg]/[set] of the current game.
 ///
 /// [throws] is the slot's full throw history, which already contains the visit
@@ -349,7 +451,7 @@ class GameProvider extends ChangeNotifier {
       throwsByPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
 
-    final position = currentLegAndSet(allThrowsRaw);
+    final position = openLegAndSet(game, allThrowsRaw);
     final maxLeg = position.leg;
     final maxSet = position.set;
     // Everything except the leg in play has been decided and counts toward
@@ -414,7 +516,6 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Build team states
-    final teamVisits = <int>[]; // visits per team in current leg
     _playerStates = teams.asMap().entries.map((entry) {
       final ti   = entry.key;
       final team = entry.value;
@@ -426,7 +527,7 @@ class GameProvider extends ChangeNotifier {
       final allTeamThrows = teamPlayers
           .expand((p) => throwsByPlayer[p.id!] ?? <DartThrow>[])
           .toList()
-        ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
+        ..sort(_byThrowOrder);
 
       final currentLegThrows = allTeamThrows
           .where((t) => t.leg == maxLeg && t.set == maxSet)
@@ -437,12 +538,8 @@ class GameProvider extends ChangeNotifier {
         if (!t.bust) remaining -= t.score;
       }
 
-      // How many team visits (individual player turns) happened this leg?
-      final visits = currentLegThrows.length;
-      teamVisits.add(visits);
-
       // Current player in rotation
-      final currentIdx = visits % teamPlayers.length;
+      final currentIdx = _nextMemberIndex(teamPlayers, allTeamThrows);
 
       return PlayerState(
         displayName:      team.name,
@@ -452,14 +549,12 @@ class GameProvider extends ChangeNotifier {
         setsWon:          teamSetsWon[ti],
         remaining:        remaining,
         throws:           allTeamThrows,
+        perfectLegs:      _perfectLegsOf(game.startScore, allTeamThrows),
         isTeamSlot:       true,
       );
     }).toList();
 
-    // Which team goes next: the one with fewer visits
-    final minVisits   = teamVisits.reduce((a, b) => a < b ? a : b);
-    _currentPlayerIndex = teamVisits.indexWhere((v) => v == minVisits);
-    if (_currentPlayerIndex < 0) _currentPlayerIndex = 0;
+    _resumePickTurn();
 
     _currentLeg = maxLeg;
     _currentSet = maxSet;
@@ -482,7 +577,7 @@ class GameProvider extends ChangeNotifier {
             .playerIds
             .expand((id) => throwsByPlayer[id] ?? <DartThrow>[])
             .toList()
-          ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt)),
+          ..sort(_byThrowOrder),
     };
 
     final r = _placementResumeState(throwsByTeam, maxLeg);
@@ -497,7 +592,7 @@ class GameProvider extends ChangeNotifier {
       final allTeamThrows  = throwsByTeam[ti]!;
       final currentLegThrows =
           allTeamThrows.where((t) => t.leg == maxLeg && t.set == 1).toList();
-      final currentIdx = currentLegThrows.length % teamPlayers.length;
+      final currentIdx = _nextMemberIndex(teamPlayers, allTeamThrows);
 
       final placement = r.legPlacement[ti];
       int remaining = game.startScore;
@@ -519,6 +614,7 @@ class GameProvider extends ChangeNotifier {
         setsWon:          0,
         remaining:        remaining,
         throws:           allTeamThrows,
+        perfectLegs:      _perfectLegsOf(game.startScore, allTeamThrows),
         isTeamSlot:       true,
         legPlacement:     placement,
         placementSum:     r.placementSum[ti] ?? 0,
@@ -527,7 +623,7 @@ class GameProvider extends ChangeNotifier {
 
     if (r.legComplete) {
       _currentLeg = maxLeg + 1;
-      _currentPlayerIndex = 0;
+      _resumePickTurn();
       _currentSet = 1;
     } else {
       _resumePickNextSlot(maxLeg);
@@ -610,19 +706,12 @@ class GameProvider extends ChangeNotifier {
         setsWon:     setsWon[p.id!] ?? 0,
         remaining:   remaining,
         throws:      throwsByPlayer[p.id!] ?? [],
+        perfectLegs: _perfectLegsOf(
+            game.startScore, throwsByPlayer[p.id!] ?? const []),
       );
     }).toList();
 
-    final currentLegVisits = players
-        .map((p) =>
-            throwsByPlayer[p.id!]
-                ?.where((t) => t.leg == maxLeg && t.set == maxSet)
-                .length ??
-            0)
-        .toList();
-    final minVisits         = currentLegVisits.reduce((a, b) => a < b ? a : b);
-    _currentPlayerIndex     = currentLegVisits.indexWhere((v) => v == minVisits);
-    if (_currentPlayerIndex < 0) _currentPlayerIndex = 0;
+    _resumePickTurn();
 
     _currentLeg = maxLeg;
     _currentSet = maxSet;
@@ -709,6 +798,8 @@ class GameProvider extends ChangeNotifier {
         setsWon:      0,
         remaining:    remaining,
         throws:       throwsByPlayer[p.id!] ?? [],
+        perfectLegs:  _perfectLegsOf(
+            game.startScore, throwsByPlayer[p.id!] ?? const []),
         legPlacement: placement,
         placementSum: r.placementSum[p.id!] ?? 0,
       );
@@ -716,27 +807,52 @@ class GameProvider extends ChangeNotifier {
 
     if (r.legComplete) {
       _currentLeg = maxLeg + 1;
-      _currentPlayerIndex = 0;
+      _resumePickTurn();
       _currentSet = 1;
     } else {
       _resumePickNextSlot(maxLeg);
     }
   }
 
-  /// Picks the next slot to throw for a placement-mode resume, among the
-  /// slots not yet finished with [maxLeg]: the one with the fewest visits.
+  /// Points the turn at the slot that throws next after a rebuild: the one
+  /// after whoever threw the game's last visit, mirroring [_advancePlayer].
+  /// Slots that already finished the leg in placement mode are skipped. A game
+  /// without throws starts at the first slot.
+  ///
+  /// Counting the visits of the leg in play cannot decide this. A leg does not
+  /// have to open with the first slot: the slot after the one that won the
+  /// previous leg does, and from then on the counts point at the wrong slot for
+  /// the rest of the leg.
+  void _resumePickTurn() {
+    DartThrow? last;
+    var lastSlot = -1;
+    for (var i = 0; i < _playerStates.length; i++) {
+      for (final t in _playerStates[i].throws) {
+        if (last == null || _byThrowOrder(t, last) > 0) {
+          last     = t;
+          lastSlot = i;
+        }
+      }
+    }
+
+    if (lastSlot < 0) {
+      _currentPlayerIndex = 0;
+      return;
+    }
+
+    var idx = (lastSlot + 1) % _playerStates.length;
+    for (var k = 0;
+        k < _playerStates.length && _playerStates[idx].legPlacement != null;
+        k++) {
+      idx = (idx + 1) % _playerStates.length;
+    }
+    _currentPlayerIndex = idx;
+  }
+
+  /// Picks the next slot to throw for a placement-mode resume and restores the
+  /// leg/set counters to [maxLeg] of the only set a placement game has.
   void _resumePickNextSlot(int maxLeg) {
-    final candidates = [
-      for (var i = 0; i < _playerStates.length; i++)
-        if (_playerStates[i].legPlacement == null) i,
-    ];
-    final visits = candidates
-        .map((i) => _playerStates[i].throws
-            .where((t) => t.leg == maxLeg && t.set == 1)
-            .length)
-        .toList();
-    final minVisits = visits.reduce((a, b) => a < b ? a : b);
-    _currentPlayerIndex = candidates[visits.indexOf(minVisits)];
+    _resumePickTurn();
     _currentLeg = maxLeg;
     _currentSet = 1;
   }
@@ -1278,10 +1394,6 @@ class GameProvider extends ChangeNotifier {
   /// a millisecond, so the row id breaks the tie and undo always removes the
   /// visit that was really thrown last.
   List<DartThrow> allThrows() {
-    return _playerStates.expand((s) => s.throws).toList()
-      ..sort((a, b) {
-        final byTime = a.thrownAt.compareTo(b.thrownAt);
-        return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
-      });
+    return _playerStates.expand((s) => s.throws).toList()..sort(_byThrowOrder);
   }
 }
