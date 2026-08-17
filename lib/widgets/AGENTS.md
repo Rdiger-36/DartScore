@@ -41,7 +41,7 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 - The shared result widgets are shared on purpose: the X01 summary and the X01 history detail render the same result through `SummaryPlayerCard`, `FinalRankingCard` and `ThrowLogCard`. Fix the widget, not one of the two screens
 - A recorded visit is rendered by `ThrowRow` wherever it appears, the throw log of a game and the lifetime recent-throws list alike. It fills four slots over two lines and decides from its parameters which of them a caller has anything to put in; a list that needs a fifth thing belongs in the widget, not in a copy of it
 - `GameInfoCard` takes `dense: true` from the four history detail screens and the default from the four post-game summaries. That split is a convention across both sets, not a per-mode oversight
-- Colors come from `ThemeProvider`, team accents from `utils/team_color.dart`, triple affordances from `utils/triple_color.dart`
+- Colors come from `ThemeProvider`, team accents from `utils/team_color.dart`, double and triple affordances from `utils/segment_color.dart`
 - Two panes side by side are built with `SidePaneLayout` from `utils/layout.dart`, never with a hand rolled `Row`. It is what carries the minimum pane width and the input side, and a second layout would answer both differently
 - `SummaryBody` divides all eight summary and history detail screens. Its divider stands in the middle and stays there, because both columns hold cards of the same kind; only the game, the history and the player list have anything to rebalance, and only those three let it be dragged
 - Strings come from `AppLocalizations`, and the per-mode setting names from `utils/game_labels.dart`

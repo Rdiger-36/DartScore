@@ -15,7 +15,7 @@ import '../widgets/stat_row.dart';
 import '../widgets/throw_row.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -1187,9 +1187,11 @@ class _DartboardHeatmap extends StatelessWidget {
 /// the heatmap because it is a long list next to a picture that already says
 /// where the darts land.
 ///
-/// One row per number, single, double and triple side by side, so a field is
-/// read across and the numbers are compared down the column. The bull and the
-/// misses share the last row: neither has three variants to line up.
+/// A table of one row per number, single, double and triple in fixed columns,
+/// so a field is read across and the columns are compared down. Every cell is
+/// filled even where the count is zero: a missing cell would read as a hole in
+/// the table rather than as a segment the player has yet to hit. The bull and
+/// the misses share the closing row, none of them having three variants.
 class _SegmentBreakdown extends StatelessWidget {
   final Map<int, Map<int, int>> segmentHits;
   const _SegmentBreakdown({required this.segmentHits});
@@ -1206,29 +1208,16 @@ class _SegmentBreakdown extends StatelessWidget {
     final cs    = theme.colorScheme;
     final l     = context.l10n;
 
-    /// The chips of one field, in the order single, double, triple, leaving
-    /// out whatever was never hit.
-    List<Widget> chipsOf(int field) => [
-          for (final mul in const [1, 2, 3])
-            if ((segmentHits[field]?[mul] ?? 0) > 0)
-              _SegmentChip(
-                label: segmentLabel(l, field, mul),
-                count: segmentHits[field]![mul]!,
-                multiplier: mul,
-              ),
-        ];
+    /// One cell: the segment and how often it was hit, zero included. A field
+    /// the player never hit says so, because an empty place in the column is
+    /// read as a gap in the table rather than as a count.
+    Widget cell(int field, int mul) => _SegmentChip(
+          label:      segmentLabel(l, field, mul),
+          count:      segmentHits[field]?[mul] ?? 0,
+          multiplier: mul,
+        );
 
-    final rows = <Widget>[];
-    for (final field in _numberedFields) {
-      final chips = chipsOf(field);
-      if (chips.isNotEmpty) rows.add(_SegmentRow(chips: chips));
-    }
-    // Bull and miss: the outer bull, the bull's eye and the darts that hit
-    // nothing at all, all on one closing row.
-    final closing = [...chipsOf(25), ...chipsOf(0)];
-    if (closing.isNotEmpty) rows.add(_SegmentRow(chips: closing));
-
-    if (rows.isEmpty) return const SizedBox.shrink();
+    if (segmentHits.isEmpty) return const SizedBox.shrink();
 
     return Theme(
       // The tile sits inside the heatmap card, so it carries neither the
@@ -1243,23 +1232,27 @@ class _SegmentBreakdown extends StatelessWidget {
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 8),
         expandedCrossAxisAlignment: CrossAxisAlignment.start,
-        children: rows,
+        children: [
+          Table(
+            defaultColumnWidth: const FlexColumnWidth(),
+            children: [
+              for (final field in _numberedFields)
+                TableRow(children: [
+                  for (final mul in const [1, 2, 3]) cell(field, mul),
+                ]),
+              // The bull and the misses close the table: the outer bull, the
+              // bull's eye and the darts that hit nothing at all. None of the
+              // three belongs under a single/double/triple column, and
+              // together they fill exactly one row.
+              TableRow(children: [
+                cell(25, 1),
+                cell(25, 2),
+                cell(0, 1),
+              ]),
+            ],
+          ),
+        ],
       ),
-    );
-  }
-}
-
-/// One field's chips on a line of their own, wrapping only if the window is
-/// too narrow to hold all three.
-class _SegmentRow extends StatelessWidget {
-  final List<Widget> chips;
-  const _SegmentRow({required this.chips});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Wrap(spacing: 6, runSpacing: 6, children: chips),
     );
   }
 }
@@ -1267,6 +1260,9 @@ class _SegmentRow extends StatelessWidget {
 /// A single segment and how often it was hit, colored by its multiplier:
 /// neutral for a single, green for a double, blue for a triple, the same tones
 /// the board input and the checkout hint use.
+///
+/// A segment that was never hit keeps its column's color but is faded, so the
+/// zero reads as "not yet" without breaking the run of the column.
 class _SegmentChip extends StatelessWidget {
   final String label;
   final int count;
@@ -1288,18 +1284,25 @@ class _SegmentChip extends StatelessWidget {
       3 => (tripleContainerColor(context), onTripleContainerColor(context)),
       _ => (cs.surfaceContainerHighest, cs.onSurfaceVariant),
     };
+    final empty = count == 0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        '$label: $count',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: empty ? background.withValues(alpha: 0.35) : background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          '$label: $count',
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: empty ? foreground.withValues(alpha: 0.5) : foreground,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/game.dart';
 import '../utils/finish_calculator.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 
 /// Shows the checkout hint for the current X01 score: a primary route (and an
 /// optional alternative) honoring the player's favorite double and checkout
