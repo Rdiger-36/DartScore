@@ -153,7 +153,6 @@ class AppLocalizations {
   String dart(int n)           => _t('Dart $n', 'Dart $n');
   String bullLabel(bool d)     => d ? _t('Bull (50)', 'Bull (50)') : _t('Bull (25)', 'Bull (25)');
   String get average           => _t('Average', 'Average');
-  String get remaining         => _t('remaining', 'übrig');
 
   // ── Live Player Info ─────────────────────────────────────────────────────
   String get livePlayerInfo     => _t('Live Info', 'Live-Info');
@@ -547,7 +546,6 @@ class AppLocalizations {
   String overwriteProfile(String name) =>
       _t('The profile of "$name" will be overwritten with this data.',
          'Das Profil von "$name" wird mit diesen Daten überschrieben.');
-  String remainingScore(int n) => _t('Remaining: $n', 'Verbleibend: $n');
   String get throws            => _t('Throws', 'Würfe');
 
   // ── Backup ────────────────────────────────────────────────────────────────
@@ -825,7 +823,6 @@ class AppLocalizations {
   String get bull                 => 'Bull';
   String get cricketMiss          => _t('Miss', 'Miss');
   String get cricketConfirmVisit  => _t('Done', 'Fertig');
-  String get cricketDart          => _t('Dart', 'Dart');
   String get cricketScore         => _t('Score', 'Punkte');
   String get cricketMarks         => _t('Marks', 'Treffer');
   String get cricketQuit          => _t('Quit', 'Beenden');

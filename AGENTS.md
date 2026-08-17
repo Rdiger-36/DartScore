@@ -78,7 +78,7 @@ lib/
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
-│   ├── triple_color.dart       # Shared blue tones for triple-field UI across all game modes
+│   ├── triple_color.dart       # Shared tones for multiplied fields: blue for triples, green for doubles
 │   └── layout.dart             # Tablet breakpoint, max widths, SidePaneLayout, input side, text scale
 └── l10n/
     └── app_localizations.dart  # Hand-written localization strings (no .arb, no codegen)
@@ -120,7 +120,7 @@ These hold in every directory, whatever the local node says.
 - A rebuild of a board (undo, redo, resume) reads the turn and the position off the stored throws, which carry the player, the leg and the set of every visit. Never count them from the number of visits a leg holds: that count only describes a leg that opened with the first slot and the first team member, and the leg after a checkout opens with the slot behind the winner. See `providers/AGENTS.md`
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
-- Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes
+- Colors that stand for a multiplied field come from `triple_color.dart`, blue for a triple and green for a double; reuse them for those affordances across all modes
 - Two panes side by side come from `SidePaneLayout` in `layout.dart`, and whether a window gets them is `isTabletLayout(context)`, never a width read by hand. The same rule drives the orientation lock in `main.dart`, so a window that may rotate is exactly a window that divides
 - Never run `dart format`. The codebase aligns constructor arguments and the `=>` of the localization getters in columns by hand, and the formatter collapses all of it
 
