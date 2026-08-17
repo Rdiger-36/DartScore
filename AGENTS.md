@@ -72,9 +72,9 @@ lib/
 ├── services/                  # Sync codec, sync transport, device identity, backup, document picker. See services/AGENTS.md
 ├── widgets/                   # Shared UI building blocks. See widgets/AGENTS.md
 ├── utils/
-│   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles
+│   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles; canFinishWithOneDart is the one-dart rule per check-out mode
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
-│   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot
+│   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot; checkoutDartsInVisit classifies a visit as it is recorded
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
@@ -116,6 +116,7 @@ These hold in every directory, whatever the local node says.
 - State goes through a Provider, database access goes through `db_helper.dart`, and no screen or widget touches SQLite
 - Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
 - Finish/checkout logic is isolated in `FinishCalculator`, do not inline checkout logic elsewhere
+- Whether a visit was an attempt at the finish, and how many of its darts flew at one, is decided once when the visit is recorded and stored as `dart_throws.checkout_darts`. Deciding it needs the individual darts and the player's own check-out rule, neither of which reaches every place the statistics are counted. Never re-derive it from `remaining_before`
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
 - Theme colors come from `ThemeProvider`; never hardcode colors that should follow the theme
 - Triple-field colors come from `triple_color.dart`; reuse it for triple affordances across all modes

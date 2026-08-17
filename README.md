@@ -154,11 +154,11 @@ All stats are shown per player on a dedicated screen.
 | **3-Dart Average** | Hero metric with total darts, visits, and legs |
 | **Highlights** | 180s, 140+, 100+, highest visit, highest checkout, perfect legs |
 | **Overview** | Games played/won, legs won, total visits & darts |
-| **Accuracy** | 3-dart avg, bust count, bust rate, checkout rate |
+| **Accuracy** | 3-dart avg, bust count, bust rate, checkout rate, double rate |
 | **Score Distribution** | Horizontal bar chart in 20-point ranges |
 | **Dartboard Heatmap** | Real dartboard rendered with `CustomPainter`; segments coloured by hit frequency per ring (single/double/triple) on a green → yellow → red scale |
 | **Consistency** | Standard deviation of visits as a progress bar (Very Consistent → Very Variable) |
-| **Checkout by Range** | Checkout success rate split into ≤40 / 41–60 / 61–100 / 101–170 |
+| **Checkout by Range** | Checkout success rate split into ≤40 / 41–60 / 61–100 / 101–170, by the remaining the visit started on |
 | **Week Comparison** | This week vs last week: average, visits, 180s with delta arrows |
 | **Recent Throws** | Last 20 visits with score, remaining, leg, darts used, timestamp |
 
@@ -318,7 +318,7 @@ lib/
 ├── models/
 │   ├── player.dart                        # Player entity with favourite doubles
 │   ├── game.dart                          # X01 Game entity; GameMode/CheckoutMode enums
-│   ├── dart_throw.dart                    # X01 visit record (score, multiplier, bust, hits_json)
+│   ├── dart_throw.dart                    # X01 visit record (score, multiplier, bust, hits_json, checkout_darts)
 │   ├── cricket_game.dart                  # CricketGame, CricketThrow, variant/scoring enums
 │   ├── shanghai_game.dart                 # ShanghaiGame, ShanghaiThrow, ShanghaiVariant enum
 │   ├── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
@@ -374,7 +374,7 @@ lib/
 │   ├── device_description.dart            # The device name shown on a transfer, reported by the device
 │   └── document_picker.dart               # Dart side of the hand-written system file picker
 ├── utils/
-│   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles
+│   ├── finish_calculator.dart             # X01 checkout table up to 170; respects favourite doubles; one-dart finish rule per check-out mode
 │   ├── game_labels.dart                   # Localised names for per-mode settings and handicap rules
 │   ├── match_format.dart                  # Match format presets (Best of N, PDC Sets, ...)
 │   ├── placement.dart                     # Placement-mode ranking and points helpers
@@ -436,13 +436,16 @@ games        (id, start_score, game_mode, checkout_mode, legs, sets,
 game_players (game_id, player_id, sort_order)
 
 dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
-              remaining_before, thrown_at, bust, hits_json)
+              remaining_before, thrown_at, bust, hits_json,
+              checkout_darts)
 ```
 
 `handicap_json` holds per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
 `origin_device` names the device the game was played on. Null means this one, so a game costs nothing to record locally; a restore stamps the source's ID onto what it hands over.  
 `placement_mode` is 1 when every leg is played to the end for a final ranking.  
 `starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all four game tables; games created before the setting existed read as 0, which is how they were actually played.
+
+`checkout_darts` counts how many darts of the visit were thrown while a single dart could still have finished the leg, 0 to 3. It is decided once, when the visit is recorded, because working it out needs both the individual darts and the check-out rule that applied to that player in that game, and neither reaches the places the statistics are counted. Two numbers rest on it: the check-out rate counts a visit once however many darts it put on a double, the double rate counts every one of them. A visit that arrived over sync or predates `hits_json` can only ever be credited with a single dart.
 
 `hits_json` stores individual dart hits as a compact JSON array:
 ```json
