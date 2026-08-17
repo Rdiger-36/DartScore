@@ -55,6 +55,27 @@ String startingOrderLabel(AppLocalizations l, StartingOrder order) {
   }
 }
 
+/// Names one board segment: the [field] hit and with which [multiplier]
+/// (1 single, 2 double, 3 triple), as `S20`, `D20` or `T20`.
+///
+/// Field 0 is a miss and field 25 the bull, whose outer ring counts 25 and
+/// whose centre is the bull's eye. Deliberately not the same notation as
+/// `DartEntry.label`: that one names a dart as it is entered, where a single
+/// carries no prefix, while a statistics list is only scannable when every
+/// entry is spelled the same way.
+String segmentLabel(AppLocalizations l, int field, int multiplier) {
+  if (field == 0)  return l.miss;
+  if (field == 25) return multiplier == 2 ? l.bull : '25';
+  switch (multiplier) {
+    case 2:
+      return 'D$field';
+    case 3:
+      return 'T$field';
+    default:
+      return 'S$field';
+  }
+}
+
 /// Localized display name for a Cricket [variant].
 String cricketVariantLabel(AppLocalizations l, CricketVariant variant) {
   switch (variant) {

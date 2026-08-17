@@ -254,6 +254,7 @@ class AppLocalizations {
 
   // ── Extended Player Stats ────────────────────────────────────────────────
   String get dartboardHeatmap   => _t('Dartboard Heatmap', 'Dartscheiben-Heatmap');
+  String get allSegments        => _t('All fields thrown', 'Alle geworfenen Felder');
   String get stability          => _t('Consistency', 'Konstanz');
   String get stabilityVeryHigh  => _t('Very Consistent', 'Sehr konstant');
   String get stabilityHigh      => _t('Consistent', 'Konstant');
@@ -779,8 +780,7 @@ class AppLocalizations {
   );
 
   // ── Misc numbers/units ───────────────────────────────────────────────────
-  String dartsN(int n) => _t('$n dart${n != 1 ? 's' : ''}', '$n Pfeil${n != 1 ? 'e' : ''}');
-  String dartsShort(int n) => _t('${n}D', '${n}P');
+  String dartsN(int n) => _t('$n dart${n != 1 ? 's' : ''}', '$n Dart${n != 1 ? 's' : ''}');
   String legLabel(int l) => 'Leg $l';
   String setLabel(int s) => 'Set $s';
 
