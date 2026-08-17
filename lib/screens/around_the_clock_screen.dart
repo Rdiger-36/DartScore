@@ -4,7 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 import '../widgets/dartboard_target_painter.dart';
 import 'around_the_clock_summary_screen.dart';
 

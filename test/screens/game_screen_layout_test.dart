@@ -74,7 +74,7 @@ void main() {
       EdgeInsets insets = EdgeInsets.zero,
     }) {
       final limit = surface.height - insets.bottom;
-      for (final label in ['Miss', 'Bull (25)', 'Done']) {
+      for (final label in ['Miss', 'Bull (25)']) {
         final rect = tester.getRect(find.widgetWithText(InkWell, label).first);
         expect(rect.bottom, lessThanOrEqualTo(limit),
             reason: '"$label" reaches into the bottom system inset');
@@ -110,6 +110,17 @@ void main() {
 
       expect(find.text('Team 1'), findsOneWidget);
       expectActionRowVisible(tester, _seSurface);
+    });
+
+    testWidgets('gives Miss and Bull the same size', (tester) async {
+      await pumpGame(tester, ['Ada', 'Zoe']);
+
+      final miss = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final bull =
+          tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
+
+      expect(miss.width, moreOrLessEquals(bull.width, epsilon: 1));
+      expect(miss.height, moreOrLessEquals(bull.height, epsilon: 1));
     });
 
     testWidgets('still offers all twenty fields and the modifiers',

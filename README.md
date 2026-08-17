@@ -380,7 +380,7 @@ lib/
 │   ├── placement.dart                     # Placement-mode ranking and points helpers
 │   ├── throw_stats.dart                   # ThrowStats: the one aggregation over recorded throws
 │   ├── team_color.dart                    # Shared team accent palette
-│   ├── triple_color.dart                  # Shared blue tones for triple-field UI
+│   ├── segment_color.dart                 # Shared tones for multiplied fields: blue triples, green doubles
 │   └── layout.dart                        # Breakpoint, max widths, split panes, input side, text scale
 ├── l10n/
 │   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
@@ -399,6 +399,7 @@ lib/
     ├── summary_player_card.dart            # Shared X01 player/team result card
     ├── final_ranking_card.dart             # Shared placement-mode ranking and per-leg table
     ├── throw_log_card.dart                 # Shared "All Throws" log
+    ├── throw_row.dart                      # Shared row for one recorded visit, used by both throw lists
     ├── stat_row.dart                       # Shared label/value row for every stat list
     ├── rematch_button.dart                 # "Play Again" button and its confirmation dialog
     ├── wifi_pairing.dart                   # Scanner, pairing number dialog and QR card, shared by sync and backup
