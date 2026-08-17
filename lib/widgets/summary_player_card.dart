@@ -164,6 +164,10 @@ class _Badge extends StatelessWidget {
 }
 
 /// One team member under a team card: average, highest visit and darts thrown.
+///
+/// The name stands on its own line and the three numbers underneath it, so a
+/// long name and the spelled-out darts count no longer push each other out of
+/// a single row.
 class _MemberRow extends StatelessWidget {
   final String name;
   final List<DartThrow> throws;
@@ -177,49 +181,57 @@ class _MemberRow extends StatelessWidget {
     final l     = context.l10n;
     final stats = ThrowStats.fromThrows(throws);
 
+    final summary = stats.totalDarts == 0
+        ? l.noThrowData
+        : 'Ø ${stats.average.toStringAsFixed(1)}'
+            '  ·  ${l.highAbbr} ${stats.highestVisit}'
+            '  ·  ${l.dartsN(stats.totalDarts)}';
+
+    // Where the second line starts, so it lines up with the name rather than
+    // with the avatar in front of it.
+    const textIndent = 32.0;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: cs.surfaceContainerHighest,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: cs.onSurface,
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: cs.surfaceContainerHighest,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.only(left: textIndent),
+            child: Text(
+              summary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(name, style: theme.textTheme.bodySmall)),
-          if (stats.totalDarts == 0)
-            Text(
-              l.noThrowData,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onSurfaceVariant),
-            )
-          else ...[
-            Text(
-              'Ø ${stats.average.toStringAsFixed(1)}',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '${l.highAbbr} ${stats.highestVisit}',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: cs.onSurfaceVariant),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              l.dartsShort(stats.totalDarts),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ],
         ],
       ),
     );

@@ -154,15 +154,16 @@ void main() {
       await pumpGame(tester, surface: _tabletLandscape);
 
       final pane = tester.getRect(find.byType(DartboardInput));
-      final done = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+      // Bull closes the action column, so it is what has to reach the bottom.
+      final bull = tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
       final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
 
       // The action row ends at the bottom of the pane instead of floating in
       // the middle of it, the buttons grew past their phone size, and no hole
       // is left between the last row of numbers and the actions.
-      expect(pane.bottom - done.bottom, lessThan(30));
+      expect(pane.bottom - bull.bottom, lessThan(30));
       expect(field.height, greaterThan(45));
-      expect(done.top - field.bottom, lessThan(80));
+      expect(bull.top - field.bottom, lessThan(80));
     });
 
     testWidgets('puts the actions beside the numbers in landscape',
@@ -171,15 +172,27 @@ void main() {
 
       final field = tester.getRect(find.widgetWithText(InkWell, '20').first);
       final miss  = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
-      final done  = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+      final bull  = tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
 
       // Beside, not below, and the column ends where the grid ends rather than
       // floating next to it.
       expect(miss.left, greaterThan(field.right));
-      expect((done.bottom - field.bottom).abs(), lessThan(2));
+      expect((bull.bottom - field.bottom).abs(), lessThan(2));
       // The height the row under the grid used to take went to the numbers,
       // which are well past their phone size of 37 to 51.
       expect(field.height, greaterThan(60));
+    });
+
+    testWidgets('gives Miss and Bull the same size beside the numbers',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      final miss = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final bull =
+          tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
+
+      expect(miss.width, moreOrLessEquals(bull.width, epsilon: 1));
+      expect(miss.height, moreOrLessEquals(bull.height, epsilon: 1));
     });
 
     testWidgets('names the slot its stats belong to', (tester) async {
@@ -286,13 +299,13 @@ void main() {
       final firstRow = tester.getRect(find.widgetWithText(InkWell, '1').first);
       final lastRow  = tester.getRect(find.widgetWithText(InkWell, '20').first);
       final miss     = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
-      final done     = tester.getRect(find.widgetWithText(InkWell, 'Done').first);
+      final bull     = tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
 
       // Pinned at both ends: the column starts where the numbers start and
       // ends where they end, whatever height the grid turns out to have.
       expect(miss.left, greaterThan(lastRow.right));
       expect((miss.top - firstRow.top).abs(), lessThan(2));
-      expect((done.bottom - lastRow.bottom).abs(), lessThan(2));
+      expect((bull.bottom - lastRow.bottom).abs(), lessThan(2));
     });
 
     testWidgets('stops the drag before a pane stops being usable',
@@ -320,7 +333,7 @@ void main() {
       await pumpGame(tester, surface: const Size(1133, 744));
 
       expect(find.byType(LivePlayerStatsPanel), findsOneWidget);
-      expect(find.widgetWithText(InkWell, 'Done'), findsOneWidget);
+      expect(find.widgetWithText(InkWell, 'Bull (25)'), findsOneWidget);
     });
 
     testWidgets('stays a single column on a phone sized window',

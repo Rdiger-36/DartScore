@@ -12,7 +12,10 @@ import '../utils/throw_stats.dart';
 import '../services/sync_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/stat_row.dart';
+import '../widgets/throw_row.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
+import '../utils/segment_color.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -387,12 +390,16 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
   }
 
   // ── Recent throws: live (newest first) + snapshot, deduplicated, top 20 ──
+  // The individual darts ride along where they were recorded, so the list can
+  // name them. The snapshot of a deleted game carries no hits, and those rows
+  // simply show none.
   final liveRecent = throws.reversed.map((t) => {
     'score':            t.score,
     'darts_used':       t.dartsUsed,
     'bust':             t.bust ? 1 : 0,
     'remaining_before': t.remainingBefore,
     'thrown_at':        t.thrownAt.millisecondsSinceEpoch,
+    'hits_json':        t.hitsJson,
   }).toList();
   final liveTimestamps = liveRecent.map((m) => m['thrown_at'] as int).toSet();
   final combined = [
@@ -409,6 +416,7 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
     remainingBefore: m['remaining_before'] as int? ?? 0,
     thrownAt:        DateTime.fromMillisecondsSinceEpoch(m['thrown_at'] as int? ?? 0),
     bust:            (m['bust'] as int? ?? 0) == 1,
+    hitsJson:        m['hits_json'] as String?,
   )).toList();
 
   // ── Standard deviation via Var = E[x²] − E[x]² ───────────────────────────
@@ -751,7 +759,15 @@ class _StatsBody extends StatelessWidget {
           const SizedBox(height: 6),
           _StatCard(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 14),
-            children: stats.recentThrows.map((t) => _ThrowRow(t: t)).toList(),
+            // These visits come from different games, so their leg and set say
+            // nothing; the date is what places them.
+            children: stats.recentThrows
+                .map((t) => ThrowRow(
+                      t:            t,
+                      showPosition: false,
+                      thrownAt:     t.thrownAt,
+                    ))
+                .toList(),
           ),
         ],
       ],
@@ -798,17 +814,12 @@ class _HeroCard extends StatelessWidget {
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _HeroStat(
-                  label: context.l10n.darts_, value: '${stats.totalDarts}', cs: cs),
-              const SizedBox(height: 6),
-              _HeroStat(
-                  label: context.l10n.visits, value: '${stats.totalVisits}', cs: cs),
-              const SizedBox(height: 6),
-              _HeroStat(
-                  label: context.l10n.legsWon, value: '${stats.legsWon}', cs: cs),
+          _HeroStatTable(
+            cs: cs,
+            rows: [
+              (context.l10n.darts_,  '${stats.totalDarts}'),
+              (context.l10n.visits,  '${stats.totalVisits}'),
+              (context.l10n.legsWon, '${stats.legsWon}'),
             ],
           ),
         ],
@@ -817,32 +828,53 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-/// A single labeled value within the hero card.
-class _HeroStat extends StatelessWidget {
-  final String label;
-  final String value;
+/// The labeled values beside the big average in a hero card.
+///
+/// A table rather than a column of rows, so the labels share one column and
+/// the numbers share the next. Stacked rows of their own would each be only as
+/// wide as their own text, and the numbers would sit at a different offset on
+/// every line.
+class _HeroStatTable extends StatelessWidget {
+  /// Label and value per line, in the order they are shown.
+  final List<(String, String)> rows;
   final ColorScheme cs;
-  const _HeroStat({required this.label, required this.value, required this.cs});
+
+  const _HeroStatTable({required this.rows, required this.cs});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$label ',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: cs.onPrimary.withValues(alpha: 0.7),
-              ),
-        ),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: cs.onPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-      ],
+    final theme = Theme.of(context);
+
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: cs.onPrimary.withValues(alpha: 0.7),
+    );
+    final valueStyle = theme.textTheme.labelLarge?.copyWith(
+      color: cs.onPrimary,
+      fontWeight: FontWeight.bold,
+    );
+
+    return IntrinsicWidth(
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        defaultVerticalAlignment: TableCellVerticalAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          for (final (label, value) in rows)
+            TableRow(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8, bottom: 6),
+                  child: Text(label, style: labelStyle),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(value,
+                      textAlign: TextAlign.right, style: valueStyle),
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1037,82 +1069,6 @@ class _HighlightTile extends StatelessWidget {
   }
 }
 
-/// A row in the recent-throws list showing a visit's score and remaining.
-class _ThrowRow extends StatelessWidget {
-  final DartThrow t;
-  const _ThrowRow({required this.t});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final fmt = DateFormat('dd.MM  HH:mm');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          // Score pill
-          Container(
-            width: 48,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            decoration: BoxDecoration(
-              color: t.bust
-                  ? cs.errorContainer
-                  : t.score >= 140
-                      ? cs.tertiaryContainer
-                      : t.score >= 100
-                          ? cs.secondaryContainer
-                          : cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              t.bust ? 'BUST' : '${t.score}',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: t.bust
-                    ? cs.onErrorContainer
-                    : t.score >= 140
-                        ? cs.onTertiaryContainer
-                        : t.score >= 100
-                            ? cs.onSecondaryContainer
-                            : cs.onSurface,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Rest after
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.bust
-                      ? context.l10n.remainingScore(t.remainingBefore)
-                      : '→ ${t.remainingBefore - t.score} ${context.l10n.remaining}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                Text(
-                  '${context.l10n.legLabel(t.leg)}  ·  ${context.l10n.dartsN(t.dartsUsed)}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          // Date
-          Text(
-            fmt.format(t.thrownAt),
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Dartboard Heatmap ─────────────────────────────────────────────────────────
 
 /// Dartboard heatmap visualizing how often the player hit each segment.
@@ -1124,9 +1080,12 @@ class _DartboardHeatmap extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Total hits per field (all multipliers combined) for legend
+    // Total hits per field (all multipliers combined) for legend. Field 0 is a
+    // miss and stands for no field at all, so it never belongs in a ranking of
+    // the busiest ones.
     final perField = <int, int>{};
     for (final entry in segmentHits.entries) {
+      if (entry.key == 0) continue;
       perField[entry.key] = entry.value.values.fold(0, (a, b) => a + b);
     }
 
@@ -1215,7 +1174,135 @@ class _DartboardHeatmap extends StatelessWidget {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 4),
+            _SegmentBreakdown(segmentHits: segmentHits),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The exact hit count of every segment the player ever hit, folded away under
+/// the heatmap because it is a long list next to a picture that already says
+/// where the darts land.
+///
+/// A table of one row per number, single, double and triple in fixed columns,
+/// so a field is read across and the columns are compared down. Every cell is
+/// filled even where the count is zero: a missing cell would read as a hole in
+/// the table rather than as a segment the player has yet to hit. The bull and
+/// the misses share the closing row, none of them having three variants.
+class _SegmentBreakdown extends StatelessWidget {
+  final Map<int, Map<int, int>> segmentHits;
+  const _SegmentBreakdown({required this.segmentHits});
+
+  /// The numbered fields, highest first, each of which gets a row of its own.
+  static const _numberedFields = [
+    20, 19, 18, 17, 16, 15, 14, 13, 12, 11,
+    10,  9,  8,  7,  6,  5,  4,  3,  2,  1,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+    final l     = context.l10n;
+
+    /// One cell: the segment and how often it was hit, zero included. A field
+    /// the player never hit says so, because an empty place in the column is
+    /// read as a gap in the table rather than as a count.
+    Widget cell(int field, int mul) => _SegmentChip(
+          label:      segmentLabel(l, field, mul),
+          count:      segmentHits[field]?[mul] ?? 0,
+          multiplier: mul,
+        );
+
+    if (segmentHits.isEmpty) return const SizedBox.shrink();
+
+    return Theme(
+      // The tile sits inside the heatmap card, so it carries neither the
+      // divider lines nor the rounded outline an expansion tile draws by
+      // default; both would cut the card in two.
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        title: Text(
+          l.allSegments,
+          style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Table(
+            defaultColumnWidth: const FlexColumnWidth(),
+            children: [
+              for (final field in _numberedFields)
+                TableRow(children: [
+                  for (final mul in const [1, 2, 3]) cell(field, mul),
+                ]),
+              // The bull and the misses close the table: the outer bull, the
+              // bull's eye and the darts that hit nothing at all. None of the
+              // three belongs under a single/double/triple column, and
+              // together they fill exactly one row.
+              TableRow(children: [
+                cell(25, 1),
+                cell(25, 2),
+                cell(0, 1),
+              ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single segment and how often it was hit, colored by its multiplier:
+/// neutral for a single, green for a double, blue for a triple, the same tones
+/// the board input and the checkout hint use.
+///
+/// A segment that was never hit keeps its column's color but is faded, so the
+/// zero reads as "not yet" without breaking the run of the column.
+class _SegmentChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final int multiplier;
+
+  const _SegmentChip({
+    required this.label,
+    required this.count,
+    required this.multiplier,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+
+    final (background, foreground) = switch (multiplier) {
+      2 => (doubleContainerColor(context), onDoubleContainerColor(context)),
+      3 => (tripleContainerColor(context), onTripleContainerColor(context)),
+      _ => (cs.surfaceContainerHighest, cs.onSurfaceVariant),
+    };
+    final empty = count == 0;
+
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: empty ? background.withValues(alpha: 0.35) : background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          '$label: $count',
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: empty ? foreground.withValues(alpha: 0.5) : foreground,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -1828,14 +1915,12 @@ class _SyncedStatsView extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _SyncHeroStat(context.l10n.darts_, '${s.totalDarts}', cs),
-                  const SizedBox(height: 4),
-                  _SyncHeroStat(context.l10n.visits, '${s.totalVisits}', cs),
-                  const SizedBox(height: 4),
-                  _SyncHeroStat(context.l10n.legsWon, '${s.legsWon}', cs),
+              _HeroStatTable(
+                cs: cs,
+                rows: [
+                  (context.l10n.darts_,  '${s.totalDarts}'),
+                  (context.l10n.visits,  '${s.totalVisits}'),
+                  (context.l10n.legsWon, '${s.legsWon}'),
                 ],
               ),
             ],
@@ -1860,27 +1945,6 @@ class _SyncedStatsView extends StatelessWidget {
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// A single labeled value within the synced-stats hero card.
-class _SyncHeroStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final ColorScheme cs;
-  const _SyncHeroStat(this.label, this.value, this.cs);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('$label ', style: Theme.of(context).textTheme.labelSmall
-            ?.copyWith(color: cs.onPrimary.withValues(alpha: 0.7))),
-        Text(value, style: Theme.of(context).textTheme.labelLarge
-            ?.copyWith(color: cs.onPrimary, fontWeight: FontWeight.bold)),
       ],
     );
   }

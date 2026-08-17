@@ -4,7 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../models/shanghai_game.dart';
 import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 import '../widgets/dartboard_target_painter.dart';
 import 'shanghai_summary_screen.dart';
 
