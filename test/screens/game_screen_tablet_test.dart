@@ -183,6 +183,18 @@ void main() {
       expect(field.height, greaterThan(60));
     });
 
+    testWidgets('gives Miss and Bull the same size beside the numbers',
+        (tester) async {
+      await pumpGame(tester, surface: _tabletLandscape);
+
+      final miss = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final bull =
+          tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
+
+      expect(miss.width, moreOrLessEquals(bull.width, epsilon: 1));
+      expect(miss.height, moreOrLessEquals(bull.height, epsilon: 1));
+    });
+
     testWidgets('names the slot its stats belong to', (tester) async {
       await pumpGame(tester, surface: _tabletLandscape);
 

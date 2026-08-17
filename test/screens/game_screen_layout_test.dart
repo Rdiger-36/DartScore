@@ -112,6 +112,17 @@ void main() {
       expectActionRowVisible(tester, _seSurface);
     });
 
+    testWidgets('gives Miss and Bull the same size', (tester) async {
+      await pumpGame(tester, ['Ada', 'Zoe']);
+
+      final miss = tester.getRect(find.widgetWithText(InkWell, 'Miss').first);
+      final bull =
+          tester.getRect(find.widgetWithText(InkWell, 'Bull (25)').first);
+
+      expect(miss.width, moreOrLessEquals(bull.width, epsilon: 1));
+      expect(miss.height, moreOrLessEquals(bull.height, epsilon: 1));
+    });
+
     testWidgets('still offers all twenty fields and the modifiers',
         (tester) async {
       await pumpGame(tester, ['Ada', 'Zoe', 'Ben', 'Cleo']);

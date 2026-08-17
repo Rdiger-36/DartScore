@@ -114,11 +114,12 @@ class _DartboardInputState extends State<DartboardInput> {
   }
 
   /// Miss and Bull, either as the row under the grid or as the column beside
-  /// it.
+  /// it. They take an equal share of it either way: both are darts like any
+  /// number on the grid, and two buttons of the same size read as one control.
   ///
-  /// Both are darts like any number on the grid. There is no button that ends
-  /// a visit: a visit ends when its third dart lands, or the moment the leg is
-  /// checked out or busted, and the provider decides that on its own.
+  /// There is no button that ends a visit: a visit ends when its third dart
+  /// lands, or the moment the leg is checked out or busted, and the provider
+  /// decides that on its own.
   Widget _actions({required bool vertical, required double verticalPadding}) {
     final cs = Theme.of(context).colorScheme;
     final provider = context.read<GameProvider>();
@@ -154,13 +155,11 @@ class _DartboardInputState extends State<DartboardInput> {
       );
     }
 
-    // Bull keeps the larger share it had beside three buttons: it carries the
-    // widest label, and Miss needs no more room than a number button.
     return Row(
       children: [
         Expanded(child: miss),
         const SizedBox(width: 6),
-        Expanded(flex: 2, child: bull),
+        Expanded(child: bull),
       ],
     );
   }
