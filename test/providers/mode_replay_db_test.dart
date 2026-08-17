@@ -143,6 +143,35 @@ void main() {
       expect(fresh.currentRound, 2);
       expect(fresh.currentPlayerIndex, 0);
     });
+
+    test('a resume restores the rotation of every team', () async {
+      final all = [...players, ...await insertPlayers(['C', 'D'])];
+      final teams = [
+        TeamConfig(name: 'Team 1', playerIds: [all[0].id!, all[2].id!]),
+        TeamConfig(name: 'Team 2', playerIds: [all[1].id!, all[3].id!]),
+      ];
+      await provider.startGame(
+          ShanghaiGame(
+            variant:   ShanghaiVariant.classic,
+            legs:      1,
+            sets:      1,
+            createdAt: DateTime.now(),
+            playerIds: all.map((p) => p.id!).toList(),
+            teams:     teams,
+          ),
+          all);
+
+      await throwDarts(1, count: 3);   // Team 1, A
+      await throwDarts(1, count: 3);   // Team 2, B
+
+      final fresh = ShanghaiProvider();
+      await fresh.resumeGame(provider.game!, all);
+
+      expect(fresh.currentPlayerIndex, 0);
+      expect(fresh.currentPlayerState.player.name, 'C');
+      expect(fresh.playerStates[1].player.name, 'D',
+          reason: 'the idle team keeps the member who steps up next');
+    });
   });
 
   group('AroundTheClockProvider against a real database', () {
@@ -263,6 +292,36 @@ void main() {
 
       expect(fresh.playerStates[0].progress, 1);
       expect(fresh.currentPlayerIndex, 1);
+    });
+
+    test('a resume restores the rotation of every team', () async {
+      final all = [...players, ...await insertPlayers(['C', 'D'])];
+      final teams = [
+        TeamConfig(name: 'Team 1', playerIds: [all[0].id!, all[2].id!]),
+        TeamConfig(name: 'Team 2', playerIds: [all[1].id!, all[3].id!]),
+      ];
+      await provider.startGame(
+          AroundTheClockGame(
+            variant:   AroundTheClockVariant.basic,
+            legs:      1,
+            sets:      1,
+            createdAt: DateTime.now(),
+            playerIds: all.map((p) => p.id!).toList(),
+            teams:     teams,
+          ),
+          all);
+
+      for (var i = 0; i < 6; i++) {
+        await provider.recordDart(0, 0);   // two visits of misses, A then B
+      }
+
+      final fresh = AroundTheClockProvider();
+      await fresh.resumeGame(provider.game!, all);
+
+      expect(fresh.currentPlayerIndex, 0);
+      expect(fresh.currentPlayerState.player.name, 'C');
+      expect(fresh.playerStates[1].player.name, 'D',
+          reason: 'the idle team keeps the member who steps up next');
     });
   });
 

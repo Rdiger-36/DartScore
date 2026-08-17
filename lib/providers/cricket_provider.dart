@@ -72,6 +72,21 @@ class CricketPlayerState {
       );
 }
 
+/// The index in [members] of the member a slot has at the board: whoever threw
+/// the last dart of an unfinished visit, or the one after them once that visit
+/// is complete. A slot without darts starts with its first member.
+///
+/// [slotThrows] holds every member's darts for the slot, in throwing order. A
+/// member throws a whole visit, so the visit boundary is the only place the
+/// rotation moves on.
+int _memberOnTurn(List<Player> members, List<CricketThrow> slotThrows) {
+  if (slotThrows.isEmpty) return 0;
+  final last = members.indexWhere((p) => p.id == slotThrows.last.playerId);
+  if (last < 0) return 0;
+  final visitComplete = slotThrows.length % 3 == 0;
+  return visitComplete ? (last + 1) % members.length : last;
+}
+
 // ── CricketProvider ────────────────────────────────────────────────────────────
 
 /// Active-game state machine for Cricket (normal and cut-throat).
@@ -460,11 +475,11 @@ class CricketProvider extends ChangeNotifier {
       }
     }
 
-    // Throws per slot, chronological, used to determine turn order
+    // Throws per slot, in the order the database hands them out, which is the
+    // order they were thrown in. Used to determine turn order.
     final slotThrows = _playerStates.map((s) {
       final ids = s.players.map((p) => p.id).toSet();
-      return allThrows.where((t) => ids.contains(t.playerId)).toList()
-        ..sort((a, b) => a.thrownAt.compareTo(b.thrownAt));
+      return allThrows.where((t) => ids.contains(t.playerId)).toList();
     }).toList();
 
     // Determine current slot: fewest completed visits (groups of 3)
@@ -473,15 +488,19 @@ class CricketProvider extends ChangeNotifier {
     _currentPlayerIndex = visitsPerSlot.indexWhere((v) => v == minVisits);
     if (_currentPlayerIndex < 0) _currentPlayerIndex = 0;
 
-    // Restore the active player within the current slot (team rotation)
-    final currentSlot   = _playerStates[_currentPlayerIndex];
-    final currentThrows = slotThrows[_currentPlayerIndex];
-    if (currentSlot.isTeamSlot) {
-      final visits = visitsPerSlot[_currentPlayerIndex];
-      _playerStates[_currentPlayerIndex] = currentSlot.copyWith(
-        currentPlayerIdx: visits % currentSlot.players.length,
+    // Restore the team rotation of every slot, not only of the one at the
+    // oche. An idle team keeps the member who steps up when it comes around
+    // again, and a rebuild that left it at the first member would put the
+    // wrong one at the board and file their darts under the wrong name.
+    for (var i = 0; i < _playerStates.length; i++) {
+      final slot = _playerStates[i];
+      if (!slot.isTeamSlot) continue;
+      _playerStates[i] = slot.copyWith(
+        currentPlayerIdx: _memberOnTurn(slot.players, slotThrows[i]),
       );
     }
+
+    final currentThrows = slotThrows[_currentPlayerIndex];
 
     // Rebuild visit buffer for the current slot
     final dartsInCurrentVisit = currentThrows.length % 3;
