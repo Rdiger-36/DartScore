@@ -1,4 +1,5 @@
 import 'package:dartscore_app/models/dart_throw.dart';
+import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/utils/throw_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,7 @@ DartThrow _visit(
   int gameId = 1,
   int playerId = 1,
   bool bust = false,
+  int checkoutDarts = 0,
 }) =>
     DartThrow(
       gameId:          gameId,
@@ -23,6 +25,7 @@ DartThrow _visit(
       remainingBefore: remainingBefore,
       thrownAt:        DateTime.fromMillisecondsSinceEpoch(1700000000000),
       bust:            bust,
+      checkoutDarts:   checkoutDarts,
     );
 
 void main() {
@@ -57,9 +60,9 @@ void main() {
       expect(s.bustRate, closeTo(50, 0.001));
     });
 
-    test('a busted visit from a finishable remaining is still an attempt', () {
+    test('a busted visit that was one dart away is still an attempt', () {
       final s = ThrowStats.fromThrows([
-        _visit(60, remainingBefore: 41, bust: true),
+        _visit(60, remainingBefore: 41, bust: true, checkoutDarts: 1),
       ]);
 
       expect(s.checkoutAttempts, 1);
@@ -69,10 +72,19 @@ void main() {
       expect(s.highestCheckout, 0);
     });
 
+    test('being in checkout range is not by itself an attempt', () {
+      final s = ThrowStats.fromThrows([
+        _visit(60, remainingBefore: 156),
+      ]);
+
+      expect(s.checkoutAttempts, 0);
+      expect(s.checkoutRate, 0);
+    });
+
     test('a finishing visit counts as attempt and success', () {
       final s = ThrowStats.fromThrows([
-        _visit(101, remainingBefore: 101, dartsUsed: 2),
-        _visit(40, remainingBefore: 40),
+        _visit(101, remainingBefore: 101, dartsUsed: 2, checkoutDarts: 1),
+        _visit(40, remainingBefore: 40, checkoutDarts: 1),
       ]);
 
       expect(s.checkoutAttempts, 2);
@@ -81,23 +93,43 @@ void main() {
       expect(s.checkoutRate, closeTo(100, 0.001));
     });
 
-    test('checkout ranges split at 40, 60, 100 and 170', () {
+    test('checkout ranges split at 40, 60, 100 and 170 by the remaining the '
+        'visit started on', () {
       final s = ThrowStats.fromThrows([
-        _visit(0, remainingBefore: 40),
-        _visit(0, remainingBefore: 41),
-        _visit(0, remainingBefore: 60),
-        _visit(0, remainingBefore: 61),
-        _visit(0, remainingBefore: 100),
-        _visit(0, remainingBefore: 101),
-        _visit(0, remainingBefore: 170),
+        _visit(0, remainingBefore: 40,  checkoutDarts: 1),
+        _visit(0, remainingBefore: 41,  checkoutDarts: 1),
+        _visit(0, remainingBefore: 60,  checkoutDarts: 1),
+        _visit(0, remainingBefore: 61,  checkoutDarts: 1),
+        _visit(0, remainingBefore: 100, checkoutDarts: 1),
+        _visit(0, remainingBefore: 101, checkoutDarts: 1),
+        _visit(0, remainingBefore: 170, checkoutDarts: 1),
         _visit(0, remainingBefore: 171),
       ]);
 
-      expect(s.checkoutAttempts, 7, reason: '171 is not finishable');
+      expect(s.checkoutAttempts, 7, reason: 'the 171 was never one dart away');
       expect(s.coAttemptSub40, 1);
       expect(s.coAttemptSub60, 2);
       expect(s.coAttemptSub100, 2);
       expect(s.coAttemptSub170, 2);
+    });
+
+    test('the two rates count different things', () {
+      // 60 left, S20, D5, S10: two darts at a finish, no checkout. Then 20
+      // left and three misses: three more darts, still no checkout. Then 20
+      // taken out with D10 on the first dart.
+      final s = ThrowStats.fromThrows([
+        _visit(40, remainingBefore: 60, checkoutDarts: 2),
+        _visit(0,  remainingBefore: 20, checkoutDarts: 3),
+        _visit(20, remainingBefore: 20, checkoutDarts: 1),
+      ]);
+
+      expect(s.checkoutAttempts, 3);
+      expect(s.checkoutDarts, 6);
+      expect(s.checkoutSuccesses, 1);
+      expect(s.checkoutRate, closeTo(100 / 3, 0.001),
+          reason: 'one of three visits at the finish took it');
+      expect(s.doubleRate, closeTo(100 / 6, 0.001),
+          reason: 'one of six darts at the finish hit it');
     });
 
     test('score thresholds are inclusive', () {
@@ -229,6 +261,61 @@ void main() {
 
       expect(throwsOfPlayer(throws, 7).map((t) => t.score), [1, 3]);
       expect(throwsOfPlayer(throws, 9), isEmpty);
+    });
+  });
+
+  group('checkoutDartsInVisit', () {
+    int darts(int remaining, List<int> thrown,
+            {CheckoutMode mode = CheckoutMode.doubleOut,
+             bool checkedOut = false}) =>
+        checkoutDartsInVisit(remaining, thrown, mode, checkedOut: checkedOut);
+
+    // The leg from the bug report, visit by visit. 156 is shown as
+    // T20, T20, D18, the player opens with a plain 20 and works down from there.
+    test('the reported leg puts no dart on a finish before the 25', () {
+      expect(darts(156, [20, 60, 51]), 0,
+          reason: 'after the plain 20 no dart of this visit can finish');
+      expect(darts(25, [9, 0, 0]), 2,
+          reason: 'the S9 leaves 16, and the two misses fly at D8');
+      expect(darts(16, [14, 3, 0]), 2,
+          reason: '16 and the 2 the S14 leaves are both one-dart finishes');
+      expect(darts(8, [8], checkedOut: true), 1);
+    });
+
+    // The follow-up scenario: 60 left, S20, D5, S10, and then three darts from
+    // 20. Two darts at a finish and three, five in total across two visits,
+    // which are two attempts.
+    test('counts every dart of a visit that flies at a finish', () {
+      expect(darts(60, [20, 10, 10]), 2,
+          reason: 'the opening dart flew from 60, the two after it from 40 and 30');
+      expect(darts(20, [0, 0, 0]), 3,
+          reason: '20 stays a one-dart finish through three misses');
+    });
+
+    test('a finish reached on the last dart of a visit puts no dart on it', () {
+      expect(darts(65, [0, 0, 25]), 0,
+          reason: 'the 40 it leaves belongs to the next visit');
+    });
+
+    test('a bust does not undo the darts that already flew at the finish', () {
+      expect(darts(16, [14, 3]), 2);
+    });
+
+    test('a visit that busts before reaching the finish counts none', () {
+      expect(darts(60, [60]), 0,
+          reason: 'T20 busts double-out from 60 without ever being one away');
+    });
+
+    test('the check-out rule decides what counts as one dart away', () {
+      expect(darts(60, [0], mode: CheckoutMode.doubleOut), 0);
+      expect(darts(60, [0], mode: CheckoutMode.masterOut), 1);
+      expect(darts(19, [0], mode: CheckoutMode.doubleOut), 0);
+      expect(darts(19, [0], mode: CheckoutMode.straightOut), 1);
+    });
+
+    test('a checkout counts one dart even without any recorded', () {
+      expect(darts(501, const [], checkedOut: true), 1);
+      expect(darts(501, const []), 0);
     });
   });
 }

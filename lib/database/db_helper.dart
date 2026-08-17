@@ -11,6 +11,7 @@ import '../models/cricket_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../services/sync_service.dart' show SyncOrigin, kLegacyOrigin;
+import '../utils/finish_calculator.dart';
 import '../utils/throw_stats.dart';
 
 /// Singleton SQLite wrapper and the single point of database access for the app.
@@ -25,7 +26,7 @@ class DbHelper {
 
   /// Schema version this build knows how to open. A backup written at a higher
   /// version is refused rather than opened, see [inspectBackup].
-  static const int schemaVersion = 21;
+  static const int schemaVersion = 22;
 
   /// Where the database file lives, overriding the platform default. Only set
   /// by tests, which point it at an in-memory database so each case starts on
@@ -252,6 +253,106 @@ class DbHelper {
     if (oldVersion < 21) {
       await db.execute(_kCreateAppMeta);
     }
+    if (oldVersion < 22) {
+      await db.execute(
+          'ALTER TABLE dart_throws ADD COLUMN checkout_darts INTEGER NOT NULL DEFAULT 0');
+      await _backfillCheckoutDarts(db);
+    }
+  }
+
+  /// Recomputes `dart_throws.checkout_darts` for every visit already on the
+  /// device, so the lifetime numbers stop mixing the old "was in checkout
+  /// range" rule with the new "a dart could have finished" one.
+  ///
+  /// A visit whose individual darts were recorded is replayed exactly. For the
+  /// rest, throws that arrived over sync and rows from before `hits_json`
+  /// existed, only the remaining the visit started on is known, so the best
+  /// available reading is one dart when that remaining was already a one-dart
+  /// finish or the leg was taken out, and none otherwise. That undercounts both
+  /// a visit that worked its way into range and every second and third dart at
+  /// a double, which cannot be helped: the darts that would prove them were
+  /// never stored.
+  ///
+  /// Synced throws all hang off one hidden game whose check-out rule says
+  /// nothing about how they were really played, so they fall back to
+  /// double-out, the app default.
+  static Future<void> _backfillCheckoutDarts(Database db) async {
+    final gameRows = await db.query('games',
+        columns: ['id', 'checkout_mode', 'handicap_json']);
+    final modes = <int, CheckoutMode>{};
+    final handicaps = <int, Map<int, PlayerHandicap>>{};
+    for (final g in gameRows) {
+      final id = g['id'] as int;
+      modes[id] = CheckoutMode.values[g['checkout_mode'] as int? ?? 1];
+      try {
+        final parsed = decodePlayerHandicaps(g['handicap_json'] as String?);
+        if (parsed != null) handicaps[id] = parsed;
+      } catch (_) {}
+    }
+
+    const chunk = 500;
+    var offset = 0;
+    while (true) {
+      final rows = await db.query('dart_throws',
+          columns: [
+            'id', 'game_id', 'player_id', 'score', 'remaining_before', 'bust',
+            'hits_json',
+          ],
+          orderBy: 'id ASC',
+          limit: chunk,
+          offset: offset);
+      if (rows.isEmpty) break;
+      offset += rows.length;
+
+      final batch = db.batch();
+      for (final r in rows) {
+        final gameId    = r['game_id'] as int;
+        final playerId  = r['player_id'] as int;
+        final remaining = r['remaining_before'] as int;
+        final score     = r['score'] as int;
+        final bust      = (r['bust'] as int? ?? 0) == 1;
+        final mode      = handicaps[gameId]?[playerId]?.checkOut ??
+            modes[gameId] ??
+            CheckoutMode.doubleOut;
+        final checkedOut = !bust && remaining - score == 0;
+
+        final darts = _dartScoresOf(r['hits_json'] as String?);
+        final atFinish = darts != null
+            ? checkoutDartsInVisit(remaining, darts, mode,
+                checkedOut: checkedOut)
+            : (checkedOut ||
+                    FinishCalculator.canFinishWithOneDart(remaining, mode))
+                ? 1
+                : 0;
+
+        if (atFinish == 0) continue;
+        batch.update('dart_throws', {'checkout_darts': atFinish},
+            where: 'id = ?', whereArgs: [r['id']]);
+      }
+      await batch.commit(noResult: true);
+    }
+  }
+
+  /// The points of the individual darts of a visit, decoded from its
+  /// [hitsJson], or null when the visit was stored without them.
+  static List<int>? _dartScoresOf(String? hitsJson) {
+    if (hitsJson == null) return null;
+    try {
+      return [
+        for (final h in jsonDecode(hitsJson) as List<dynamic>)
+          _dartValue(h['f'] as int, h['m'] as int),
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Points a single dart on [field] (0=miss, 1-20, 25=bull) with [multiplier]
+  /// is worth. Mirrors the scoring in `GameProvider._addDart`.
+  static int _dartValue(int field, int multiplier) {
+    if (field == 0) return 0;
+    if (field == 25) return multiplier == 2 ? 50 : 25;
+    return field * multiplier;
   }
 
   /// Free-form key/value rows that describe the database file itself rather
@@ -381,7 +482,8 @@ class DbHelper {
         remaining_before INTEGER NOT NULL,
         thrown_at INTEGER NOT NULL,
         bust INTEGER NOT NULL DEFAULT 0,
-        hits_json TEXT
+        hits_json TEXT,
+        checkout_darts INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -786,6 +888,7 @@ class DbHelper {
       'count_100_plus':     stats.count100plus,
       'checkout_attempts':  stats.checkoutAttempts,
       'checkout_successes': stats.checkoutSuccesses,
+      'checkout_darts':     stats.checkoutDarts,
       'games_played':       gameIds.length,
       'score_sum_squares':  stats.scoreSumSquares,
       'highest_game_avg':   bestGameAverage(throws),
@@ -891,6 +994,7 @@ class DbHelper {
       'count_140_plus':     add('count_140_plus'),
       'count_100_plus':     add('count_100_plus'),
       'checkout_attempts':  add('checkout_attempts'),
+      'checkout_darts':     add('checkout_darts'),
       'checkout_successes': add('checkout_successes'),
       'games_played':       add('games_played'),
       'games_finished':     add('games_finished'),
@@ -1169,6 +1273,7 @@ class DbHelper {
         'remaining_before': t.remainingBefore,
         'thrown_at': t.thrownAt.millisecondsSinceEpoch,
         'bust': t.bust ? 1 : 0,
+        'checkout_darts': t.checkoutDarts,
       });
     }
 

@@ -364,6 +364,8 @@ class _SlotStatsPage extends StatelessWidget {
             (l.checkoutsHit,
                 '${match.checkoutSuccesses} / ${match.checkoutAttempts}'),
             (l.checkoutRate,    '${match.checkoutRate.toStringAsFixed(1)} %'),
+            (l.dartsAtFinish,   '${match.checkoutDarts}'),
+            (l.doubleRate,      '${match.doubleRate.toStringAsFixed(1)} %'),
             (l.busts,
                 '${match.busts} (${match.bustRate.toStringAsFixed(0)} %)'),
           ],
@@ -910,6 +912,11 @@ class _MemberRow extends StatelessWidget {
           StatRow(
             label: l.checkoutRate,
             value: '${stats.checkoutRate.toStringAsFixed(1)} %',
+          ),
+          StatRow(label: l.dartsAtFinish, value: '${stats.checkoutDarts}'),
+          StatRow(
+            label: l.doubleRate,
+            value: '${stats.doubleRate.toStringAsFixed(1)} %',
           ),
           StatRow(
             label: l.busts,

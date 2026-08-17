@@ -1,4 +1,47 @@
 import '../models/dart_throw.dart';
+import '../models/game.dart';
+import 'finish_calculator.dart';
+
+/// How many darts of a visit were thrown at a finish: darts the player let go
+/// while the remaining could be taken out by that single dart.
+///
+/// Zero means the visit never was an attempt at the leg. Being in checkout
+/// range is not enough: a visit that starts on 156 and opens with a plain 20
+/// can no longer be finished, and counting it would put an attempt on the
+/// record that never existed on the board.
+///
+/// Two statistics come out of this. The check-out rate counts a visit once,
+/// however many darts it put on a double, and answers how often a chance at
+/// the leg was taken. The double rate counts every such dart and answers how
+/// well the double itself is thrown. A visit from 60 that goes S20, D5, S10 is
+/// one attempt and two darts at a finish: the opening dart flew from 60, which
+/// no single dart takes out, the two after it from 40 and from 30, which do.
+///
+/// [dartScores] are the points of the individual darts in throwing order, so
+/// the remaining can be walked dart by dart. [checkedOut] guarantees at least
+/// one, because the dart that finished the leg was by definition thrown at the
+/// finish even where the darts themselves were not recorded.
+///
+/// The migration in `db_helper.dart` calls this with hits decoded from the
+/// database and the game provider with the visit it is about to record, which
+/// is why it takes plain ints rather than the provider's own dart type.
+int checkoutDartsInVisit(
+  int remainingBefore,
+  List<int> dartScores,
+  CheckoutMode checkoutMode, {
+  bool checkedOut = false,
+}) {
+  var remaining = remainingBefore;
+  var darts     = 0;
+  for (final score in dartScores) {
+    if (FinishCalculator.canFinishWithOneDart(remaining, checkoutMode)) {
+      darts++;
+    }
+    remaining -= score;
+    if (remaining < 0) break;
+  }
+  return darts == 0 && checkedOut ? 1 : darts;
+}
 
 /// Aggregated statistics derived from a list of X01 visits.
 ///
@@ -39,11 +82,16 @@ class ThrowStats {
   final int count140plus;
   final int count100plus;
 
-  /// Visits that started on a finishable remaining, busts included: starting a
-  /// visit below 171 is an attempt at the finish whether or not it overshot.
+  /// Visits that put the player one dart away from the finish, busts included.
+  /// Decided per visit when it is recorded, see [checkoutDartsInVisit]; being
+  /// in checkout range does not by itself make a visit an attempt.
   final int checkoutAttempts;
   /// Attempts that actually finished the leg.
   final int checkoutSuccesses;
+  /// Individual darts thrown at a finish, so a visit that put three darts on a
+  /// double counts three. The denominator of the double rate, where
+  /// [checkoutAttempts] is the denominator of the check-out rate.
+  final int checkoutDarts;
 
   /// Sum of the squared visit scores. Only the snapshot needs it, to keep the
   /// lifetime standard deviation computable after games have been deleted.
@@ -75,6 +123,7 @@ class ThrowStats {
     required this.count100plus,
     required this.checkoutAttempts,
     required this.checkoutSuccesses,
+    required this.checkoutDarts,
     required this.scoreSumSquares,
     required this.first9Darts,
     required this.first9Scored,
@@ -101,6 +150,7 @@ class ThrowStats {
     count100plus:      0,
     checkoutAttempts:  0,
     checkoutSuccesses: 0,
+    checkoutDarts:     0,
     scoreSumSquares:   0,
     first9Darts:       0,
     first9Scored:      0,
@@ -125,7 +175,7 @@ class ThrowStats {
     int totalDarts = 0, totalScored = 0, busts = 0;
     int highestVisit = 0, highestCheckout = 0;
     int count180 = 0, count140plus = 0, count100plus = 0;
-    int checkoutAttempts = 0, checkoutSuccesses = 0;
+    int checkoutAttempts = 0, checkoutSuccesses = 0, checkoutDarts = 0;
     int scoreSumSquares = 0;
     int first9Darts = 0, first9Scored = 0;
     int coAt40 = 0, coOk40 = 0;
@@ -160,8 +210,12 @@ class ThrowStats {
         if (t.score >= 100) count100plus++;
       }
 
-      if (t.remainingBefore <= 170) {
+      // The band still follows the remaining the visit started on. Banding by
+      // the remaining at the moment the finish came into reach would put every
+      // attempt below 61 and leave the two upper bands permanently empty.
+      if (t.checkoutAttempt) {
         checkoutAttempts++;
+        checkoutDarts += t.checkoutDarts;
         final success = !t.bust && t.remainingBefore - t.score == 0;
         if (t.remainingBefore <= 40)        { coAt40++;  if (success) coOk40++;  }
         else if (t.remainingBefore <= 60)   { coAt60++;  if (success) coOk60++;  }
@@ -186,6 +240,7 @@ class ThrowStats {
       count100plus:      count100plus,
       checkoutAttempts:  checkoutAttempts,
       checkoutSuccesses: checkoutSuccesses,
+      checkoutDarts:     checkoutDarts,
       scoreSumSquares:   scoreSumSquares,
       first9Darts:       first9Darts,
       first9Scored:      first9Scored,
@@ -210,9 +265,16 @@ class ThrowStats {
   /// Share of visits that busted, in percent.
   double get bustRate => totalVisits == 0 ? 0 : (busts / totalVisits) * 100;
 
-  /// Share of checkout attempts that finished a leg, in percent.
+  /// Share of checkout attempts that finished a leg, in percent. One visit
+  /// counts once, however many darts it put on a double.
   double get checkoutRate =>
       checkoutAttempts == 0 ? 0 : (checkoutSuccesses / checkoutAttempts) * 100;
+
+  /// Share of the darts thrown at a finish that hit it, in percent. Every dart
+  /// counts, so this is the accuracy on the double rather than how often a
+  /// chance at the leg was taken.
+  double get doubleRate =>
+      checkoutDarts == 0 ? 0 : (checkoutSuccesses / checkoutDarts) * 100;
 }
 
 /// The best three-dart average reached in any single game within [throws].
