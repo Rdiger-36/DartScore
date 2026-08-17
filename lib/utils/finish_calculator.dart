@@ -292,6 +292,36 @@ class FinishCalculator {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
+  /// Whether [remaining] can be taken to exactly zero by a single dart that is
+  /// also a valid finish under [checkoutMode].
+  ///
+  /// This is what makes a visit a checkout attempt: the player is one dart away
+  /// from the leg. Deliberately arithmetic rather than a lookup in the route
+  /// tables above, because those tables list the routes worth suggesting, not
+  /// every legal one. Master-out finishes 25 on the single bull, for instance,
+  /// but no table carries that as a route because nobody would recommend it.
+  static bool canFinishWithOneDart(
+    int remaining, [
+    CheckoutMode checkoutMode = CheckoutMode.doubleOut,
+  ]) {
+    if (remaining <= 0) return false;
+
+    final isDouble = remaining <= 40 && remaining.isEven;
+    final isTriple = remaining <= 60 && remaining % 3 == 0;
+    final isSingle = remaining <= 20;
+
+    switch (checkoutMode) {
+      case CheckoutMode.straightOut:
+        return isSingle || isDouble || isTriple || remaining == 25 || remaining == 50;
+      case CheckoutMode.doubleOut:
+        return isDouble || remaining == 50;
+      case CheckoutMode.masterOut:
+        // Bull counts as a double, the outer bull as a single, and master-out
+        // accepts either, so both 25 and 50 finish.
+        return isDouble || isTriple || remaining == 25 || remaining == 50;
+    }
+  }
+
   /// Returns [primary, alternative?] checkout routes for [remaining], filtered
   /// to routes of at most [maxDarts] darts and valid for [checkoutMode].
   /// [primary] ends with [favoriteDouble] if a matching route exists.

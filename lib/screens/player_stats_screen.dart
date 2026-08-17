@@ -39,6 +39,9 @@ class PlayerStats {
   final int count140plus;
   final int count100plus;
   final double checkoutPercent;   // successful checkouts / attempts
+  /// Individual darts thrown at a finish, the denominator of [doublePercent].
+  final int checkoutDarts;
+  final double doublePercent;     // successful checkouts / darts at a finish
   final List<DartThrow> recentThrows;
   final Map<int, int> scoreDistribution;
   final int perfectLegs;
@@ -75,6 +78,8 @@ class PlayerStats {
     required this.count140plus,
     required this.count100plus,
     required this.checkoutPercent,
+    this.checkoutDarts = 0,
+    this.doublePercent = 0,
     required this.recentThrows,
     required this.scoreDistribution,
     this.perfectLegs = 0,
@@ -201,6 +206,7 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
   int count100plus     = live.count100plus;
   int checkoutAttempts = live.checkoutAttempts;
   int checkoutSuccess  = live.checkoutSuccesses;
+  int checkoutDarts    = live.checkoutDarts;
   int scoreSumSquares  = live.scoreSumSquares;
   int coAtSub40  = live.coAttemptSub40,  coOkSub40  = live.coSuccessSub40;
   int coAtSub60  = live.coAttemptSub60,  coOkSub60  = live.coSuccessSub60;
@@ -290,6 +296,7 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
       count100plus     += pi('count_100_plus');
       checkoutAttempts += pi('checkout_attempts');
       checkoutSuccess  += pi('checkout_successes');
+      checkoutDarts    += pi('checkout_darts');
       scoreSumSquares  += pi('score_sum_squares');
       perfectLegs      += pi('perfect_legs');
       gamesFinished    += pi('games_finished');
@@ -415,6 +422,8 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
 
   final checkoutPercent =
       checkoutAttempts == 0 ? 0.0 : (checkoutSuccess / checkoutAttempts) * 100;
+  final doublePercent =
+      checkoutDarts == 0 ? 0.0 : (checkoutSuccess / checkoutDarts) * 100;
   final thisWeekAvg3 = thisWeekDarts == 0 ? 0.0 : (thisWeekScored / thisWeekDarts) * 3;
   final lastWeekAvg3 = lastWeekDarts == 0 ? 0.0 : (lastWeekScored / lastWeekDarts) * 3;
 
@@ -433,6 +442,8 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
     count140plus:   count140plus,
     count100plus:   count100plus,
     checkoutPercent: checkoutPercent,
+    checkoutDarts:  checkoutDarts,
+    doublePercent:  doublePercent,
     recentThrows:   recentThrows,
     scoreDistribution: scoreDistribution,
     perfectLegs:    perfectLegs,
@@ -686,6 +697,8 @@ class _StatsBody extends StatelessWidget {
             StatRow(label: context.l10n.busts, value: '${stats.busts}', spacious: true),
             StatRow(label: context.l10n.bustRate, value: '${stats.bustRate.toStringAsFixed(1)} %', spacious: true),
             StatRow(label: context.l10n.checkoutRate, value: '${stats.checkoutPercent.toStringAsFixed(1)} %', spacious: true),
+            StatRow(label: context.l10n.doubleRate,   value: '${stats.doublePercent.toStringAsFixed(1)} %', spacious: true),
+            StatRow(label: context.l10n.dartsAtFinish, value: '${stats.checkoutDarts}', spacious: true),
           ],
         ),
         const SizedBox(height: 14),

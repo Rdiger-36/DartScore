@@ -148,6 +148,12 @@ const int _kBinaryFormatVersion = 2;
 const int _kFlagDartsMask      = 0x03; // dartsUsed - 1, two bits
 const int _kFlagBust           = 0x04;
 const int _kFlagExplicitContext = 0x08;
+/// How many darts of the visit were thrown at a finish, 0 to 3, in two bits.
+/// A sender that predates them leaves both clear, which reads as "no attempt"
+/// rather than as corrupt data, and an older receiver masks only the bits it
+/// knows and ignores them.
+const int _kFlagCheckoutDartsMask  = 0x30;
+const int _kFlagCheckoutDartsShift = 4;
 
 /// Encodes [packet] into the string a QR code carries.
 String encodeSyncPayload(SyncPacket packet) =>
@@ -200,6 +206,8 @@ Uint8List encodeSyncBytes(SyncPacket packet) {
     var flags = (t.dartsUsed - 1) & _kFlagDartsMask;
     if (t.bust) flags |= _kFlagBust;
     if (!contextKnown) flags |= _kFlagExplicitContext;
+    flags |= (t.checkoutDarts << _kFlagCheckoutDartsShift) &
+        _kFlagCheckoutDartsMask;
 
     w.u8(t.score);
     w.u8(flags);
@@ -324,6 +332,8 @@ SyncPacket decodeSyncBytes(Uint8List compressed) {
       bust:            bust,
       leg:             leg,
       set:             set,
+      checkoutDarts:   (flags & _kFlagCheckoutDartsMask) >>
+          _kFlagCheckoutDartsShift,
     ));
 
     remaining = bust ? remaining : remaining - score;

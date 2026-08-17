@@ -26,11 +26,12 @@ void main() {
       return jsonDecode(stored!.localStatsJson!) as Map<String, dynamic>;
     }
 
-    test('counts a busted visit as a checkout attempt', () async {
+    test('counts a busted visit that was one dart away as an attempt', () async {
       await provider.startGame(
           Game(startScore: 101, legs: 2, createdAt: DateTime.now()), players);
 
-      // A: 101 left, scores 60, so the visit was a failed attempt at 101.
+      // A: 101 left, three single 20s. 101, 81, 61 and 41 are all two darts
+      // from the finish, so this visit never was an attempt.
       await provider.tapField(20, 1);
       await provider.tapField(20, 1);
       await provider.tapField(20, 1);
@@ -38,15 +39,17 @@ void main() {
       await provider.tapField(20, 1);
       await provider.tapField(20, 1);
       await provider.tapField(20, 1);
-      // A: 41 left and overshoots with a triple 20.
+      // A: 41 left, the single 1 leaves D20 on the next dart, and the triple 20
+      // then overshoots.
+      await provider.tapField(1, 1);
       await provider.tapField(20, 3);
 
       expect(provider.playerStates[0].throws.last.bust, isTrue);
       await DbHelper.instance.snapshotGameStats(provider.game!.id!);
 
       final stats = await statsFor(players.first);
-      expect(stats['checkout_attempts'], 2,
-          reason: 'both the visit from 101 and the busted one from 41 count');
+      expect(stats['checkout_attempts'], 1,
+          reason: 'only the visit that reached 40 with a dart in hand counts');
       expect(stats['checkout_successes'], 0);
       expect(stats['co_at_sub60'], 1,
           reason: 'the busted attempt from 41 lands in the 41 to 60 range');
