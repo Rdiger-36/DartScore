@@ -4,7 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 import '../widgets/cricket_marks_widget.dart';
 import 'cricket_summary_screen.dart';
 

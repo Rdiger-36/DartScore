@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
-import '../utils/triple_color.dart';
+import '../utils/segment_color.dart';
 
 /// A single dart entered on the board input: which [field] was hit, the
 /// [modifier] (single/double/triple) and the resulting [score].
