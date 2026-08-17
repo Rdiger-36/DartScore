@@ -861,8 +861,10 @@ class _MemberRow extends StatelessWidget {
       hasThrown
           ? 'Ø ${stats.average.toStringAsFixed(1)}'
               '  ·  ${l.highAbbr} ${stats.highestVisit}'
-              '  ·  ${l.dartsShort(stats.totalDarts)}'
+              '  ·  ${l.dartsN(stats.totalDarts)}'
           : l.noThrowData,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
     );
 

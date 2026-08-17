@@ -12,6 +12,7 @@ import '../utils/throw_stats.dart';
 import '../services/sync_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/stat_row.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 
 // ── Data model ────────────────────────────────────────────────────────────────
@@ -1038,6 +1039,15 @@ class _HighlightTile extends StatelessWidget {
 }
 
 /// A row in the recent-throws list showing a visit's score and remaining.
+///
+/// Laid out over two lines: the score and what it left on the first, the darts
+/// it took and when it was thrown on the second. One line would have to hold
+/// four values at once, which leaves the German wordings no room and breaks
+/// them mid-word.
+///
+/// The leg is deliberately absent: [aggregatePlayerStats] rebuilds these
+/// visits with a fixed leg, because the snapshot of a deleted game does not
+/// carry one, so naming it would name the wrong one on every row.
 class _ThrowRow extends StatelessWidget {
   final DartThrow t;
   const _ThrowRow({required this.t});
@@ -1046,66 +1056,75 @@ class _ThrowRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final l   = context.l10n;
     final fmt = DateFormat('dd.MM  HH:mm');
 
+    // Where the second line starts, so it lines up with the text of the first
+    // rather than with the pill in front of it.
+    const textIndent = 58.0;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Score pill
-          Container(
-            width: 48,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            decoration: BoxDecoration(
-              color: t.bust
-                  ? cs.errorContainer
-                  : t.score >= 140
-                      ? cs.tertiaryContainer
-                      : t.score >= 100
-                          ? cs.secondaryContainer
-                          : cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              t.bust ? 'BUST' : '${t.score}',
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: t.bust
-                    ? cs.onErrorContainer
-                    : t.score >= 140
-                        ? cs.onTertiaryContainer
-                        : t.score >= 100
-                            ? cs.onSecondaryContainer
-                            : cs.onSurface,
+          Row(
+            children: [
+              // Score pill
+              Container(
+                width: 48,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                decoration: BoxDecoration(
+                  color: t.bust
+                      ? cs.errorContainer
+                      : t.score >= 140
+                          ? cs.tertiaryContainer
+                          : t.score >= 100
+                              ? cs.secondaryContainer
+                              : cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  t.bust ? l.bust.toUpperCase() : '${t.score}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: t.bust
+                        ? cs.onErrorContainer
+                        : t.score >= 140
+                            ? cs.onTertiaryContainer
+                            : t.score >= 100
+                                ? cs.onSecondaryContainer
+                                : cs.onSurface,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Rest after
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+              const SizedBox(width: 10),
+              // Rest after
+              Expanded(
+                child: Text(
                   t.bust
-                      ? context.l10n.remainingScore(t.remainingBefore)
-                      : '→ ${t.remainingBefore - t.score} ${context.l10n.remaining}',
+                      ? l.remainingScore(t.remainingBefore)
+                      : '→ ${t.remainingBefore - t.score} ${l.remaining}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall,
                 ),
-                Text(
-                  '${context.l10n.legLabel(t.leg)}  ·  ${context.l10n.dartsN(t.dartsUsed)}',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          // Date
-          Text(
-            fmt.format(t.thrownAt),
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: cs.onSurfaceVariant),
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.only(left: textIndent),
+            child: Text(
+              '${l.dartsN(t.dartsUsed)}  ·  ${fmt.format(t.thrownAt)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
           ),
         ],
       ),
@@ -1124,9 +1143,12 @@ class _DartboardHeatmap extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // Total hits per field (all multipliers combined) for legend
+    // Total hits per field (all multipliers combined) for legend. Field 0 is a
+    // miss and stands for no field at all, so it never belongs in a ranking of
+    // the busiest ones.
     final perField = <int, int>{};
     for (final entry in segmentHits.entries) {
+      if (entry.key == 0) continue;
       perField[entry.key] = entry.value.values.fold(0, (a, b) => a + b);
     }
 
@@ -1215,8 +1237,66 @@ class _DartboardHeatmap extends StatelessWidget {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 4),
+            _SegmentBreakdown(segmentHits: segmentHits),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The exact hit count of every segment the player ever hit, folded away under
+/// the heatmap because it is a long line of text next to a picture that already
+/// says where the darts land.
+class _SegmentBreakdown extends StatelessWidget {
+  final Map<int, Map<int, int>> segmentHits;
+  const _SegmentBreakdown({required this.segmentHits});
+
+  /// The fields in reading order: 20 down to 1, then the bull, then the misses.
+  static const _fieldOrder = [
+    20, 19, 18, 17, 16, 15, 14, 13, 12, 11,
+    10,  9,  8,  7,  6,  5,  4,  3,  2,  1,
+    25,  0,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+    final l     = context.l10n;
+
+    final entries = <String>[];
+    for (final field in _fieldOrder) {
+      final muls = segmentHits[field];
+      if (muls == null) continue;
+      for (final mul in const [1, 2, 3]) {
+        final count = muls[mul] ?? 0;
+        if (count == 0) continue;
+        entries.add('${segmentLabel(l, field, mul)}: $count');
+      }
+    }
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Theme(
+      // The tile sits inside the heatmap card, so it carries neither the
+      // divider lines nor the rounded outline an expansion tile draws by
+      // default; both would cut the card in two.
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        title: Text(
+          l.allSegments,
+          style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entries.join(', '),
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
