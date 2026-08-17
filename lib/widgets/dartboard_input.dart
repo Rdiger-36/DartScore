@@ -178,17 +178,20 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Background the number buttons take under the active modifier, and what
   /// the switch shows for it.
-  Color? _modifierColor(BuildContext context) => switch (_modifier) {
+  ///
+  /// Single names its grey rather than leaving the segmented button to its
+  /// default, which is the theme's green and therefore the double's color.
+  Color _modifierColor(BuildContext context) => switch (_modifier) {
         2 => Theme.of(context).colorScheme.secondaryContainer,
         3 => tripleContainerColor(context),
-        _ => null,
+        _ => Theme.of(context).colorScheme.surfaceContainerHigh,
       };
 
   /// Foreground for [_modifierColor].
-  Color? _onModifierColor(BuildContext context) => switch (_modifier) {
+  Color _onModifierColor(BuildContext context) => switch (_modifier) {
         2 => Theme.of(context).colorScheme.onSecondaryContainer,
         3 => onTripleContainerColor(context),
-        _ => null,
+        _ => Theme.of(context).colorScheme.onSurface,
       };
 
   /// The number grid at its preferred size, as tall as its aspect ratio makes it.
