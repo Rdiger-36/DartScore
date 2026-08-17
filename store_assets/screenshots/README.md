@@ -22,14 +22,23 @@ brew install librsvg
 `raw/<device>/<theme>/<language>/<screen>.png` holds the plain screenshots, in
 both themes and both languages. `store/<device>/<language>/<n>_<screen>.png`
 holds the framed pictures, numbered in the order they should be uploaded in.
-The composer reads the dark theme; pass `--theme=light` to build the light set
-instead.
 
-Three screens are shot, and they are the three the listing shows:
+Three pictures per device and language:
 
-1. `modes`, the four game modes
-2. `live`, an X01 leg with the checkout route on screen
-3. `summary`, the numbers after the game
+1. `modes`, the four game modes. One frame, centred, dark. It is the one that
+   has to survive being a thumbnail, so nothing else competes with it.
+2. `live`, an X01 leg with the checkout route on screen. Two frames, the dark
+   one in front and the light one behind it, running off the right edge.
+3. `summary`, the numbers after the game. Two frames again, this time with the
+   light one in front, so the set does not end on three dark pictures.
+
+The paired frames are the same screen in both themes on purpose: it says in one
+picture that the app follows the system theme, and it costs no extra screen.
+Frames are allowed to run off the canvas; a frame that ends inside the picture
+reads as a screenshot pasted onto a poster.
+
+Headlines, sublines and the frame geometry are all in `_kImages` at the top of
+`tool/compose_store_screenshots.dart`. Changing the wording is one line.
 
 ## Sizes, and why these devices
 
