@@ -53,3 +53,8 @@ app.*.map.json
 
 # Kotlin incremental compilation cache
 /android/.kotlin/
+
+# Raw store screenshots: 14 MB of intermediate pictures that
+# tool/store_screenshots.sh regenerates. Only the framed set under
+# store_assets/screenshots/store/ is kept.
+/store_assets/screenshots/raw/

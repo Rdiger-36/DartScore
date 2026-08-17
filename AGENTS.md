@@ -34,6 +34,12 @@ flutter analyze
 
 # Generate launcher icons
 dart run flutter_launcher_icons
+
+# Shoot the raw store screenshots on all four simulators/emulators
+tool/store_screenshots.sh
+
+# Frame them into the pictures the two listings show (needs librsvg)
+dart run tool/compose_store_screenshots.dart
 ```
 
 ## Tech Stack

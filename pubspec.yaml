@@ -48,6 +48,11 @@ dev_dependencies:
   # starting the app asks it for nothing.
   in_app_purchase_platform_interface: ^1.4.0
   plugin_platform_interface: ^2.1.8
+  # Drives the app on a real simulator or emulator so the store screenshots are
+  # rendered by the platform that will run the shipped build. A widget test
+  # cannot stand in: it paints with the test font instead of the system one.
+  integration_test:
+    sdk: flutter
 
 flutter_launcher_icons:
   android: true
