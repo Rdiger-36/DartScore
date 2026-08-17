@@ -165,12 +165,12 @@ class AppLocalizations {
   String get thisLeg            => _t('This Leg', 'Aktuelles Leg');
   String get matchSoFar         => _t('Match so far', 'Bisheriges Spiel');
   String get legAverage         => _t('Leg Average', 'Leg-Average');
-  String get dartsThisLeg       => _t('Darts this Leg', 'Pfeile in diesem Leg');
+  String get dartsThisLeg       => _t('Darts this Leg', 'Darts in diesem Leg');
   String get visitsThisLeg      => _t('Visits this Leg', 'Aufnahmen in diesem Leg');
   String get bestVisitThisLeg   => _t('Best Visit this Leg', 'Beste Aufnahme im Leg');
   String get first9Average      => _t('First 9 Average', 'First-9-Average');
   String get checkoutsHit       => _t('Check-Outs hit', 'Check-Outs getroffen');
-  String get dartsAtFinish      => _t('Darts at a Finish', 'Pfeile aufs Finish');
+  String get dartsAtFinish      => _t('Darts at a Finish', 'Darts aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
 
   // ── Game Summary ─────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ class AppLocalizations {
   String get gamesWon          => _t('Games Won', 'Spiele gewonnen');
   String get legsWon           => _t('Legs Won', 'Legs gewonnen');
   String get totalVisits       => _t('Total Visits', 'Aufnahmen gesamt');
-  String get totalDarts        => _t('Total Darts', 'Pfeile gesamt');
+  String get totalDarts        => _t('Total Darts', 'Darts gesamt');
   String get accuracy          => _t('Accuracy', 'Treffsicherheit');
   String get threeDartAvg      => _t('3-Dart Average', '3-Dart Average');
   String get bustRate          => _t('Bust Rate', 'Bust-Rate');
@@ -249,7 +249,7 @@ class AppLocalizations {
   String get syncedStatsFrom   => _t('Synced statistics from', 'Synchronisierte Statistiken vom');
   String get syncedStats       => _t('Synced statistics', 'Synchronisierte Statistiken');
   String get visits            => _t('Visits', 'Aufnahmen');
-  String get darts_            => _t('Darts', 'Pfeile');
+  String get darts_            => _t('Darts', 'Darts');
   String get busts             => _t('Busts', 'Busts');
 
   // ── Extended Player Stats ────────────────────────────────────────────────
@@ -648,8 +648,8 @@ class AppLocalizations {
     'You win a leg by reaching exactly 0. Depending on the Check-In/Check-Out rules, the first and/or last dart must land on a double (or master).\n\n'
     'A bust occurs when you score more than your remaining points, leave exactly 1, or fail the required Check-Out. In that case your score resets to where it was before the visit.',
     'Zähle von einem Startpunktestand (301, 501, 701 ...) genau auf null herunter.\n\n'
-    'Jeder Spieler wirft pro Aufnahme 3 Pfeile. Die Gesamtpunkte dieser Pfeile werden vom verbleibenden Restpunkt abgezogen.\n\n'
-    'Ein Leg gewinnst du, indem du genau 0 erreichst. Je nach Check-In/Check-Out-Regel muss der erste und/oder letzte Pfeil auf einem Double (oder Master) landen.\n\n'
+    'Jeder Spieler wirft pro Aufnahme 3 Darts. Die Gesamtpunkte dieser Darts werden vom verbleibenden Restpunkt abgezogen.\n\n'
+    'Ein Leg gewinnst du, indem du genau 0 erreichst. Je nach Check-In/Check-Out-Regel muss der erste und/oder letzte Dart auf einem Double (oder Master) landen.\n\n'
     'Ein Bust passiert, wenn du mehr Punkte wirfst als du noch hast, genau 1 Punkt übrig lässt oder das geforderte Check-Out verfehlst. Dein Stand wird dann auf den Wert vor der Aufnahme zurückgesetzt.',
   );
 
@@ -688,7 +688,7 @@ class AppLocalizations {
     '  Einfach = 1 Treffer\n'
     '  Doppel = 2 Treffer\n'
     '  Triple = 3 Treffer (direkt geschlossen)\n\n'
-    'Beispiel: Ein Triple auf die 20 schließt das Feld sofort mit einem Pfeil.\n\n'
+    'Beispiel: Ein Triple auf die 20 schließt das Feld sofort mit einem Dart.\n\n'
     'PUNKTE MACHEN\n'
     'Sobald du ein Feld geöffnet hast (3 Treffer), bringt jeder weitere Treffer darauf Punkte in Höhe des Feldwerts, solange dein Gegner das Feld noch nicht ebenfalls geschlossen hat.\n\n'
     'Beispiel:\n'
@@ -723,20 +723,20 @@ class AppLocalizations {
     '  Single 1, Double 2, Triple 3 -> Shanghai!\n\n'
     'VARIANT 3: Sequential\n'
     'A player throws at 1 until they hit it, then moves on to 2, and so on. The game can end in as few as 20 darts. A Shanghai here also consists of three different consecutive fields.',
-    'Shanghai wird auf den Zahlen 1 bis 9 gespielt. Nur Treffer auf dem jeweils aktiven Feld zählen. Der maximale Punktestand pro Aufnahme beträgt das 9-Fache des Feldwerts (3 Pfeile, alle Triple).\n\n'
+    'Shanghai wird auf den Zahlen 1 bis 9 gespielt. Nur Treffer auf dem jeweils aktiven Feld zählen. Der maximale Punktestand pro Aufnahme beträgt das 9-Fache des Feldwerts (3 Darts, alle Triple).\n\n'
     'SHANGHAI: SOFORTSIEG\n'
     'Trifft ein Spieler alle drei Segmente des aktiven Feldes (Single, Double und Triple) in einer Aufnahme, nennt man das Shanghai und gewinnt das Spiel sofort. Ausnahme: Erzielt der Nachwerfer in seinem Zug ebenfalls einen Shanghai, wird das Spiel fortgesetzt. Ansonsten gewinnt der Spieler mit den meisten Punkten.\n\n'
     'VARIANTE 1: Klassisch (Felder 1-9)\n'
-    'Die Spieler werfen abwechselnd 3 Pfeile auf die aktive Zahl. Nur Treffer auf dieser Zahl zählen. Die Zahlen gehen von 1 bis 9.\n\n'
+    'Die Spieler werfen abwechselnd 3 Darts auf die aktive Zahl. Nur Treffer auf dieser Zahl zählen. Die Zahlen gehen von 1 bis 9.\n\n'
     'Beispiel (aktives Feld: 6):\n'
     '  Single 6, Doppel 6, Triple 6 -> 6 + 12 + 18 = 36 Punkte\n'
     '  Single 6, Doppel 6, Fehler -> 18 Punkte, kein Shanghai\n\n'
     'VARIANTE 2: Im Uhrzeigersinn (7 Würfe pro Spieler)\n'
-    'Jeder Spieler wirft 7 Pfeile. Die Zielzahl wechselt mit jedem Pfeil im Uhrzeigersinn: Pfeil 1 zielt auf die 1, Pfeil 2 auf die 2, usw. bis zur 20, dann das Bull. Ein Shanghai bedeutet hier drei aufeinanderfolgende Felder im Uhrzeigersinn in einer Aufnahme zu treffen.\n\n'
+    'Jeder Spieler wirft 7 Darts. Die Zielzahl wechselt mit jedem Dart im Uhrzeigersinn: Dart 1 zielt auf die 1, Dart 2 auf die 2, usw. bis zur 20, dann das Bull. Ein Shanghai bedeutet hier drei aufeinanderfolgende Felder im Uhrzeigersinn in einer Aufnahme zu treffen.\n\n'
     'Beispiel:\n'
     '  Single 1, Doppel 2, Triple 3 -> Shanghai!\n\n'
     'VARIANTE 3: Sequenziell\n'
-    'Ein Spieler wirft so lange auf die 1, bis er sie getroffen hat, dann auf die 2 usw. Das Spiel kann in bereits 20 Pfeilen enden. Ein Shanghai besteht auch hier aus drei verschiedenen aufeinanderfolgenden Zahlenfeldern.',
+    'Ein Spieler wirft so lange auf die 1, bis er sie getroffen hat, dann auf die 2 usw. Das Spiel kann in bereits 20 Darts enden. Ein Shanghai besteht auch hier aus drei verschiedenen aufeinanderfolgenden Zahlenfeldern.',
   );
 
   // Around the Clock
@@ -817,7 +817,7 @@ class AppLocalizations {
   String get cricketSimple        => _t('Simple (singles only)', 'Einfach (nur Singles)');
   String get cricketSimpleDesc    =>
       _t('Every dart counts as 1 mark regardless of segment hit.',
-         'Jeder Pfeil zählt als 1 Treffer unabhängig vom getroffenen Segment.');
+         'Jeder Dart zählt als 1 Treffer unabhängig vom getroffenen Segment.');
   String get cricketMinPlayers    =>
       _t('Cricket requires at least 2 players.', 'Cricket benötigt mindestens 2 Spieler.');
 
@@ -825,7 +825,7 @@ class AppLocalizations {
   String get bull                 => 'Bull';
   String get cricketMiss          => _t('Miss', 'Miss');
   String get cricketConfirmVisit  => _t('Done', 'Fertig');
-  String get cricketDart          => _t('Dart', 'Pfeil');
+  String get cricketDart          => _t('Dart', 'Dart');
   String get cricketScore         => _t('Score', 'Punkte');
   String get cricketMarks         => _t('Marks', 'Treffer');
   String get cricketQuit          => _t('Quit', 'Beenden');
@@ -849,10 +849,10 @@ class AppLocalizations {
   String get shanghaiSequential   => _t('Sequential', 'Sequenziell');
   String get shanghaiClassicDesc  =>
       _t('9 rounds, target advances from 1 to 9. Each player throws 3 darts at the active number per round.',
-         '9 Runden, die Zielzahl steigt von 1 bis 9. Jeder Spieler wirft pro Runde 3 Pfeile auf die aktive Zahl.');
+         '9 Runden, die Zielzahl steigt von 1 bis 9. Jeder Spieler wirft pro Runde 3 Darts auf die aktive Zahl.');
   String get shanghaiClockwiseDesc =>
       _t('One visit of 7 darts per player. The target advances by one with every dart, from 1 to 7.',
-         'Eine Aufnahme mit 7 Pfeilen pro Spieler. Die Zielzahl steigt mit jedem Pfeil von 1 bis 7.');
+         'Eine Aufnahme mit 7 Darts pro Spieler. Die Zielzahl steigt mit jedem Dart von 1 bis 7.');
   String get shanghaiSequentialDesc =>
       _t('Throw at 1 until you hit it, then move on to 2, and so on up to 20. First to finish wins.',
          'Wirf auf die 1, bis du sie triffst, dann auf die 2 usw. bis 20. Wer zuerst fertig ist, gewinnt.');
