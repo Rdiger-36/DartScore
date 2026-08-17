@@ -20,6 +20,7 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 - Persistence goes through `db_helper.dart` and nowhere else. `notifyListeners()` after the write, not before
 - Changing a model means changing the schema and the migrations in `db_helper.dart` in the same step
 - Statistics come from `ThrowStats` in `utils/throw_stats.dart`. A provider does not carry a second formula for an average, a high, a bust count or a checkout rate
+- `GameProvider` is the one place that decides `DartThrow.checkoutAttempt`, in `_submitVisit`, via `visitWasCheckoutAttempt`. It is stored rather than derived because nothing downstream can work it out again: a visit is an attempt when a dart of it could have finished the leg, which needs the individual darts and the player's own check-out rule, and a throw that arrives over sync carries neither
 - `DonationProvider` owns everything `in_app_purchase` touches. No screen talks to the plugin
 - `TextScaleProvider` holds a factor, not a font size, and the app applies it in one place: the `MaterialApp` builder in `main.dart`, and only on a tablet sized window. A screen that scales its own text again is a screen the setting no longer describes
 - `TabletLayoutProvider` keys a divider by the screen **and** the orientation it belongs to. A scoreboard next to an input divides differently than a list next to a page of statistics, and a share that reads well across a landscape tablet leaves an upright one with two columns too narrow. The values are loaded on a phone too, they are simply never read there

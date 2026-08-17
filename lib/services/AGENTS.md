@@ -46,6 +46,7 @@ Sync merges, backup replaces. They must not be built on each other. A sync folds
 - An incoming packet is authoritative for what the sending device holds, and for that device only: its throws (`games.origin_device`) and its snapshot are deleted before importing, otherwise a snapshot covering throws an earlier sync already delivered counts them again. What a third device sent is left alone, and a snapshot only passed on by the sender is kept when the local copy covers more darts
 - The legacy bucket (`origin_device = ''`) is data from before devices were told apart. It travels as throws whatever the range asks for, because there is no snapshot it could safely be folded into, and an import replaces it wholesale. One sync per device pair clears it for good
 - `thrownAt` in milliseconds is the deduplication key on import. Do not round it
+- A visit's `checkoutAttempt` travels as a flag bit because the receiver cannot decide it: the individual darts stay behind, and the hidden sync-game's check-out rule is not the one the visit was played under. A sender that predates the bit leaves it clear, which reads as "no attempt" rather than as a broken packet
 - The origin fields ride in a trailer after the throws rather than in a new format version, so an app that predates them reads the packet up to the last throw and imports it instead of refusing a version number it does not know. `local_stats_json` in a packet is every origin added together, kept for exactly those readers
 
 ### Transports
