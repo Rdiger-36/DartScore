@@ -72,7 +72,7 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snap.data;
-          if (data == null || data.playerThrows.isEmpty) {
+          if (data == null || data.allThrows.isEmpty) {
             return Center(child: Text(context.l10n.noThrowData));
           }
           return _SummaryBody(game: widget.game, data: data, players: widget.players);
@@ -95,10 +95,18 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
         );
 
   /// Loads the widget.game's throws and groups them by player.
+  ///
+  /// The map is seeded from the line-up rather than built from the throws
+  /// alone, so a participant who never got to throw is present with an empty
+  /// list. The placement helpers read the participant count off the keys they
+  /// are handed, and a missing key both drops that player from the ranking and
+  /// scores everyone else against one participant too few.
   Future<_GameData> _load() async {
     final db = DbHelper.instance;
     final allThrows = await db.getThrowsForGame(widget.game.id!);
-    final Map<int, List<DartThrow>> byPlayer = {};
+    final Map<int, List<DartThrow>> byPlayer = {
+      for (final p in widget.players) p.id!: <DartThrow>[],
+    };
     for (final t in allThrows) {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
@@ -108,9 +116,32 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
 
 /// Loaded throws for a historical game: grouped by player and as a flat list.
 class _GameData {
+  /// Every participant of the game, including the ones who never threw.
   final Map<int, List<DartThrow>> playerThrows;
   final List<DartThrow> allThrows;
   const _GameData({required this.playerThrows, required this.allThrows});
+}
+
+/// The name the winner banner announces, given the ids [winningPlayerIds]
+/// named, or null when the game has no winner.
+///
+/// A team game announces the team rather than whoever hit the last double, the
+/// same way the post-game summary does: the shared rule hands back every member
+/// of the winning side, and the side is what won.
+String? _winnerName(Game game, List<Player> players, Set<int> winnerIds) {
+  if (winnerIds.isEmpty) return null;
+
+  if (game.isTeamGame) {
+    for (final team in game.teams!) {
+      if (team.playerIds.any(winnerIds.contains)) return team.name;
+    }
+    return null;
+  }
+
+  for (final p in players) {
+    if (winnerIds.contains(p.id)) return p.name;
+  }
+  return null;
 }
 
 /// Renders the game info, per-player stat cards, and the combined throw log.
@@ -130,14 +161,13 @@ class _SummaryBody extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // The player who reached zero last took the deciding leg, and with it the
-    // game. Read through the shared rule, so this screen and the lifetime
-    // games won on the statistics screen cannot name two different winners.
-    final winnerId = lastCheckoutPlayerId(data.allThrows);
-    final Player? winner = winnerId == null
-        ? null
-        : players.firstWhere((p) => p.id == winnerId,
-            orElse: () => players.first);
+    // Who won is the shared rule's to answer, so this screen, the ranking card
+    // under it and the lifetime games won on the statistics screen cannot name
+    // three different winners. It is not always the last checkout: a placement
+    // game is played for points and goes to the best ranked.
+    final winnerIds = winningPlayerIds(game, data.allThrows,
+        participantIds: [for (final p in players) if (p.id != null) p.id!]);
+    final String? winnerName = _winnerName(game, players, winnerIds);
 
     // Team configs only store player ids, so the rematch dialog needs a name
     // lookup to list a team's members.
@@ -198,7 +228,7 @@ class _SummaryBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
       children: [
         // Winner banner
-        if (winner != null)
+        if (winnerName != null)
           Center(
             child: Column(
               children: [
@@ -212,7 +242,7 @@ class _SummaryBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  context.l10n.wins(winner.name),
+                  context.l10n.wins(winnerName),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,

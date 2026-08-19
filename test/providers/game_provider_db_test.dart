@@ -454,6 +454,10 @@ void main() {
         expect(provider.playerStates[0].legsWon, 1);
         expect(provider.playerStates.map((s) => s.placementSum), [1, 2, 3],
             reason: 'the last slot is placed without checking out');
+        // Three slots, so a leg pays 4 to the winner, 2 to the second and 1 to
+        // the third. The points decide the final ranking, so the live game has
+        // to keep them rather than work them out again at the end.
+        expect(provider.playerStates.map((s) => s.placementPoints), [4, 2, 1]);
       });
 
       test('carries the placements through a resume', () async {
@@ -475,6 +479,8 @@ void main() {
         expect(fresh.playerStates[1].placementSum, 2);
         expect(fresh.playerStates[2].placementSum, 3,
             reason: 'the last place counts toward the tie breaker');
+        expect(fresh.playerStates.map((s) => s.placementPoints), [4, 2, 1],
+            reason: 'the points a resume rebuilds are the points it left with');
       });
     });
 

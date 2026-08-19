@@ -669,13 +669,22 @@ class DbHelper {
       [playerId],
     );
 
+    // One read for every line-up rather than one per game: a placement game is
+    // scored against how many took part, and that count cannot be read off the
+    // throws of a game somebody sat out.
+    final lineUps = await getGamePlayerIdsByGame();
+
     final won = <int>{};
     for (final row in rows) {
       final game = Game.fromMap(row);
       final throws = game.placementMode
           ? await getThrowsForGame(game.id!)
           : await _checkoutThrowsOfGame(game.id!);
-      if (winningPlayerIds(game, throws).contains(playerId)) won.add(game.id!);
+      if (winningPlayerIds(game, throws,
+              participantIds: lineUps[game.id!] ?? const [])
+          .contains(playerId)) {
+        won.add(game.id!);
+      }
     }
     return won;
   }
@@ -723,7 +732,10 @@ class DbHelper {
     final gameRows  = await d.query('games', where: 'id = ?', whereArgs: [gameId]);
     final game       = gameRows.isEmpty ? null : Game.fromMap(gameRows.first);
     final minDarts   = game != null ? _kMinDarts[game.startScore] : null;
-    final winners    = game == null ? const <int>{} : winningPlayerIds(game, throws);
+    final winners    = game == null
+        ? const <int>{}
+        : winningPlayerIds(game, throws,
+            participantIds: await getGamePlayerIds(gameId));
 
     final byPlayer = <int, List<DartThrow>>{};
     for (final t in throws) {
@@ -829,7 +841,8 @@ class DbHelper {
     // for here: the deciding checkout may well be the opponent's.
     final won = finished &&
         throws.isNotEmpty &&
-        winningPlayerIds(game!, await getThrowsForGame(gameId))
+        winningPlayerIds(game!, await getThrowsForGame(gameId),
+                participantIds: await getGamePlayerIds(gameId))
             .contains(throws.first.playerId);
 
     return {
