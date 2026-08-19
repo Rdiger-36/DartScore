@@ -23,20 +23,34 @@ int? lastCheckoutPlayerId(List<DartThrow> throws) {
   return last?.playerId;
 }
 
-/// The players on the side that won [game], given every throw of it.
+/// The players on the side that won [game], given every throw of it and the
+/// [participantIds] it was played by, in turn order.
 ///
 /// A side is a team in a team game and a single player otherwise, so a team
 /// game hands back every member of the winning team rather than only the one
 /// who hit the double.
 ///
+/// [participantIds] is the game's line-up, not the players who happen to appear
+/// in [throws]. A placement game is scored against how many sides took part, and
+/// a side without a single dart is still one of them: counting the sides off the
+/// throws drops that side from the ranking and scores every other side against
+/// one participant too few. Only placement mode reads it, every other game is
+/// decided by its last checkout, but it is asked for either way so no caller has
+/// to know which rule applies.
+///
 /// An unfinished or undecided game hands back an empty set.
-Set<int> winningPlayerIds(Game game, List<DartThrow> throws) {
+Set<int> winningPlayerIds(
+  Game game,
+  List<DartThrow> throws, {
+  required Iterable<int> participantIds,
+}) {
   if (throws.isEmpty) return const {};
 
   final teams = game.teams;
   if (teams == null || teams.isEmpty) {
     final winner = game.placementMode
-        ? _bestPlaced(_groupBy(throws, (t) => t.playerId))
+        ? _bestPlaced(_groupBy(throws, (t) => t.playerId,
+            slots: participantIds))
         : lastCheckoutPlayerId(throws);
     return winner == null ? const {} : {winner};
   }
@@ -52,7 +66,8 @@ Set<int> winningPlayerIds(Game game, List<DartThrow> throws) {
   if (game.placementMode) {
     final bySide = _groupBy(
         throws.where((t) => sideOf.containsKey(t.playerId)),
-        (t) => sideOf[t.playerId]!);
+        (t) => sideOf[t.playerId]!,
+        slots: [for (var i = 0; i < teams.length; i++) i]);
     side = _bestPlaced(bySide);
   } else {
     final last = lastCheckoutPlayerId(throws);
@@ -61,9 +76,16 @@ Set<int> winningPlayerIds(Game game, List<DartThrow> throws) {
   return side == null ? const {} : teams[side].playerIds.toSet();
 }
 
-/// Whether [playerId] is on the side that won [game].
-bool playerWonGame(Game game, int playerId, List<DartThrow> throws) =>
-    winningPlayerIds(game, throws).contains(playerId);
+/// Whether [playerId] is on the side that won [game], played by
+/// [participantIds].
+bool playerWonGame(
+  Game game,
+  int playerId,
+  List<DartThrow> throws, {
+  required Iterable<int> participantIds,
+}) =>
+    winningPlayerIds(game, throws, participantIds: participantIds)
+        .contains(playerId);
 
 /// The side that comes first in a placement game, or null when there is
 /// nothing to rank.
@@ -96,10 +118,15 @@ int? _bestPlaced(Map<int, List<DartThrow>> throwsById) {
   return ranked.first;
 }
 
-/// Groups [throws] under the key [keyOf] gives each of them.
+/// Groups [throws] under the key [keyOf] gives each of them, over the full set
+/// of [slots]: a slot without a throw of its own is present with an empty list
+/// rather than absent, which is what keeps the participant count right.
 Map<int, List<DartThrow>> _groupBy(
-    Iterable<DartThrow> throws, int Function(DartThrow) keyOf) {
-  final grouped = <int, List<DartThrow>>{};
+    Iterable<DartThrow> throws, int Function(DartThrow) keyOf,
+    {required Iterable<int> slots}) {
+  final grouped = <int, List<DartThrow>>{
+    for (final slot in slots) slot: <DartThrow>[],
+  };
   for (final t in throws) {
     grouped.putIfAbsent(keyOf(t), () => []).add(t);
   }

@@ -72,7 +72,7 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snap.data;
-          if (data == null || data.playerThrows.isEmpty) {
+          if (data == null || data.allThrows.isEmpty) {
             return Center(child: Text(context.l10n.noThrowData));
           }
           return _SummaryBody(game: widget.game, data: data, players: widget.players);
@@ -95,10 +95,18 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
         );
 
   /// Loads the widget.game's throws and groups them by player.
+  ///
+  /// The map is seeded from the line-up rather than built from the throws
+  /// alone, so a participant who never got to throw is present with an empty
+  /// list. The placement helpers read the participant count off the keys they
+  /// are handed, and a missing key both drops that player from the ranking and
+  /// scores everyone else against one participant too few.
   Future<_GameData> _load() async {
     final db = DbHelper.instance;
     final allThrows = await db.getThrowsForGame(widget.game.id!);
-    final Map<int, List<DartThrow>> byPlayer = {};
+    final Map<int, List<DartThrow>> byPlayer = {
+      for (final p in widget.players) p.id!: <DartThrow>[],
+    };
     for (final t in allThrows) {
       byPlayer.putIfAbsent(t.playerId, () => []).add(t);
     }
@@ -108,6 +116,7 @@ class _HistoryGameSummaryScreenState extends State<HistoryGameSummaryScreen> {
 
 /// Loaded throws for a historical game: grouped by player and as a flat list.
 class _GameData {
+  /// Every participant of the game, including the ones who never threw.
   final Map<int, List<DartThrow>> playerThrows;
   final List<DartThrow> allThrows;
   const _GameData({required this.playerThrows, required this.allThrows});
