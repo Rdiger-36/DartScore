@@ -7,8 +7,8 @@ import 'package:path/path.dart' as p;
 /// `integration_test/store_screenshots_test.dart` takes and writes it to disk.
 ///
 /// The name the test passes carries the whole path under the raw folder
-/// (`<device>/<theme>/<language>/<screen>`), so one run per device, theme and
-/// language fills the tree that `tool/compose_store_screenshots.dart` reads.
+/// (`<device>/<screen>_<theme>_<language>`), so one run per device and language
+/// fills the folder that `tool/compose_store_screenshots.dart` reads.
 Future<void> main() async {
   await integrationDriver(
     onScreenshot: (String name, List<int> bytes, [Map<String, Object?>? args]) async {

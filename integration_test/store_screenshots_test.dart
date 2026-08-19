@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:dartscore_app/database/db_helper.dart';
+import 'package:dartscore_app/l10n/app_localizations.dart';
 import 'package:dartscore_app/main.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
 import 'package:dartscore_app/screens/game_screen.dart';
-import 'package:dartscore_app/screens/game_summary_screen.dart';
 import 'package:dartscore_app/screens/home_screen.dart';
+import 'package:dartscore_app/screens/player_stats_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,12 +41,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// One run covers one device in one language and shoots every screen in both
 /// themes. `tool/store_screenshots.sh` runs the eight combinations and composes
-/// the store images from what lands in `store_assets/screenshots/raw/`.
+/// the store images from what lands in
+/// `store_assets/screenshots/raw/<device>/<screen>_<theme>_<language>.png`.
 ///
 /// The screens are reached by driving the app's own providers and pushing the
 /// screen, not by tapping through setup. Setup is several localized screens
 /// deep, and a screenshot run that navigates by button label breaks the moment
 /// a label is reworded.
+///
+/// Five screens are shot, in this order: the mode selection, the top of the
+/// player statistics, its dartboard heatmap, a two player X01 leg and a solo
+/// X01 leg. The statistics come from a season of games the run plays first, so
+/// the numbers on those two pictures are the numbers this app produces out of
+/// ordinary club darts.
 
 /// Which device the run is on. Only used to name the files.
 const _kDevice = String.fromEnvironment('device', defaultValue: 'device');
@@ -59,7 +68,7 @@ const _kLanguage = String.fromEnvironment('lang', defaultValue: 'en');
 /// a frame.
 const _kThemes = [ThemeMode.dark, ThemeMode.light];
 
-/// The two players the demo match is played between, in the language of the
+/// The two players the demo games are played between, in the language of the
 /// run.
 ///
 /// Deliberately generic. A store picture is seen by everyone, so it should not
@@ -68,6 +77,9 @@ const _kThemes = [ThemeMode.dark, ThemeMode.light];
 List<String> get _playerNames => _kLanguage == 'de'
     ? const ['Spieler 1', 'Spieler 2']
     : const ['Player 1', 'Player 2'];
+
+/// The score every demo game is played from.
+const _kStartScore = 501;
 
 /// How long a pump may wait before the run is called stuck.
 const _kSettleTimeout = Duration(seconds: 30);
@@ -95,10 +107,15 @@ void main() {
     await tester.pumpWidget(const DartScoreApp());
     await _settle(tester);
 
+    // Before the first screenshot, because the statistics pictures show what
+    // it produced and the live pictures should not be part of it.
+    await _seedHistory(tester, players);
+
     await _shootModeSelection(binding, tester);
-    await _shootLiveGame(binding, tester, players);
-    await _shootSummary(binding, tester);
-  }, timeout: const Timeout(Duration(minutes: 10)));
+    await _shootPlayerStats(binding, tester, players.first);
+    await _shootDuoGame(binding, tester, players);
+    await _shootSoloGame(binding, tester, players.first);
+  }, timeout: const Timeout(Duration(minutes: 30)));
 }
 
 // ── Screens ───────────────────────────────────────────────────────────────────
@@ -112,183 +129,353 @@ Future<void> _shootModeSelection(
   await _settle(tester);
 
   await _shoot(binding, tester, 'modes');
-
-  Navigator.of(_homeContext(tester)).pop();
-  await _settle(tester);
+  await _popScreen(tester);
 }
 
-/// Plays the demo match up to a checkout and shoots the live X01 screen.
+/// Shoots the two statistics pictures of [player]: the top of the screen with
+/// the average and the highlight tiles, and the dartboard heatmap further down.
+///
+/// The heatmap is scrolled to rather than shot from a fixed offset. The list
+/// above it grows with every section that gets added, and an offset in pixels
+/// would quietly start showing the wrong card.
+Future<void> _shootPlayerStats(IntegrationTestWidgetsFlutterBinding binding,
+    WidgetTester tester, Player player) async {
+  await _pushScreen(tester, PlayerStatsScreen(player: player));
+  // The screen counts every throw the player ever made in another isolate, so
+  // the first frames are a spinner.
+  await _settle(tester);
+
+  await _shoot(binding, tester, 'stats_header');
+
+  final title = find.text(_homeContext(tester).l10n.dartboardHeatmap);
+  final list  = find
+      .descendant(of: find.byType(ListView), matching: find.byType(Scrollable))
+      .first;
+  await tester.dragUntilVisible(title, list, const Offset(0, -320));
+  await _settle(tester);
+  // The drag stops as soon as the title is on screen, which leaves it at the
+  // bottom edge with the heatmap itself still below it.
+  await Scrollable.ensureVisible(tester.element(title),
+      alignment: 0.03, duration: Duration.zero);
+  await _settle(tester);
+
+  await _shoot(binding, tester, 'stats_heatmap');
+  await _popScreen(tester);
+}
+
+/// Plays a two player leg up to a checkout and shoots the live X01 screen.
 ///
 /// It stops with the first player standing on 141, which is a finish the
-/// suggestion can show in three darts, and the second on 180. Both averages
-/// land in the seventies, which is what a club player throws; a scripted
-/// hundred would put a number on the store page the app cannot deliver.
-Future<void> _shootLiveGame(IntegrationTestWidgetsFlutterBinding binding,
+/// suggestion shows in three darts, and the second on 180. Both are six visit
+/// legs in the sixties, the same range the seeded season averages, so the live
+/// picture and the statistics pictures do not contradict each other.
+Future<void> _shootDuoGame(IntegrationTestWidgetsFlutterBinding binding,
     WidgetTester tester, List<Player> players) async {
   final provider = _providerOf<GameProvider>(tester);
+  await _startGame(provider, players);
 
-  await provider.startGame(
+  // Alternating visits, so after the last one the first player is at the oche.
+  for (var visit = 0; visit < _kDuoVisits.first.length; visit++) {
+    for (final script in _kDuoVisits) {
+      await _throwVisit(tester, provider, script[visit]);
+    }
+  }
+
+  await _pushScreen(tester, const GameScreen());
+  await _shoot(binding, tester, 'live_duo');
+  await _popScreen(tester);
+}
+
+/// Plays a solo leg and shoots the live X01 screen with a single player on it.
+///
+/// It stops on 96, a two dart finish, so the two live pictures do not show the
+/// same checkout twice.
+Future<void> _shootSoloGame(IntegrationTestWidgetsFlutterBinding binding,
+    WidgetTester tester, Player player) async {
+  final provider = _providerOf<GameProvider>(tester);
+  await _startGame(provider, [player]);
+
+  for (final visit in _kSoloVisits) {
+    await _throwVisit(tester, provider, visit);
+  }
+
+  await _pushScreen(tester, const GameScreen());
+  await _shoot(binding, tester, 'live_solo');
+  await _popScreen(tester);
+}
+
+// ── The demo games ────────────────────────────────────────────────────────────
+
+/// Starts a 501 game over three legs between [players], in the order given.
+Future<void> _startGame(GameProvider provider, List<Player> players) {
+  return provider.startGame(
     Game(
-      startScore:    501,
+      startScore:    _kStartScore,
       legs:          3,
       createdAt:     DateTime.now(),
       startingOrder: StartingOrder.fixed,
     ),
     players,
   );
-
-  // Alternating visits, so after the last one the first player is at the oche.
-  for (var visit = 0; visit < _kOpeningVisits.first.length; visit++) {
-    for (final script in _kOpeningVisits) {
-      await _throwVisit(tester, provider, script[visit]);
-    }
-  }
-
-  await _pushScreen(tester, const GameScreen());
-  await _shoot(binding, tester, 'live');
 }
 
-/// Plays the demo match out and shoots the post game summary.
-Future<void> _shootSummary(
-    IntegrationTestWidgetsFlutterBinding binding, WidgetTester tester) async {
-  final provider = _providerOf<GameProvider>(tester);
-
-  var guard = 0;
-  while (!provider.gameOver && guard++ < 400) {
-    await _throwVisit(
-        tester, provider, _planVisit(provider.currentPlayerState.remaining));
-  }
-  expect(provider.gameOver, isTrue,
-      reason: 'the demo match never finished, so there is no summary to shoot');
-
-  // The live screen is still on top of the stack, the way it is when the app
-  // itself opens the summary over it.
-  await _pushScreen(tester, const GameSummaryScreen());
-  await _shoot(binding, tester, 'summary');
-}
-
-// ── The demo match ────────────────────────────────────────────────────────────
-
-/// The opening visits of both players, as the darts they threw.
+/// The visits of the two player leg, as the darts they threw.
 ///
 /// Written out as darts rather than as totals because the app records every
 /// dart: a visit entered as one number would leave the segment statistics and
-/// the heatmap on the summary screen empty.
+/// the heatmap empty.
 ///
 /// They add up to 360 for the first player, who is then on 141, and to 321 for
 /// the second, who is then on 180.
-const _kOpeningVisits = <List<List<(int, int)>>>[
+const _kDuoVisits = <List<List<(int, int)>>>[
   [
     [(20, 3), (20, 1), (20, 1)], // 100
-    [(20, 1), (20, 1), (20, 1)], //  60
     [(20, 3), (20, 1), (1, 1)],  //  81
     [(20, 1), (20, 1), (5, 1)],  //  45
-    [(19, 3), (17, 1), (0, 1)],  //  74
+    [(20, 1), (20, 1), (20, 1)], //  60
+    [(7, 1), (19, 1), (0, 1)],   //  26
+    [(20, 1), (20, 1), (8, 1)],  //  48
   ],
   [
     [(19, 3), (20, 1), (8, 1)],  //  85
     [(20, 1), (20, 1), (20, 1)], //  60
     [(20, 1), (20, 1), (1, 1)],  //  41
-    [(20, 3), (20, 1), (20, 1)], // 100
+    [(20, 1), (20, 1), (5, 1)],  //  45
+    [(17, 3), (4, 1), (0, 1)],   //  55
     [(15, 1), (20, 1), (0, 1)],  //  35
   ],
 ];
 
-/// The visits the rest of the match is played with, in rotation.
-///
-/// A player who only ever hits the treble twenty finishes 501 in nine darts and
-/// leaves a summary showing an average no human throws. These are ordinary
-/// visits with ordinary misses.
-const _kRallyVisits = <List<(int, int)>>[
-  [(20, 3), (20, 1), (5, 1)],   //  85
-  [(20, 1), (5, 1), (20, 1)],   //  45
-  [(19, 3), (19, 1), (3, 1)],   //  79
-  [(20, 1), (20, 1), (20, 1)],  //  60
-  [(20, 3), (20, 3), (1, 1)],   // 121
-  [(7, 1), (19, 1), (0, 1)],    //  26
-  [(20, 3), (20, 1), (20, 1)],  // 100
-  [(18, 1), (18, 1), (4, 1)],   //  40
+/// The visits of the solo leg. They add up to 405, which leaves 96.
+const _kSoloVisits = <List<(int, int)>>[
+  [(20, 3), (20, 1), (20, 1)], // 100
+  [(20, 3), (20, 1), (1, 1)],  //  81
+  [(20, 1), (20, 1), (5, 1)],  //  45
+  [(7, 1), (19, 1), (0, 1)],   //  26
+  [(20, 1), (20, 1), (20, 1)], //  60
+  [(20, 1), (20, 1), (1, 1)],  //  41
+  [(17, 3), (1, 1), (0, 1)],   //  52
 ];
-
-/// How many rally visits have been handed out, so the rotation moves on.
-int _rallyIndex = 0;
-
-/// Picks the darts for a visit with [remaining] left.
-///
-/// Above the checkout range it hands back the next rally visit, and inside it
-/// a route that finishes on a double, so the match always ends. The route is
-/// built here rather than read from [FinishCalculator] because what is needed
-/// is the darts to throw, and the calculator answers in labels meant for the
-/// hint on the screen.
-List<(int, int)> _planVisit(int remaining) {
-  if (remaining > 170) {
-    final visit = _kRallyVisits[_rallyIndex % _kRallyVisits.length];
-    _rallyIndex++;
-    // A rally visit that would bust or leave one point is replaced by a plain
-    // sixty, which no score above 170 can bust on.
-    final scored = visit.fold(0, (sum, d) => sum + _scoreOf(d));
-    final left = remaining - scored;
-    if (left < 2) return const [(20, 1), (20, 1), (20, 1)];
-    return visit;
-  }
-  return _checkoutRoute(remaining);
-}
-
-/// Darts that take [remaining] (at most 170) down to zero on a double.
-List<(int, int)> _checkoutRoute(int remaining) {
-  final darts = <(int, int)>[];
-  var left = remaining;
-
-  while (darts.length < 3) {
-    if (left == 50) {
-      darts.add((25, 2));
-      return darts;
-    }
-    if (left <= 40 && left.isEven) {
-      darts.add((left ~/ 2, 2));
-      return darts;
-    }
-    // Everything else is reduced towards 32, the double sixteen every player
-    // is taught to leave, and an odd rest is made even with a single one.
-    final (int, int) dart;
-    if (left <= 40) {
-      dart = (1, 1);
-    } else if (left - 32 >= 1 && left - 32 <= 20) {
-      dart = (left - 32, 1);
-    } else if (left - 32 >= 3 && (left - 32) % 3 == 0 && (left - 32) ~/ 3 <= 20) {
-      dart = ((left - 32) ~/ 3, 3);
-    } else {
-      dart = (20, 3);
-    }
-    darts.add(dart);
-    left -= _scoreOf(dart);
-  }
-  return darts;
-}
-
-/// Points the dart [d] is worth, the bull included.
-int _scoreOf((int, int) d) => switch (d.$1) {
-      0  => 0,
-      25 => d.$2 == 2 ? 50 : 25,
-      _  => d.$1 * d.$2,
-    };
 
 /// Enters [darts] through the provider, one dart at a time.
 ///
 /// It stops early when the visit has already ended, which is what a checkout
-/// does: the provider moves the turn on and the darts still in the list belong
-/// to nobody.
+/// and a bust do: the provider moves the turn on and the darts still in the
+/// list belong to nobody.
 Future<void> _throwVisit(WidgetTester tester, GameProvider provider,
     List<(int, int)> darts) async {
   for (var i = 0; i < darts.length; i++) {
     await provider.tapField(darts[i].$1, darts[i].$2);
-    await tester.pump();
     if (provider.gameOver) return;
-    // A visit that is empty again before its last dart was submitted by the
-    // provider, which only happens on a checkout. The darts still in the list
-    // would land on the next player.
     if (i < darts.length - 1 && provider.dartsInVisit == 0) return;
   }
+  await tester.pump();
+}
+
+// ── The seeded season ─────────────────────────────────────────────────────────
+
+/// The games the statistics are counted from, as how many days ago each was
+/// played.
+///
+/// They are spread over the last six weeks, with two of them inside this week
+/// and three inside the last one, so the week comparison card has both of its
+/// columns filled. The dates are written onto the rows afterwards; the games
+/// themselves are played now, because a provider timestamps what it records.
+const _kSeasonDaysAgo = [40, 37, 33, 30, 26, 24, 19, 17, 12, 10, 4, 2];
+
+/// Which seeded game opens with a maximum, and which slot throws it.
+///
+/// A player who throws around sixty hits a 180 every few hundred visits, which
+/// over a season this size is a coin flip. Placing three of them by hand is
+/// what keeps the highlight tiles from reading as zeroes on one run and as
+/// twos on the next, and three in twelve games is what an amateur board sees.
+const _kMaximumIn = <int, int>{2: 0, 5: 1, 9: 0};
+
+/// How accurate a seeded player is, as the share of darts that land where they
+/// were aimed.
+///
+/// Amateur numbers on purpose. The averages these produce sit in the fifties
+/// and low sixties and the checkout rate around a third, which is what a club
+/// player throws; a store page that advertises a hundred average describes an
+/// app for somebody else.
+class _Skill {
+  /// Darts aimed at a treble that land in it.
+  final double treble;
+
+  /// Darts aimed at a field that land in its single, the treble missed
+  /// included.
+  final double single;
+
+  /// Darts aimed at a double that land in it.
+  final double doubleOut;
+
+  const _Skill({
+    required this.treble,
+    required this.single,
+    required this.doubleOut,
+  });
+}
+
+/// The two profiles, the first player being the slightly stronger one.
+const _kSkills = [
+  _Skill(treble: 0.12, single: 0.56, doubleOut: 0.34),
+  _Skill(treble: 0.09, single: 0.55, doubleOut: 0.28),
+];
+
+/// The board's fields in the order they sit around it, so a dart that misses
+/// its field lands in one that really is next to it.
+const _kBoardRing = [
+  20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
+];
+
+/// Plays the season the statistics screens show and backdates it.
+///
+/// The games run through [GameProvider] rather than being written into the
+/// database directly. Whether a visit was an attempt at the finish is decided
+/// once, when the visit is recorded, and a row inserted behind the provider's
+/// back would carry a `checkout_darts` somebody had to guess.
+Future<void> _seedHistory(WidgetTester tester, List<Player> players) async {
+  final provider = _providerOf<GameProvider>(tester);
+  // Fixed, so both languages and all four devices show the same numbers.
+  final rng = Random(20260819);
+
+  for (var index = 0; index < _kSeasonDaysAgo.length; index++) {
+    // Alternating, so neither player throws first in every game.
+    final order = index.isEven ? players : players.reversed.toList();
+    await _startGame(provider, order);
+    final gameId = provider.game!.id!;
+
+    var maximumLeft = _kMaximumIn.containsKey(index);
+    var guard = 0;
+    while (!provider.gameOver && guard++ < 900) {
+      final slot = provider.currentPlayerIndex;
+      // The slot order was reversed for half the games, so the skill follows
+      // the player rather than the seat.
+      final player = provider.currentPlayerState.player;
+      final skill  = _kSkills[players.indexWhere((p) => p.id == player.id)];
+
+      if (maximumLeft &&
+          _kMaximumIn[index] == (index.isEven ? slot : 1 - slot) &&
+          provider.currentPlayerState.remaining == _kStartScore) {
+        maximumLeft = false;
+        await _throwVisit(tester, provider,
+            const [(20, 3), (20, 3), (20, 3)]);
+        continue;
+      }
+
+      await _throwSeededVisit(provider, rng, skill);
+    }
+    expect(provider.gameOver, isTrue,
+        reason: 'seeded game $index never finished');
+
+    await tester.pump();
+    await _backdate(gameId, Duration(days: _kSeasonDaysAgo[index]));
+  }
+}
+
+/// Throws one visit of a seeded game, dart by dart.
+///
+/// Every dart is aimed at what the score in front of it asks for and then
+/// scattered by the player's own accuracy, so the busts, the missed doubles and
+/// the ton visits in the statistics are all thrown rather than counted out.
+Future<void> _throwSeededVisit(
+    GameProvider provider, Random rng, _Skill skill) async {
+  for (var dart = 0; dart < 3; dart++) {
+    final aim = _aimFor(provider.liveRunningRemaining);
+    final hit = _land(rng, skill, aim.$1, aim.$2);
+    await provider.tapField(hit.$1, hit.$2);
+    if (provider.gameOver) return;
+    // Empty again before the third dart means the provider closed the visit,
+    // which is a checkout or a bust.
+    if (dart < 2 && provider.dartsInVisit == 0) return;
+  }
+}
+
+/// What a player aims at with [remaining] left.
+///
+/// Above the checkout range that is the treble twenty. Inside it, the double
+/// when the rest is one, the treble that leaves an even rest of at most forty
+/// when it is three, and the single that makes an odd rest even in between.
+(int, int) _aimFor(int remaining) {
+  if (remaining > 170) return (20, 3);
+  if (remaining == 50) return (25, 2);
+  if (remaining <= 40 && remaining.isEven) return (remaining ~/ 2, 2);
+  // An odd rest under forty is made even with a single one, which is the shot
+  // every player is taught rather than the one a table would pick.
+  if (remaining <= 40) return (1, 1);
+  if (remaining <= 60) {
+    final setup = remaining - 40;
+    if (setup >= 1 && setup <= 20) return (setup, 1);
+    return (20, 1);
+  }
+  for (final field in [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10]) {
+    final left = remaining - field * 3;
+    if (left >= 2 && left <= 40 && left.isEven) return (field, 3);
+  }
+  return (20, 3);
+}
+
+/// Where a dart aimed at [field] with [multiplier] actually lands.
+(int, int) _land(Random rng, _Skill skill, int field, int multiplier) {
+  final roll = rng.nextDouble();
+
+  if (field == 25) {
+    if (roll < skill.doubleOut) return (25, 2);
+    if (roll < skill.doubleOut + 0.30) return (25, 1);
+    return (_beside(rng, 20), 1);
+  }
+
+  switch (multiplier) {
+    case 3:
+      if (roll < skill.treble) return (field, 3);
+      if (roll < skill.treble + skill.single) return (field, 1);
+      if (roll < skill.treble + skill.single + 0.05) return (_beside(rng, field), 3);
+      if (roll < skill.treble + skill.single + 0.09) return (0, 1);
+      return (_beside(rng, field), 1);
+    case 2:
+      if (roll < skill.doubleOut) return (field, 2);
+      // A double missed inwards is the single of the same number, which is
+      // what leaves the odd rest the next visit has to repair.
+      if (roll < skill.doubleOut + 0.30) return (field, 1);
+      if (roll < skill.doubleOut + 0.42) return (_beside(rng, field), 1);
+      // Everything else went over the wire, off the board.
+      return (0, 1);
+    default:
+      if (roll < 0.74) return (field, 1);
+      if (roll < 0.78) return (field, 3);
+      if (roll < 0.94) return (_beside(rng, field), 1);
+      return (0, 1);
+  }
+}
+
+/// One of the two fields sitting next to [field] on the board.
+int _beside(Random rng, int field) {
+  final at = _kBoardRing.indexOf(field);
+  if (at < 0) return field;
+  final step = rng.nextBool() ? 1 : -1;
+  return _kBoardRing[(at + step + _kBoardRing.length) % _kBoardRing.length];
+}
+
+/// Moves the game [gameId] and every throw of it [by] into the past.
+///
+/// A provider stamps what it records with the moment it recorded it, so a
+/// season played in one run would all land on today: no week comparison, and
+/// an activity that is one very busy day. Rewriting the timestamps afterwards
+/// keeps the order inside a game and only moves the whole game.
+///
+/// The raw statement is the one place in the project that writes SQL outside
+/// `db_helper.dart`. It exists for the screenshots only, and the app has no
+/// reason to ever backdate a game.
+Future<void> _backdate(int gameId, Duration by) async {
+  final db = await DbHelper.instance.db;
+  final ms = by.inMilliseconds;
+  await db.rawUpdate(
+      'UPDATE games SET created_at = created_at - ?, '
+      'finished_at = finished_at - ? WHERE id = ?',
+      [ms, ms, gameId]);
+  await db.rawUpdate(
+      'UPDATE dart_throws SET thrown_at = thrown_at - ? WHERE game_id = ?',
+      [ms, gameId]);
 }
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -298,7 +485,7 @@ Future<void> _throwVisit(WidgetTester tester, GameProvider provider,
 ///
 /// The app's own database is left untouched, so a screenshot run cannot
 /// overwrite whatever is on the device, and every run starts from the same
-/// empty state rather than from the match the last one played.
+/// empty state rather than from the season the last one played.
 Future<void> _useCleanDatabase() async {
   final dir = await getApplicationDocumentsDirectory();
   final path = '${dir.path}/store_screenshots.db';
@@ -362,6 +549,12 @@ Future<void> _pushScreen(WidgetTester tester, Widget screen) async {
   await _settle(tester);
 }
 
+/// Pops whatever the last screenshot was taken on, back to the home screen.
+Future<void> _popScreen(WidgetTester tester) async {
+  Navigator.of(_homeContext(tester)).pop();
+  await _settle(tester);
+}
+
 /// Waits for the app to come to rest, giving a database read time to finish.
 Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle(
@@ -370,6 +563,10 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 /// Takes the screenshot [name] of the current screen, once per theme.
+///
+/// The theme and the language go into the file name rather than into folders
+/// above it, so a raw picture says what it is wherever it is looked at, a
+/// review folder and a chat window included.
 ///
 /// It leaves the app in the first theme of [_kThemes], so the screen that
 /// follows starts from the same place this one did.
@@ -381,7 +578,8 @@ Future<void> _shoot(IntegrationTestWidgetsFlutterBinding binding,
     // A screenshot is taken outside the test's own frame scheduling, so the
     // theme crossfade has to have finished first.
     await _settle(tester);
-    await binding.takeScreenshot('$_kDevice/${mode.name}/$_kLanguage/$name');
+    await binding.takeScreenshot(
+        '$_kDevice/${name}_${mode.name}_$_kLanguage');
   }
   await theme.setMode(_kThemes.first);
   await _settle(tester);
