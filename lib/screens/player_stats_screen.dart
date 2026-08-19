@@ -30,6 +30,8 @@ import '../utils/segment_color.dart';
 class PlayerStats {
   final int gamesPlayed;
   final int gamesFinished;
+  /// Games this player, or their team, took: the deciding leg was theirs.
+  final int gamesWon;
   final int totalVisits;
   final int totalDarts;
   final int totalScored;          // excludes busts
@@ -69,6 +71,7 @@ class PlayerStats {
   const PlayerStats({
     required this.gamesPlayed,
     required this.gamesFinished,
+    required this.gamesWon,
     required this.totalVisits,
     required this.totalDarts,
     required this.totalScored,
@@ -123,6 +126,8 @@ class PlayerStatsInput {
   final Map<int, int> startScoreByGame;
   final int gamesPlayed;
   final int gamesFinished;
+  /// How many of them this player won, decided from the throws of each.
+  final int gamesWon;
   /// The snapshot of games that were deleted, still counted in the lifetime
   /// numbers. See the sync notes in CLAUDE.md.
   final String? localStatsJson;
@@ -133,6 +138,7 @@ class PlayerStatsInput {
     required this.startScoreByGame,
     required this.gamesPlayed,
     required this.gamesFinished,
+    required this.gamesWon,
     required this.localStatsJson,
   });
 }
@@ -160,6 +166,9 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
   // One query, then a lookup. Asking the database again for every game the
   // player has ever played reads the whole table once per game.
   final gameIds = (await db.getGameIdsForPlayer(playerId)).toSet();
+  // Read from the throws rather than from a column, because no column holds a
+  // winner. See utils/game_winner.dart.
+  final wonGameIds = await db.getWonGameIds(playerId);
   final games = {
     for (final g in await db.getGames())
       if (gameIds.contains(g.id)) g.id!: g,
@@ -175,6 +184,7 @@ Future<PlayerStats> loadPlayerStats(Player player) async {
       },
       gamesPlayed:      gameIds.length,
       gamesFinished:    games.values.where((g) => g.finishedAt != null).length,
+      gamesWon:         wonGameIds.length,
       // Every snapshot the player carries at once: this device's own cleared
       // games plus one per device that ever synced here. Which is which only
       // matters to the next sync, never to a lifetime number.
@@ -262,6 +272,7 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
   });
 
   int gamesFinished      = input.gamesFinished;
+  int gamesWon           = input.gamesWon;
   final liveTotalDarts    = live.totalDarts;
   final liveTotalVisits   = live.totalVisits;
   final liveNonBustVisits = live.totalVisits - live.busts;
@@ -303,6 +314,10 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
       scoreSumSquares  += pi('score_sum_squares');
       perfectLegs      += pi('perfect_legs');
       gamesFinished    += pi('games_finished');
+      // Snapshots written before games won was counted carry no such key, so
+      // the deleted games behind them stay out of the count rather than being
+      // guessed at.
+      gamesWon         += pi('games_won');
       coAtSub40  += pi('co_at_sub40');  coOkSub40  += pi('co_ok_sub40');
       coAtSub60  += pi('co_at_sub60');  coOkSub60  += pi('co_ok_sub60');
       coAtSub100 += pi('co_at_sub100'); coOkSub100 += pi('co_ok_sub100');
@@ -438,6 +453,7 @@ PlayerStats aggregatePlayerStats(PlayerStatsInput input) {
   return PlayerStats(
     gamesPlayed:    input.gamesPlayed + persistentGamesPlayed,
     gamesFinished:  gamesFinished,
+    gamesWon:       gamesWon,
     totalVisits:    liveTotalVisits + persistentTotalVisits,
     totalDarts:     liveTotalDarts  + persistentTotalDarts,
     totalScored:    totalScored,
@@ -689,7 +705,7 @@ class _StatsBody extends StatelessWidget {
         _StatCard(
           children: [
             StatRow(label: context.l10n.gamesPlayed, value: '${stats.gamesPlayed}', spacious: true),
-            StatRow(label: context.l10n.gamesWon, value: '${stats.gamesFinished}', spacious: true),
+            StatRow(label: context.l10n.gamesWon, value: '${stats.gamesWon}', spacious: true),
             StatRow(label: context.l10n.legsWon, value: '${stats.legsWon}', spacious: true),
             StatRow(label: context.l10n.totalVisits, value: '${stats.totalVisits}', spacious: true),
             StatRow(label: context.l10n.totalDarts, value: '${stats.totalDarts}', spacious: true),
