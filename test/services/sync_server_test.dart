@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dartscore_app/services/sync_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,29 @@ void main() {
   /// Reaches the server on loopback, whatever address it reported.
   SyncConnection loopback(String token) =>
       SyncConnection('127.0.0.1', connection.port, token);
+
+  /// Posts [bytes] zeros to the token path, in slices so the test never holds
+  /// the whole body.
+  ///
+  /// Any failure is swallowed. A server that stops reading mid-body breaks the
+  /// connection under the peer's own writes, so the caller asserts on what the
+  /// server kept rather than on what came back.
+  Future<void> postBytes(String token, int bytes) async {
+    final client = HttpClient();
+    try {
+      final req = await client
+          .postUrl(Uri.parse('http://127.0.0.1:${connection.port}/$token'));
+      const slice = 256 * 1024;
+      for (var written = 0; written < bytes; written += slice) {
+        req.add(Uint8List(min(slice, bytes - written)));
+        await req.flush();
+      }
+      await req.close();
+    } catch (_) {
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   /// One raw request, returning the status and the body.
   Future<(int, String)> get(String path) async {
@@ -208,6 +233,87 @@ void main() {
 
       expect(status, HttpStatus.gone);
       expect(body, isNot(contains(payload)));
+    });
+  });
+
+  group('size limits', () {
+    /// A peer that is not this app: answers 200 on anything, announces
+    /// [announced] as the length and then writes [sends] bytes.
+    ///
+    /// The two are separate on purpose, and that is why the response is
+    /// written onto a raw socket rather than through `HttpServer`: a peer is
+    /// free to name one length and send another, which is exactly what
+    /// `HttpServer` refuses to let a test do.
+    Future<(ServerSocket, SyncConnection)> liar(
+        {required int announced, required int sends}) async {
+      final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      listener.listen((socket) async {
+        socket.listen((_) {}, onError: (_) {}, cancelOnError: false);
+        socket.write('HTTP/1.1 200 OK\r\n');
+        if (announced > 0) socket.write('Content-Length: $announced\r\n');
+        // Without a length the body runs to the close, which is how a peer
+        // asks the receiver to keep reading for as long as it keeps sending.
+        socket.write('Connection: close\r\n\r\n');
+
+        const slice = 64 * 1024;
+        for (var written = 0; written < sends; written += slice) {
+          socket.add(Uint8List(min(slice, sends - written)));
+          await socket.flush();
+        }
+        await socket.close();
+      });
+      return (listener, SyncConnection('127.0.0.1', listener.port, 'TOKEN'));
+    }
+
+    test('an announced length above the ceiling is refused before it arrives',
+        () async {
+      final (peer, conn) = await liar(announced: 4096, sends: 0);
+      addTearDown(peer.close);
+
+      await expectLater(
+        SyncClient().fetchBytes(conn, maxBytes: 1024),
+        throwsA(isA<SyncPayloadTooLargeException>()),
+      );
+    });
+
+    test('a body that grows past the ceiling is refused as it arrives',
+        () async {
+      // No announced length at all, which is what a peer sends when it wants
+      // the receiver to keep reading. Only weighing the chunks catches it.
+      final (peer, conn) = await liar(announced: 0, sends: 512 * 1024);
+      addTearDown(peer.close);
+
+      await expectLater(
+        SyncClient().fetchBytes(conn, maxBytes: 1024),
+        throwsA(isA<SyncPayloadTooLargeException>()),
+      );
+    });
+
+    test('a body inside the ceiling still arrives whole', () async {
+      final (peer, conn) = await liar(announced: 1024, sends: 1024);
+      addTearDown(peer.close);
+
+      expect(await SyncClient().fetchBytes(conn, maxBytes: 1024),
+          hasLength(1024));
+    });
+
+    test('an oversized answer on the return leg is refused', () async {
+      final client = SyncClient();
+      final fetch = client.fetch(loopback(connection.token));
+      await _until(() => server.state.value == SyncServerState.pending);
+      server.approve();
+      await fetch;
+
+      await postBytes(connection.token, kMaxSyncTransferBytes + 1024 * 1024);
+
+      // What the peer sees is deliberately not pinned. The server stops
+      // reading mid-body, so whether the 413 gets back or the socket breaks
+      // under the peer's own writes is up to the timing. What has to hold is
+      // that nothing was kept: this device's own side is already out, and only
+      // the direction back is lost, which is the same outcome as a peer that
+      // never answered and which the return timer already covers.
+      expect(server.state.value, SyncServerState.served);
+      expect(server.returnedPayload, isNull);
     });
   });
 

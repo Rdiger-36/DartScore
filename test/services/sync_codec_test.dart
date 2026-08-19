@@ -671,6 +671,43 @@ void main() {
     });
   });
 
+  group('size limits', () {
+    /// Gzips [bytes] worth of zeros without ever holding them, which is what
+    /// makes a bomb cheap to build and expensive to open.
+    Uint8List bomb(int bytes) {
+      final out  = BytesBuilder(copy: false);
+      final sink = gzip.encoder
+          .startChunkedConversion(ByteConversionSink.withCallback(out.add));
+      final chunk = Uint8List(1024 * 1024);
+      for (var written = 0; written < bytes; written += chunk.length) {
+        sink.add(chunk);
+      }
+      sink.close();
+      return out.takeBytes();
+    }
+
+    test('a packet that expands past the ceiling is refused', () {
+      final packed = bomb(kMaxInflatedSyncBytes + 1024 * 1024);
+
+      // The point of the ceiling: a few dozen kilobytes on the wire asking for
+      // as much memory as the sender cares to name.
+      expect(packed.length, lessThan(1024 * 1024));
+      expect(() => decodeSyncBytes(packed),
+          throwsA(isA<SyncPayloadTooLargeException>()));
+    });
+
+    test('a real packet still decodes', () {
+      // The ceiling has to sit far enough above the honest case that no user
+      // ever meets it, so the round trip is what proves it is not in the way.
+      final packet = packetOf([
+        for (var i = 0; i < 500; i++)
+          t(remainingBefore: 501 - i, thrownAt: 1700000000000 + i),
+      ]);
+
+      expect(decodeSyncBytes(encodeSyncBytes(packet)).throws, hasLength(500));
+    });
+  });
+
   group('older senders', () {
     test('a v1 JSON payload still imports', () {
       final packet = packetOf([
