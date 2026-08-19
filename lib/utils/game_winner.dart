@@ -76,17 +76,6 @@ Set<int> winningPlayerIds(
   return side == null ? const {} : teams[side].playerIds.toSet();
 }
 
-/// Whether [playerId] is on the side that won [game], played by
-/// [participantIds].
-bool playerWonGame(
-  Game game,
-  int playerId,
-  List<DartThrow> throws, {
-  required Iterable<int> participantIds,
-}) =>
-    winningPlayerIds(game, throws, participantIds: participantIds)
-        .contains(playerId);
-
 /// The side that comes first in a placement game, or null when there is
 /// nothing to rank.
 ///
