@@ -381,6 +381,7 @@ lib/
 │   ├── throw_stats.dart                   # ThrowStats: the one aggregation over recorded throws
 │   ├── team_color.dart                    # Shared team accent palette
 │   ├── segment_color.dart                 # Shared tones for multiplied fields: blue triples, green doubles
+│   ├── platform_notices.dart              # Licences of the native Android libraries, registered at startup
 │   └── layout.dart                        # Breakpoint, max widths, split panes, input side, text scale
 ├── l10n/
 │   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
