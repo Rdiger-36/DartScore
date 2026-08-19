@@ -124,6 +124,53 @@ void main() {
     });
   });
 
+  group('the X01 history detail of a team game', () {
+    useInMemoryDatabase();
+
+    late List<Player> players;
+    late Game stored;
+
+    setUp(() async {
+      final provider = GameProvider();
+      players = await insertPlayers(['Ada', 'Zoe', 'Kim', 'Rio']);
+      await provider.startGame(
+        Game(
+          startScore:    101,
+          legs:          1,
+          sets:          1,
+          createdAt:     DateTime(2026, 4, 4, 20, 15),
+          startingOrder: StartingOrder.fixed,
+          teams: [
+            TeamConfig(name: 'Reds',  playerIds: [players[0].id!, players[2].id!]),
+            TeamConfig(name: 'Blues', playerIds: [players[1].id!, players[3].id!]),
+          ],
+        ),
+        players,
+      );
+      // Ada throws for the Reds and takes 101 out in one visit.
+      await provider.tapField(20, 3);
+      await provider.tapField(9, 1);
+      await provider.tapField(16, 2);
+
+      final games = await DbHelper.instance.getGames();
+      stored = games.firstWhere((g) => g.id == provider.game!.id);
+    });
+
+    testWidgets('announces the team, not the member who hit the double',
+        (tester) async {
+      usePhoneSurface(tester, size: const Size(400, 2400));
+      await tester.pumpWidget(testApp(HistoryGameSummaryScreen(
+        game:    stored,
+        players: players,
+      )));
+      await pumpUntilLoaded(tester);
+
+      expect(find.text('🎯 Reds wins!'), findsOneWidget);
+      expect(find.text('🎯 Ada wins!'), findsNothing,
+          reason: 'the side won the game, not one of its members');
+    });
+  });
+
   group('the X01 history detail of a placement game', () {
     useInMemoryDatabase();
 
@@ -165,6 +212,9 @@ void main() {
       )));
       await pumpUntilLoaded(tester);
 
+      // Zoe threw the last checkout of the game, but a placement game is won
+      // on points, and those are Ada's.
+      expect(find.text('🎯 Ada wins!'), findsOneWidget);
       expect(find.text('Kim'), findsWidgets,
           reason: 'a participant without a dart is still one of them');
       // Three participants, so a leg is worth 4 points to the winner, 2 to the
