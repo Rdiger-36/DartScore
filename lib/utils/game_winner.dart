@@ -80,9 +80,9 @@ Set<int> winningPlayerIds(
 /// nothing to rank.
 ///
 /// Placement mode is not decided by who finished last: there every side checks
-/// out every leg, and the game is played for points. The order is the one the
-/// final ranking card shows, most points first, then most legs won, then the
-/// lowest sum of finishing positions.
+/// out every leg, and the game is played for points. The order is
+/// [placementOrder]'s, the same one the live game names its winner by and the
+/// final ranking card lists its rows in.
 int? _bestPlaced(Map<int, List<DartThrow>> throwsById) {
   if (throwsById.isEmpty) return null;
 
@@ -90,21 +90,7 @@ int? _bestPlaced(Map<int, List<DartThrow>> throwsById) {
       .expand((t) => t)
       .map((t) => t.leg)
       .fold(0, (a, b) => b > a ? b : a);
-  final ranking = placementRanking(throwsById, maxLeg, 1);
-  final points  = placementPointsTotal(throwsById, maxLeg, 1);
-
-  final ranked = throwsById.keys.toList()
-    ..sort((a, b) {
-      final pointsA = points[a] ?? 0;
-      final pointsB = points[b] ?? 0;
-      if (pointsA != pointsB) return pointsB.compareTo(pointsA);
-      final legsA = ranking.legsWon[a] ?? 0;
-      final legsB = ranking.legsWon[b] ?? 0;
-      if (legsA != legsB) return legsB.compareTo(legsA);
-      return (ranking.placementSum[a] ?? 0)
-          .compareTo(ranking.placementSum[b] ?? 0);
-    });
-  return ranked.first;
+  return placementOrderFromThrows(throwsById, maxLeg, 1).first;
 }
 
 /// Groups [throws] under the key [keyOf] gives each of them, over the full set
