@@ -1,0 +1,115 @@
+import '../models/dart_throw.dart';
+import '../models/game.dart';
+import 'placement.dart';
+
+/// Who won a finished X01 game, read back off the throws it left behind.
+///
+/// No column records a winner: a game row knows when it was finished, not by
+/// whom. Deciding it therefore means reading the throws, and it is decided in
+/// this one place so the history summary and the lifetime statistics cannot
+/// drift into naming two different winners for the same game.
+
+/// The player who threw the last checkout in [throws], or null when nobody
+/// finished a leg.
+///
+/// In an ordinary game that is the player who won it: the game ends the moment
+/// somebody takes the deciding leg, so the last leg won is the match won.
+int? lastCheckoutPlayerId(List<DartThrow> throws) {
+  DartThrow? last;
+  for (final t in throws) {
+    if (t.bust || t.remainingAfter != 0) continue;
+    if (last == null || _isAfter(t, last)) last = t;
+  }
+  return last?.playerId;
+}
+
+/// The players on the side that won [game], given every throw of it.
+///
+/// A side is a team in a team game and a single player otherwise, so a team
+/// game hands back every member of the winning team rather than only the one
+/// who hit the double.
+///
+/// An unfinished or undecided game hands back an empty set.
+Set<int> winningPlayerIds(Game game, List<DartThrow> throws) {
+  if (throws.isEmpty) return const {};
+
+  final teams = game.teams;
+  if (teams == null || teams.isEmpty) {
+    final winner = game.placementMode
+        ? _bestPlaced(_groupBy(throws, (t) => t.playerId))
+        : lastCheckoutPlayerId(throws);
+    return winner == null ? const {} : {winner};
+  }
+
+  final sideOf = <int, int>{};
+  for (var i = 0; i < teams.length; i++) {
+    for (final id in teams[i].playerIds) {
+      sideOf[id] = i;
+    }
+  }
+
+  int? side;
+  if (game.placementMode) {
+    final bySide = _groupBy(
+        throws.where((t) => sideOf.containsKey(t.playerId)),
+        (t) => sideOf[t.playerId]!);
+    side = _bestPlaced(bySide);
+  } else {
+    final last = lastCheckoutPlayerId(throws);
+    side = last == null ? null : sideOf[last];
+  }
+  return side == null ? const {} : teams[side].playerIds.toSet();
+}
+
+/// Whether [playerId] is on the side that won [game].
+bool playerWonGame(Game game, int playerId, List<DartThrow> throws) =>
+    winningPlayerIds(game, throws).contains(playerId);
+
+/// The side that comes first in a placement game, or null when there is
+/// nothing to rank.
+///
+/// Placement mode is not decided by who finished last: there every side checks
+/// out every leg, and the game is played for points. The order is the one the
+/// final ranking card shows, most points first, then most legs won, then the
+/// lowest sum of finishing positions.
+int? _bestPlaced(Map<int, List<DartThrow>> throwsById) {
+  if (throwsById.isEmpty) return null;
+
+  final maxLeg = throwsById.values
+      .expand((t) => t)
+      .map((t) => t.leg)
+      .fold(0, (a, b) => b > a ? b : a);
+  final ranking = placementRanking(throwsById, maxLeg, 1);
+  final points  = placementPointsTotal(throwsById, maxLeg, 1);
+
+  final ranked = throwsById.keys.toList()
+    ..sort((a, b) {
+      final pointsA = points[a] ?? 0;
+      final pointsB = points[b] ?? 0;
+      if (pointsA != pointsB) return pointsB.compareTo(pointsA);
+      final legsA = ranking.legsWon[a] ?? 0;
+      final legsB = ranking.legsWon[b] ?? 0;
+      if (legsA != legsB) return legsB.compareTo(legsA);
+      return (ranking.placementSum[a] ?? 0)
+          .compareTo(ranking.placementSum[b] ?? 0);
+    });
+  return ranked.first;
+}
+
+/// Groups [throws] under the key [keyOf] gives each of them.
+Map<int, List<DartThrow>> _groupBy(
+    Iterable<DartThrow> throws, int Function(DartThrow) keyOf) {
+  final grouped = <int, List<DartThrow>>{};
+  for (final t in throws) {
+    grouped.putIfAbsent(keyOf(t), () => []).add(t);
+  }
+  return grouped;
+}
+
+/// Whether [a] was thrown after [b], falling back to the insertion order when
+/// two throws carry the same timestamp.
+bool _isAfter(DartThrow a, DartThrow b) {
+  final byTime = a.thrownAt.compareTo(b.thrownAt);
+  if (byTime != 0) return byTime > 0;
+  return (a.id ?? 0) > (b.id ?? 0);
+}
