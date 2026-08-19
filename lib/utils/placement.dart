@@ -90,6 +90,51 @@ Map<int, Map<int, int>> legPlacementsTable(
   };
 }
 
+/// Orders [slots] the way a placement game is won: most points first, then most
+/// legs won, then the lowest sum of finishing positions.
+///
+/// The one implementation of that order. The live game names its winner by it,
+/// the final ranking card lists its rows by it, and the lifetime statistics read
+/// the winner of a stored game off it, so the three cannot come to disagree
+/// about who came first. Slots that tie on all three keep the order [slots]
+/// hands them over in, which is the order they were set up in.
+List<int> placementOrder(
+  Iterable<int> slots, {
+  required Map<int, int> points,
+  required Map<int, int> legsWon,
+  required Map<int, int> placementSum,
+}) {
+  return slots.toList()
+    ..sort((a, b) {
+      final pointsA = points[a] ?? 0;
+      final pointsB = points[b] ?? 0;
+      if (pointsA != pointsB) return pointsB.compareTo(pointsA);
+      final legsA = legsWon[a] ?? 0;
+      final legsB = legsWon[b] ?? 0;
+      if (legsA != legsB) return legsB.compareTo(legsA);
+      return (placementSum[a] ?? 0).compareTo(placementSum[b] ?? 0);
+    });
+}
+
+/// [placementOrder] worked out from the throws alone, for the callers that keep
+/// no tally of their own: a game read back out of the database.
+///
+/// The keys of [throwsById] are the participants, so a side that never threw
+/// belongs in it with an empty list. See [placementPointsTotal].
+List<int> placementOrderFromThrows(
+  Map<int, List<DartThrow>> throwsById,
+  int upToLeg,
+  int set,
+) {
+  final ranking = placementRanking(throwsById, upToLeg, set);
+  return placementOrder(
+    throwsById.keys,
+    points:       placementPointsTotal(throwsById, upToLeg, set),
+    legsWon:      ranking.legsWon,
+    placementSum: ranking.placementSum,
+  );
+}
+
 /// Cumulative [placementPoints] across legs `1..upToLeg`, keyed by id.
 Map<int, int> placementPointsTotal(
   Map<int, List<DartThrow>> throwsById,

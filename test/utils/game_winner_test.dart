@@ -174,6 +174,39 @@ void main() {
           {wonByB});
     });
 
+    test('a placement game the provider called won is won by the same player '
+        'when it is read back', () async {
+      final three = [...players, ...await insertPlayers(['C'])];
+      await provider.startGame(
+        Game(
+          startScore:    101,
+          legs:          1,
+          placementMode: true,
+          createdAt:     DateTime.now(),
+          startingOrder: StartingOrder.fixed,
+        ),
+        three,
+      );
+      final gameId = provider.game!.id!;
+
+      // A takes 101 out, then B does, which ends the leg and with it the game.
+      // C is placed third without throwing.
+      for (var i = 0; i < 2; i++) {
+        await provider.tapField(20, 3);
+        await provider.tapField(9, 1);
+        await provider.tapField(16, 2);
+      }
+
+      expect(provider.gameOver, isTrue);
+      expect(provider.winnerId, three.first.id,
+          reason: 'the live game names the slot the ranking puts first');
+      // The lifetime statistics do not see the provider's tally, they read the
+      // throws back. Both routes go through placementOrder, so they agree.
+      expect(await DbHelper.instance.getWonGameIds(three.first.id!), {gameId});
+      expect(await DbHelper.instance.getWonGameIds(three[1].id!), isEmpty);
+      expect(await DbHelper.instance.getWonGameIds(three[2].id!), isEmpty);
+    });
+
     test('an unfinished game is nobody\'s', () async {
       await provider.startGame(
         Game(startScore: 501, legs: 1, createdAt: DateTime.now()),
