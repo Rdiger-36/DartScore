@@ -1238,6 +1238,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
             // wrong place.
             SyncRejectedException() => l.syncRejected,
             TimeoutException()      => l.syncNotConfirmed,
+            SyncPayloadTooLargeException() => l.syncTooLarge,
             _ => '${overWifi ? l.connectionFailed : l.syncReadFailed}'
                 '\n\n${l.error}: $e',
           };

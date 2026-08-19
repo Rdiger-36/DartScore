@@ -2,9 +2,41 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import '../models/dart_throw.dart';
+
+// ── Size limits ───────────────────────────────────────────────────────────────
+
+/// Largest sync payload this device will take from a peer, in bytes as they
+/// travel.
+///
+/// A sync packet is a compressed binary record turned into base45 text, and a
+/// player with a lifetime of throws behind them stays well under a megabyte.
+/// The ceiling is not there to fit the honest case, it is there so a peer that
+/// keeps sending cannot be answered forever.
+const int kMaxSyncTransferBytes = 16 * 1024 * 1024;
+
+/// Largest database a backup transfer will take, in bytes.
+///
+/// Higher than [kMaxSyncTransferBytes] because a backup is the SQLite file
+/// itself rather than a compressed record of it, and it has to stay above any
+/// database this app can plausibly produce. Still low enough that the file sits
+/// in memory on the way to disk without putting the process at risk.
+const int kMaxBackupTransferBytes = 128 * 1024 * 1024;
+
+/// Raised when a peer sends, or claims to send, more than the transfer allows.
+///
+/// Only reachable after the pairing number has been approved, so it says
+/// nothing about who the peer is; it caps what an approved one can spend of
+/// this device's memory.
+class SyncPayloadTooLargeException implements Exception {
+  const SyncPayloadTooLargeException();
+
+  @override
+  String toString() => 'The other device sent more data than this app accepts';
+}
 
 // ── Sync range ────────────────────────────────────────────────────────────────
 
@@ -604,6 +636,11 @@ class SyncServer {
   /// approved peer, and taking a packet from an unconfirmed one would let
   /// anyone holding the token push data in. An empty body is a valid answer and
   /// means the peer had nothing to send.
+  ///
+  /// The body is weighed as it arrives and refused past
+  /// [kMaxSyncTransferBytes]. The peer is approved by then, but approving a
+  /// pairing is not the same as handing it this device's memory, and the return
+  /// leg is the one direction where the data comes in unasked.
   Future<void> _handleReturn(HttpRequest req, HttpResponse response) async {
     if (!_twoWay || _state.value != SyncServerState.served) {
       response.statusCode = HttpStatus.conflict;
@@ -611,7 +648,25 @@ class SyncServer {
       return;
     }
 
-    final body = await utf8.decoder.bind(req).join();
+    final buffer = BytesBuilder(copy: false);
+    try {
+      await for (final chunk in req) {
+        if (buffer.length + chunk.length > kMaxSyncTransferBytes) {
+          throw const SyncPayloadTooLargeException();
+        }
+        buffer.add(chunk);
+      }
+    } on SyncPayloadTooLargeException {
+      // The state stays at `served`, so the return timer still ends the wait
+      // and the transfer this device already handed over keeps standing. Only
+      // the direction back is lost, which is the same outcome as a peer that
+      // never answered.
+      response.statusCode = HttpStatus.requestEntityTooLarge;
+      await response.close();
+      return;
+    }
+
+    final body = utf8.decode(buffer.takeBytes());
     _returned = body;
 
     response.statusCode = HttpStatus.ok;
@@ -703,10 +758,19 @@ class SyncClient {
   /// How long to wait between asking again.
   static const _kPollInterval = Duration(milliseconds: 600);
 
+  /// Ceiling for an answer that is not the payload. The pairing number and the
+  /// refusals are a line of JSON; nothing that is not the payload is large.
+  static const _kMaxStatusBytes = 64 * 1024;
+
   /// The text payload of a profile sync. See [fetchBytes], which this decodes.
+  ///
+  /// Takes the sync ceiling rather than the backup one: this end of the wire
+  /// only ever carries a packet, and letting it take a database sized body
+  /// would leave the tighter limit unused on the one path that can hold it.
   Future<String> fetch(SyncConnection connection,
           {void Function(String pin)? onPin}) async =>
-      utf8.decode(await fetchBytes(connection, onPin: onPin));
+      utf8.decode(await fetchBytes(connection,
+          onPin: onPin, maxBytes: kMaxSyncTransferBytes));
 
   /// Connects to [connection] and returns the payload once the sending device
   /// has approved the transfer.
@@ -716,9 +780,15 @@ class SyncClient {
   /// reports the bytes arrived and the total expected, which is what a database
   /// transfer needs: it is large enough that a screen without a bar looks
   /// stuck. The total is 0 when the sender announced no length.
+  ///
+  /// [maxBytes] is what the body may weigh before the transfer is abandoned.
+  /// Throws [SyncPayloadTooLargeException] on an announced length above it and
+  /// again on the bytes actually arriving, because a peer is free to announce
+  /// one length and send another.
   Future<List<int>> fetchBytes(SyncConnection connection,
       {void Function(String pin)? onPin,
-      void Function(int received, int total)? onProgress}) async {
+      void Function(int received, int total)? onProgress,
+      int maxBytes = kMaxBackupTransferBytes}) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10)
       ..idleTimeout = const Duration(seconds: 10);
@@ -734,12 +804,26 @@ class SyncClient {
             .close()
             .timeout(const Duration(seconds: 10));
 
+        final total = res.contentLength < 0 ? 0 : res.contentLength;
+
+        // Everything that is not the payload is a short status answer, and
+        // holding those to the payload's ceiling would leave a peer free to
+        // spend it on a reply that should be a few dozen bytes.
+        final limit =
+            res.statusCode == HttpStatus.ok ? maxBytes : _kMaxStatusBytes;
+        if (total > limit) throw const SyncPayloadTooLargeException();
+
         // Collected as bytes, because the payload may be a database rather
         // than text. Only the small status answers below are ever decoded.
-        final total = res.contentLength < 0 ? 0 : res.contentLength;
-        final body = <int>[];
+        // A `BytesBuilder` rather than a plain `List<int>`: a growable int list
+        // holds a machine word per byte, so a database sized body would cost
+        // eight times its own length before the ceiling ever came into it.
+        final body = BytesBuilder(copy: false);
         await for (final chunk in res) {
-          body.addAll(chunk);
+          if (body.length + chunk.length > limit) {
+            throw const SyncPayloadTooLargeException();
+          }
+          body.add(chunk);
           if (res.statusCode == HttpStatus.ok) {
             onProgress?.call(body.length, total);
           }
@@ -747,12 +831,12 @@ class SyncClient {
 
         switch (res.statusCode) {
           case HttpStatus.ok:
-            return body;
+            return body.takeBytes();
           case HttpStatus.forbidden:
             throw const SyncRejectedException();
           case HttpStatus.accepted:
             if (!announced) {
-              final pin = (jsonDecode(utf8.decode(body))
+              final pin = (jsonDecode(utf8.decode(body.takeBytes()))
                   as Map<String, dynamic>)['pin'];
               if (pin is String) {
                 announced = true;

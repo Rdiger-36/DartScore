@@ -570,6 +570,7 @@ class _BackupScreenState extends State<BackupScreen> {
         setState(() => _error = switch (e) {
               SyncRejectedException() => l.syncRejected,
               TimeoutException()      => l.syncNotConfirmed,
+              SyncPayloadTooLargeException() => l.syncTooLarge,
               _ => '${l.connectionFailed}\n\n${l.error}: $e',
             });
       }

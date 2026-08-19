@@ -21,6 +21,14 @@ const String kSyncPrefixV1 = 'QR1:';
 
 // ── Transport sizing ──────────────────────────────────────────────────────────
 
+/// Largest a sync packet may expand to when it is inflated.
+///
+/// gzip has no bound on how far it expands, so a peer can spend a few kilobytes
+/// on the wire and ask this device for gigabytes of memory. The ceiling is far
+/// above any real packet: a player with a lifetime of throws behind them
+/// inflates to single digit megabytes.
+const int kMaxInflatedSyncBytes = 64 * 1024 * 1024;
+
 /// Largest payload still shown as a single QR code.
 ///
 /// Payloads are base45 so that they fit the QR alphanumeric character set,
@@ -269,17 +277,61 @@ SyncPacket decodeSyncPayload(String payload) {
   }
   if (payload.startsWith(kSyncPrefixV1)) {
     final compressed = base64Url.decode(payload.substring(kSyncPrefixV1.length));
-    final json = utf8.decode(gzip.decode(compressed));
+    final json = utf8.decode(_inflateCapped(compressed));
     return SyncPacket.fromJson(jsonDecode(json) as Map<String, dynamic>);
   }
   throw const FormatException('Unknown sync payload format');
+}
+
+/// Inflates [compressed] and gives up once the result passes
+/// [kMaxInflatedSyncBytes].
+///
+/// `gzip.decode` expands the whole thing before it hands anything back, so the
+/// damage is done by the time a length could be checked. Going through the
+/// chunked converter instead means the ceiling is reached while what has been
+/// allocated is still the size of the ceiling.
+Uint8List _inflateCapped(List<int> compressed) {
+  final out  = BytesBuilder(copy: false);
+  final sink = gzip.decoder.startChunkedConversion(_CappedSink(out));
+  try {
+    sink.add(compressed);
+    sink.close();
+  } catch (_) {
+    // The filter holds memory outside the heap until it is closed, and the
+    // sink above abandons the conversion from the middle of it. Closing a
+    // second time throws the same way, which is not news here.
+    try {
+      sink.close();
+    } catch (_) {}
+    rethrow;
+  }
+  return out.takeBytes();
+}
+
+/// Collects what the inflater produces and refuses to grow past
+/// [kMaxInflatedSyncBytes].
+class _CappedSink implements Sink<List<int>> {
+  _CappedSink(this._out);
+
+  final BytesBuilder _out;
+
+  @override
+  void add(List<int> chunk) {
+    if (_out.length + chunk.length > kMaxInflatedSyncBytes) {
+      throw const SyncPayloadTooLargeException();
+    }
+    _out.add(chunk);
+  }
+
+  @override
+  void close() {}
 }
 
 /// Reads the compressed bytes [encodeSyncBytes] produced back into a packet,
 /// restoring the fields the encoder left out because they follow from the
 /// throw before.
 SyncPacket decodeSyncBytes(Uint8List compressed) {
-  final r = _ByteReader(Uint8List.fromList(gzip.decode(compressed)));
+  final r = _ByteReader(_inflateCapped(compressed));
 
   final version = r.u8();
   if (version != _kBinaryFormatVersion) {
