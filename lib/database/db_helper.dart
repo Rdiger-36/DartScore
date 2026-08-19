@@ -12,6 +12,7 @@ import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../services/sync_service.dart' show SyncOrigin, kLegacyOrigin;
 import '../utils/finish_calculator.dart';
+import '../utils/game_winner.dart';
 import '../utils/throw_stats.dart';
 
 /// Singleton SQLite wrapper and the single point of database access for the app.
@@ -653,6 +654,45 @@ class DbHelper {
     return gameId;
   }
 
+  /// The ids of the finished games [playerId] won, their team games included.
+  ///
+  /// No column holds a winner, so each game is decided from its throws by
+  /// [winningPlayerIds]. Only a placement game needs all of them; every other
+  /// game is decided by its last checkout, so those are asked for the checkout
+  /// visits alone.
+  Future<Set<int>> getWonGameIds(int playerId) async {
+    final d = await db;
+    final rows = await d.rawQuery(
+      'SELECT g.* FROM games g '
+      'JOIN game_players gp ON gp.game_id = g.id '
+      'WHERE gp.player_id = ? AND g.finished_at IS NOT NULL',
+      [playerId],
+    );
+
+    final won = <int>{};
+    for (final row in rows) {
+      final game = Game.fromMap(row);
+      final throws = game.placementMode
+          ? await getThrowsForGame(game.id!)
+          : await _checkoutThrowsOfGame(game.id!);
+      if (winningPlayerIds(game, throws).contains(playerId)) won.add(game.id!);
+    }
+    return won;
+  }
+
+  /// The visits of [gameId] that took a player to zero, in the order they were
+  /// thrown.
+  Future<List<DartThrow>> _checkoutThrowsOfGame(int gameId) async {
+    final d = await db;
+    final rows = await d.query(
+      'dart_throws',
+      where: 'game_id = ? AND bust = 0 AND remaining_before = score',
+      whereArgs: [gameId],
+      orderBy: 'thrown_at ASC, id ASC',
+    );
+    return rows.map(_throwFromMap).toList();
+  }
+
   /// Permanently deletes an X01 game and its throws and player links.
   Future<void> deleteGame(int gameId) async {
     final d = await db;
@@ -679,10 +719,11 @@ class DbHelper {
     final throws = await getThrowsForGame(gameId);
     if (throws.isEmpty) return;
 
-    // Fetch startScore to compute perfect legs
+    // Fetch the game to compute perfect legs and to name its winner.
     final gameRows  = await d.query('games', where: 'id = ?', whereArgs: [gameId]);
-    final startScore = gameRows.isEmpty ? null : gameRows.first['start_score'] as int?;
-    final minDarts   = startScore != null ? _kMinDarts[startScore] : null;
+    final game       = gameRows.isEmpty ? null : Game.fromMap(gameRows.first);
+    final minDarts   = game != null ? _kMinDarts[game.startScore] : null;
+    final winners    = game == null ? const <int>{} : winningPlayerIds(game, throws);
 
     final byPlayer = <int, List<DartThrow>>{};
     for (final t in throws) {
@@ -699,6 +740,7 @@ class DbHelper {
         ..._computeStatsFromThrows(playerThrows),
         'perfect_legs':    _perfectLegsFor(playerThrows, minDarts),
         'games_finished':  isFinished,
+        'games_won':       isFinished == 1 && winners.contains(playerId) ? 1 : 0,
       };
 
       final rows = await d.query('players', where: 'id = ?', whereArgs: [playerId]);
@@ -766,26 +808,35 @@ class DbHelper {
     'perfect_legs',
     'games_played',
     'games_finished',
+    'games_won',
     'highest_game_avg',
   ];
 
   /// What game [gameId] contributes about itself, given the [throws] of it that
   /// are being accounted for.
+  ///
+  /// Those throws are one player's, which is the player the win is counted
+  /// for: a snapshot is folded per player.
   Future<Map<String, dynamic>> _gameFactsOf(
       int gameId, List<DartThrow> throws) async {
     final d = await db;
-    final rows = await d.query('games',
-        columns: ['start_score', 'finished_at'],
-        where: 'id = ?',
-        whereArgs: [gameId]);
+    final rows = await d.query('games', where: 'id = ?', whereArgs: [gameId]);
 
-    final startScore = rows.isEmpty ? null : rows.first['start_score'] as int?;
-    final minDarts = startScore != null ? _kMinDarts[startScore] : null;
+    final game     = rows.isEmpty ? null : Game.fromMap(rows.first);
+    final minDarts = game != null ? _kMinDarts[game.startScore] : null;
+    final finished = game?.finishedAt != null;
+    // Who won needs every throw of the game, not only the ones being accounted
+    // for here: the deciding checkout may well be the opponent's.
+    final won = finished &&
+        throws.isNotEmpty &&
+        winningPlayerIds(game!, await getThrowsForGame(gameId))
+            .contains(throws.first.playerId);
 
     return {
       'perfect_legs':     _perfectLegsFor(throws, minDarts),
       'games_played':     1,
-      'games_finished':   rows.isNotEmpty && rows.first['finished_at'] != null ? 1 : 0,
+      'games_finished':   finished ? 1 : 0,
+      'games_won':        won ? 1 : 0,
       'highest_game_avg': bestGameAverage(throws),
     };
   }
@@ -998,6 +1049,7 @@ class DbHelper {
       'checkout_successes': add('checkout_successes'),
       'games_played':       add('games_played'),
       'games_finished':     add('games_finished'),
+      'games_won':          add('games_won'),
       'score_sum_squares':  add('score_sum_squares'),
       'perfect_legs':       add('perfect_legs'),
       'co_at_sub40':  add('co_at_sub40'),  'co_ok_sub40':  add('co_ok_sub40'),

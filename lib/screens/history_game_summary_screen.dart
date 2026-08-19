@@ -7,6 +7,7 @@ import '../models/game.dart';
 import '../models/player.dart';
 import '../models/dart_throw.dart';
 import '../providers/game_provider.dart';
+import '../utils/game_winner.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/throw_stats.dart';
@@ -129,15 +130,14 @@ class _SummaryBody extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // Find winner: player who reached 0 last (highest leg win)
-    Player? winner;
-    for (final t in data.allThrows.reversed) {
-      if (!t.bust && t.remainingBefore - t.score == 0) {
-        winner = players.firstWhere((p) => p.id == t.playerId,
+    // The player who reached zero last took the deciding leg, and with it the
+    // game. Read through the shared rule, so this screen and the lifetime
+    // games won on the statistics screen cannot name two different winners.
+    final winnerId = lastCheckoutPlayerId(data.allThrows);
+    final Player? winner = winnerId == null
+        ? null
+        : players.firstWhere((p) => p.id == winnerId,
             orElse: () => players.first);
-        break;
-      }
-    }
 
     // Team configs only store player ids, so the rematch dialog needs a name
     // lookup to list a team's members.
