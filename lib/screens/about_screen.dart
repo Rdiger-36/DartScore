@@ -10,6 +10,10 @@ const _projectUrl = 'https://rdiger-36.github.io/Rdiger-36/';
 
 const _licenseUrl = 'https://www.gnu.org/licenses/gpl-3.0.html';
 
+/// The repository the binary is built from. A GPL binary has to say where its
+/// source is, and the store build is the only copy most readers ever see.
+const _sourceUrl = 'https://github.com/Rdiger-36/DartScore';
+
 const _gplNoticeText = '''
 DartScore
 Copyright (C) 2026 Niklas Ratka
@@ -27,6 +31,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. The full license text is included in the
 repository (LICENSE) and available at gnu.org/licenses.
+
+The source code of this app is at
+https://github.com/Rdiger-36/DartScore
 ''';
 
 /// Full-screen view of the app's GPL-3.0 license notice with a link to the
@@ -34,10 +41,10 @@ repository (LICENSE) and available at gnu.org/licenses.
 class _LicenseTextScreen extends StatelessWidget {
   const _LicenseTextScreen();
 
-  /// Opens the full GPL-3.0 license in the browser, showing an error snackbar
-  /// if no handler is available.
-  Future<void> _openFullLicense(BuildContext context) async {
-    final ok = await launchUrl(Uri.parse(_licenseUrl), mode: LaunchMode.externalApplication);
+  /// Opens [url] in the browser, showing an error snackbar if no handler is
+  /// available.
+  Future<void> _open(BuildContext context, String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.l10n.linkOpenError)),
@@ -63,9 +70,15 @@ class _LicenseTextScreen extends StatelessWidget {
           Text(_gplNoticeText, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: () => _openFullLicense(context),
+            onPressed: () => _open(context, _licenseUrl),
             icon: const Icon(Icons.open_in_new_rounded),
             label: Text(l.licenseFullText),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _open(context, _sourceUrl),
+            icon: const Icon(Icons.code_rounded),
+            label: Text(l.sourceCode),
           ),
         ],
       ),
@@ -155,14 +168,26 @@ class _AboutScreenState extends State<AboutScreen> {
           _Card(
             title: l.license,
             icon: Icons.gavel_rounded,
-            child: ListTile(
-              leading: const Icon(Icons.balance_outlined),
-              title: Text(l.license),
-              subtitle: Text(l.licenseDesc),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const _LicenseTextScreen()),
-              ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.balance_outlined),
+                  title: Text(l.license),
+                  subtitle: Text(l.licenseDesc),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const _LicenseTextScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.code_rounded),
+                  title: Text(l.sourceCode),
+                  subtitle: Text(l.sourceCodeDesc),
+                  trailing: const Icon(Icons.open_in_new_rounded),
+                  onTap: () => _openLink(Uri.parse(_sourceUrl)),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),

@@ -32,11 +32,14 @@ class _LicensesScreenState extends State<LicensesScreen> {
   /// Reads the whole registry and groups it by package, sorted by name.
   ///
   /// An entry may belong to several packages and is then listed under each of
-  /// them, the way the registry means it.
+  /// them, the way the registry means it. Only the packages of
+  /// [kDevelopmentOnlyPackages] are left out, and only as a name: an entry they
+  /// share with a shipped package is still shown under that one.
   Future<List<_PackageLicenses>> _load() async {
     final byPackage = <String, List<LicenseEntry>>{};
     await for (final entry in LicenseRegistry.licenses) {
       for (final package in entry.packages) {
+        if (kDevelopmentOnlyPackages.contains(package)) continue;
         byPackage.putIfAbsent(package, () => []).add(entry);
       }
     }
@@ -83,7 +86,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
             itemBuilder: (context, i) {
               final package = packages[i];
               return ListTile(
-                title: Text(package.name),
+                title: Text(package.label(l)),
                 subtitle: Text(l.licenseCount(package.entries.length)),
                 selected: package == _selected,
                 trailing: const Icon(Icons.chevron_right_rounded),
@@ -119,7 +122,50 @@ class _PackageLicenses {
   final List<LicenseEntry> entries;
 
   const _PackageLicenses({required this.name, required this.entries});
+
+  /// What the list writes on the tile.
+  ///
+  /// The engine registers one notice whose package name is a bare dash, which
+  /// reads as an empty row rather than as a name. Such an entry keeps its
+  /// license and gets a word instead of the punctuation.
+  String label(AppLocalizations l) =>
+      _named.hasMatch(name) ? name : l.licenseUnnamedComponent;
+
+  static final _named = RegExp(r'[A-Za-z0-9]');
 }
+
+/// Packages that only ever run on a development machine: the linter, the icon
+/// generator, the test and benchmark tooling of Flutter and of its engine.
+///
+/// They reach the registry because Flutter writes its `NOTICES` from the whole
+/// dependency graph, not from what a build ships. Listing a package the app
+/// does not carry is only noise, while dropping one it does carry would leave
+/// an attribution out, so this set stays small: a name belongs here once
+/// `flutter pub deps --no-dev` proves it absent from the shipped graph.
+const kDevelopmentOnlyPackages = <String>{
+  'benchmark',
+  'checked_yaml',
+  'cli_util',
+  'devtools',
+  'fake_async',
+  'ffi_leak_tracker',
+  'flutter_launcher_icons',
+  'flutter_lints',
+  'gtest-parallel',
+  'image',
+  'leak_tracker',
+  'leak_tracker_flutter_testing',
+  'leak_tracker_testing',
+  'lints',
+  'node_preamble',
+  'sqflite_common_ffi',
+  'test_api',
+  'test_shaders',
+  'web_test_fonts',
+  'wycheproof_testvectors',
+  'yapf',
+  'yapf_diff',
+};
 
 // ── Detail ────────────────────────────────────────────────────────────────────
 
@@ -131,7 +177,7 @@ class _PackageLicenseScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(package.name)),
+        appBar: AppBar(title: Text(package.label(context.l10n))),
         body: _LicenseText(package: package),
       );
 }
@@ -153,7 +199,7 @@ class _LicensePane extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Text(
-            package.name,
+            package.label(context.l10n),
             textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.bold),

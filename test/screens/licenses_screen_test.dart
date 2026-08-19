@@ -20,6 +20,15 @@ void main() {
       // registry means it.
       yield const LicenseEntryWithLineBreaks(
           ['alpha', 'gamma'], 'Shared license text.');
+      // The linter ships with no build, and the engine registers one notice
+      // whose package name is a bare dash.
+      yield const LicenseEntryWithLineBreaks(
+          ['flutter_lints'], 'Lint license text.');
+      yield const LicenseEntryWithLineBreaks(['-'], 'Nameless license text.');
+      // A development package sharing an entry with a shipped one: the entry
+      // has to survive under the shipped name.
+      yield const LicenseEntryWithLineBreaks(
+          ['test_api', 'beta'], 'Shared with a dev package.');
     });
   });
 
@@ -39,9 +48,36 @@ void main() {
     expect(find.text('alpha'), findsOneWidget);
     expect(find.text('beta'), findsOneWidget);
     expect(find.text('gamma'), findsOneWidget);
-    // Alpha carries its own license and the shared one.
-    expect(find.text('2 licenses'), findsOneWidget);
+    // Alpha carries its own license and the shared one, beta its own and the
+    // one it shares with a package that never ships.
+    expect(find.text('2 licenses'), findsNWidgets(2));
     expect(find.text('1 license'), findsNWidgets(2));
+  });
+
+  testWidgets('leaves out what only a development machine runs',
+      (tester) async {
+    await pumpLicenses(tester, const Size(400, 900));
+
+    expect(find.text('flutter_lints'), findsNothing);
+    expect(find.text('test_api'), findsNothing);
+
+    // Dropping the name must not drop the license: the entry test_api shares
+    // with beta is still there, under beta.
+    await tester.tap(find.text('beta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Shared with a dev package.'), findsOneWidget);
+  });
+
+  testWidgets('writes a word where the registry names a package with a dash',
+      (tester) async {
+    await pumpLicenses(tester, const Size(400, 900));
+
+    expect(find.text('-'), findsNothing);
+    expect(find.text('Unnamed component'), findsOneWidget);
+
+    await tester.tap(find.text('Unnamed component'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nameless license text.'), findsOneWidget);
   });
 
   testWidgets('opens a license beside the list on a tablet', (tester) async {
