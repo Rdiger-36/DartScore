@@ -52,7 +52,7 @@ void main() {
         _visit(playerId: 1, score:  60, remainingBefore:  60, leg: 2, minute: 3),
       ];
 
-      expect(winningPlayerIds(_game(), throws), {1});
+      expect(winningPlayerIds(_game(), throws, participantIds: const [1, 2]), {1});
     });
 
     test('a bust that reaches zero wins nothing', () {
@@ -61,7 +61,7 @@ void main() {
         _visit(playerId: 2, score: 40, remainingBefore: 40, minute: 2),
       ];
 
-      expect(winningPlayerIds(_game(), throws), {2});
+      expect(winningPlayerIds(_game(), throws, participantIds: const [1, 2]), {2});
     });
 
     test('a team game is won by everybody on the winning team', () {
@@ -74,7 +74,8 @@ void main() {
         _visit(playerId: 3, score:  40, remainingBefore:  40, minute: 2),
       ];
 
-      expect(winningPlayerIds(_game(teams: teams), throws), {1, 3});
+      expect(winningPlayerIds(_game(teams: teams), throws,
+          participantIds: const [1, 2, 3, 4]), {1, 3});
     });
 
     test('a placement game goes to the best ranked, not to the last checkout',
@@ -88,7 +89,31 @@ void main() {
         _visit(playerId: 2, score: 40, remainingBefore: 40, leg: 2, minute: 4),
       ];
 
-      expect(winningPlayerIds(_game(placementMode: true), throws), {1});
+      expect(winningPlayerIds(_game(placementMode: true), throws,
+          participantIds: const [1, 2]), {1});
+    });
+
+    test('a placement game counts the players who never threw as participants',
+        () {
+      // Three played, the third never got a dart away. Leg 1 goes to player 1
+      // ahead of player 2, leg 2 goes to player 2 alone, and player 2 is ahead
+      // on points at the end of it.
+      //
+      // Counting the participants off the throws makes it two, which both
+      // scores every placement one point too low and hands player 1 a second
+      // place in leg 2 that was never thrown, because the leg then looks like
+      // one where everybody but the last has checked out. That is enough to
+      // level the points and hand the game to player 1 instead.
+      final throws = [
+        _visit(playerId: 1, score: 40, remainingBefore: 40, minute: 1),
+        _visit(playerId: 2, score: 40, remainingBefore: 40, minute: 2),
+        _visit(playerId: 2, score: 40, remainingBefore: 40, leg: 2, minute: 3),
+      ];
+
+      expect(
+          winningPlayerIds(_game(placementMode: true), throws,
+              participantIds: const [1, 2, 3]),
+          {2});
     });
 
     test('a game nobody finished has no winner', () {
@@ -97,7 +122,8 @@ void main() {
         _visit(playerId: 2, score: 60, remainingBefore: 501, minute: 2),
       ];
 
-      expect(winningPlayerIds(_game(), throws), isEmpty);
+      expect(winningPlayerIds(_game(), throws, participantIds: const [1, 2]),
+          isEmpty);
     });
   });
 

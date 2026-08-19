@@ -124,6 +124,58 @@ void main() {
     });
   });
 
+  group('the X01 history detail of a placement game', () {
+    useInMemoryDatabase();
+
+    late List<Player> players;
+    late Game stored;
+
+    setUp(() async {
+      final provider = GameProvider();
+      players = await insertPlayers(['Ada', 'Zoe', 'Kim']);
+      await provider.startGame(
+        Game(
+          startScore:    101,
+          legs:          1,
+          sets:          1,
+          placementMode: true,
+          createdAt:     DateTime(2026, 4, 3, 20, 15),
+          startingOrder: StartingOrder.fixed,
+        ),
+        players,
+      );
+      // Ada and Zoe each take 101 out in one visit. The leg ends the moment the
+      // second-to-last checks out, so Kim is third without throwing a dart.
+      for (var i = 0; i < 2; i++) {
+        await provider.tapField(20, 3);
+        await provider.tapField(9, 1);
+        await provider.tapField(16, 2);
+      }
+
+      final games = await DbHelper.instance.getGames();
+      stored = games.firstWhere((g) => g.id == provider.game!.id);
+    });
+
+    testWidgets('ranks the player who never threw and scores all three '
+        'against the full line-up', (tester) async {
+      usePhoneSurface(tester, size: const Size(400, 2400));
+      await tester.pumpWidget(testApp(HistoryGameSummaryScreen(
+        game:    stored,
+        players: players,
+      )));
+      await pumpUntilLoaded(tester);
+
+      expect(find.text('Kim'), findsWidgets,
+          reason: 'a participant without a dart is still one of them');
+      // Three participants, so a leg is worth 4 points to the winner, 2 to the
+      // second and 1 to the third. Counting the participants off the throws
+      // would take one point off each of them.
+      expect(find.text('Points: 4'), findsOneWidget, reason: 'Ada');
+      expect(find.text('Points: 2'), findsOneWidget, reason: 'Zoe');
+      expect(find.text('Points: 1'), findsOneWidget, reason: 'Kim');
+    });
+  });
+
   // ── Cricket ─────────────────────────────────────────────────────────────────
 
   group('the Cricket history detail', () {
