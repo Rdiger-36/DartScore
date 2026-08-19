@@ -221,6 +221,9 @@ class PlayerState {
   /// In placement-mode games: cumulative sum of [legPlacement] across all
   /// completed legs, used as a tie-breaker for the final ranking.
   final int placementSum;
+  /// In placement-mode games: cumulative [placementPoints] across all completed
+  /// legs, which is what the final ranking is decided on.
+  final int placementPoints;
 
   const PlayerState({
     required this.displayName,
@@ -234,6 +237,7 @@ class PlayerState {
     this.isTeamSlot = false,
     this.legPlacement,
     this.placementSum = 0,
+    this.placementPoints = 0,
   });
 
   /// The player who throws next (backward-compatible accessor).
@@ -283,6 +287,7 @@ class PlayerState {
     int?              legPlacement,
     bool              resetLegPlacement = false,
     int?              placementSum,
+    int?              placementPoints,
   }) =>
       PlayerState(
         displayName:      displayName,
@@ -296,6 +301,7 @@ class PlayerState {
         isTeamSlot:       isTeamSlot,
         legPlacement:     resetLegPlacement ? legPlacement : (legPlacement ?? this.legPlacement),
         placementSum:     placementSum     ?? this.placementSum,
+        placementPoints:  placementPoints  ?? this.placementPoints,
       );
 }
 
@@ -561,8 +567,9 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Rebuilds team placement-mode state: every leg is played to the end by all
-  /// teams, so [legsWon]/[PlayerState.placementSum] and [PlayerState.legPlacement]
-  /// for the current leg come from [_placementResumeState] (keyed by team index).
+  /// teams, so [legsWon]/[PlayerState.placementSum]/
+  /// [PlayerState.placementPoints] and [PlayerState.legPlacement] for the
+  /// current leg come from [_placementResumeState] (keyed by team index).
   void _resumeTeamPlacementGame(
     Game game,
     List<Player> players,
@@ -618,6 +625,7 @@ class GameProvider extends ChangeNotifier {
         isTeamSlot:       true,
         legPlacement:     placement,
         placementSum:     r.placementSum[ti] ?? 0,
+        placementPoints:  r.placementPoints[ti] ?? 0,
       );
     }).toList();
 
@@ -717,8 +725,28 @@ class GameProvider extends ChangeNotifier {
     _currentSet = maxSet;
   }
 
+  /// The index of the slot the final ranking puts first, through the one order
+  /// [placementOrder] defines, so the winner this provider names and the winner
+  /// the ranking card lists first are the same slot.
+  int _placementLeader() => placementOrder(
+        [for (var i = 0; i < _playerStates.length; i++) i],
+        points:       {
+          for (var i = 0; i < _playerStates.length; i++)
+            i: _playerStates[i].placementPoints,
+        },
+        legsWon:      {
+          for (var i = 0; i < _playerStates.length; i++)
+            i: _playerStates[i].legsWon,
+        },
+        placementSum: {
+          for (var i = 0; i < _playerStates.length; i++)
+            i: _playerStates[i].placementSum,
+        },
+      ).first;
+
   /// Computes the placement-mode ranking for a resume. [maxLeg] is treated as
-  /// fully complete (and its results folded into [legsWon]/[placementSum])
+  /// fully complete (and its results folded into
+  /// [legsWon]/[placementSum]/[placementPoints])
   /// either when every id already has a checkout in [maxLeg], or when all but
   /// one do -- the last remaining id then automatically takes last place, per
   /// [_handlePlacementCheckout]'s "second-to-last checkout ends the leg" rule.
@@ -727,6 +755,7 @@ class GameProvider extends ChangeNotifier {
   ({
     Map<int, int> legsWon,
     Map<int, int> placementSum,
+    Map<int, int> placementPoints,
     Map<int, int?> legPlacement,
     bool legComplete,
   }) _placementResumeState(
@@ -741,17 +770,22 @@ class GameProvider extends ChangeNotifier {
     final ranking = placementRanking(throwsById, maxLeg - 1, 1);
     final legsWon = Map<int, int>.of(ranking.legsWon);
     final placementSum = Map<int, int>.of(ranking.placementSum);
+    final points =
+        Map<int, int>.of(placementPointsTotal(throwsById, maxLeg - 1, 1));
 
     final placementsForMaxLeg =
         legComplete ? completePlacements : currentPlacements;
     for (final entry in placementsForMaxLeg.entries) {
       placementSum[entry.key] = (placementSum[entry.key] ?? 0) + entry.value;
+      points[entry.key] =
+          (points[entry.key] ?? 0) + placementPoints(entry.value, ids.length);
       if (entry.value == 1) legsWon[entry.key] = (legsWon[entry.key] ?? 0) + 1;
     }
 
     return (
       legsWon: legsWon,
       placementSum: placementSum,
+      placementPoints: points,
       legPlacement: {
         for (final id in ids) id: legComplete ? null : currentPlacements[id],
       },
@@ -760,9 +794,9 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Rebuilds individual placement-mode state: every leg is played to the end
-  /// by all players, so [legsWon]/[PlayerState.placementSum] come from
-  /// [_placementResumeState], and [PlayerState.legPlacement] for the current
-  /// leg comes from the same.
+  /// by all players, so [legsWon]/[PlayerState.placementSum]/
+  /// [PlayerState.placementPoints] come from [_placementResumeState], and
+  /// [PlayerState.legPlacement] for the current leg comes from the same.
   void _resumeIndividualPlacementGame(
     Game game,
     List<Player> players,
@@ -800,8 +834,9 @@ class GameProvider extends ChangeNotifier {
         throws:       throwsByPlayer[p.id!] ?? [],
         perfectLegs:  _perfectLegsOf(
             game.startScore, throwsByPlayer[p.id!] ?? const []),
-        legPlacement: placement,
-        placementSum: r.placementSum[p.id!] ?? 0,
+        legPlacement:    placement,
+        placementSum:    r.placementSum[p.id!] ?? 0,
+        placementPoints: r.placementPoints[p.id!] ?? 0,
       );
     }).toList();
 
@@ -1081,12 +1116,16 @@ class GameProvider extends ChangeNotifier {
   /// finishing position for the current leg, and awards a leg win
   /// ([PlayerState.legsWon]) only to whoever finishes 1st. If this was the
   /// second-to-last slot to check out, the one remaining slot automatically
-  /// takes last place without having to finish its visit. Once every slot
-  /// has a placement, either ends the game (if the 1st-place slot's
-  /// [PlayerState.legsWon] reached [Game.legs]) or starts the next leg with
-  /// everyone active again.
+  /// takes last place without having to finish its visit. Both get the points
+  /// their placement is worth. Once every slot has a placement, either ends the
+  /// game (if the 1st-place slot's [PlayerState.legsWon] reached [Game.legs]) or
+  /// starts the next leg with everyone active again.
+  ///
+  /// Reaching [Game.legs] ends the game; it does not win it. The winner is the
+  /// slot [_placementLeader] names, because the format is played for points.
   Future<void> _handlePlacementCheckout(int perfectLegs) async {
     final state = _playerStates[_currentPlayerIndex];
+    final slots = _playerStates.length;
     final placement =
         _playerStates.where((s) => s.legPlacement != null).length + 1;
     final legsWon = placement == 1 ? state.legsWon + 1 : state.legsWon;
@@ -1097,6 +1136,7 @@ class GameProvider extends ChangeNotifier {
       legPlacement:     placement,
       resetLegPlacement: true,
       placementSum:     state.placementSum + placement,
+      placementPoints:  state.placementPoints + placementPoints(placement, slots),
     );
 
     // If only one slot is left without a placement, it automatically takes
@@ -1111,6 +1151,8 @@ class GameProvider extends ChangeNotifier {
         legPlacement:      lastPlacement,
         resetLegPlacement: true,
         placementSum:      lastState.placementSum + lastPlacement,
+        placementPoints:
+            lastState.placementPoints + placementPoints(lastPlacement, slots),
       );
     }
 
@@ -1121,9 +1163,14 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    final winner = _playerStates.firstWhere((s) => s.legPlacement == 1);
-    if (winner.legsWon >= _game!.legs) {
+    // The game is over once the leg winner has taken as many legs as the format
+    // asks for. Who won it is a separate question, and not this method's to
+    // answer: the game is played for points, so the winner is the one the final
+    // ranking puts first.
+    final legWinner = _playerStates.firstWhere((s) => s.legPlacement == 1);
+    if (legWinner.legsWon >= _game!.legs) {
       _gameOver = true;
+      final winner = _playerStates[_placementLeader()];
       _winnerId = winner.isTeam ? winner.players.first.id : winner.player.id;
       await _db.updateGame(_game!.copyWith(finishedAt: DateTime.now()));
       return;
@@ -1152,6 +1199,7 @@ class GameProvider extends ChangeNotifier {
               isTeamSlot:       s.isTeamSlot,
               legPlacement:     null,
               placementSum:     s.placementSum,
+              placementPoints:  s.placementPoints,
             ))
         .toList();
   }

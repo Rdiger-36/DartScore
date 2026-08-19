@@ -207,6 +207,10 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
             placementSum: {
               for (var i = 0; i < states.length; i++) i: states[i].placementSum,
             },
+            points:       {
+              for (var i = 0; i < states.length; i++)
+                i: states[i].placementPoints,
+            },
           )
         : null;
 

@@ -10,8 +10,11 @@ import '../utils/placement.dart';
 /// Slots are keyed by an id the caller chooses: a player id for individual
 /// games, a team index for team games. Everything is derived from [throwsById],
 /// except that a caller who already keeps an authoritative tally can hand it in
-/// through [legsWon] and [placementSum] so the card never contradicts the rest
-/// of its screen.
+/// through [points], [legsWon] and [placementSum] so the card never contradicts
+/// the rest of its screen.
+///
+/// The order of the rows is [placementOrder]'s, the same one the live game names
+/// its winner by.
 class FinalRankingCard extends StatelessWidget {
   /// Every slot's visits, keyed by slot id and in throwing order.
   final Map<int, List<DartThrow>> throwsById;
@@ -22,6 +25,9 @@ class FinalRankingCard extends StatelessWidget {
   /// Cumulative per-leg finishing positions per slot id, the tie-breaker;
   /// derived from the throws when null.
   final Map<int, int>? placementSum;
+  /// Points per slot id, what the ranking is decided on; derived from the
+  /// throws when null.
+  final Map<int, int>? points;
 
   const FinalRankingCard({
     super.key,
@@ -29,6 +35,7 @@ class FinalRankingCard extends StatelessWidget {
     required this.namesById,
     this.legsWon,
     this.placementSum,
+    this.points,
   });
 
   @override
@@ -44,22 +51,16 @@ class FinalRankingCard extends StatelessWidget {
 
     final ranking     = placementRanking(throwsById, maxLeg, 1);
     final legTable    = legPlacementsTable(throwsById, maxLeg, 1);
-    final points      = placementPointsTotal(throwsById, maxLeg, 1);
+    final pointsOf    = points ?? placementPointsTotal(throwsById, maxLeg, 1);
     final legsWonOf   = legsWon ?? ranking.legsWon;
     final placementOf = placementSum ?? ranking.placementSum;
 
-    // Most points first, then most legs, then the lowest sum of finishing
-    // positions.
-    final ranked = throwsById.keys.toList()
-      ..sort((a, b) {
-        final pointsA = points[a] ?? 0;
-        final pointsB = points[b] ?? 0;
-        if (pointsA != pointsB) return pointsB.compareTo(pointsA);
-        final legsA = legsWonOf[a] ?? 0;
-        final legsB = legsWonOf[b] ?? 0;
-        if (legsA != legsB) return legsB.compareTo(legsA);
-        return (placementOf[a] ?? 0).compareTo(placementOf[b] ?? 0);
-      });
+    final ranked = placementOrder(
+      throwsById.keys,
+      points:       pointsOf,
+      legsWon:      legsWonOf,
+      placementSum: placementOf,
+    );
 
     // The margin the stat cards around it carry, so a column
     // of cards comes out one width.
@@ -102,7 +103,7 @@ class FinalRankingCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      '${l.points}: ${points[id] ?? 0}',
+                      '${l.points}: ${pointsOf[id] ?? 0}',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
@@ -157,7 +158,7 @@ class FinalRankingCard extends StatelessWidget {
                                   : '-',
                               alignment: Alignment.center,
                             ),
-                          _RankCell('${points[id] ?? 0}',
+                          _RankCell('${pointsOf[id] ?? 0}',
                               bold: true, alignment: Alignment.center),
                         ])),
                   ],
