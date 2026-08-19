@@ -506,6 +506,9 @@ class AppLocalizations {
   String get syncRejected      =>
       _t('The other device declined the transfer.',
          'Das andere Gerät hat die Übertragung abgelehnt.');
+  String get syncTooLarge      =>
+      _t('The other device sent more data than this app accepts.',
+         'Das andere Gerät hat mehr Daten gesendet, als diese App annimmt.');
   String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
   String get syncServerSentHint =>
       _t('The server has stopped. Start it again for another transfer.',
