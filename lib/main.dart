@@ -51,6 +51,7 @@ class _AppGate extends StatefulWidget {
 
 class _AppGateState extends State<_AppGate> {
   StreamSubscription<IncomingFile>? _incoming;
+  StreamSubscription<String>? _incomingFailed;
 
   /// Set while an arrival is being dealt with, so a second file, or the same
   /// one announced twice, does not open a second screen over the first.
@@ -60,6 +61,7 @@ class _AppGateState extends State<_AppGate> {
   void initState() {
     super.initState();
     _incoming = IncomingFiles.stream.listen(_open);
+    _incomingFailed = IncomingFiles.failures.listen(_reportFailure);
     // A file the app was launched with is waiting rather than announced, since
     // there was no Dart to announce it to when it arrived.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -71,7 +73,21 @@ class _AppGateState extends State<_AppGate> {
   @override
   void dispose() {
     _incoming?.cancel();
+    _incomingFailed?.cancel();
     super.dispose();
+  }
+
+  /// Says that a file arrived and came to nothing.
+  ///
+  /// A line rather than a dialog: the user asked for a file to be opened, and
+  /// what they get instead is the app they asked for plus the reason it could
+  /// not. Saying nothing at all is what made this look broken.
+  void _reportFailure(String name) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(content: Text('${context.l10n.fileOpenFailed}\n$name')),
+    );
   }
 
   /// Opens the screen that knows what to do with [file].

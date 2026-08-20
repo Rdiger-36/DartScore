@@ -480,6 +480,9 @@ class AppLocalizations {
       _t('Scan the sender\'s QR code to import the profile.',
          'Scanne den QR-Code des Senders, um das Profil zu importieren.');
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
+  String get fileOpenFailed    =>
+      _t('This file could not be read as a DartScore backup or profile.',
+         'Diese Datei konnte nicht als DartScore-Sicherung oder -Profil gelesen werden.');
   String get syncShareFile     =>
       _t('Send as a file', 'Als Datei senden');
   String get syncShareFileHint =>
