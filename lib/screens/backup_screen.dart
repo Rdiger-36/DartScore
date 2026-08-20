@@ -437,6 +437,11 @@ class _BackupScreenState extends State<BackupScreen> {
         TransferRouteSelector(
           value: _route,
           ownNetworkAvailable: _canHostNetwork,
+          // An Android too old to raise a network needs no explanation: the
+          // answer there is a Wi-Fi, which the hint above already names. An
+          // iPhone with no shared Wi-Fi has no way to run this at all, and has
+          // to be pointed at the file route instead.
+          unavailableHint: Platform.isIOS ? l.backupIosNoOwnNetwork : null,
           onChanged: (route) => setState(() {
             _route = route;
             _error = null;
@@ -723,7 +728,9 @@ class _BackupScreenState extends State<BackupScreen> {
               SyncRejectedException() => l.syncRejected,
               TimeoutException()      => l.syncNotConfirmed,
               SyncPayloadTooLargeException() => l.syncTooLarge,
-              TransferUnreachableException() => l.syncUnreachable,
+              TransferUnreachableException() => invite.hotspot != null
+                  ? l.syncUnreachableOnHotspot
+                  : l.syncUnreachable,
               TransferInviteExpiredException() => l.syncCodeExpired,
               // The network was never joined, so the credentials go on screen
               // and the user does it the long way round rather than be stuck.

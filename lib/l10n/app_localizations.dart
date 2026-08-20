@@ -522,6 +522,15 @@ class AppLocalizations {
   String get syncUnreachable   =>
       _t('The other device did not answer.\nSome guest networks stop devices from reaching each other. Try a different Wi-Fi.',
          'Das andere Gerät hat nicht geantwortet.\nIn manchen Gäste-WLANs können sich Geräte nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
+  String get syncUnreachableOnHotspot =>
+      _t('The other device did not answer.\nStay close to it and leave its network switched on until the transfer is finished.',
+         'Das andere Gerät hat nicht geantwortet.\nBleib in seiner Nähe und lass sein Netz an, bis die Übertragung fertig ist.');
+  String get syncIosNoOwnNetwork =>
+      _t('An iPhone cannot open a network of its own. Without a shared Wi-Fi, start the transfer on the Android device: one sync settles both directions.',
+         'Ein iPhone kann kein eigenes Netz öffnen. Ohne gemeinsames WLAN startest du die Übertragung am Android-Gerät, ein Sync erledigt beide Richtungen in einem Vorgang.');
+  String get backupIosNoOwnNetwork =>
+      _t('An iPhone cannot open a network of its own. Without a shared Wi-Fi, save the backup to a file and send it over AirDrop.',
+         'Ein iPhone kann kein eigenes Netz öffnen. Ohne gemeinsames WLAN speicherst du die Sicherung in eine Datei und schickst sie per AirDrop.');
   String get syncCodeExpired   =>
       _t('This code has expired.\nCreate a new one on the other device.',
          'Dieser Code ist abgelaufen.\nErzeuge auf dem anderen Gerät einen neuen.');
