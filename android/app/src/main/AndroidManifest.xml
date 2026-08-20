@@ -42,6 +42,34 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!--
+                A backup or a profile arriving from anywhere: Nearby Share,
+                Drive, mail, a chat. Two filters because Android matches a file
+                two different ways and neither covers the other: by the type a
+                sender declares, and by the name when it declares none useful.
+                The name is only how the file gets here; what it actually is
+                gets read out of it before anything is replaced.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:mimeType="application/vnd.ratka.dartscore"/>
+                <data android:mimeType="application/vnd.ratka.dartsync"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
+                <data android:mimeType="application/octet-stream"/>
+                <data android:pathPattern=".*\\.dartscore"/>
+                <data android:pathPattern=".*\\..*\\.dartscore"/>
+                <data android:pathPattern=".*\\.dartsync"/>
+                <data android:pathPattern=".*\\..*\\.dartsync"/>
+            </intent-filter>
         </activity>
         <!-- The barcode model is not bundled with the app (see useUnbundled in
              gradle.properties). This asks Play Services to fetch it right after

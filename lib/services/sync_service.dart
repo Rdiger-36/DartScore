@@ -3,9 +3,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/dart_throw.dart';
+import 'incoming_file.dart' show kSyncExtension;
 import 'local_addresses.dart';
 import 'transfer_invite.dart';
 
@@ -866,6 +870,56 @@ class SyncServer {
   /// Characters a session token is built from: unambiguous, and all inside the
   /// QR alphanumeric set so the connection code stays dense.
   static const _kTokenAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+}
+
+// ── Sharing a profile as a file ───────────────────────────────────────────────
+
+/// Hands one player's history to the share sheet as a file.
+///
+/// The one way two iPhones exchange a profile with no network between them at
+/// all: Apple lets no app raise one, so AirDrop through the share sheet is what
+/// is left. It carries the same text a QR code would, so the receiving side
+/// decodes it with `decodeSyncPayload` and nothing new had to be understood.
+///
+/// One direction only, like a code on a screen. The return leg belongs to the
+/// Wi-Fi transfer and stays there.
+///
+/// [origin] anchors the sheet on an iPad, where a popover without one fails
+/// instead of opening. Returns whether the sheet was used rather than
+/// dismissed.
+Future<bool> shareSyncFile(String payload,
+    {required String playerName, Rect? origin}) async {
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/${syncFileName(playerName, DateTime.now())}');
+  await file.writeAsString(payload, flush: true);
+
+  try {
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path)],
+        sharePositionOrigin: origin,
+      ),
+    );
+    return result.status == ShareResultStatus.success;
+  } finally {
+    // The share sheet has read it by the time it returns, and a player's whole
+    // history is not something to leave lying in a cache directory.
+    if (await file.exists()) await file.delete();
+  }
+}
+
+/// Name a shared profile is offered under.
+///
+/// Carries the player so a receiver can see whose history arrived before
+/// opening it, and the date so two of them stay apart.
+String syncFileName(String playerName, DateTime now) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  final safe = playerName
+      .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  final who = safe.isEmpty ? 'player' : safe.toLowerCase();
+  return '$who-${now.year}-${two(now.month)}-${two(now.day)}'
+      '-${two(now.hour)}${two(now.minute)}.$kSyncExtension';
 }
 
 // ── Client ────────────────────────────────────────────────────────────────────

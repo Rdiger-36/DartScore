@@ -234,12 +234,22 @@ Future<SyncPacket> buildSyncPacket(
 class SyncScreen extends StatefulWidget {
   final Player? initialPlayer;
 
+  /// A profile the system handed the app, to be imported straight away.
+  ///
+  /// The same text a QR code carries, so it runs through the same read, the
+  /// same name conflict check and the same confirmation as a scanned one.
+  final String? incomingPayload;
+
   /// Whether this sits inside a pane that already has a title bar of its own,
   /// as the player list gives it on a tablet. The tabs then head the body
   /// instead of hanging under an app bar that is not there.
   final bool embedded;
 
-  const SyncScreen({super.key, this.initialPlayer, this.embedded = false});
+  const SyncScreen(
+      {super.key,
+      this.initialPlayer,
+      this.incomingPayload,
+      this.embedded = false});
 
   @override
   State<SyncScreen> createState() => _SyncScreenState();
@@ -301,7 +311,7 @@ class _SyncScreenState extends State<SyncScreen>
           controller: _tab,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            const _ReceiverTab(),
+            _ReceiverTab(incomingPayload: widget.incomingPayload),
             _SenderTab(
               initialPlayer: widget.initialPlayer,
               visible: _tab.index == 1,
@@ -389,6 +399,12 @@ class _SenderTabState extends State<_SenderTab>
 
   /// Whether the time range picker is folded open.
   bool _rangeOpen = false;
+
+  /// Anchor for the share sheet, which fails on an iPad without one.
+  final _shareKey = GlobalKey();
+
+  /// Set while the share sheet is being put together.
+  bool _sharing = false;
 
   /// Which way the two devices reach each other.
   TransferRoute _route = TransferRoute.sharedWifi;
@@ -868,8 +884,70 @@ class _SenderTabState extends State<_SenderTab>
 
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [...picker, const SizedBox(height: 12), transport],
+      children: [
+        ...picker,
+        const SizedBox(height: 12),
+        transport,
+        if (_transmission != null && !_preparing) ...[
+          const SizedBox(height: 20),
+          _buildShareFile(l),
+          const SizedBox(height: 8),
+          Text(
+            l.syncShareFileHint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ],
     );
+  }
+
+  /// Offers the same profile as a file, for whatever the system can carry one
+  /// with.
+  ///
+  /// The answer for two iPhones and no network between them: Apple lets no app
+  /// raise one, so AirDrop through the share sheet is what is left. It works
+  /// for mail and a chat just as well, and it is one direction only, like a
+  /// code on a screen.
+  Widget _buildShareFile(AppLocalizations l) => OutlinedButton.icon(
+        key: _shareKey,
+        onPressed: _sharing ? null : _shareFile,
+        icon: _sharing
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.ios_share),
+        label: Text(l.syncShareFile),
+        style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14)),
+      );
+
+  /// Writes the payload out and hands it to the share sheet.
+  Future<void> _shareFile() async {
+    final transmission = _transmission;
+    final player = _selectedPlayer;
+    if (transmission == null || player == null) return;
+
+    setState(() => _sharing = true);
+    try {
+      // Anchored on the button, because a popover without an anchor fails
+      // instead of opening on an iPad.
+      final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
+      final origin = box == null || !box.hasSize
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+
+      await shareSyncFile(transmission.payload,
+          playerName: player.name, origin: origin);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _startError = '${context.l10n.error}: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 
   /// Builds the range chips plus the line that translates the current choice
@@ -1125,7 +1203,10 @@ class _SenderTabState extends State<_SenderTab>
 /// Receive tab: scans a QR code (or connects over Wi-Fi) to import a player's
 /// synced stats, resolving name conflicts and confirming before importing.
 class _ReceiverTab extends StatefulWidget {
-  const _ReceiverTab();
+  /// A profile handed over by another app, imported as if it had been scanned.
+  final String? incomingPayload;
+
+  const _ReceiverTab({this.incomingPayload});
 
   @override
   State<_ReceiverTab> createState() => _ReceiverTabState();
@@ -1163,6 +1244,14 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     // `TabBarView` does not build the child that is not on screen, so the
     // camera goes with it and needs no separate switch.
     _scanning = true;
+
+    final incoming = widget.incomingPayload;
+    if (incoming != null) {
+      _handled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _finishScan(() async => decodeSyncPayload(incoming));
+      });
+    }
   }
 
   @override

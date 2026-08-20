@@ -9,6 +9,7 @@ Two subsystems that move a player's data off this device and back: **sync**, whi
 - `transfer_invite.dart`, what a connection QR carries: the addresses, the port, the session token, an optional hotspot to join, and when the code stops being accepted
 - `local_addresses.dart`, which of this device's addresses a peer could reach it on
 - `local_hotspot.dart`, the network a transfer can raise for itself and the join onto one
+- `incoming_file.dart`, what a file the system hands this app turns out to be, and how it gets here
 - `device_identity.dart`, this device's sync id, the attribution key for all origin tracking
 - `backup_service.dart`, writing the database out as one file and reading one back in
 - `document_picker.dart`, the Dart side of the hand-written system file picker
@@ -101,12 +102,25 @@ Sync merges, backup replaces. They must not be built on each other. A sync folds
 - Both tabs import through the `_PacketImport` mixin, because the sender imports too now. A second copy of that flow is how the two directions would start disagreeing about what a name conflict means
 - Only the Wi-Fi transport is two-way. A QR code is a picture on a screen and has no way back
 
+## A file the system hands over
+
+- Both kinds of transfer can travel as a file, and both platforms now declare the types so one arriving by AirDrop, mail, Files, Drive or Nearby Share opens DartScore instead of sitting in a download folder. On iOS that is `CFBundleDocumentTypes` plus `UTExportedTypeDeclarations` in `Info.plist`, on Android two intent filters in the manifest
+- **This reverses the old reason for the plain `.db` extension.** That reasoning was sound while nothing declared the type: an extension the system knows nothing about is one some share targets refuse. Declared and conforming to `public.data`, it is no longer unknown. What it costs is that a target filtering on a narrower list may still turn it down, and only the targets a user actually reaches can settle that
+- The extension is how a file reaches the right flow, never what is done with it. The flow reads the file again, exactly as it always did for a picked one, and turns down what it is not. A profile named as a database enters the flow that replaces this device, so the name must never be trusted past the routing
+- When the name says nothing, the first bytes do: a database opens with SQLite's own header, a profile with the codec prefix. A file coming through a chat often arrives renamed, and being unable to read it then would make the whole thing useless where it is needed most
+- **The extension wins over the content.** A database named as a profile enters the profile flow and is turned down there. Letting the content decide would let a file quietly enter the flow that replaces this device
+- An arriving file lands on a confirmation, never on a restore. What it holds goes on screen with the warning beside it, and nothing is written until that is answered. The steps in front of it, the warning page and the offer to save first, are for somebody hunting for a file; whoever just opened one has already chosen it
+- Both platforms hold a file the app was launched with until Dart comes to collect it, because the system hands it over before there is any Dart to give it to. Handing it over clears it, or it would be offered again on the next rebuild
+- A shared profile carries the same text a QR code does, so the receiving side decodes it with `decodeSyncPayload` and nothing new had to be understood. One direction only, like a code on a screen: the return leg belongs to the Wi-Fi transfer and stays there
+- The copy is thrown away as soon as it has been read, on both sides. A database is the whole thing, and a profile is somebody's entire history
+
 ## Anti-patterns
 
 - Never build backup on `sync_codec.dart`, and never give a backup transfer `twoWay: true`
 - Never let a device adopt an incoming device id, on restore or on import
 - Never round `thrownAt`
 - Never accumulate a peer's bytes without a ceiling, and never reach for `gzip.decode` on anything that came off a wire
+- Never trust a file's extension past deciding which flow it enters
 - Never add a file picking package, and no Wi-Fi package either. The picker and the hotspot are hand-written to keep CocoaPods out of the iOS build, and `wifi_iot` in particular is unmaintained, iOS-stubbed and ships Kotlin sources this project's Gradle setup already had to cap two plugins over
 - Never leave a raised network or a process binding behind on a path out. Both outlive the screen, and one of them takes the user's internet with it
 - Never bump the packet format version for a field that can ride in the trailer

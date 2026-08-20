@@ -30,6 +30,9 @@ class MainActivity : FlutterActivity() {
     /** Shared with `DeviceDescription` on the Dart side. */
     private val deviceChannelName = "dartscore/device_description"
 
+    /** Shared with `IncomingFiles` on the Dart side. */
+    private val incomingChannelName = "dartscore/incoming_file"
+
     private val requestPickFile = 0x0BAC
 
     /** The call waiting for the user to pick something, or null when idle. */
@@ -37,6 +40,18 @@ class MainActivity : FlutterActivity() {
 
     /** Raises and joins the Wi-Fi network a transfer can run over. */
     private val hotspot by lazy { LocalHotspotHandler(this) }
+
+    /** Channel the opened file is announced on, once Dart is listening. */
+    private var incomingChannel: MethodChannel? = null
+
+    /**
+     * A file this app was launched with, waiting to be asked for.
+     *
+     * The intent arrives before there is any Dart to hand it to, so it is kept
+     * until `initial` comes to collect it. Handing it over clears it: a file is
+     * offered once, not again on the next rebuild.
+     */
+    private var pendingIncoming: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -54,7 +69,56 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        incomingChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, incomingChannelName
+        ).apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "initial" -> {
+                        result.success(pendingIncoming)
+                        pendingIncoming = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
         hotspot.attach(flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingIncoming = copyIncoming(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val path = copyIncoming(intent) ?: return
+        // Dart is up by now, so the file goes straight over rather than waiting
+        // to be collected.
+        val channel = incomingChannel
+        if (channel == null) {
+            pendingIncoming = path
+        } else {
+            channel.invokeMethod("opened", path)
+        }
+    }
+
+    /**
+     * Copies whatever a view intent points at into this app's cache and returns
+     * the path, or null when the intent carries no file.
+     *
+     * Copied rather than read where it lies, like the document picker beside
+     * it: what arrives is a `content://` URI belonging to another app, granted
+     * for this one launch, and nothing above this works on anything but paths.
+     */
+    private fun copyIncoming(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val uri = intent.data ?: return null
+        return try {
+            copyToCache(uri).absolutePath
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun onRequestPermissionsResult(
