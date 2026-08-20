@@ -28,10 +28,6 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_dartscore._tcp</string>
-	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Kamera wird zum Scannen von QR-Codes benötigt</string>
 	<key>NSLocalNetworkUsageDescription</key>

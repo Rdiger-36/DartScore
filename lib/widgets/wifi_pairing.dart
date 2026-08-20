@@ -302,12 +302,21 @@ class TransferRouteSelector extends StatelessWidget {
   final bool ownNetworkAvailable;
   final bool enabled;
 
+  /// What to say instead, when this device cannot raise a network at all.
+  ///
+  /// Only worth a sentence where the user is otherwise stuck: an iPhone can
+  /// never host, so somebody with no shared Wi-Fi needs to be told which way
+  /// round to run the transfer. An Android too old for it says nothing extra,
+  /// because the answer there is a Wi-Fi and that is already on screen.
+  final String? unavailableHint;
+
   const TransferRouteSelector({
     super.key,
     required this.value,
     required this.onChanged,
     required this.ownNetworkAvailable,
     this.enabled = true,
+    this.unavailableHint,
   });
 
   @override
@@ -318,8 +327,9 @@ class TransferRouteSelector extends StatelessWidget {
     // Nothing to choose between. The hint that used to stand here says the same
     // thing the one remaining option would.
     if (!ownNetworkAvailable) {
+      final hint = unavailableHint;
       return Text(
-        l.routeSharedWifiHint,
+        hint == null ? l.routeSharedWifiHint : '${l.routeSharedWifiHint}\n$hint',
         textAlign: TextAlign.center,
         style: Theme.of(context)
             .textTheme

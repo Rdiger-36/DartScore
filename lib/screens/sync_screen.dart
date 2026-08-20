@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
@@ -1005,6 +1006,9 @@ class _SenderTabState extends State<_SenderTab>
           TransferRouteSelector(
             value: _route,
             ownNetworkAvailable: _canHostNetwork,
+            // An Android too old to raise a network needs no explanation: the
+            // answer there is a Wi-Fi, which the hint above already names.
+            unavailableHint: Platform.isIOS ? l.syncIosNoOwnNetwork : null,
             enabled: !_serverStarting,
             onChanged: (route) => setState(() {
               _route      = route;
@@ -1409,7 +1413,9 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
             SyncPayloadTooLargeException() => l.syncTooLarge,
             // Nothing on the far side ever answered. That is a different fault
             // from a timeout, and the network is the place to look.
-            TransferUnreachableException() => l.syncUnreachable,
+            TransferUnreachableException() => invite?.hotspot != null
+                ? l.syncUnreachableOnHotspot
+                : l.syncUnreachable,
             TransferInviteExpiredException() => l.syncCodeExpired,
             // The network was never joined, so the credentials go on screen and
             // the user does it the long way round rather than being stuck.
