@@ -85,6 +85,7 @@ lib/
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
 │   ├── segment_color.dart      # Shared tones for multiplied fields: blue for triples, green for doubles
+│   ├── platform_notices.dart   # Licenses of the Android libraries the plugins pull in through Gradle, registered into the LicenseRegistry at startup
 │   └── layout.dart             # Tablet breakpoint, max widths, SidePaneLayout, input side, text scale
 └── l10n/
     └── app_localizations.dart  # Hand-written localization strings (no .arb, no codegen)
