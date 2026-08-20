@@ -4,6 +4,18 @@
     <!-- Network: required for WiFi sync -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+        Wi-Fi: needed to raise the temporary network a transfer can run over,
+        and to join one another device raised. NEARBY_WIFI_DEVICES carries
+        neverForLocation on purpose, so none of this asks for the user's
+        location. The feature is gated at Android 13 for the same reason: below
+        that the same APIs want ACCESS_FINE_LOCATION and GPS switched on.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <application
         android:label="DartScore"

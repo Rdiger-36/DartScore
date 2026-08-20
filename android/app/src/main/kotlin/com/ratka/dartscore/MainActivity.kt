@@ -13,14 +13,15 @@ import java.io.File
 import java.util.Locale
 
 /**
- * Hosts the Flutter engine and adds the two things this app needs from the
- * platform directly: the system document picker, and what this device calls
- * itself.
+ * Hosts the Flutter engine and adds the things this app needs from the platform
+ * directly: the system document picker, what this device calls itself, and the
+ * Wi-Fi network a transfer can raise for itself.
  *
  * Written by hand instead of taken from a package because every file picking
  * plugin still wants CocoaPods on the iOS side, which this project deliberately
- * does not use. The iOS halves live in `DocumentPickerHandler.swift` and
- * `DeviceDescriptionHandler.swift`.
+ * does not use. The iOS halves live in `DocumentPickerHandler.swift`,
+ * `DeviceDescriptionHandler.swift` and `HotspotJoinHandler.swift`; the hotspot
+ * itself has no iOS half, because Apple gives no app a way to raise a network.
  */
 class MainActivity : FlutterActivity() {
     /** Shared with `DocumentPicker` on the Dart side. */
@@ -33,6 +34,9 @@ class MainActivity : FlutterActivity() {
 
     /** The call waiting for the user to pick something, or null when idle. */
     private var pending: MethodChannel.Result? = null
+
+    /** Raises and joins the Wi-Fi network a transfer can run over. */
+    private val hotspot by lazy { LocalHotspotHandler(this) }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -50,6 +54,29 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        hotspot.attach(flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        hotspot.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    /**
+     * Nothing about a transfer survives the screen it ran on.
+     *
+     * A hotspot left up costs battery and confuses anyone looking at their
+     * Wi-Fi list, and a process still bound to a network that is gone has no
+     * route to anything at all.
+     */
+    override fun onDestroy() {
+        hotspot.stopHotspot()
+        hotspot.leave()
+        super.onDestroy()
     }
 
     /**
