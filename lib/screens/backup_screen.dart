@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
 import '../database/db_helper.dart' show BackupInfo;
 import '../services/backup_service.dart';
+import '../services/local_hotspot.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
 import '../widgets/wifi_pairing.dart';
@@ -81,18 +82,72 @@ class _BackupScreenState extends State<BackupScreen> {
   /// a second one.
   bool _askingApproval = false;
 
+  /// Which way the two devices reach each other.
+  TransferRoute _route = TransferRoute.sharedWifi;
+
+  /// Whether this device can raise a network of its own. False on iOS and
+  /// below Android 13.
+  bool _canHostNetwork = false;
+
+  /// The network this device raised, or null when the transfer runs over a
+  /// Wi-Fi both devices were already on.
+  HotspotCredentials? _hotspot;
+
+  /// Set between the start button and the code appearing.
+  bool _starting = false;
+
+  /// The network being joined while receiving, or null.
+  String? _joiningNetwork;
+
+  /// Set once this screen joined a network, so it can be left again.
+  bool _joined = false;
+
+  /// Watches for the system taking the raised network down under the transfer.
+  StreamSubscription<void>? _hotspotStopped;
+
   @override
   void initState() {
     super.initState();
     _server.state.addListener(_onServerState);
+    LocalHotspot.isSupported().then((supported) {
+      if (mounted) setState(() => _canHostNetwork = supported);
+    });
+    // Wi-Fi switched off under a running hotspot takes the network with it.
+    _hotspotStopped = LocalHotspot.onStopped.listen((_) {
+      if (!mounted || _hotspot == null) return;
+      unawaited(_dropNetwork());
+      setState(() {
+        _invite = null;
+        _error  = context.l10n.hotspotStopped;
+      });
+    });
   }
 
   @override
   void dispose() {
     _server.state.removeListener(_onServerState);
+    _hotspotStopped?.cancel();
     unawaited(_server.stop());
+    // Nothing about a transfer survives the screen it ran on: a network left
+    // up costs battery, and a phone left on one with no internet has no route.
+    if (_hotspot != null) unawaited(LocalHotspot.stop());
+    if (_joined) unawaited(WifiJoin.leave());
     _server.dispose();
     super.dispose();
+  }
+
+  /// Takes the raised network down, if this transfer raised one.
+  Future<void> _dropNetwork() async {
+    if (_hotspot == null) return;
+    _hotspot = null;
+    await LocalHotspot.stop();
+  }
+
+  /// Leaves the transfer network, if this screen joined one.
+  Future<void> _leaveNetwork() async {
+    if (!_joined) return;
+    _joined = false;
+    await WifiJoin.leave();
   }
 
   @override
@@ -171,7 +226,15 @@ class _BackupScreenState extends State<BackupScreen> {
     if (route) {
       await _export(_exportKey);
     } else {
-      await _startSending();
+      // The connection is picked before anything is prepared, so the network
+      // is up before the server looks for the address to put in the code.
+      setState(() {
+        _mode     = _Mode.sending;
+        _sent     = false;
+        _error    = null;
+        _invite   = null;
+        _outgoing = null;
+      });
     }
   }
 
@@ -354,19 +417,45 @@ class _BackupScreenState extends State<BackupScreen> {
     }
 
     final invite = _invite;
-    if (invite == null) {
+    if (invite == null && _starting) {
       return [
-        // No spinner once it has failed. A turning circle under an error line
-        // reads as a transfer that is still going, and there is nothing left
-        // to wait for.
-        if (_error == null) ...[
-          const Center(child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-        ],
-        Text(_error ?? l.backupSendPrep,
+        const Center(child: CircularProgressIndicator()),
+        const SizedBox(height: 16),
+        Text(l.backupSendPrep,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-                color: _error == null ? cs.onSurfaceVariant : cs.error)),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant)),
+      ];
+    }
+
+    if (invite == null) {
+      // The connection is picked here rather than in the dialog that got us
+      // here: that one asks where the backup goes, this one asks how the two
+      // devices find each other, and mixing the two reads as one question with
+      // three answers.
+      return [
+        TransferRouteSelector(
+          value: _route,
+          ownNetworkAvailable: _canHostNetwork,
+          onChanged: (route) => setState(() {
+            _route = route;
+            _error = null;
+          }),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error)),
+        ],
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _startSending,
+          icon: const Icon(Icons.wifi_tethering),
+          label: Text(l.startServer),
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+        ),
       ];
     }
 
@@ -396,6 +485,14 @@ class _BackupScreenState extends State<BackupScreen> {
               ),
         child: PairingQrCard(data: invite.qrPayload(kBackupWifiPrefix)),
       ),
+      if (_hotspot != null) ...[
+        const SizedBox(height: 16),
+        Text(
+          '${l.hotspotNetworkName(_hotspot!.ssid)}\n${l.hotspotSendHint}',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
     ];
   }
 
@@ -405,11 +502,11 @@ class _BackupScreenState extends State<BackupScreen> {
   /// Prepares the database and puts it on the network for one peer.
   Future<void> _startSending() async {
     setState(() {
-      _mode       = _Mode.sending;
-      _sent       = false;
-      _error      = null;
-      _invite = null;
-      _outgoing   = null;
+      _starting = true;
+      _sent     = false;
+      _error    = null;
+      _invite   = null;
+      _outgoing = null;
     });
 
     try {
@@ -418,24 +515,32 @@ class _BackupScreenState extends State<BackupScreen> {
       setState(() => _outgoing = info);
 
       if (_server.isRunning) await _server.stop();
+      await _dropNetwork();
+
+      // The network first, then the server: the address a peer reaches this
+      // device on only exists once the network is up.
+      final hotspot = _route == TransferRoute.ownNetwork
+          ? await LocalHotspot.start()
+          : null;
+      _hotspot = hotspot;
+
       // One way on purpose. A database replaces the device that takes it, so
       // there is nothing it could hand back.
       final invite = await _server.start(
         bytes,
         twoWay: false,
         contentType: ContentType.binary,
+        hotspot: hotspot,
       );
       if (!mounted) return;
-      setState(() => _invite = invite);
+      setState(() { _invite = invite; _starting = false; });
     } catch (e) {
+      await _dropNetwork();
       if (!mounted) return;
-      final l = context.l10n;
-      setState(() => _error = switch (e) {
-            TransferStartException(reason: TransferStartFailure.noLocalAddress) =>
-              l.syncNoWifiAddress,
-            TransferStartException() => l.syncServerFailed,
-            _ => '${l.error}: $e',
-          });
+      setState(() {
+        _starting = false;
+        _error    = transferStartMessage(context, e);
+      });
     }
   }
 
@@ -478,7 +583,29 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _finishSending() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
+    await _dropNetwork();
     if (mounted) setState(() { _invite = null; _sent = sent; });
+  }
+
+  /// Joins the network the invitation names, when it names one.
+  ///
+  /// Nothing to do for a transfer over a shared Wi-Fi. When the join cannot be
+  /// made from inside the app the credentials go on screen instead, and the
+  /// user picks the network in the system settings themselves.
+  Future<void> _joinIfNeeded(TransferInvite invite) async {
+    final hotspot = invite.hotspot;
+    if (hotspot == null) return;
+
+    if (mounted) setState(() => _joiningNetwork = hotspot.ssid);
+    try {
+      if (!await WifiJoin.isSupported()) {
+        throw const HotspotException(HotspotFailure.unsupported);
+      }
+      await WifiJoin.join(hotspot);
+      _joined = true;
+    } finally {
+      if (mounted) setState(() => _joiningNetwork = null);
+    }
   }
 
   // ── Receiving over the network ────────────────────────────────────────────
@@ -491,6 +618,15 @@ class _BackupScreenState extends State<BackupScreen> {
       final received = _received;
       return [
         const Center(child: CircularProgressIndicator()),
+        // Joining comes before the pairing number and takes long enough on its
+        // own that a bare spinner reads as a transfer that died.
+        if (_joiningNetwork != null) ...[
+          const SizedBox(height: 20),
+          Text(l.hotspotJoining(_joiningNetwork!),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
         // The number both devices show, so the user can tell that the device
         // asking is the one in front of them.
         if (_pairingPin != null) ...[
@@ -562,6 +698,7 @@ class _BackupScreenState extends State<BackupScreen> {
       _received   = null;
     });
     try {
+      await _joinIfNeeded(invite);
       final bytes = await SyncClient().fetchBytes(
         invite,
         onPin: (pin) {
@@ -574,8 +711,12 @@ class _BackupScreenState extends State<BackupScreen> {
       if (!mounted) return;
       await _confirmAndRestore(await BackupService.acceptTransfer(bytes));
     } on BackupRejectedException catch (e) {
+      await _leaveNetwork();
       if (mounted) setState(() => _error = _rejectionMessage(e));
     } catch (e) {
+      // Back onto the ordinary network before anything else. A retry rejoins,
+      // and a user who gives up here should not be left without internet.
+      await _leaveNetwork();
       if (mounted) {
         final l = context.l10n;
         setState(() => _error = switch (e) {
@@ -584,15 +725,21 @@ class _BackupScreenState extends State<BackupScreen> {
               SyncPayloadTooLargeException() => l.syncTooLarge,
               TransferUnreachableException() => l.syncUnreachable,
               TransferInviteExpiredException() => l.syncCodeExpired,
+              // The network was never joined, so the credentials go on screen
+              // and the user does it the long way round rather than be stuck.
+              HotspotException() when invite.hotspot != null =>
+                '${l.hotspotJoinFailed}\n\n'
+                    '${l.hotspotJoinManually(invite.hotspot!.ssid, invite.hotspot!.passphrase)}',
               _ => '${l.connectionFailed}\n\n${l.error}: $e',
             });
       }
     } finally {
       if (mounted) {
         setState(() {
-          _busy       = false;
-          _pairingPin = null;
-          _received   = null;
+          _busy           = false;
+          _pairingPin     = null;
+          _received       = null;
+          _joiningNetwork = null;
         });
       }
     }
@@ -722,14 +869,21 @@ class _BackupScreenState extends State<BackupScreen> {
       Navigator.of(context).popUntil((route) => route.isFirst);
 
   /// Back to the two entries, shutting down whatever the mode was running.
+  ///
+  /// A transfer in flight is dropped rather than asked about. The network and
+  /// the binding have to be given back on every way out, and a dialog is no
+  /// help on the way most transfers are abandoned, which is the app going to
+  /// the background.
   Future<void> _leaveMode() async {
     await _server.stop();
+    await _dropNetwork();
+    await _leaveNetwork();
     if (!mounted) return;
     setState(() {
-      _mode       = _Mode.idle;
+      _mode   = _Mode.idle;
       _invite = null;
-      _sent       = false;
-      _error      = null;
+      _sent   = false;
+      _error  = null;
     });
   }
 
