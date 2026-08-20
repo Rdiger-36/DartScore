@@ -44,31 +44,56 @@
             </intent-filter>
             <!--
                 A backup or a profile arriving from anywhere: Nearby Share,
-                Drive, mail, a chat. Two filters because Android matches a file
-                two different ways and neither covers the other: by the type a
-                sender declares, and by the name when it declares none useful.
-                The name is only how the file gets here; what it actually is
-                gets read out of it before anything is replaced.
+                Drive, mail, a chat.
+
+                Three filters, because Android matches a file three ways and no
+                one of them covers the rest. They must stay apart: a filter that
+                names a mimeType stops looking at the path, so combining the two
+                silently disables the pathPattern.
+
+                Whichever way a file gets here, the name is only how it arrives.
+                What it actually is gets read out of it before anything is
+                replaced.
+            -->
+            <!-- 1. The type this app announces its own files under. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/vnd.ratka.dartscore"/>
+                <data android:mimeType="application/vnd.ratka.dartsync"/>
+            </intent-filter>
+            <!--
+                2. A plain path, where the extension is all there is to go on.
+                No mimeType here on purpose, see above.
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:mimeType="application/vnd.ratka.dartscore"/>
-                <data android:mimeType="application/vnd.ratka.dartsync"/>
+                <data android:scheme="file"/>
+                <data android:scheme="content"/>
+                <data android:host="*"/>
+                <data android:pathPattern=".*\\.dartscore"/>
+                <data android:pathPattern=".*\\..*\\.dartscore"/>
+                <data android:pathPattern=".*\\..*\\..*\\.dartscore"/>
+                <data android:pathPattern=".*\\.dartsync"/>
+                <data android:pathPattern=".*\\..*\\.dartsync"/>
+                <data android:pathPattern=".*\\..*\\..*\\.dartsync"/>
             </intent-filter>
+            <!--
+                3. The catch-all, and the reason DartScore turns up under "open
+                with" for files that are none of its business. Android has no
+                idea what a .dartscore is, so anything arriving from a sender
+                that did not use filter 1 comes through as a nameless blob. The
+                app reads the first bytes and turns down what is not its own,
+                so nothing worse than a wrong entry in a list can come of it.
+                Delete this block if that entry is more annoying than the
+                feature is useful.
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="content"/>
-                <data android:scheme="file"/>
-                <data android:host="*"/>
                 <data android:mimeType="application/octet-stream"/>
-                <data android:pathPattern=".*\\.dartscore"/>
-                <data android:pathPattern=".*\\..*\\.dartscore"/>
-                <data android:pathPattern=".*\\.dartsync"/>
-                <data android:pathPattern=".*\\..*\\.dartsync"/>
             </intent-filter>
         </activity>
         <!-- The barcode model is not bundled with the app (see useUnbundled in

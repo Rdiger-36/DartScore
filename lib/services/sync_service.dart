@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/dart_throw.dart';
-import 'incoming_file.dart' show kSyncExtension;
+import 'incoming_file.dart' show kSyncExtension, kSyncMimeType;
 import 'local_addresses.dart';
 import 'transfer_invite.dart';
 
@@ -896,7 +896,7 @@ Future<bool> shareSyncFile(String payload,
   try {
     final result = await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(file.path)],
+        files: [XFile(file.path, mimeType: kSyncMimeType)],
         sharePositionOrigin: origin,
       ),
     );

@@ -53,6 +53,16 @@ class MainActivity : FlutterActivity() {
      */
     private var pendingIncoming: String? = null
 
+    /**
+     * Whether Dart has asked for its first file yet.
+     *
+     * The channel existing is not the same as somebody listening on it: it is
+     * set up while the engine is being configured, before any widget has
+     * attached a handler. The first `initial` call is what says the other end
+     * is there, and until it comes everything waits.
+     */
+    private var incomingReady = false
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
@@ -75,6 +85,7 @@ class MainActivity : FlutterActivity() {
             setMethodCallHandler { call, result ->
                 when (call.method) {
                     "initial" -> {
+                        incomingReady = true
                         result.success(pendingIncoming)
                         pendingIncoming = null
                     }
@@ -96,7 +107,7 @@ class MainActivity : FlutterActivity() {
         // Dart is up by now, so the file goes straight over rather than waiting
         // to be collected.
         val channel = incomingChannel
-        if (channel == null) {
+        if (!incomingReady || channel == null) {
             pendingIncoming = path
         } else {
             channel.invokeMethod("opened", path)

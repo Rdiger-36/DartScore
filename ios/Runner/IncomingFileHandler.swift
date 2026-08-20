@@ -21,11 +21,19 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
 
   private var channel: FlutterMethodChannel?
 
+  /// Whether Dart has asked for its first file yet.
+  ///
+  /// The channel existing is not the same as somebody listening on it. The
+  /// engine is registered while the app is still launching, well before any
+  /// widget has set a handler, so a file announced then goes nowhere. The first
+  /// `initial` call is what says the other end is there, and until it comes
+  /// everything waits.
+  private var ready = false
+
   /// A file the app was launched with, waiting to be asked for.
   ///
-  /// The scene is handed the URL before Dart is running, so it is kept until
-  /// `initial` comes to collect it. Handing it over clears it: a file is
-  /// offered once, not again on the next rebuild.
+  /// Handing it over clears it: a file is offered once, not again on the next
+  /// rebuild.
   private var pending: String?
 
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -42,6 +50,7 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
       result(FlutterMethodNotImplemented)
       return
     }
+    ready = true
     result(pending)
     pending = nil
   }
@@ -55,9 +64,9 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
   func take(_ url: URL) {
     guard let path = copyToCache(url) else { return }
 
-    // Dart is running once the channel exists, so the file goes straight over.
-    // Before that it waits to be collected.
-    if let channel {
+    // Straight over only once Dart has shown it is listening. Before that the
+    // file waits, or it is announced into a channel nobody is holding.
+    if ready, let channel {
       channel.invokeMethod("opened", arguments: path)
     } else {
       pending = path
