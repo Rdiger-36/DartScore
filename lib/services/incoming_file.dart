@@ -23,6 +23,17 @@ const String kBackupExtension = 'dartscore';
 /// with it, is what is left. One direction only, like a QR code.
 const String kSyncExtension = 'dartsync';
 
+/// The type a shared database is announced under.
+///
+/// Set explicitly on the way out, because neither platform can work it out from
+/// an extension it has never seen: Android would fall back to
+/// `application/octet-stream`, which says nothing, and a receiver matching on
+/// the type would never see this one at all.
+const String kBackupMimeType = 'application/vnd.ratka.dartscore';
+
+/// The type a shared profile is announced under. See [kBackupMimeType].
+const String kSyncMimeType = 'application/vnd.ratka.dartsync';
+
 /// What a file the system handed this app turned out to be.
 enum IncomingFileKind {
   /// A whole database. Replaces this device.

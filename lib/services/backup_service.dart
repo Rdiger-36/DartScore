@@ -8,7 +8,7 @@ import '../database/db_helper.dart';
 import 'device_description.dart';
 import 'device_identity.dart';
 import 'document_picker.dart';
-import 'incoming_file.dart' show kBackupExtension;
+import 'incoming_file.dart' show kBackupExtension, kBackupMimeType;
 
 /// Why a file the user picked cannot be restored.
 enum BackupRejection {
@@ -54,7 +54,7 @@ class BackupService {
 
     final result = await SharePlus.instance.share(
       ShareParams(
-        files: [XFile(target.path)],
+        files: [XFile(target.path, mimeType: kBackupMimeType)],
         sharePositionOrigin: sharePositionOrigin,
       ),
     );
