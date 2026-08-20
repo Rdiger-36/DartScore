@@ -48,7 +48,17 @@ enum _Mode {
 /// Whatever is being handed over or taken in is described in the same terms on
 /// both sides: when it was made, which device made it, and what is in it.
 class BackupScreen extends StatefulWidget {
-  const BackupScreen({super.key});
+  /// A backup the system handed the app, to be offered for restoring straight
+  /// away.
+  ///
+  /// It lands on the confirmation, not on the restore: what it holds goes on
+  /// screen with the warning beside it, and nothing is replaced until that is
+  /// answered. The steps in front of it, the warning page and the offer to save
+  /// the current data first, are for somebody hunting for a file. Whoever just
+  /// opened one has already decided which file they mean.
+  final String? incomingPath;
+
+  const BackupScreen({super.key, this.incomingPath});
 
   @override
   State<BackupScreen> createState() => _BackupScreenState();
@@ -115,6 +125,11 @@ class _BackupScreenState extends State<BackupScreen> {
     LocalHotspot.isSupported().then((supported) {
       if (mounted) setState(() => _canHostNetwork = supported);
     });
+    final incoming = widget.incomingPath;
+    if (incoming != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _openIncoming(incoming));
+    }
     // Wi-Fi switched off under a running hotspot takes the network with it.
     _hotspotStopped = LocalHotspot.onStopped.listen((_) {
       if (!mounted || _hotspot == null) return;
@@ -137,6 +152,20 @@ class _BackupScreenState extends State<BackupScreen> {
     if (_joined) unawaited(WifiJoin.leave());
     _server.dispose();
     super.dispose();
+  }
+
+  /// Reads a backup another app handed over and asks whether to restore it.
+  Future<void> _openIncoming(String path) async {
+    setState(() => _busy = true);
+    try {
+      await _confirmAndRestore(await BackupService.open(path));
+    } on BackupRejectedException catch (e) {
+      if (mounted) _toast(_rejectionMessage(e));
+    } catch (e) {
+      if (mounted) _toast('${context.l10n.error}: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Takes the raised network down, if this transfer raised one.

@@ -27,5 +27,10 @@ import UIKit
     ) {
       HotspotJoinHandler.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "IncomingFileHandler"
+    ) {
+      IncomingFileHandler.register(with: registrar)
+    }
   }
 }

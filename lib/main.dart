@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +15,11 @@ import 'providers/language_provider.dart';
 import 'providers/tablet_layout_provider.dart';
 import 'providers/text_scale_provider.dart';
 import 'providers/donation_provider.dart';
+import 'screens/backup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/sync_screen.dart';
+import 'services/incoming_file.dart';
 import 'utils/layout.dart';
 import 'utils/platform_notices.dart';
 
@@ -34,8 +38,75 @@ void main() async {
 }
 
 /// Routes to OnboardingScreen until a primary player exists, then HomeScreen.
-class _AppGate extends StatelessWidget {
+///
+/// Also the one place a file another app handed to DartScore is taken: it needs
+/// a navigator to push the screen that deals with it, and this is the first
+/// widget under the one that provides it.
+class _AppGate extends StatefulWidget {
   const _AppGate();
+
+  @override
+  State<_AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<_AppGate> {
+  StreamSubscription<IncomingFile>? _incoming;
+
+  /// Set while an arrival is being dealt with, so a second file, or the same
+  /// one announced twice, does not open a second screen over the first.
+  bool _opening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _incoming = IncomingFiles.stream.listen(_open);
+    // A file the app was launched with is waiting rather than announced, since
+    // there was no Dart to announce it to when it arrived.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final file = await IncomingFiles.initial();
+      if (file != null) _open(file);
+    });
+  }
+
+  @override
+  void dispose() {
+    _incoming?.cancel();
+    super.dispose();
+  }
+
+  /// Opens the screen that knows what to do with [file].
+  ///
+  /// Neither screen acts on it: a database lands on the confirmation that says
+  /// what it holds and what it replaces, a profile on the same questions a
+  /// scanned one raises. Nothing is written until one of those is answered.
+  Future<void> _open(IncomingFile file) async {
+    if (_opening || !mounted) return;
+    // Nothing to import into before there is a player, and the onboarding is
+    // not a screen to push a restore over.
+    if (!context.read<PlayersProvider>().loaded) return;
+
+    _opening = true;
+    try {
+      final navigator = Navigator.of(context);
+      switch (file.kind) {
+        case IncomingFileKind.backup:
+          await navigator.push(MaterialPageRoute(
+              builder: (_) => BackupScreen(incomingPath: file.path)));
+        case IncomingFileKind.profile:
+          final payload = await File(file.path).readAsString();
+          await File(file.path).delete();
+          if (!mounted) return;
+          await navigator.push(MaterialPageRoute(
+              builder: (_) => SyncScreen(incomingPayload: payload)));
+      }
+    } catch (_) {
+      // An unreadable file is not worth a dialog over the home screen. Both
+      // screens have their own way of saying a file was no good, and this is
+      // the case where there is no file left to say it about.
+    } finally {
+      _opening = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

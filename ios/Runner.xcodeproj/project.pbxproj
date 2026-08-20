@@ -11,6 +11,7 @@
 		2BAA75DDE107E10B444E42E1 /* DocumentPickerHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB0FC62203BEC2A0716C4F1 /* DocumentPickerHandler.swift */; };
 		2BAA75DDE107E10B444E42E2 /* DeviceDescriptionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB0FC62203BEC2A0716C4F2 /* DeviceDescriptionHandler.swift */; };
 		2BAA75DDE107E10B444E42E3 /* HotspotJoinHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB0FC62203BEC2A0716C4F3 /* HotspotJoinHandler.swift */; };
+		2BAA75DDE107E10B444E42E5 /* IncomingFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB0FC62203BEC2A0716C4F5 /* IncomingFileHandler.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
@@ -67,6 +68,7 @@
 		DAB0FC62203BEC2A0716C4F2 /* DeviceDescriptionHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeviceDescriptionHandler.swift; sourceTree = "<group>"; };
 		DAB0FC62203BEC2A0716C4F3 /* HotspotJoinHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HotspotJoinHandler.swift; sourceTree = "<group>"; };
 		DAB0FC62203BEC2A0716C4F4 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		DAB0FC62203BEC2A0716C4F5 /* IncomingFileHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IncomingFileHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +153,7 @@
 				DAB0FC62203BEC2A0716C4F1 /* DocumentPickerHandler.swift */,
 				DAB0FC62203BEC2A0716C4F2 /* DeviceDescriptionHandler.swift */,
 				DAB0FC62203BEC2A0716C4F3 /* HotspotJoinHandler.swift */,
+				DAB0FC62203BEC2A0716C4F5 /* IncomingFileHandler.swift */,
 				DAB0FC62203BEC2A0716C4F4 /* Runner.entitlements */,
 			);
 			path = Runner;
@@ -316,6 +319,7 @@
 				2BAA75DDE107E10B444E42E1 /* DocumentPickerHandler.swift in Sources */,
 				2BAA75DDE107E10B444E42E2 /* DeviceDescriptionHandler.swift in Sources */,
 				2BAA75DDE107E10B444E42E3 /* HotspotJoinHandler.swift in Sources */,
+				2BAA75DDE107E10B444E42E5 /* IncomingFileHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

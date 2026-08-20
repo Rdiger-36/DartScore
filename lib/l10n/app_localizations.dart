@@ -480,6 +480,11 @@ class AppLocalizations {
       _t('Scan the sender\'s QR code to import the profile.',
          'Scanne den QR-Code des Senders, um das Profil zu importieren.');
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
+  String get syncShareFile     =>
+      _t('Send as a file', 'Als Datei senden');
+  String get syncShareFileHint =>
+      _t('AirDrop, mail, a chat. The other device opens it in DartScore.',
+         'AirDrop, Mail, ein Chat. Das andere Gerät öffnet sie in DartScore.');
   String get startServer       => _t('Start server', 'Server starten');
   String get stopServer        => _t('Stop server', 'Server stoppen');
   String get profileAndStats   =>

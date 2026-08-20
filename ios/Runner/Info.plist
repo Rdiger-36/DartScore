@@ -28,6 +28,84 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!--
+		The two kinds of file DartScore answers for, so AirDrop, Mail, Files and
+		Drive offer this app when one arrives. Both are declared types rather
+		than invented extensions: an extension the system knows nothing about is
+		one some share targets refuse to take at all.
+	-->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>DartScore Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.ratka.dartscore.backup</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>DartScore Profile</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.ratka.dartscore.profile</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.ratka.dartscore.backup</string>
+			<key>UTTypeDescription</key>
+			<string>DartScore Backup</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>dartscore</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.ratka.dartscore</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.ratka.dartscore.profile</string>
+			<key>UTTypeDescription</key>
+			<string>DartScore Profile</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>dartsync</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.ratka.dartsync</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Kamera wird zum Scannen von QR-Codes benötigt</string>
 	<key>NSLocalNetworkUsageDescription</key>

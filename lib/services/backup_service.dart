@@ -8,6 +8,7 @@ import '../database/db_helper.dart';
 import 'device_description.dart';
 import 'device_identity.dart';
 import 'document_picker.dart';
+import 'incoming_file.dart' show kBackupExtension;
 
 /// Why a file the user picked cannot be restored.
 enum BackupRejection {
@@ -105,14 +106,36 @@ class BackupService {
   /// Name a backup is offered under, dated so several of them stay apart in a
   /// cloud folder.
   ///
-  /// The plain `.db` extension is on purpose: iOS maps a file to an app by its
-  /// type, and an invented extension is an unknown type that some targets in
-  /// the share sheet then refuse to take. What the file actually is gets
-  /// checked on the way back in, not by its name.
+  /// The extension used to be a plain `.db`, because an invented one is a type
+  /// the system knows nothing about and some share targets then refuse to take
+  /// it. That reasoning held only while nothing declared the type. Both
+  /// platforms now do, in `Info.plist` and in the manifest, conforming to
+  /// `public.data`, so the system knows exactly what this is and hands it back
+  /// to DartScore instead of leaving it in a download folder. What the file
+  /// actually is still gets read out of it on the way in, never taken from its
+  /// name.
   static String backupFileName(DateTime now) {
     String two(int v) => v.toString().padLeft(2, '0');
     return 'dartscore-backup-${now.year}-${two(now.month)}-${two(now.day)}'
-        '-${two(now.hour)}${two(now.minute)}.db';
+        '-${two(now.hour)}${two(now.minute)}.$kBackupExtension';
+  }
+
+  /// Reads a backup the system handed this app and reports what it holds.
+  ///
+  /// The same two checks [pick] makes, on a file that arrived through AirDrop,
+  /// mail or a share rather than through the picker. Nothing is replaced here:
+  /// that waits for the confirmation, exactly as it does for a picked file.
+  static Future<PickedBackup> open(String path) async {
+    final info = await DbHelper.instance.inspectBackup(path);
+    if (info == null) {
+      await _discard(path);
+      throw const BackupRejectedException(BackupRejection.notABackup);
+    }
+    if (info.schemaVersion > DbHelper.schemaVersion) {
+      await _discard(path);
+      throw const BackupRejectedException(BackupRejection.tooNew);
+    }
+    return PickedBackup(path, info);
   }
 
   /// Lets the user pick a backup and reports what it holds, without changing
@@ -128,16 +151,7 @@ class BackupService {
     // The picker offers every file rather than filtering by name, so what came
     // back is checked by what is in it. A name filter would be the weaker test
     // and, on iOS, one the system cannot always resolve to a type at all.
-    final info = await DbHelper.instance.inspectBackup(path);
-    if (info == null) {
-      await _discard(path);
-      throw const BackupRejectedException(BackupRejection.notABackup);
-    }
-    if (info.schemaVersion > DbHelper.schemaVersion) {
-      await _discard(path);
-      throw const BackupRejectedException(BackupRejection.tooNew);
-    }
-    return PickedBackup(path, info);
+    return open(path);
   }
 
   /// Removes the copy the picker left behind. A backup is the whole database,
