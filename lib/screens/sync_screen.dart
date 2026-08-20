@@ -11,6 +11,7 @@ import '../models/dart_throw.dart';
 import '../models/player.dart';
 import '../services/device_description.dart';
 import '../services/device_identity.dart';
+import '../services/local_hotspot.dart';
 import '../services/sync_codec.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
@@ -385,6 +386,20 @@ class _SenderTabState extends State<_SenderTab>
   /// the button.
   String? _startError;
 
+  /// Which way the two devices reach each other.
+  TransferRoute _route = TransferRoute.sharedWifi;
+
+  /// Whether this device can raise a network of its own. False on iOS and
+  /// below Android 13, and then the route is not a choice at all.
+  bool _canHostNetwork = false;
+
+  /// The network this device raised, or null when the transfer runs over a
+  /// Wi-Fi both devices were already on.
+  HotspotCredentials? _hotspot;
+
+  /// Watches for the system taking the raised network down under the transfer.
+  StreamSubscription<void>? _hotspotStopped;
+
   /// What went wrong with the packet the peer sent back, if anything. The
   /// outgoing half already succeeded at that point, so this is reported next to
   /// the confirmation rather than in place of it.
@@ -394,6 +409,16 @@ class _SenderTabState extends State<_SenderTab>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    LocalHotspot.isSupported().then((supported) {
+      if (mounted) setState(() => _canHostNetwork = supported);
+    });
+    // Wi-Fi switched off under a running hotspot takes the network with it.
+    // Without this the screen keeps showing a code for a network that is gone.
+    _hotspotStopped = LocalHotspot.onStopped.listen((_) {
+      if (!mounted || _hotspot == null) return;
+      _stopServer();
+      setState(() => _startError = context.l10n.hotspotStopped);
+    });
     if (widget.initialPlayer != null) {
       _selectedPlayer = widget.initialPlayer;
       // A player who has synced before rarely needs their whole history again.
@@ -426,8 +451,12 @@ class _SenderTabState extends State<_SenderTab>
     WidgetsBinding.instance.removeObserver(this);
     _frameTimer?.cancel();
     _frameIndex.dispose();
+    _hotspotStopped?.cancel();
     _server.state.removeListener(_onServerState);
     _server.stop();
+    // Nothing about a transfer survives the screen it ran on. A network left
+    // up costs battery and sits in everyone's Wi-Fi list.
+    if (_hotspot != null) LocalHotspot.stop();
     _server.dispose();
     super.dispose();
   }
@@ -505,6 +534,7 @@ class _SenderTabState extends State<_SenderTab>
   Future<void> _finishServing() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
+    await _dropNetwork();
     if (mounted) setState(() { _invite = null; _served = sent; });
   }
 
@@ -516,6 +546,7 @@ class _SenderTabState extends State<_SenderTab>
   Future<void> _finishExchange() async {
     final payload = _server.returnedPayload;
     await _server.stop();
+    await _dropNetwork();
     if (!mounted) return;
     setState(() {
       _invite      = null;
@@ -624,23 +655,29 @@ class _SenderTabState extends State<_SenderTab>
 
     try {
       if (_server.isRunning) await _server.stop();
+      await _dropNetwork();
+
+      // The network first, then the server: the address a peer reaches this
+      // device on only exists once the network is up, and the server reads the
+      // addresses as it binds.
+      final hotspot = _route == TransferRoute.ownNetwork
+          ? await LocalHotspot.start()
+          : null;
+      _hotspot = hotspot;
+
       _server.state.removeListener(_onServerState);
-      final invite = await _server.start(utf8.encode(transmission.payload));
+      final invite = await _server.start(utf8.encode(transmission.payload),
+          hotspot: hotspot);
       _server.state.addListener(_onServerState);
 
       if (!mounted) return;
       setState(() { _invite = invite; _serverStarting = false; });
     } catch (e) {
+      await _dropNetwork();
       if (!mounted) return;
-      final l = context.l10n;
       setState(() {
         _serverStarting = false;
-        _startError = switch (e) {
-          TransferStartException(reason: TransferStartFailure.noLocalAddress) =>
-            l.syncNoWifiAddress,
-          TransferStartException() => l.syncServerFailed,
-          _ => '${l.syncServerFailed}\n\n${l.error}: $e',
-        };
+        _startError = transferStartMessage(context, e);
       });
     }
   }
@@ -648,7 +685,18 @@ class _SenderTabState extends State<_SenderTab>
   /// Stops the transfer server and clears its connection details.
   Future<void> _stopServer() async {
     await _server.stop();
+    await _dropNetwork();
     if (mounted) setState(() => _invite = null);
+  }
+
+  /// Takes the raised network down, if this transfer raised one.
+  ///
+  /// Has to run on every way out, the failures included: the screen is the only
+  /// thing that knows the network was for this transfer and nothing else.
+  Future<void> _dropNetwork() async {
+    if (_hotspot == null) return;
+    _hotspot = null;
+    await LocalHotspot.stop();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -954,12 +1002,23 @@ class _SenderTabState extends State<_SenderTab>
             ),
             const SizedBox(height: 16),
           ],
-          Text(
-            _startError ?? l.syncServerHint,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-                color: _startError == null ? cs.onSurfaceVariant : cs.error),
+          TransferRouteSelector(
+            value: _route,
+            ownNetworkAvailable: _canHostNetwork,
+            enabled: !_serverStarting,
+            onChanged: (route) => setState(() {
+              _route      = route;
+              _startError = null;
+            }),
           ),
+          if (_startError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _startError!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+            ),
+          ],
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _serverStarting ? null : _startServer,
@@ -1001,8 +1060,18 @@ class _SenderTabState extends State<_SenderTab>
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
-        ] else
+        ] else ...[
           _qrCard(invite.qrPayload(kSyncWifiPrefix)),
+          if (_hotspot != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              '${l.hotspotNetworkName(_hotspot!.ssid)}\n${l.hotspotSendHint}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -1040,15 +1109,60 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   /// compare it against the sending device.
   String? _pairingPin;
 
+  /// The network being joined, while that is happening. Null the rest of the
+  /// time.
+  String? _joiningNetwork;
+
+  /// Set once this tab joined a network, so it can be left again.
+  bool _joined = false;
+
   /// Starts a fresh scan, dropping anything a previous attempt collected.
   void _startScanning() {
     _decoder.reset();
     setState(() {
-      _scanning    = true;
-      _handled     = false;
-      _error       = null;
-      _pairingPin  = null;
+      _scanning        = true;
+      _handled         = false;
+      _error           = null;
+      _pairingPin      = null;
+      _joiningNetwork  = null;
     });
+  }
+
+  @override
+  void dispose() {
+    // A phone left on a network with no internet on it is the one thing this
+    // must never do, so leaving happens whatever the transfer did.
+    if (_joined) WifiJoin.leave();
+    super.dispose();
+  }
+
+  /// Leaves the transfer network, if this tab joined one.
+  Future<void> _leaveNetwork() async {
+    if (!_joined) return;
+    _joined = false;
+    await WifiJoin.leave();
+  }
+
+  /// Joins the network the invitation names, when it names one.
+  ///
+  /// Nothing to do for a transfer over a shared Wi-Fi, which is what a null
+  /// [TransferInvite.hotspot] means. When the join is not possible from inside
+  /// the app the credentials go on screen instead, and the user picks the
+  /// network in the system settings themselves.
+  Future<void> _joinIfNeeded(TransferInvite invite) async {
+    final hotspot = invite.hotspot;
+    if (hotspot == null) return;
+
+    if (mounted) setState(() => _joiningNetwork = hotspot.ssid);
+    try {
+      if (!await WifiJoin.isSupported()) {
+        throw const HotspotException(HotspotFailure.unsupported);
+      }
+      await WifiJoin.join(hotspot);
+      _joined = true;
+    } finally {
+      if (mounted) setState(() => _joiningNetwork = null);
+    }
   }
 
   @override
@@ -1089,6 +1203,17 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
+            // Joining comes before the pairing number and takes long enough on
+            // its own that a bare spinner reads as a transfer that died.
+            if (_joiningNetwork != null) ...[
+              const SizedBox(height: 20),
+              Text(
+                l.hotspotJoining(_joiningNetwork!),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
             if (_pairingPin != null) ...[
               const SizedBox(height: 20),
               Text(
@@ -1220,6 +1345,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     // address that answered rather than working through the candidates again.
     final client = SyncClient();
     await _finishScan(() async {
+      await _joinIfNeeded(invite);
       final payload = await client.fetch(
         invite,
         onPin: (pin) {
@@ -1266,6 +1392,9 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
       if (imported) Navigator.of(context).pop();
       return;
     } catch (e) {
+      // Back onto the ordinary network before anything else. A retry rejoins,
+      // and a user who gives up here should not be left without internet.
+      await _leaveNetwork();
       if (mounted) {
         final l = context.l10n;
         setState(() {
@@ -1282,6 +1411,11 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
             // from a timeout, and the network is the place to look.
             TransferUnreachableException() => l.syncUnreachable,
             TransferInviteExpiredException() => l.syncCodeExpired,
+            // The network was never joined, so the credentials go on screen and
+            // the user does it the long way round rather than being stuck.
+            HotspotException() when invite?.hotspot != null =>
+              '${l.hotspotJoinFailed}\n\n'
+                  '${l.hotspotJoinManually(invite!.hotspot!.ssid, invite.hotspot!.passphrase)}',
             _ => '${overWifi ? l.connectionFailed : l.syncReadFailed}'
                 '\n\n${l.error}: $e',
           };

@@ -32,7 +32,7 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 
 ### Transfers and players
 
-- `wifi_pairing.dart`, the QR scanner, the pairing number dialog and the QR card, shared by sync and backup
+- `wifi_pairing.dart`, the QR scanner, the pairing number dialog, the QR card, the route selector and the one mapping from a start failure to what it says on screen, all shared by sync and backup
 - `player_dialog.dart`, create/edit player dialog
 
 ## Contracts and Invariants
@@ -55,6 +55,8 @@ A block that a second game mode is about to need belongs here, parameterised, ra
 - Do not compute stats in a widget. `ThrowStats` is the one aggregation
 - Do not hardcode a color that should follow the theme
 - Do not copy `wifi_pairing.dart` for a third transfer flow; both sync and backup already share it
+- `TransferRouteSelector` hides the own-network row rather than disabling it when the device cannot raise one. An option that can never be picked here is not a choice, and explaining why would say more about Android versions than anyone wants to read while sending a profile
+- `transferStartMessage` is the one place a transfer failure becomes a sentence. A second copy is how the two screens would start telling the user different things about the same fault
 - Do not build a second player roster into a setup screen. `PlayerSelectSection` is the one, and it takes the order `PlayersProvider` hands it: main profile first, everyone else alphabetically
 
 ## Related Context

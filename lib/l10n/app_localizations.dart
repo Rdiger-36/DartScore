@@ -525,6 +525,39 @@ class AppLocalizations {
   String get syncCodeExpired   =>
       _t('This code has expired.\nCreate a new one on the other device.',
          'Dieser Code ist abgelaufen.\nErzeuge auf dem anderen Gerät einen neuen.');
+  String get routeSharedWifi   => _t('Same Wi-Fi', 'Gleiches WLAN');
+  String get routeSharedWifiHint =>
+      _t('Both devices need to be on the same Wi-Fi for this.',
+         'Dafür müssen beide Geräte im selben WLAN sein.');
+  String get routeOwnNetwork   => _t('Own network', 'Eigenes Netz');
+  String get routeOwnNetworkHint =>
+      _t('This device opens a network of its own. No Wi-Fi needed, and it has no internet while it runs.',
+         'Dieses Gerät öffnet ein eigenes Netz. Kein WLAN nötig, dafür hat es solange kein Internet.');
+  String hotspotNetworkName(String ssid) =>
+      _t('Network: $ssid', 'Netz: $ssid');
+  String get hotspotSendHint   =>
+      _t('The other device joins the network by itself when it scans the code.',
+         'Das andere Gerät tritt dem Netz beim Scannen von selbst bei.');
+  String hotspotJoining(String ssid) =>
+      _t('Joining $ssid', 'Verbinde mit $ssid');
+  String get hotspotIncompatible =>
+      _t('Turn the phone\'s hotspot off first. It cannot run at the same time as this.',
+         'Schalte zuerst den Hotspot des Handys aus. Beides gleichzeitig geht nicht.');
+  String get hotspotDenied     =>
+      _t('Without the nearby devices permission this device cannot open a network.',
+         'Ohne die Berechtigung für Geräte in der Nähe kann dieses Gerät kein Netz öffnen.');
+  String get hotspotFailed     =>
+      _t('The network could not be opened. Use the same Wi-Fi instead.',
+         'Das Netz konnte nicht geöffnet werden. Nutze stattdessen das gleiche WLAN.');
+  String get hotspotStopped    =>
+      _t('The network was closed. Start the transfer again.',
+         'Das Netz wurde geschlossen. Starte die Übertragung neu.');
+  String get hotspotJoinFailed =>
+      _t('The network was not joined.',
+         'Das Netz wurde nicht beigetreten.');
+  String hotspotJoinManually(String ssid, String password) =>
+      _t('Open the Wi-Fi settings, pick "$ssid", enter $password, come back here and scan again.',
+         'Öffne die WLAN-Einstellungen, wähle "$ssid", gib $password ein, komm zurück und scanne erneut.');
   String get syncNotBackupCode =>
       _t('That is a backup code. It belongs in Backup, not here.',
          'Das ist ein Backup-Code. Er gehört ins Backup, nicht hierher.');

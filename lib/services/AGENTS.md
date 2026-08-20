@@ -8,6 +8,7 @@ Two subsystems that move a player's data off this device and back: **sync**, whi
 - `sync_service.dart`, the payload types, the Wi-Fi server and its client
 - `transfer_invite.dart`, what a connection QR carries: the addresses, the port, the session token, an optional hotspot to join, and when the code stops being accepted
 - `local_addresses.dart`, which of this device's addresses a peer could reach it on
+- `local_hotspot.dart`, the network a transfer can raise for itself and the join onto one
 - `device_identity.dart`, this device's sync id, the attribution key for all origin tracking
 - `backup_service.dart`, writing the database out as one file and reading one back in
 - `document_picker.dart`, the Dart side of the hand-written system file picker
@@ -69,6 +70,19 @@ Sync merges, backup replaces. They must not be built on each other. A sync folds
 - `SyncServer.start` looks for an address before it binds anything and throws `TransferStartException` rather than whatever the socket layer produced. Both reasons need different words on screen, and a screen that does not catch this is a button that spins for the rest of the session: that is exactly what the sync tab used to do
 - Animated frames are LT coded: the receiver needs any set of frames slightly larger than the block count, not particular ones. Seeds are scrambled before use and each transfer starts at a random point in the seed space; both are load bearing, without them the overhead goes from about 1.25 to 4 times the block count
 
+### The network a transfer raises for itself
+
+- Two devices on no shared Wi-Fi and two devices on a guest network that keeps them apart are the same problem seen twice, and neither can be answered over a network somebody else owns. A network with nothing on it but the two phones has neither problem, which is what `local_hotspot.dart` is for
+- **An iPhone can never host.** Apple gives no app a way to create an access point; `NEHotspotConfiguration` joins networks that already exist. So an Android phone always raises the network and an iPhone always joins, and iOS to iOS is not covered by this route at all: those two use a shared Wi-Fi, or the backup goes out through the share sheet and AirDrop carries it
+- **Which device hosts says nothing about which way the data travels.** An Android phone can raise the network and be the one receiving. The route and the direction are set separately in the screens and must stay that way
+- Gated at Android 13 so `NEARBY_WIFI_DEVICES` with `neverForLocation` covers the permission side. The same APIs below that want `ACCESS_FINE_LOCATION` and the location switch turned on, which is a declaration to file with the store and a question no darts app should be asking. Older devices simply do not see the option
+- The network comes up **before** the server binds. The address a peer reaches this device on does not exist until the network does, and the server reads its addresses as it binds
+- The Android join binds the process to the joined network, and that is not a detail. A transfer network carries no internet, so without `bindProcessToNetwork` Android keeps routing over mobile data and the sockets never reach the phone in the same room
+- Everything raised has to be given back on every way out, the failures included: a hotspot left up costs battery and sits in everyone's Wi-Fi list, and a process still bound to a network that is gone has no route to anything at all. Both screens drop it from the start failure, the transfer failure, the back arrow and `dispose`, and the Activity does it again in `onDestroy`
+- A transfer in flight is dropped when the screen is left, not asked about. The way most transfers are abandoned is the app going to the background, where a dialog is no help
+- The failures are told apart because each is a different thing for the user to do: a running tethering hotspot is theirs to switch off, a refused permission is a dialog to open again, and no Wi-Fi at all is neither. `transferStartMessage` in `../widgets/wifi_pairing.dart` is the one place that mapping lives
+- When the join cannot be made from inside the app, the SSID and the passphrase go on screen and the user picks the network in the system settings. A route that only works with a system API is a route that strands people the moment the API says no
+
 ### The Wi-Fi handshake
 
 - The Wi-Fi server hands its payload to one peer, once, after the user confirms a pairing number. A request without the session token is refused without disturbing the user. The state may only reach `served` after the response has finished writing, or the screen shuts the socket down mid-body, and the same holds for `returned` and the answer to the peer
@@ -84,7 +98,8 @@ Sync merges, backup replaces. They must not be built on each other. A sync folds
 - Never let a device adopt an incoming device id, on restore or on import
 - Never round `thrownAt`
 - Never accumulate a peer's bytes without a ceiling, and never reach for `gzip.decode` on anything that came off a wire
-- Never add a file picking package. The picker is hand-written to keep CocoaPods out of the iOS build
+- Never add a file picking package, and no Wi-Fi package either. The picker and the hotspot are hand-written to keep CocoaPods out of the iOS build, and `wifi_iot` in particular is unmaintained, iOS-stubbed and ships Kotlin sources this project's Gradle setup already had to cap two plugins over
+- Never leave a raised network or a process binding behind on a path out. Both outlive the screen, and one of them takes the user's internet with it
 - Never bump the packet format version for a field that can ride in the trailer
 
 ## Related Context
