@@ -15,6 +15,9 @@ import '../utils/layout.dart';
 import '../widgets/wifi_pairing.dart';
 
 /// Which half of the screen the user is in.
+/// Where a backup is being sent.
+enum _Destination { file, deviceOverWifi, deviceWithoutWifi }
+
 enum _Mode {
   /// The two entries, waiting to be picked.
   idle,
@@ -213,29 +216,92 @@ class _BackupScreenState extends State<BackupScreen> {
     ];
   }
 
-  /// Asks whether the backup should become a file or go straight to the other
-  /// device.
+  /// Asks where the backup should go, connection and all.
+  ///
+  /// One list rather than a route dialog followed by a connection choice on the
+  /// next screen. Nobody thinks of those as two questions; they think about how
+  /// it gets across, and seeing every way at once beats guessing that a second
+  /// one exists behind the first.
   Future<void> _chooseCreate() async {
     final l = context.l10n;
-    final route = await _askRoute(
-      title: l.backupCreate,
-      first: (Icons.folder_outlined, l.backupToFile, l.backupToFileDesc),
-      second: (Icons.wifi_rounded, l.backupToDevice, l.backupToDeviceDesc),
-    );
-    if (route == null || !mounted) return;
-    if (route) {
+    final choice = await _askDestination(l);
+    if (choice == null || !mounted) return;
+
+    if (choice == _Destination.file) {
       await _export(_exportKey);
-    } else {
-      // The connection is picked before anything is prepared, so the network
-      // is up before the server looks for the address to put in the code.
-      setState(() {
-        _mode     = _Mode.sending;
-        _sent     = false;
-        _error    = null;
-        _invite   = null;
-        _outgoing = null;
-      });
+      return;
     }
+
+    // The connection is settled before anything is prepared, so the network is
+    // up before the server looks for the address to put in the code.
+    setState(() {
+      _route = choice == _Destination.deviceWithoutWifi
+          ? TransferRoute.ownNetwork
+          : TransferRoute.sharedWifi;
+      _mode     = _Mode.sending;
+      _sent     = false;
+      _error    = null;
+      _invite   = null;
+      _outgoing = null;
+    });
+  }
+
+  /// The list of ways a backup can leave this device.
+  Future<_Destination?> _askDestination(AppLocalizations l) {
+    return showDialog<_Destination>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        Widget option(IconData icon, String title, String hint,
+                _Destination value) =>
+            ListTile(
+              leading: Icon(icon, color: cs.primary),
+              title: Text(title),
+              subtitle: Text(hint),
+              onTap: () => Navigator.pop(ctx, value),
+            );
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+            child: AlertDialog(
+              title: Text(l.backupCreate),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  option(Icons.folder_outlined, l.backupToFile,
+                      l.backupToFileDesc, _Destination.file),
+                  option(Icons.wifi_rounded, l.backupToDevice,
+                      l.backupToDeviceDesc, _Destination.deviceOverWifi),
+                  // Only where this device can raise a network. An option that
+                  // can never be picked here is not a choice.
+                  if (_canHostNetwork)
+                    option(Icons.wifi_tethering, l.backupToDeviceDirect,
+                        l.backupToDeviceDirectDesc,
+                        _Destination.deviceWithoutWifi),
+                  // An iPhone has no third row and no way to run a transfer
+                  // without a shared Wi-Fi, so it gets told where to go instead.
+                  if (!_canHostNetwork && Platform.isIOS)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Text(l.backupIosNoOwnNetwork,
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant)),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(ctx.l10n.cancel),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ── Restoring, step one: what it costs ────────────────────────────────────
@@ -346,47 +412,6 @@ class _BackupScreenState extends State<BackupScreen> {
     ];
   }
 
-  /// Offers the two routes out and returns true for the file one, false for the
-  /// other device, or null when the user backed out.
-  Future<bool?> _askRoute({
-    required String title,
-    required (IconData, String, String) first,
-    required (IconData, String, String) second,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        Widget option((IconData, String, String) o, bool value) => ListTile(
-              leading: Icon(o.$1, color: cs.primary),
-              title: Text(o.$2),
-              subtitle: Text(o.$3),
-              onTap: () => Navigator.pop(ctx, value),
-            );
-
-        return Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-            child: AlertDialog(
-              title: Text(title),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [option(first, true), option(second, false)],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(ctx.l10n.cancel),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // ── Sending over the network ──────────────────────────────────────────────
 
   List<Widget> _sendingBody(AppLocalizations l) {
@@ -429,24 +454,13 @@ class _BackupScreenState extends State<BackupScreen> {
     }
 
     if (invite == null) {
-      // The connection is picked here rather than in the dialog that got us
-      // here: that one asks where the backup goes, this one asks how the two
-      // devices find each other, and mixing the two reads as one question with
-      // three answers.
+      // The way across was settled in the dialog that got us here, so all that
+      // is left is the go-ahead: this is the moment the database is read out
+      // and, on the direct route, a network goes up.
       return [
-        TransferRouteSelector(
-          value: _route,
-          ownNetworkAvailable: _canHostNetwork,
-          // An Android too old to raise a network needs no explanation: the
-          // answer there is a Wi-Fi, which the hint above already names. An
-          // iPhone with no shared Wi-Fi has no way to run this at all, and has
-          // to be pointed at the file route instead.
-          unavailableHint: Platform.isIOS ? l.backupIosNoOwnNetwork : null,
-          onChanged: (route) => setState(() {
-            _route = route;
-            _error = null;
-          }),
-        ),
+        _note(_route == TransferRoute.ownNetwork
+            ? l.routeOwnNetworkHint
+            : l.routeSharedWifiHint),
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(_error!,
@@ -456,8 +470,10 @@ class _BackupScreenState extends State<BackupScreen> {
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _startSending,
-          icon: const Icon(Icons.wifi_tethering),
-          label: Text(l.startServer),
+          icon: Icon(_route == TransferRoute.ownNetwork
+              ? Icons.wifi_tethering
+              : Icons.wifi_rounded),
+          label: Text(l.backupShowCode),
           style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16)),
         ),

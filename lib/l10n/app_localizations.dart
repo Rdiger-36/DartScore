@@ -482,7 +482,6 @@ class AppLocalizations {
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
   String get startServer       => _t('Start server', 'Server starten');
   String get stopServer        => _t('Stop server', 'Server stoppen');
-  String get scanQr            => _t('Scan QR code', 'QR-Code scannen');
   String get profileAndStats   =>
       _t('Profile · Statistics · Visits', 'Profil · Statistiken · Aufnahmen');
   String get qrScanHint        =>
@@ -538,10 +537,10 @@ class AppLocalizations {
   String get routeSharedWifiHint =>
       _t('Both devices need to be on the same Wi-Fi for this.',
          'Dafür müssen beide Geräte im selben WLAN sein.');
-  String get routeOwnNetwork   => _t('Own network', 'Eigenes Netz');
+  String get routeOwnNetwork   => _t('Without Wi-Fi', 'Ohne WLAN');
   String get routeOwnNetworkHint =>
-      _t('This device opens a network of its own. No Wi-Fi needed, and it has no internet while it runs.',
-         'Dieses Gerät öffnet ein eigenes Netz. Kein WLAN nötig, dafür hat es solange kein Internet.');
+      _t('This device opens a network for the transfer. It has no internet while that runs.',
+         'Dieses Gerät öffnet ein Netz für die Übertragung. Solange hat es kein Internet.');
   String hotspotNetworkName(String ssid) =>
       _t('Network: $ssid', 'Netz: $ssid');
   String get hotspotSendHint   =>
@@ -627,14 +626,19 @@ class AppLocalizations {
       _t('Pick where the file goes: iCloud Drive, Google Drive, Files, mail or a chat. Nothing is uploaded anywhere by the app itself.',
          'Du wählst, wohin die Datei geht: iCloud Drive, Google Drive, Dateien, E-Mail oder ein Chat. Die App selbst lädt nichts irgendwo hoch.');
   String get backupCreated     => _t('Backup created.', 'Sicherung erstellt.');
-  String get backupToFile      => _t('Save to a file', 'In eine Datei speichern');
+  String get backupToFile      => _t('To a file', 'In eine Datei');
   String get backupToFileDesc  =>
       _t('iCloud Drive, Google Drive, Files, mail, anywhere you like',
          'iCloud Drive, Google Drive, Dateien, E-Mail, wohin du magst');
-  String get backupToDevice    => _t('Send to another device', 'An anderes Gerät senden');
+  String get backupToDevice    => _t('To another device, over Wi-Fi', 'An anderes Gerät, über WLAN');
   String get backupToDeviceDesc =>
-      _t('Straight over Wi-Fi, both devices on the same network',
-         'Direkt über WLAN, beide Geräte im selben Netz');
+      _t('Both devices on the same network',
+         'Beide Geräte im selben Netz');
+  String get backupToDeviceDirect =>
+      _t('To another device, without Wi-Fi', 'An anderes Gerät, ohne WLAN');
+  String get backupToDeviceDirectDesc =>
+      _t('This device opens a network for the transfer',
+         'Dieses Gerät öffnet ein Netz für die Übertragung');
   String get backupFromFile    => _t('From a file', 'Aus einer Datei');
   String get backupFromFileDesc =>
       _t('Pick a backup you saved earlier',
@@ -646,6 +650,7 @@ class AppLocalizations {
   String get backupSendHint    =>
       _t('Show this code to the other device and confirm the number both screens display. Everything on that device is replaced by this database.',
          'Zeige diesen Code dem anderen Gerät und bestätige die Zahl, die beide Bildschirme anzeigen. Alles auf jenem Gerät wird durch diese Datenbank ersetzt.');
+  String get backupShowCode    => _t('Show the code', 'Code anzeigen');
   String get backupSendPrep    => _t('Preparing the database', 'Datenbank wird vorbereitet');
   String get backupSent        => _t('Database transferred.', 'Datenbank übertragen.');
   String get backupSendAgain   => _t('Send again', 'Erneut senden');

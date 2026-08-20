@@ -387,6 +387,9 @@ class _SenderTabState extends State<_SenderTab>
   /// the button.
   String? _startError;
 
+  /// Whether the time range picker is folded open.
+  bool _rangeOpen = false;
+
   /// Which way the two devices reach each other.
   TransferRoute _route = TransferRoute.sharedWifi;
 
@@ -716,6 +719,81 @@ class _SenderTabState extends State<_SenderTab>
     _prepare();
   }
 
+  /// The time range, folded away until somebody wants it.
+  ///
+  /// Almost nobody narrows it, and open it put two paragraphs about visits,
+  /// totals and device attribution in front of the one thing this screen exists
+  /// for. What stays out is the line that says how much there is and which way
+  /// it will travel, because that is the answer to "is this going to work",
+  /// which is the question the screen actually raises.
+  List<Widget> _rangeSection(AppLocalizations l, ThemeData theme,
+      ColorScheme cs, SyncPacket? packet) {
+    final locked = _preparing || _server.isRunning;
+    return [
+      InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: locked ? null : () => setState(() => _rangeOpen = !_rangeOpen),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${l.syncRangeLabel}: ${_rangeLabel(l, _range)}',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Icon(_rangeOpen ? Icons.expand_less : Icons.expand_more,
+                  size: 20, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+      if (_rangeOpen) ...[
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: SyncRange.values
+              .map((range) => ChoiceChip(
+                    label: Text(_rangeLabel(l, range)),
+                    selected: _range == range,
+                    onSelected:
+                        locked ? null : (_) => _onRangeChanged(range),
+                  ))
+              .toList(),
+        ),
+        if (packet != null && !_preparing && _range != SyncRange.all) ...[
+          const SizedBox(height: 8),
+          Text(
+            l.syncRangeNote,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          // Only worth saying while a range is picked: that is when the count
+          // stops moving and the picker looks broken.
+          if (_legacyCount(packet) > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              l.syncLegacyNote,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ],
+      if (packet != null && !_preparing) ...[
+        const SizedBox(height: 10),
+        Text(
+          '${_visitCountLabel(l, packet)} · ${_transportLabel(l)}',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    ];
+  }
+
   /// The localized label for [range].
   String _rangeLabel(AppLocalizations l, SyncRange range) =>
       _rangeLabelForDays(l, range.days);
@@ -805,51 +883,7 @@ class _SenderTabState extends State<_SenderTab>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l.syncRangeLabel,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: SyncRange.values
-                  .map((range) => ChoiceChip(
-                        label: Text(_rangeLabel(l, range)),
-                        selected: _range == range,
-                        onSelected: _preparing || _server.isRunning
-                            ? null
-                            : (_) => _onRangeChanged(range),
-                      ))
-                  .toList(),
-            ),
-            if (packet != null && !_preparing) ...[
-              const SizedBox(height: 10),
-              Text(
-                '${_visitCountLabel(l, packet)} · ${_transportLabel(l)}',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              if (_range != SyncRange.all) ...[
-                const SizedBox(height: 6),
-                Text(
-                  l.syncRangeNote,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                // Only worth saying while a range is picked: that is when the
-                // count stops moving and the picker looks broken.
-                if (_legacyCount(packet) > 0) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    l.syncLegacyNote,
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ],
-            ],
+            ..._rangeSection(l, theme, cs, packet),
           ],
         ),
       ),
@@ -1120,16 +1154,15 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   /// Set once this tab joined a network, so it can be left again.
   bool _joined = false;
 
-  /// Starts a fresh scan, dropping anything a previous attempt collected.
-  void _startScanning() {
-    _decoder.reset();
-    setState(() {
-      _scanning        = true;
-      _handled         = false;
-      _error           = null;
-      _pairingPin      = null;
-      _joiningNetwork  = null;
-    });
+  @override
+  void initState() {
+    super.initState();
+    // The camera comes up with the tab rather than behind a button. There is
+    // nothing else on this tab to do, and the backup screen has always shown
+    // its scanner straight away. Leaving the tab takes it away again: a
+    // `TabBarView` does not build the child that is not on screen, so the
+    // camera goes with it and needs no separate switch.
+    _scanning = true;
   }
 
   @override
@@ -1261,20 +1294,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
         ],
       );
     } else {
-      // As wide as everything else in its column, wherever that column is.
-      stage = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          FilledButton.icon(
-            onPressed: _startScanning,
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text(l.scanQr),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16)),
-          ),
-        ],
-      );
+      stage = const SizedBox.shrink();
     }
 
     return Padding(
@@ -1403,7 +1423,14 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
         final l = context.l10n;
         setState(() {
           _fetching   = false;
+          // Rescanning is the retry, so the reason stays above a live camera
+          // rather than replacing it with a button that would only turn the
+          // camera back on. The decoder is reset with it, or a half-read
+          // animated code would poison the next one.
+          _scanning   = true;
+          _handled    = false;
           _pairingPin = null;
+          _decoder.reset();
           _error = switch (e) {
             // Both of these are ordinary outcomes of a pairing, not faults,
             // and pointing at the Wi-Fi would send the user looking in the
