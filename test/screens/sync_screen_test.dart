@@ -6,14 +6,17 @@ import 'package:dartscore_app/services/sync_service.dart';
 import 'package:dartscore_app/utils/layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dartscore_app/widgets/wifi_pairing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../support/fake_scanner.dart';
 import '../support/test_app.dart';
 import '../support/test_db.dart';
 
-/// The sync screen, minus the camera. Tapping "Scan QR code" is what starts
-/// MobileScanner, so everything up to that point renders without a camera and
-/// without the plugin being involved at all.
+/// The sync screen.
+///
+/// The receive tab puts its camera up as soon as it opens, so every pump here
+/// builds `MobileScanner` and needs [useFakeScanner] to answer for the plugin.
 ///
 /// Every throw is seeded in `setUp`, never in a test body: seeding writes rows,
 /// and a widget test runs in fake async where a real database write never
@@ -48,8 +51,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
+  /// Unfolds the time range, which is closed on arrival.
+  Future<void> openRange(WidgetTester tester) async {
+    await tester.tap(find.textContaining('Time range:'));
+    await tester.pump();
+  }
+
   group('the sync screen with a short history', () {
     useInMemoryDatabase();
+    useFakeScanner();
 
     setUp(() async {
       player = (await insertPlayers(['Nik'])).single;
@@ -62,7 +72,7 @@ void main() {
         (tester) async {
       await pumpSync(tester);
 
-      expect(find.text('Scan QR code'), findsOneWidget);
+      expect(find.byType(QrScanner), findsOneWidget);
       expect(find.byType(QrImageView), findsNothing);
     });
 
@@ -72,27 +82,29 @@ void main() {
         await pumpSync(tester, size: size);
         expect(find.byKey(kPaneDividerKey), findsNothing,
             reason: 'a picker over a code, never beside it, at $size');
-      }
 
-      for (final size in [const Size(400, 1400), const Size(1180, 820)]) {
-        await pumpSync(tester, size: size);
-
-        final button = tester.getRect(
-            find.widgetWithText(FilledButton, 'Scan QR code'));
+        final scanner = tester.getRect(find.byType(QrScanner));
         final column = tester.getRect(find.textContaining('Scan the sender'));
-        expect(button.width, greaterThanOrEqualTo(column.width - 1),
-            reason: 'the button fills its column at $size');
+        expect(scanner.width, greaterThanOrEqualTo(column.width - 1),
+            reason: 'the scanner fills its column at $size');
       }
     });
 
-    testWidgets('starts no camera until the user asks for one', (tester) async {
-      // The receiver tab builds without MobileScanner. If that ever changed,
-      // opening the screen would take the camera on every visit, which is the
-      // sort of thing nobody notices until a green dot appears.
+    testWidgets('the camera comes up with Receive and goes with it',
+        (tester) async {
+      // The camera comes up with the tab rather than behind a button: there is
+      // nothing else on this tab to do. What it must not do is keep running
+      // once the send tab is in front, which is the sort of thing nobody
+      // notices until a green dot appears. A `TabBarView` does not build the
+      // child that is off screen, so leaving the tab takes the scanner with it.
       await pumpSync(tester);
+      expect(find.byType(QrScanner), findsOneWidget);
 
-      expect(find.byType(QrImageView), findsNothing);
-      expect(find.text('Scan QR code'), findsOneWidget);
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(QrScanner), findsNothing);
     });
 
     testWidgets('opens on Send when it was handed one, showing one still code',
@@ -103,8 +115,15 @@ void main() {
       expect(find.text('Nik'), findsWidgets);
     });
 
-    testWidgets('offers every range to pick from', (tester) async {
+    testWidgets('offers every range to pick from, once unfolded',
+        (tester) async {
+      // Folded away on arrival: the range is a rarity, and open it stood
+      // between the reader and the code.
       await pumpSync(tester, initial: player);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.textContaining('Time range: Everything'), findsOneWidget);
+
+      await openRange(tester);
 
       expect(find.byType(ChoiceChip), findsNWidgets(SyncRange.values.length));
     });
@@ -133,6 +152,7 @@ void main() {
 
   group('the sync screen with a history too large for one code', () {
     useInMemoryDatabase();
+    useFakeScanner();
 
     setUp(() async {
       player = (await insertPlayers(['Nik'])).single;
@@ -258,6 +278,7 @@ void main() {
 
   group('the sync screen with a history from before this version', () {
     useInMemoryDatabase();
+    useFakeScanner();
 
     setUp(() async {
       player = (await insertPlayers(['Nik'])).single;
@@ -282,8 +303,12 @@ void main() {
       // where the count stops answering the picker.
       await pumpSync(tester, initial: player);
 
+      // The count stays out whatever the range does: it is the answer to "is
+      // this going to work", which is the question the screen raises.
       expect(find.textContaining('5 of them from earlier syncs'),
           findsOneWidget);
+
+      await openRange(tester);
       expect(find.textContaining('always travel in full'), findsOneWidget);
     });
   });
