@@ -117,21 +117,47 @@ class IncomingFiles {
   static final StreamController<IncomingFile> _opened =
       StreamController<IncomingFile>.broadcast();
 
+  /// Names of files the system handed over that could not be read.
+  ///
+  /// Reported rather than swallowed. Without this the app simply opens on its
+  /// home screen and the user is left to guess whether anything happened.
+  static final StreamController<String> _failed =
+      StreamController<String>.broadcast();
+
   static bool _listening = false;
 
   /// Files handed over while the app is running.
   static Stream<IncomingFile> get stream {
-    if (!_listening) {
-      _listening = true;
-      _channel.setMethodCallHandler((call) async {
-        if (call.method != 'opened') return;
-        final path = call.arguments;
-        if (path is! String) return;
-        final file = await IncomingFile.classify(path);
-        if (file != null) _opened.add(file);
-      });
-    }
+    _listen();
     return _opened.stream;
+  }
+
+  /// Names of files the system offered that could not be read.
+  static Stream<String> get failures {
+    _listen();
+    return _failed.stream;
+  }
+
+  static void _listen() {
+    if (_listening) return;
+    _listening = true;
+    _channel.setMethodCallHandler((call) async {
+      final argument = call.arguments;
+      if (argument is! String) return;
+      switch (call.method) {
+        case 'opened':
+          final file = await IncomingFile.classify(argument);
+          if (file != null) {
+            _opened.add(file);
+          } else {
+            // Readable, but neither kind. Worth the same word as unreadable:
+            // something was handed over and nothing came of it.
+            _failed.add(argument.split('/').last);
+          }
+        case 'failed':
+          _failed.add(argument);
+      }
+    });
   }
 
   /// The file this app was launched with, if it was.
