@@ -61,7 +61,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
   _Mode _mode = _Mode.idle;
   bool _busy = false;
-  SyncConnection? _connection;
+  TransferInvite? _invite;
   bool _sent = false;
   String? _error;
 
@@ -353,11 +353,16 @@ class _BackupScreenState extends State<BackupScreen> {
       ];
     }
 
-    final connection = _connection;
-    if (connection == null) {
+    final invite = _invite;
+    if (invite == null) {
       return [
-        const Center(child: CircularProgressIndicator()),
-        const SizedBox(height: 16),
+        // No spinner once it has failed. A turning circle under an error line
+        // reads as a transfer that is still going, and there is nothing left
+        // to wait for.
+        if (_error == null) ...[
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+        ],
         Text(_error ?? l.backupSendPrep,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
@@ -389,7 +394,7 @@ class _BackupScreenState extends State<BackupScreen> {
                           ?.copyWith(color: cs.onSurfaceVariant)),
                 ],
               ),
-        child: PairingQrCard(data: connection.qrPayload),
+        child: PairingQrCard(data: invite.qrPayload(kBackupWifiPrefix)),
       ),
     ];
   }
@@ -403,7 +408,7 @@ class _BackupScreenState extends State<BackupScreen> {
       _mode       = _Mode.sending;
       _sent       = false;
       _error      = null;
-      _connection = null;
+      _invite = null;
       _outgoing   = null;
     });
 
@@ -415,16 +420,22 @@ class _BackupScreenState extends State<BackupScreen> {
       if (_server.isRunning) await _server.stop();
       // One way on purpose. A database replaces the device that takes it, so
       // there is nothing it could hand back.
-      final connection = await _server.start(
+      final invite = await _server.start(
         bytes,
         twoWay: false,
         contentType: ContentType.binary,
-        codePrefix: kBackupWifiPrefix,
       );
       if (!mounted) return;
-      setState(() => _connection = connection);
+      setState(() => _invite = invite);
     } catch (e) {
-      if (mounted) setState(() => _error = '${context.l10n.error}: $e');
+      if (!mounted) return;
+      final l = context.l10n;
+      setState(() => _error = switch (e) {
+            TransferStartException(reason: TransferStartFailure.noLocalAddress) =>
+              l.syncNoWifiAddress,
+            TransferStartException() => l.syncServerFailed,
+            _ => '${l.error}: $e',
+          });
     }
   }
 
@@ -467,7 +478,7 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _finishSending() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
-    if (mounted) setState(() { _connection = null; _sent = sent; });
+    if (mounted) setState(() { _invite = null; _sent = sent; });
   }
 
   // ── Receiving over the network ────────────────────────────────────────────
@@ -530,12 +541,12 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _onScanned(String raw) async {
     if (_busy) return;
 
-    final connection =
-        SyncConnection.parse(raw, prefix: kBackupWifiPrefix);
-    if (connection == null) {
+    final invite = TransferInvite.parse(raw, prefix: kBackupWifiPrefix);
+    if (invite == null) {
       // A profile sync code is the one wrong code worth naming, because it
       // looks right and belongs to a different screen.
-      final isSyncCode = SyncConnection.parse(raw) != null;
+      final isSyncCode =
+          TransferInvite.parse(raw, prefix: kSyncWifiPrefix) != null;
       if (mounted) {
         setState(() => _error = isSyncCode
             ? context.l10n.backupNotSyncCode
@@ -552,7 +563,7 @@ class _BackupScreenState extends State<BackupScreen> {
     });
     try {
       final bytes = await SyncClient().fetchBytes(
-        connection,
+        invite,
         onPin: (pin) {
           if (mounted) setState(() => _pairingPin = pin);
         },
@@ -571,6 +582,8 @@ class _BackupScreenState extends State<BackupScreen> {
               SyncRejectedException() => l.syncRejected,
               TimeoutException()      => l.syncNotConfirmed,
               SyncPayloadTooLargeException() => l.syncTooLarge,
+              TransferUnreachableException() => l.syncUnreachable,
+              TransferInviteExpiredException() => l.syncCodeExpired,
               _ => '${l.connectionFailed}\n\n${l.error}: $e',
             });
       }
@@ -714,7 +727,7 @@ class _BackupScreenState extends State<BackupScreen> {
     if (!mounted) return;
     setState(() {
       _mode       = _Mode.idle;
-      _connection = null;
+      _invite = null;
       _sent       = false;
       _error      = null;
     });

@@ -6,6 +6,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import '../models/dart_throw.dart';
+import 'local_addresses.dart';
+import 'transfer_invite.dart';
+
+/// The connection code and its prefixes are part of this transport, so a screen
+/// that drives a transfer needs no second import for them.
+export 'transfer_invite.dart';
 
 // ── Size limits ───────────────────────────────────────────────────────────────
 
@@ -36,6 +42,53 @@ class SyncPayloadTooLargeException implements Exception {
 
   @override
   String toString() => 'The other device sent more data than this app accepts';
+}
+
+// ── Transfer failures ─────────────────────────────────────────────────────────
+
+/// Why a transfer could not be opened on this device.
+enum TransferStartFailure {
+  /// The device is on no network a peer could reach it over. Wi-Fi is off, or
+  /// the only connection is mobile data.
+  noLocalAddress,
+
+  /// The socket could not be bound, twice in a row.
+  bindFailed,
+}
+
+/// Raised when [SyncServer.start] cannot offer a transfer.
+///
+/// Typed rather than a bare exception because the two reasons need different
+/// words on screen: one is fixed by turning Wi-Fi on, the other by restarting
+/// the app. The start used to throw whatever came up, which the sync screen did
+/// not catch at all, leaving its button spinning forever.
+class TransferStartException implements Exception {
+  const TransferStartException(this.reason);
+
+  final TransferStartFailure reason;
+
+  @override
+  String toString() => 'The transfer could not be started: ${reason.name}';
+}
+
+/// Raised when no address in the invitation answered at all.
+///
+/// Distinct from a timeout on purpose. A timeout means the other device heard
+/// this one and the user has not confirmed yet; this means nothing was heard,
+/// which is what a guest network with client isolation looks like from here.
+class TransferUnreachableException implements Exception {
+  const TransferUnreachableException();
+
+  @override
+  String toString() => 'The other device could not be reached';
+}
+
+/// Raised when a scanned code has outlived [kInviteLifetime].
+class TransferInviteExpiredException implements Exception {
+  const TransferInviteExpiredException();
+
+  @override
+  String toString() => 'This connection code has expired';
 }
 
 // ── Sync range ────────────────────────────────────────────────────────────────
@@ -382,9 +435,6 @@ class SyncPacket {
 
 // ── Server ────────────────────────────────────────────────────────────────────
 
-/// Marks the QR code that carries a Wi-Fi transfer's connection details.
-const String kSyncWifiPrefix = 'DSW:';
-
 /// How far a Wi-Fi transfer has got, from the sender's side.
 enum SyncServerState {
   /// Bound and listening, nobody has asked yet.
@@ -405,46 +455,6 @@ enum SyncServerState {
 
   /// The user turned the peer away.
   rejected,
-}
-
-/// Marks the QR code that carries a whole-database transfer's connection
-/// details.
-///
-/// Its own prefix so the two cannot be mixed up: a database replaces the
-/// receiving device, a profile is merged into it, and scanning one code in the
-/// screen meant for the other has to fail rather than half work.
-const String kBackupWifiPrefix = 'DSB:';
-
-/// Where and how a peer reaches a running [SyncServer].
-class SyncConnection {
-  final String ip;
-  final int port;
-
-  /// Random per session, and the only way past the server's front door.
-  final String token;
-
-  /// Which kind of transfer this code opens, [kSyncWifiPrefix] or
-  /// [kBackupWifiPrefix].
-  final String prefix;
-
-  const SyncConnection(this.ip, this.port, this.token,
-      {this.prefix = kSyncWifiPrefix});
-
-  /// The connection QR's contents. Uppercase and punctuation only, so the code
-  /// can use the dense alphanumeric mode.
-  String get qrPayload => '$prefix$ip:$port:$token';
-
-  /// Parses what [qrPayload] produced, or null if [raw] is something else,
-  /// including a code of the other kind.
-  static SyncConnection? parse(String raw,
-      {String prefix = kSyncWifiPrefix}) {
-    if (!raw.startsWith(prefix)) return null;
-    final parts = raw.substring(prefix.length).split(':');
-    if (parts.length != 3) return null;
-    final port = int.tryParse(parts[1]);
-    if (port == null) return null;
-    return SyncConnection(parts[0], port, parts[2], prefix: prefix);
-  }
 }
 
 /// Hosts a one-shot local HTTP server that exchanges a payload with one peer
@@ -479,6 +489,14 @@ class SyncServer {
   static const int _kChunkBytes = 64 * 1024;
 
   HttpServer? _server;
+
+  /// Raised while [start] is in flight.
+  ///
+  /// Two starts overlapping is how a session ended up with two sockets, one of
+  /// them unreachable and neither of them stopped. The screens guard their
+  /// buttons, but a lifecycle change can call in beside a tap.
+  bool _starting = false;
+
   List<int>? _payload;
   ContentType _contentType = ContentType.text;
   bool _twoWay = true;
@@ -510,39 +528,79 @@ class SyncServer {
   /// Whether the server is currently bound and listening.
   bool get isRunning => _server != null;
 
-  /// Binds the server on a free port, ready to serve [payload], and returns
-  /// where the peer should connect.
+  /// Binds the server on a free port, ready to serve [payload], and returns the
+  /// invitation a peer needs to reach it.
   ///
   /// [twoWay] is what a profile sync wants: the peer answers with its own side
   /// and one pairing settles both devices. Handing a whole database over is not
   /// like that, it replaces the receiver, so there is nothing to hand back and
   /// the session ends as soon as the payload is out.
   ///
-  /// [codePrefix] picks which kind of transfer the returned code opens.
-  Future<SyncConnection> start(
+  /// [hotspot] is filled when this device raised the network the peer is meant
+  /// to join, so a single code both joins it and names the endpoint on it.
+  ///
+  /// Throws [TransferStartException] rather than whatever the socket layer came
+  /// up with, and looks for an address before it binds anything: a device with
+  /// no local address has nothing to offer, and finding that out after a socket
+  /// exists only leaves one to clean up.
+  Future<TransferInvite> start(
     List<int> payload, {
     bool twoWay = true,
     ContentType? contentType,
-    String codePrefix = kSyncWifiPrefix,
+    HotspotCredentials? hotspot,
+    @visibleForTesting List<String>? addresses,
   }) async {
-    final random = Random.secure();
+    if (_starting) throw const TransferStartException(TransferStartFailure.bindFailed);
+    _starting = true;
+    try {
+      final reachableOn = addresses ?? await localTransferAddresses();
+      if (reachableOn.isEmpty) {
+        throw const TransferStartException(TransferStartFailure.noLocalAddress);
+      }
 
-    _payload = payload;
-    _contentType = contentType ?? ContentType.text;
-    _twoWay = twoWay;
-    _returned = null;
-    _progress.value = 0;
-    _token = List.generate(
-        16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
-    _pin = random.nextInt(10000).toString().padLeft(4, '0');
-    _state.value = SyncServerState.waiting;
+      final random = Random.secure();
 
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
-    _server!.listen((req) => _handle(req).catchError((_) {}),
-        onError: (_) {}, cancelOnError: false);
+      _payload = payload;
+      _contentType = contentType ?? ContentType.text;
+      _twoWay = twoWay;
+      _returned = null;
+      _progress.value = 0;
+      _token = List.generate(
+          16, (_) => _kTokenAlphabet[random.nextInt(_kTokenAlphabet.length)]).join();
+      _pin = random.nextInt(10000).toString().padLeft(4, '0');
+      _state.value = SyncServerState.waiting;
 
-    return SyncConnection(await _localIp(), _server!.port, _token,
-        prefix: codePrefix);
+      _server = await _bind();
+      _server!.listen((req) => _handle(req).catchError((_) {}),
+          onError: (_) {}, cancelOnError: false);
+
+      return TransferInvite.forNow(
+        addresses: reachableOn,
+        port: _server!.port,
+        token: _token,
+        hotspot: hotspot,
+      );
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Binds a listening socket on a port the system picks, with one retry.
+  ///
+  /// A port of 0 should never collide, but a socket the previous session left
+  /// half closed can still refuse the bind for as long as it lingers. One short
+  /// wait clears that; a second failure is real.
+  Future<HttpServer> _bind() async {
+    try {
+      return await HttpServer.bind(InternetAddress.anyIPv4, 0);
+    } catch (_) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      try {
+        return await HttpServer.bind(InternetAddress.anyIPv4, 0);
+      } catch (_) {
+        throw const TransferStartException(TransferStartFailure.bindFailed);
+      }
+    }
   }
 
   /// Releases the payload to the waiting peer.
@@ -716,28 +774,6 @@ class SyncServer {
   /// Characters a session token is built from: unambiguous, and all inside the
   /// QR alphanumeric set so the connection code stays dense.
   static const _kTokenAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-
-  /// Best-effort lookup of the device's LAN IPv4 address, preferring `en*`
-  /// interfaces and falling back to loopback when none is found.
-  static Future<String> _localIp() async {
-    try {
-      final interfaces = await NetworkInterface.list(
-          type: InternetAddressType.IPv4, includeLinkLocal: false);
-      for (final iface in interfaces) {
-        if (iface.name.startsWith('en')) {
-          for (final addr in iface.addresses) {
-            if (!addr.isLoopback) return addr.address;
-          }
-        }
-      }
-      for (final iface in interfaces) {
-        for (final addr in iface.addresses) {
-          if (!addr.isLoopback) return addr.address;
-        }
-      }
-    } catch (_) {}
-    return '127.0.0.1';
-  }
 }
 
 // ── Client ────────────────────────────────────────────────────────────────────
@@ -751,6 +787,12 @@ class SyncRejectedException implements Exception {
 }
 
 /// Fetches a payload from a peer's [SyncServer] over the local network.
+///
+/// An invitation names several addresses, because the sending device cannot
+/// know which of its own the peer shares a network with. The client tries them
+/// in turn and keeps the first that answers; everything after that runs against
+/// that one address alone. Reuse one instance for the fetch and the return
+/// post, so the answer goes back the way it came.
 class SyncClient {
   /// How long to keep asking before giving up on the user confirming.
   static const _kTimeout = Duration(minutes: 2);
@@ -758,22 +800,43 @@ class SyncClient {
   /// How long to wait between asking again.
   static const _kPollInterval = Duration(milliseconds: 600);
 
+  /// How long to keep trying addresses that answer nothing at all before
+  /// calling the peer unreachable.
+  ///
+  /// Well short of [_kTimeout]: that one covers a user who has not confirmed
+  /// yet, and there is no point holding a receiver on a spinner for two minutes
+  /// when nothing on the far side has ever replied.
+  static const _kUnreachableAfter = Duration(seconds: 15);
+
+  /// How long one address gets to answer before the next is tried.
+  ///
+  /// Short, because it is spent once per candidate on every poll until one
+  /// answers. The old single address had ten seconds, which is a sensible wait
+  /// for a peer that exists and a long one for three that do not.
+  static const _kProbeTimeout = Duration(milliseconds: 2500);
+
   /// Ceiling for an answer that is not the payload. The pairing number and the
   /// refusals are a line of JSON; nothing that is not the payload is large.
   static const _kMaxStatusBytes = 64 * 1024;
+
+  /// The address that answered, once one has. Null until then.
+  ///
+  /// The address alone, not the URL: the token comes from the invitation on
+  /// every call, so a later call cannot ride on a token an earlier one carried.
+  String? _reached;
 
   /// The text payload of a profile sync. See [fetchBytes], which this decodes.
   ///
   /// Takes the sync ceiling rather than the backup one: this end of the wire
   /// only ever carries a packet, and letting it take a database sized body
   /// would leave the tighter limit unused on the one path that can hold it.
-  Future<String> fetch(SyncConnection connection,
+  Future<String> fetch(TransferInvite invite,
           {void Function(String pin)? onPin}) async =>
-      utf8.decode(await fetchBytes(connection,
+      utf8.decode(await fetchBytes(invite,
           onPin: onPin, maxBytes: kMaxSyncTransferBytes));
 
-  /// Connects to [connection] and returns the payload once the sending device
-  /// has approved the transfer.
+  /// Connects to [invite] and returns the payload once the sending device has
+  /// approved the transfer.
   ///
   /// [onPin] is called with the four digits as soon as the server names them,
   /// so the receiver can show the user what to compare against. [onProgress]
@@ -785,24 +848,35 @@ class SyncClient {
   /// Throws [SyncPayloadTooLargeException] on an announced length above it and
   /// again on the bytes actually arriving, because a peer is free to announce
   /// one length and send another.
-  Future<List<int>> fetchBytes(SyncConnection connection,
+  ///
+  /// Throws [TransferInviteExpiredException] on a code that has outlived its
+  /// session, and [TransferUnreachableException] when no address ever answered.
+  Future<List<int>> fetchBytes(TransferInvite invite,
       {void Function(String pin)? onPin,
       void Function(int received, int total)? onProgress,
       int maxBytes = kMaxBackupTransferBytes}) async {
+    if (invite.isExpired) throw const TransferInviteExpiredException();
+
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10)
+      ..connectionTimeout = _kProbeTimeout
       ..idleTimeout = const Duration(seconds: 10);
 
-    final deadline = DateTime.now().add(_kTimeout);
+    final started = DateTime.now();
+    final deadline = started.add(_kTimeout);
     var announced = false;
 
     try {
       while (true) {
-        final url =
-            Uri.parse('http://${connection.ip}:${connection.port}/${connection.token}');
-        final res = await (await client.getUrl(url))
-            .close()
-            .timeout(const Duration(seconds: 10));
+        final res = await _get(client, invite);
+
+        if (res == null) {
+          // Nothing on any of the addresses answered this round.
+          if (DateTime.now().difference(started) > _kUnreachableAfter) {
+            throw const TransferUnreachableException();
+          }
+          await Future<void>.delayed(_kPollInterval);
+          continue;
+        }
 
         final total = res.contentLength < 0 ? 0 : res.contentLength;
 
@@ -857,7 +931,31 @@ class SyncClient {
     }
   }
 
-  /// Sends this device's own side of the exchange back to [connection].
+  /// Asks one round of the invitation's addresses, returning the first answer,
+  /// or null when none of them answered.
+  ///
+  /// Once an address has answered it is the only one asked again. Switching
+  /// later would risk a second request reaching an approved server and taking
+  /// the payload a second time; while nothing has answered, the server is still
+  /// in `waiting` and a probe costs it nothing.
+  Future<HttpClientResponse?> _get(HttpClient client, TransferInvite invite) async {
+    for (final address in _reached != null ? [_reached!] : invite.addresses) {
+      try {
+        final res = await (await client.getUrl(invite.endpointAt(address)))
+            .close()
+            .timeout(_kProbeTimeout);
+        _reached = address;
+        return res;
+      } catch (_) {
+        // This address is not the one. The next is tried, and if none is, the
+        // caller decides whether that has gone on long enough to give up.
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /// Sends this device's own side of the exchange back to [invite].
   ///
   /// Always called after a successful [fetch], with an empty [payload] when
   /// there is nothing to return: the sender is waiting on an answer either way,
@@ -866,23 +964,33 @@ class SyncClient {
   /// A failure here is deliberately not fatal to the caller. The data this
   /// device received is already stored, and the only thing lost is the other
   /// direction, which the user can run again.
-  Future<void> post(SyncConnection connection, String payload) async {
+  Future<void> post(TransferInvite invite, String payload) async {
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10)
+      ..connectionTimeout = _kProbeTimeout
       ..idleTimeout = const Duration(seconds: 10);
 
     try {
-      final url = Uri.parse(
-          'http://${connection.ip}:${connection.port}/${connection.token}');
-      final request = await client.postUrl(url);
-      request.headers.contentType = ContentType.text;
-      request.write(payload);
+      // The address the payload came in on, when there is one. A fetch on this
+      // same client has already found the one that works, and trying the others
+      // again would only spend the peer's waiting time.
+      for (final address in _reached != null ? [_reached!] : invite.addresses) {
+        final HttpClientResponse res;
+        try {
+          final request = await client.postUrl(invite.endpointAt(address));
+          request.headers.contentType = ContentType.text;
+          request.write(payload);
+          res = await request.close().timeout(const Duration(seconds: 30));
+        } catch (_) {
+          continue;
+        }
 
-      final res = await request.close().timeout(const Duration(seconds: 30));
-      await res.drain<void>();
-      if (res.statusCode != HttpStatus.ok) {
-        throw Exception('Server responded with ${res.statusCode}');
+        await res.drain<void>();
+        if (res.statusCode != HttpStatus.ok) {
+          throw Exception('Server responded with ${res.statusCode}');
+        }
+        return;
       }
+      throw const TransferUnreachableException();
     } finally {
       client.close(force: true);
     }

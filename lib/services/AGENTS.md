@@ -6,6 +6,8 @@ Two subsystems that move a player's data off this device and back: **sync**, whi
 
 - `sync_codec.dart`, the wire format: binary packet, base45, fountain coded frames, `buildQrCode`
 - `sync_service.dart`, the payload types, the Wi-Fi server and its client
+- `transfer_invite.dart`, what a connection QR carries: the addresses, the port, the session token, an optional hotspot to join, and when the code stops being accepted
+- `local_addresses.dart`, which of this device's addresses a peer could reach it on
 - `device_identity.dart`, this device's sync id, the attribution key for all origin tracking
 - `backup_service.dart`, writing the database out as one file and reading one back in
 - `document_picker.dart`, the Dart side of the hand-written system file picker
@@ -58,7 +60,13 @@ Sync merges, backup replaces. They must not be built on each other. A sync folds
 - Bodies are collected in a `BytesBuilder`, never a `List<int>`. A growable int list holds a machine word per byte, so a database sized transfer would cost eight times its own length before any ceiling came into it
 - The return leg is abandoned mid-body when it oversteps, rather than drained and then refused. The peer usually sees a broken connection instead of the 413, which is deliberate: the direction back is already allowed to fail silently, and draining an oversized body to be polite about the status is how a peer holds the socket for as long as it likes
 - The pairing UI both transfers share (the scanner, the number dialog, the QR card) lives in `../widgets/wifi_pairing.dart`, and `buildQrCode` sits in `sync_codec.dart` beside the framing it belongs to
-- QR payloads are base45 so a code can use its alphanumeric mode, which holds about a third more than the byte mode. Every character a code carries, headers included, has to stay inside that set, and the codes are built through `buildQrCode` in `sync_screen.dart` because `QrCode.fromData` always picks the byte mode
+- QR payloads are base45 so a code can use its alphanumeric mode, which holds about a third more than the byte mode. Every character a code carries, headers included, has to stay inside that set, and the codes are built through `buildQrCode` because `QrCode.fromData` always picks the byte mode
+- A connection code is a base45 encoded record, not delimited text. The format before it was three colon-separated fields, which held one address, could not gain one without breaking every parser, and would have shattered on the first SSID with a colon in it. A new field goes into the record; it never needs a new format
+- The address in a connection code is picked by `local_addresses.dart`, never by taking the first interface the system lists. The lookup it replaced preferred names starting with `en`, which is Apple's Wi-Fi and no Android's, so on a phone it fell through to whatever came first: mobile data, a VPN, a bridge. The code parsed, scanned and could not connect. Interfaces are matched by name and addresses by private range, and both have to agree, because a VPN hands out addresses from exactly the same ranges as a router
+- A code names several addresses, because the sending device cannot know which of its own the peer shares a network with. The client tries them in turn and keeps the first that answers. It keeps the **address**, never the whole URL: the token comes off the invitation on every call, and a remembered URL would let a later call reach the server under a token it was never given
+- Probing costs the peer nothing because it only happens while the server is still in `waiting` or `pending`. Once a payload is approved it goes to one address, and the client does not go looking again
+- Nothing answering at all is its own failure, `TransferUnreachableException`, and not a timeout. A timeout means the other device heard this one and the user has not confirmed yet; unreachable means nothing was ever heard, which is what a guest network with client isolation looks like from here. Telling the user to wait when there is nothing to wait for is how the old single message misled
+- `SyncServer.start` looks for an address before it binds anything and throws `TransferStartException` rather than whatever the socket layer produced. Both reasons need different words on screen, and a screen that does not catch this is a button that spins for the rest of the session: that is exactly what the sync tab used to do
 - Animated frames are LT coded: the receiver needs any set of frames slightly larger than the block count, not particular ones. Seeds are scrambled before use and each transfer starts at a random point in the seed space; both are load bearing, without them the overhead goes from about 1.25 to 4 times the block count
 
 ### The Wi-Fi handshake

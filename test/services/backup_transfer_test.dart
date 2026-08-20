@@ -52,8 +52,8 @@ void main() {
   }
 
   /// Where the peer connects, on loopback whatever address was reported.
-  SyncConnection loopback(SyncConnection c) =>
-      SyncConnection('127.0.0.1', c.port, c.token);
+  TransferInvite loopback(TransferInvite i) => TransferInvite.forNow(
+      addresses: const ['127.0.0.1'], port: i.port, token: i.token);
 
   test('the peer gets a database it can actually read', () async {
     final id = await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
@@ -63,9 +63,10 @@ void main() {
       (await BackupService.exportBytes()).$1,
       twoWay: false,
       contentType: ContentType.binary,
-      codePrefix: kBackupWifiPrefix,
+      addresses: const ['127.0.0.1'],
     );
-    expect(connection.qrPayload, startsWith(kBackupWifiPrefix));
+    expect(connection.qrPayload(kBackupWifiPrefix),
+        startsWith(kBackupWifiPrefix));
 
     final fetch = SyncClient().fetchBytes(loopback(connection));
     await until(SyncServerState.pending);
@@ -93,7 +94,7 @@ void main() {
     final connection = await server.start(
       (await BackupService.exportBytes()).$1,
       twoWay: false,
-      codePrefix: kBackupWifiPrefix,
+      addresses: const ['127.0.0.1'],
     );
 
     final client = SyncClient();
@@ -115,7 +116,7 @@ void main() {
     final connection = await server.start(
       (await BackupService.exportBytes()).$1,
       twoWay: false,
-      codePrefix: kBackupWifiPrefix,
+      addresses: const ['127.0.0.1'],
     );
 
     final fetch = SyncClient().fetchBytes(loopback(connection));
@@ -128,14 +129,14 @@ void main() {
   group('what the two screens show while it runs', () {
     /// A payload well past one chunk, because a transfer that fits in a single
     /// write reports one step and proves nothing about the reporting.
-    Future<SyncConnection> serveLargePayload() async {
+    Future<TransferInvite> serveLargePayload() async {
       final id = await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
       await seedThrows(id, 4000);
       return server.start(
         (await BackupService.exportBytes()).$1,
         twoWay: false,
         contentType: ContentType.binary,
-        codePrefix: kBackupWifiPrefix,
+        addresses: const ['127.0.0.1'],
       );
     }
 
@@ -193,24 +194,25 @@ void main() {
       expect(server.progress.value, 1.0);
 
       await server.stop();
-      await server.start((await BackupService.exportBytes()).$1, twoWay: false);
+      await server.start((await BackupService.exportBytes()).$1,
+          twoWay: false, addresses: const ['127.0.0.1']);
 
       expect(server.progress.value, 0.0);
     });
   });
 
   test('a profile sync code is not a database code', () {
-    final syncCode = SyncConnection('10.0.0.5', 1234, 'TOKEN').qrPayload;
-    final backupCode = SyncConnection('10.0.0.5', 1234, 'TOKEN',
-            prefix: kBackupWifiPrefix)
-        .qrPayload;
+    final invite = TransferInvite.forNow(
+        addresses: const ['10.0.0.5'], port: 1234, token: 'TOKEN');
+    final syncCode = invite.qrPayload(kSyncWifiPrefix);
+    final backupCode = invite.qrPayload(kBackupWifiPrefix);
 
     // The two do opposite things, one merges and one replaces, so a code for
     // the wrong screen has to fail rather than half work.
-    expect(SyncConnection.parse(syncCode, prefix: kBackupWifiPrefix), isNull);
-    expect(SyncConnection.parse(backupCode), isNull);
-    expect(SyncConnection.parse(syncCode), isNotNull);
-    expect(SyncConnection.parse(backupCode, prefix: kBackupWifiPrefix),
+    expect(TransferInvite.parse(syncCode, prefix: kBackupWifiPrefix), isNull);
+    expect(TransferInvite.parse(backupCode, prefix: kSyncWifiPrefix), isNull);
+    expect(TransferInvite.parse(syncCode, prefix: kSyncWifiPrefix), isNotNull);
+    expect(TransferInvite.parse(backupCode, prefix: kBackupWifiPrefix),
         isNotNull);
   });
 }

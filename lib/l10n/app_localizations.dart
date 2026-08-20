@@ -513,6 +513,21 @@ class AppLocalizations {
   String get syncTooLarge      =>
       _t('The other device sent more data than this app accepts.',
          'Das andere Gerät hat mehr Daten gesendet, als diese App annimmt.');
+  String get syncNoWifiAddress =>
+      _t('This device is not on a Wi-Fi network.\nTurn Wi-Fi on and join a network, then start the server again.',
+         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem Netz und starte den Server erneut.');
+  String get syncServerFailed  =>
+      _t('The server could not be started.\nClose the app and open it again.',
+         'Der Server konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
+  String get syncUnreachable   =>
+      _t('The other device did not answer.\nSome guest networks stop devices from reaching each other. Try a different Wi-Fi.',
+         'Das andere Gerät hat nicht geantwortet.\nIn manchen Gäste-WLANs können sich Geräte nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
+  String get syncCodeExpired   =>
+      _t('This code has expired.\nCreate a new one on the other device.',
+         'Dieser Code ist abgelaufen.\nErzeuge auf dem anderen Gerät einen neuen.');
+  String get syncNotBackupCode =>
+      _t('That is a backup code. It belongs in Backup, not here.',
+         'Das ist ein Backup-Code. Er gehört ins Backup, nicht hierher.');
   String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
   String get syncServerSentHint =>
       _t('The server has stopped. Start it again for another transfer.',
