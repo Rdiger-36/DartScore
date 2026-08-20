@@ -407,11 +407,15 @@ class AppLocalizations {
   String get developer         => _t('Developer', 'Entwickler');
   String get support           => _t('Support', 'Support');
   String get supportDesc       => _t('Get help or report an issue', 'Hilfe erhalten oder ein Problem melden');
+  String get sourceCode        => _t('Source code', 'Quelltext');
+  String get sourceCodeDesc    => _t('Read the code this app is built from', 'Den Code lesen, aus dem diese App gebaut ist');
   String get license           => _t('License', 'Lizenz');
   String get licenseDesc       => _t('GNU General Public License v3.0', 'GNU General Public License v3.0');
   String get licenseFullText   => _t('Read full license text', 'Vollständigen Lizenztext lesen');
   String get openSourceLicenses     => _t('Open Source Licenses', 'Open-Source-Lizenzen');
   String get openSourceLicensesDesc => _t('Packages used in this app', 'In dieser App verwendete Pakete');
+  String get licenseUnnamedComponent =>
+      _t('Unnamed component', 'Unbenannte Komponente');
   String get licensesPickPackage    =>
       _t('Pick a package to read its license.',
          'Wähle ein Paket, um seine Lizenz zu lesen.');

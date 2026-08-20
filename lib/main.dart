@@ -17,11 +17,13 @@ import 'providers/donation_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'utils/layout.dart';
+import 'utils/platform_notices.dart';
 
-/// App entry point: initializes the binding, enables edge-to-edge on Android,
-/// and runs the app.
+/// App entry point: initializes the binding, registers the native licenses,
+/// enables edge-to-edge on Android, and runs the app.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerPlatformNotices();
   // Android 15+ forces edge-to-edge. Enable it explicitly so Flutter
   // correctly reports the bottom inset (navigation bar height).
   // iOS handles safe-area insets natively: no change needed there.

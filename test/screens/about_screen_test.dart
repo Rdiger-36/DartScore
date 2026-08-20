@@ -50,6 +50,21 @@ void main() {
     expect(notice.center.dx, closeTo(1180 / 2, 20));
   });
 
+  testWidgets('names the repository the binary is built from', (tester) async {
+    await pumpAbout(tester, const Size(400, 900));
+
+    // The GPL asks a binary to say where its source is, and the store build is
+    // the only copy most readers ever see.
+    expect(find.text('Source code'), findsOneWidget);
+
+    await tester.tap(find.text('License').last);
+    await tester.pumpAndSettle();
+
+    expect(
+        find.textContaining('https://github.com/Rdiger-36/DartScore'),
+        findsOneWidget);
+  });
+
   testWidgets('opens the packaged licenses in the app\'s own screen',
       (tester) async {
     await pumpAbout(tester, const Size(1180, 820));
