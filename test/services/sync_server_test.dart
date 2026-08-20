@@ -12,13 +12,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// here worth pinning down. These tests drive the real server over real HTTP.
 void main() {
   late SyncServer server;
-  late SyncConnection connection;
+  late TransferInvite connection;
 
   const payload = 'DS2:PAYLOAD';
 
   /// Reaches the server on loopback, whatever address it reported.
-  SyncConnection loopback(String token) =>
-      SyncConnection('127.0.0.1', connection.port, token);
+  TransferInvite loopback(String token) => TransferInvite.forNow(
+      addresses: const ['127.0.0.1'], port: connection.port, token: token);
 
   /// Posts [bytes] zeros to the token path, in slices so the test never holds
   /// the whole body.
@@ -58,7 +58,10 @@ void main() {
 
   setUp(() async {
     server = SyncServer();
-    connection = await server.start(utf8.encode(payload));
+    // Pinned rather than looked up: what the server reports is the machine's
+    // own network, and these tests have to run on one that has none.
+    connection = await server.start(utf8.encode(payload),
+        addresses: const ['127.0.0.1']);
   });
 
   tearDown(() async {
@@ -94,7 +97,8 @@ void main() {
 
     test('every session gets its own token and number', () async {
       final other = SyncServer();
-      final second = await other.start(utf8.encode(payload));
+      final second = await other.start(utf8.encode(payload),
+          addresses: const ['127.0.0.1']);
 
       expect(second.token, isNot(connection.token));
       expect(second.token.length, 16);
@@ -138,7 +142,8 @@ void main() {
       // that only shows up once the body no longer fits in one buffer.
       final big = 'DS2:${'W' * 250000}';
       final other = SyncServer();
-      final where = await other.start(utf8.encode(big));
+      final where = await other.start(utf8.encode(big),
+          addresses: const ['127.0.0.1']);
 
       // The screen stops the server the moment it reports the hand-over, so
       // that has to be the moment the last byte is out.
@@ -149,8 +154,10 @@ void main() {
         }
       });
 
-      final fetch = SyncClient()
-          .fetch(SyncConnection('127.0.0.1', where.port, where.token));
+      final fetch = SyncClient().fetch(TransferInvite.forNow(
+          addresses: const ['127.0.0.1'],
+          port: where.port,
+          token: where.token));
       await _until(() => other.state.value == SyncServerState.pending);
       other.approve();
 
@@ -244,7 +251,7 @@ void main() {
     /// written onto a raw socket rather than through `HttpServer`: a peer is
     /// free to name one length and send another, which is exactly what
     /// `HttpServer` refuses to let a test do.
-    Future<(ServerSocket, SyncConnection)> liar(
+    Future<(ServerSocket, TransferInvite)> liar(
         {required int announced, required int sends}) async {
       final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       listener.listen((socket) async {
@@ -262,7 +269,11 @@ void main() {
         }
         await socket.close();
       });
-      return (listener, SyncConnection('127.0.0.1', listener.port, 'TOKEN'));
+      return (
+        listener,
+        TransferInvite.forNow(
+            addresses: const ['127.0.0.1'], port: listener.port, token: 'TOKEN')
+      );
     }
 
     test('an announced length above the ceiling is refused before it arrives',
@@ -317,28 +328,76 @@ void main() {
     });
   });
 
-  group('the connection code', () {
-    test('round trips through the QR payload', () {
-      final parsed = SyncConnection.parse(connection.qrPayload);
-
-      expect(parsed, isNotNull);
-      expect(parsed!.ip, connection.ip);
-      expect(parsed.port, connection.port);
-      expect(parsed.token, connection.token);
-    });
-
-    test('is not confused by another kind of code', () {
-      expect(SyncConnection.parse('DS2:something'), isNull);
-      expect(SyncConnection.parse('DSW:only:two'), isNull);
-      expect(SyncConnection.parse('DSW:1.2.3.4:notaport:TOKEN'), isNull);
+  group('the invitation', () {
+    test('names the addresses the server was told to report', () {
+      expect(connection.addresses, ['127.0.0.1']);
+      expect(connection.port, isPositive);
+      expect(connection.token, hasLength(16));
     });
 
     test('stays inside the dense QR character set', () {
       // Lower case or braces would push the code into the byte mode, which is
       // a third less dense for no reason.
-      expect(RegExp(r'^[0-9A-Z $%*+\-./:]+$').hasMatch(connection.qrPayload),
-          isTrue,
-          reason: connection.qrPayload);
+      final payload = connection.qrPayload(kSyncWifiPrefix);
+      expect(RegExp(r'^[0-9A-Z $%*+\-./:]+$').hasMatch(payload), isTrue,
+          reason: payload);
+    });
+  });
+
+  group('what will not start', () {
+    test('a device on no network is told so, and binds nothing', () async {
+      final other = SyncServer();
+      addTearDown(other.dispose);
+
+      await expectLater(
+        other.start(utf8.encode(payload), addresses: const []),
+        throwsA(isA<TransferStartException>().having(
+            (e) => e.reason, 'reason', TransferStartFailure.noLocalAddress)),
+      );
+      expect(other.isRunning, isFalse,
+          reason: 'a socket nobody can reach is one nobody has to stop');
+    });
+  });
+
+  group('several addresses', () {
+    test('the one that answers is found past the ones that do not', () async {
+      // What a phone offers when it is on Wi-Fi and has a hotspot up: only one
+      // of the addresses is on the network the peer joined.
+      final fetch = SyncClient().fetch(TransferInvite.forNow(
+        // One address that goes nowhere is enough to prove the point, and
+        // each one costs the probe timeout before the next is tried.
+        addresses: ['10.255.255.1', '127.0.0.1'],
+        port: connection.port,
+        token: connection.token,
+      ));
+
+      await _until(() => server.state.value == SyncServerState.pending);
+      server.approve();
+
+      expect(await fetch, payload);
+    });
+
+    test('a peer that answers on none of them is named unreachable', () async {
+      // Not a timeout: a timeout means the other device heard this one and the
+      // user has not confirmed. Nothing here was ever heard.
+      await expectLater(
+        SyncClient().fetch(TransferInvite.forNow(
+            addresses: const ['10.255.255.1'], port: 1, token: 'TOKEN')),
+        throwsA(isA<TransferUnreachableException>()),
+      );
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('a code that has expired is refused before anything is asked',
+        () async {
+      await expectLater(
+        SyncClient().fetch(TransferInvite(
+            addresses: const ['127.0.0.1'],
+            port: connection.port,
+            token: connection.token,
+            expiresAt:
+                DateTime.now().subtract(const Duration(seconds: 1)))),
+        throwsA(isA<TransferInviteExpiredException>()),
+      );
     });
   });
 }

@@ -371,7 +371,7 @@ class _SenderTabState extends State<_SenderTab>
 
   // Server transport, only started when the user asks for it
   final _server = SyncServer();
-  SyncConnection? _connection;
+  TransferInvite? _invite;
   bool _serverStarting = false;
 
   /// Set while the approval dialog for a waiting peer is on screen, so a second
@@ -380,6 +380,10 @@ class _SenderTabState extends State<_SenderTab>
 
   /// Set once the exchange is over and the server has stopped itself.
   bool _served = false;
+
+  /// Why the server would not start, or null. Shown in place of the hint above
+  /// the button.
+  String? _startError;
 
   /// What went wrong with the packet the peer sent back, if anything. The
   /// outgoing half already succeeded at that point, so this is reported next to
@@ -501,7 +505,7 @@ class _SenderTabState extends State<_SenderTab>
   Future<void> _finishServing() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
-    if (mounted) setState(() { _connection = null; _served = sent; });
+    if (mounted) setState(() { _invite = null; _served = sent; });
   }
 
   /// Closes the session once the peer has answered, and imports what it sent.
@@ -514,7 +518,7 @@ class _SenderTabState extends State<_SenderTab>
     await _server.stop();
     if (!mounted) return;
     setState(() {
-      _connection  = null;
+      _invite      = null;
       _served      = true;
       _returnError = null;
     });
@@ -555,7 +559,7 @@ class _SenderTabState extends State<_SenderTab>
       _transmission = null;
       _encoder = null;
       _streaming = false;
-      _connection = null;
+      _invite = null;
       _served = false;
     });
 
@@ -607,26 +611,44 @@ class _SenderTabState extends State<_SenderTab>
 
   // ── Server transport ──────────────────────────────────────────────────────
 
-  /// Starts the local HTTP server serving the prepared packet and shows its
-  /// IP and port as a connection QR for the receiver.
+  /// Starts the local HTTP server serving the prepared packet and shows the
+  /// connection QR the receiver scans.
+  ///
+  /// Every failure lands in the error line and releases the button. Without the
+  /// catch a device with Wi-Fi off left the button spinning for the rest of the
+  /// session, with nothing on screen to say why.
   Future<void> _startServer() async {
     final transmission = _transmission;
     if (transmission == null) return;
-    setState(() { _serverStarting = true; _served = false; });
+    setState(() { _serverStarting = true; _served = false; _startError = null; });
 
-    if (_server.isRunning) await _server.stop();
-    _server.state.removeListener(_onServerState);
-    final connection = await _server.start(utf8.encode(transmission.payload));
-    _server.state.addListener(_onServerState);
+    try {
+      if (_server.isRunning) await _server.stop();
+      _server.state.removeListener(_onServerState);
+      final invite = await _server.start(utf8.encode(transmission.payload));
+      _server.state.addListener(_onServerState);
 
-    if (!mounted) return;
-    setState(() { _connection = connection; _serverStarting = false; });
+      if (!mounted) return;
+      setState(() { _invite = invite; _serverStarting = false; });
+    } catch (e) {
+      if (!mounted) return;
+      final l = context.l10n;
+      setState(() {
+        _serverStarting = false;
+        _startError = switch (e) {
+          TransferStartException(reason: TransferStartFailure.noLocalAddress) =>
+            l.syncNoWifiAddress,
+          TransferStartException() => l.syncServerFailed,
+          _ => '${l.syncServerFailed}\n\n${l.error}: $e',
+        };
+      });
+    }
   }
 
   /// Stops the transfer server and clears its connection details.
   Future<void> _stopServer() async {
     await _server.stop();
-    if (mounted) setState(() => _connection = null);
+    if (mounted) setState(() => _invite = null);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -907,7 +929,7 @@ class _SenderTabState extends State<_SenderTab>
 
   /// Offers the Wi-Fi transfer for payloads no QR code can carry.
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
-    if (_connection == null) {
+    if (_invite == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -933,10 +955,10 @@ class _SenderTabState extends State<_SenderTab>
             const SizedBox(height: 16),
           ],
           Text(
-            l.syncServerHint,
+            _startError ?? l.syncServerHint,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+                color: _startError == null ? cs.onSurfaceVariant : cs.error),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
@@ -953,7 +975,7 @@ class _SenderTabState extends State<_SenderTab>
       );
     }
 
-    final connection = _connection!;
+    final invite = _invite!;
     // The payload is out and the other device is putting its own together. The
     // code is gone from the screen by then: scanning it again would only reach
     // a session that is already spoken for.
@@ -980,7 +1002,7 @@ class _SenderTabState extends State<_SenderTab>
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ] else
-          _qrCard(connection.qrPayload),
+          _qrCard(invite.qrPayload(kSyncWifiPrefix)),
       ],
     );
   }
@@ -1173,34 +1195,51 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     }
 
     // ── Wi-Fi transfer ────────────────────────────────────────────────────
-    final connection = SyncConnection.parse(raw);
-    if (connection == null) {
+    final invite = TransferInvite.parse(raw, prefix: kSyncWifiPrefix);
+    if (invite == null) {
+      // A backup code is the one wrong code worth naming, because it looks
+      // right and belongs to a different screen. The backup screen makes the
+      // mirror check for a sync code.
+      final isBackupCode =
+          TransferInvite.parse(raw, prefix: kBackupWifiPrefix) != null;
+      if (isBackupCode) {
+        if (mounted) {
+          setState(() {
+            _scanning = false;
+            _error    = context.l10n.syncNotBackupCode;
+          });
+        }
+        return;
+      }
       await _finishScan(() async => throw const FormatException(
           'Not a sync code'));
       return;
     }
 
+    // One client for both directions, so the return leg goes back on the
+    // address that answered rather than working through the candidates again.
+    final client = SyncClient();
     await _finishScan(() async {
-      final payload = await SyncClient().fetch(
-        connection,
+      final payload = await client.fetch(
+        invite,
         onPin: (pin) {
           if (mounted) setState(() => _pairingPin = pin);
         },
       );
       return decodeSyncPayload(payload);
-    }, connection: connection);
+    }, invite: invite, client: client);
   }
 
   /// Closes the camera, resolves [read] into a packet and imports it, turning
   /// any failure into the error banner.
   ///
-  /// [connection] is set for a Wi-Fi transfer. It picks the failure message,
+  /// [invite] is set for a Wi-Fi transfer. It picks the failure message,
   /// because a code that would not decode is not a network problem and pointing
   /// at the Wi-Fi would only mislead, and it is where this device's own side of
-  /// the exchange goes back to.
+  /// the exchange goes back to, over [client].
   Future<void> _finishScan(Future<SyncPacket> Function() read,
-      {SyncConnection? connection}) async {
-    final overWifi = connection != null;
+      {TransferInvite? invite, SyncClient? client}) async {
+    final overWifi = invite != null;
     setState(() {
       _scanning   = false;
       _fetching   = true;
@@ -1216,7 +1255,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
       // open until this answers, and a user reading a confirmation is easily
       // slower than any timeout worth having. The two directions do not depend
       // on each other, so there is nothing to wait for.
-      if (connection != null) await _returnOwnSide(packet, connection);
+      if (invite != null) await _returnOwnSide(packet, invite, client!);
       if (!mounted) return;
 
       final imported = await importPacket(packet);
@@ -1239,6 +1278,10 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
             SyncRejectedException() => l.syncRejected,
             TimeoutException()      => l.syncNotConfirmed,
             SyncPayloadTooLargeException() => l.syncTooLarge,
+            // Nothing on the far side ever answered. That is a different fault
+            // from a timeout, and the network is the place to look.
+            TransferUnreachableException() => l.syncUnreachable,
+            TransferInviteExpiredException() => l.syncCodeExpired,
             _ => '${overWifi ? l.connectionFailed : l.syncReadFailed}'
                 '\n\n${l.error}: $e',
           };
@@ -1258,7 +1301,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   /// when this device does not know the player at all, because it is holding
   /// its server open until it hears something.
   Future<void> _returnOwnSide(
-      SyncPacket packet, SyncConnection connection) async {
+      SyncPacket packet, TransferInvite invite, SyncClient client) async {
     var payload = '';
     try {
       final player =
@@ -1275,7 +1318,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     }
 
     try {
-      await SyncClient().post(connection, payload);
+      await client.post(invite, payload);
     } catch (_) {
       // The sender falls back on its own timeout.
     }
