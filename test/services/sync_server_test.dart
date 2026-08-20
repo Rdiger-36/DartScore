@@ -328,6 +328,106 @@ void main() {
     });
   });
 
+  group('handing a database over', () {
+    /// One raw request that is read to the end, which is what moves the server
+    /// from waiting to pending. The peer polls, so the payload only goes out on
+    /// a second request after the user has approved.
+    Future<void> ask(TransferInvite where) async {
+      final socket = await Socket.connect('127.0.0.1', where.port);
+      socket.write('GET /${where.token} HTTP/1.1\r\nHost: t\r\n\r\n');
+      await socket.flush();
+      await socket.first;
+      socket.destroy();
+    }
+
+    /// A one-way server holding [bytes] of payload, already approved.
+    Future<(SyncServer, TransferInvite)> approvedServer([int bytes = 64 * 1024]) async {
+      final other = SyncServer();
+      final where = await other.start(List.filled(bytes, 7),
+          twoWay: false,
+          contentType: ContentType.binary,
+          addresses: const ['127.0.0.1']);
+
+      await ask(where);
+      await _until(() => other.state.value == SyncServerState.pending);
+      other.approve();
+      return (other, where);
+    }
+
+    test('the sender is not done until the peer says it has the file',
+        () async {
+      // The failure this pins. Writing the last byte is not delivering it:
+      // `close` hands the payload to the kernel and the peer may still have
+      // most of a database to pull out of the buffers. The sending screen took
+      // the hand-over as the end, stopped the server and, on a transfer over a
+      // network it had raised, took the network down with it. The receiver sat
+      // at part of the file with nothing to show for it, because a network that
+      // disappears breaks no connection, it just goes quiet.
+      final previous = SyncServer.confirmationTimeout;
+      SyncServer.confirmationTimeout = const Duration(milliseconds: 400);
+      addTearDown(() => SyncServer.confirmationTimeout = previous);
+
+      final (other, where) = await approvedServer();
+      addTearDown(other.dispose);
+
+      // A peer that reads every byte and never says so.
+      final socket = await Socket.connect('127.0.0.1', where.port);
+      addTearDown(socket.destroy);
+      socket.write('GET /${where.token} HTTP/1.1\r\nHost: t\r\n\r\n');
+      await socket.flush();
+      var received = 0;
+      socket.listen((chunk) => received += chunk.length,
+          onError: (_) {}, cancelOnError: false);
+
+      await _until(() => received >= 64 * 1024);
+      expect(other.state.value, SyncServerState.approved,
+          reason: 'every byte is written, and the sender still waits');
+
+      // Only the peer vanishing ends it without a word, and then finishing is
+      // the right answer: the payload is out and nothing is left to wait for.
+      await _until(() => other.state.value == SyncServerState.served);
+    });
+
+    test('the client says so, and the sender stops right after', () async {
+      // The confirmation timeout stays at its full length here on purpose: a
+      // hand-over that ends quickly proves the peer spoke, not that the wait
+      // ran out.
+      final (other, where) = await approvedServer();
+      addTearDown(other.dispose);
+
+      final started = DateTime.now();
+      final bytes = await SyncClient().fetchBytes(where);
+
+      expect(bytes, hasLength(64 * 1024));
+      await _until(() => other.state.value == SyncServerState.served);
+      expect(DateTime.now().difference(started),
+          lessThan(const Duration(seconds: 5)));
+    });
+
+    test('a peer that never reads does not hold the sender forever', () async {
+      // A peer that stopped reading in the middle blocks the write, and the
+      // screen has to be able to leave: this is the app going to the background
+      // halfway through a database.
+      final previousGrace = SyncServer.drainGrace;
+      SyncServer.drainGrace = const Duration(milliseconds: 200);
+      addTearDown(() => SyncServer.drainGrace = previousGrace);
+
+      // Past any socket buffer, so the write cannot finish while nobody reads.
+      final (other, where) = await approvedServer(24 * 1024 * 1024);
+      addTearDown(other.dispose);
+
+      final socket = await Socket.connect('127.0.0.1', where.port);
+      addTearDown(socket.destroy);
+      socket.write('GET /${where.token} HTTP/1.1\r\nHost: t\r\n\r\n');
+      await socket.flush();
+      socket.listen((_) {}, onError: (_) {}, cancelOnError: false).pause();
+
+      await _until(() => other.progress.value > 0);
+      await other.stop().timeout(const Duration(seconds: 5));
+      expect(other.isRunning, isFalse);
+    });
+  });
+
   group('the invitation', () {
     test('names the addresses the server was told to report', () {
       expect(connection.addresses, ['127.0.0.1']);

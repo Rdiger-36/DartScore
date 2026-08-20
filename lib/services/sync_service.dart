@@ -480,6 +480,24 @@ class SyncServer {
   /// once.
   static const Duration returnTimeout = Duration(seconds: 90);
 
+  /// Set on a one-way payload response, telling the peer to say when it has
+  /// the whole thing.
+  ///
+  /// A two-way exchange needs no such thing: the peer's own packet coming back
+  /// is the confirmation, which is exactly why the profile sync survived over a
+  /// raised network and the database transfer did not.
+  static const String confirmHeader = 'x-transfer-confirm';
+
+  /// How long a one-way transfer waits for the peer to confirm before calling
+  /// it done anyway.
+  ///
+  /// The peer sends this the moment the last byte is in, so the wait is short
+  /// in every ordinary run. Only a peer that vanished mid-body reaches the end
+  /// of it, and then finishing is the right answer: the payload is out and
+  /// there is nothing left to hold the session open for.
+  @visibleForTesting
+  static Duration confirmationTimeout = const Duration(seconds: 30);
+
   /// How much of the payload goes out before the progress is reported again.
   ///
   /// The whole body used to be handed to the socket in one call, which is fine
@@ -501,6 +519,10 @@ class SyncServer {
   ContentType _contentType = ContentType.text;
   bool _twoWay = true;
   String? _returned;
+
+  /// Completed when a one-way peer reports it has the whole payload.
+  Completer<void>? _confirmation;
+
   Timer? _returnTimer;
   String _token = '';
   String _pin = '';
@@ -653,6 +675,7 @@ class SyncServer {
           ..headers.contentType = _contentType
           ..headers.contentLength = payload.length
           ..headers.set(HttpHeaders.connectionHeader, 'close');
+        if (!_twoWay) response.headers.set(confirmHeader, '1');
 
         // Written in slices so the sending screen has something to show. A
         // database takes long enough that one write and a still screen look
@@ -671,6 +694,16 @@ class SyncServer {
         // instead.
         await response.close();
         _progress.value = 1;
+
+        // And the last byte written is still not the last byte received.
+        // `close` hands the payload to the kernel; the peer may have most of a
+        // database still to pull out of the buffers. Announcing the hand-over
+        // there is what let the sending screen stop the server and, worse, take
+        // the raised network down with it, leaving the receiver stuck at part
+        // of the file with no error to show for it. So a one-way transfer waits
+        // to be told, and a two-way one is told by the peer's own packet.
+        if (!_twoWay) await _awaitConfirmation();
+
         if (_state.value != SyncServerState.served) {
           _state.value = SyncServerState.served;
           if (_twoWay) _startReturnTimer();
@@ -688,6 +721,23 @@ class SyncServer {
     }
   }
 
+  /// Waits for the peer to report that it holds the whole payload.
+  ///
+  /// Gives up after [confirmationTimeout] rather than never, because a peer
+  /// that disappeared mid-body would otherwise leave the sending screen unable
+  /// to start anything else.
+  Future<void> _awaitConfirmation() async {
+    final confirmation = Completer<void>();
+    _confirmation = confirmation;
+    try {
+      await confirmation.future.timeout(confirmationTimeout);
+    } catch (_) {
+      // The peer never answered. The payload is out either way.
+    } finally {
+      _confirmation = null;
+    }
+  }
+
   /// Takes the peer's side of the exchange.
   ///
   /// Only once this device's own payload is out: before that there is no
@@ -700,7 +750,22 @@ class SyncServer {
   /// pairing is not the same as handing it this device's memory, and the return
   /// leg is the one direction where the data comes in unasked.
   Future<void> _handleReturn(HttpRequest req, HttpResponse response) async {
-    if (!_twoWay || _state.value != SyncServerState.served) {
+    // A one-way transfer takes no packet back, only the word that the payload
+    // arrived whole.
+    if (!_twoWay) {
+      final confirmation = _confirmation;
+      if (confirmation == null || confirmation.isCompleted) {
+        response.statusCode = HttpStatus.conflict;
+      } else {
+        await req.drain<void>();
+        confirmation.complete();
+        response.statusCode = HttpStatus.ok;
+      }
+      await response.close();
+      return;
+    }
+
+    if (_state.value != SyncServerState.served) {
       response.statusCode = HttpStatus.conflict;
       await response.close();
       return;
@@ -757,12 +822,39 @@ class SyncServer {
   Future<void> stop() async {
     _returnTimer?.cancel();
     _returnTimer = null;
-    await _server?.close(force: true);
+
+    final server = _server;
     _server = null;
+    if (server != null) {
+      // Gracefully first, and this is load bearing. A payload the size of a
+      // database is still sitting in the socket buffers when the write loop
+      // ends: `close()` on the response hands the bytes to the kernel, it does
+      // not wait for the peer to read them. Forcing the socket down at that
+      // moment tears the transfer out from under a receiver that is still
+      // pulling it in, which is why one stopped at 39 percent while the sender
+      // reported success. A graceful close waits for the connection to finish,
+      // and only a peer that has stopped reading altogether reaches the force
+      // below.
+      try {
+        await server.close().timeout(drainGrace);
+      } catch (_) {
+        await server.close(force: true);
+      }
+    }
+
+    _confirmation = null;
     _payload = null;
     _token = '';
     _pin = '';
   }
+
+  /// How long a stop waits for a peer to finish reading before forcing the
+  /// socket down.
+  ///
+  /// Only ever reached by a peer that stopped reading: an ordinary transfer has
+  /// nothing left but what the buffers hold, which drains in a moment.
+  @visibleForTesting
+  static Duration drainGrace = const Duration(seconds: 45);
 
   /// Releases the notifiers. Call when the owning screen goes away.
   void dispose() {
@@ -808,12 +900,36 @@ class SyncClient {
   /// when nothing on the far side has ever replied.
   static const _kUnreachableAfter = Duration(seconds: 15);
 
-  /// How long one address gets to answer before the next is tried.
+  /// The same, for a transfer whose peer raised the network this device has
+  /// just joined.
   ///
-  /// Short, because it is spent once per candidate on every poll until one
-  /// answers. The old single address had ten seconds, which is a sensible wait
-  /// for a peer that exists and a long one for three that do not.
-  static const _kProbeTimeout = Duration(milliseconds: 2500);
+  /// Longer because the interface came up seconds ago: the address is still
+  /// being handed out, the route is still settling, and the first requests go
+  /// out into a network that is not quite there yet. Calling that unreachable
+  /// is calling it too early.
+  static const _kUnreachableAfterJoin = Duration(seconds: 40);
+
+  /// How long an address gets to answer while none of them has yet.
+  ///
+  /// Short, because it is spent once per candidate on every round until one
+  /// answers, and a peer on the same network answers in milliseconds.
+  static const _kProbeTimeout = Duration(seconds: 4);
+
+  /// How long the chosen address gets, once one has answered.
+  ///
+  /// The probe timeout must not apply here. There is nothing left to try, so
+  /// cutting a slow answer short only starts the search again and, worse, does
+  /// it against a server that has already seen the request: that is how a
+  /// receiver gave up while the sender was showing its pairing dialog.
+  static const _kRequestTimeout = Duration(seconds: 15);
+
+  /// How long the body may go quiet before the transfer is given up on.
+  ///
+  /// A network that disappears breaks no connection, it goes silent: the peer
+  /// took its raised hotspot down, or walked out of range. Without this the
+  /// read simply never returns and the receiving screen sits at whatever
+  /// percentage it had reached, with nothing to show the user.
+  static const _kBodyStallTimeout = Duration(seconds: 20);
 
   /// Ceiling for an answer that is not the payload. The pairing number and the
   /// refusals are a line of JSON; nothing that is not the payload is large.
@@ -863,6 +979,9 @@ class SyncClient {
 
     final started = DateTime.now();
     final deadline = started.add(_kTimeout);
+    final unreachableAfter = invite.hotspot != null
+        ? _kUnreachableAfterJoin
+        : _kUnreachableAfter;
     var announced = false;
 
     try {
@@ -871,7 +990,7 @@ class SyncClient {
 
         if (res == null) {
           // Nothing on any of the addresses answered this round.
-          if (DateTime.now().difference(started) > _kUnreachableAfter) {
+          if (DateTime.now().difference(started) > unreachableAfter) {
             throw const TransferUnreachableException();
           }
           await Future<void>.delayed(_kPollInterval);
@@ -893,18 +1012,33 @@ class SyncClient {
         // holds a machine word per byte, so a database sized body would cost
         // eight times its own length before the ceiling ever came into it.
         final body = BytesBuilder(copy: false);
-        await for (final chunk in res) {
-          if (body.length + chunk.length > limit) {
-            throw const SyncPayloadTooLargeException();
+        try {
+          await for (final chunk in res.timeout(_kBodyStallTimeout)) {
+            if (body.length + chunk.length > limit) {
+              throw const SyncPayloadTooLargeException();
+            }
+            body.add(chunk);
+            if (res.statusCode == HttpStatus.ok) {
+              onProgress?.call(body.length, total);
+            }
           }
-          body.add(chunk);
-          if (res.statusCode == HttpStatus.ok) {
-            onProgress?.call(body.length, total);
-          }
+        } on TimeoutException {
+          // Not the timeout the poll loop means, which is a user who has not
+          // confirmed. This one is the far side gone quiet mid-body, and it has
+          // to say so rather than leave the screen counting.
+          throw const TransferUnreachableException();
         }
 
         switch (res.statusCode) {
           case HttpStatus.ok:
+            // The sender is holding the session open until it hears this, and
+            // on a transfer over a network the sender raised it is holding the
+            // network up too. Said before anything is written to disk, because
+            // the wait on the other side is measured against a peer that
+            // vanished, not against a peer that is busy.
+            if (res.headers.value(SyncServer.confirmHeader) == '1') {
+              await _confirmDelivery(invite);
+            }
             return body.takeBytes();
           case HttpStatus.forbidden:
             throw const SyncRejectedException();
@@ -939,11 +1073,14 @@ class SyncClient {
   /// the payload a second time; while nothing has answered, the server is still
   /// in `waiting` and a probe costs it nothing.
   Future<HttpClientResponse?> _get(HttpClient client, TransferInvite invite) async {
-    for (final address in _reached != null ? [_reached!] : invite.addresses) {
+    final chosen = _reached;
+    final timeout = chosen == null ? _kProbeTimeout : _kRequestTimeout;
+
+    for (final address in chosen != null ? [chosen] : invite.addresses) {
       try {
         final res = await (await client.getUrl(invite.endpointAt(address)))
             .close()
-            .timeout(_kProbeTimeout);
+            .timeout(timeout);
         _reached = address;
         return res;
       } catch (_) {
@@ -953,6 +1090,31 @@ class SyncClient {
       }
     }
     return null;
+  }
+
+  /// Tells the sender the payload arrived whole.
+  ///
+  /// Best effort and never fatal: what came in is already in hand, and a sender
+  /// that does not hear this finishes on its own timeout instead. The point is
+  /// that it usually does hear it, so it stops the moment the transfer is over
+  /// rather than in the middle of one.
+  Future<void> _confirmDelivery(TransferInvite invite) async {
+    final address = _reached;
+    if (address == null) return;
+
+    final client = HttpClient()
+      ..connectionTimeout = _kProbeTimeout
+      ..idleTimeout = const Duration(seconds: 5);
+    try {
+      final request = await client.postUrl(invite.endpointAt(address));
+      request.headers.contentType = ContentType.text;
+      final res = await request.close().timeout(_kRequestTimeout);
+      await res.drain<void>();
+    } catch (_) {
+      // The sender falls back on its own wait.
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// Sends this device's own side of the exchange back to [invite].
