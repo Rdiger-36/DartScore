@@ -291,11 +291,40 @@ flutter build apk --release
 flutter build ios --release
 ```
 
+Store uploads want different artefacts than these. The Play Console takes an app
+bundle, not an APK, and App Store Connect takes an IPA:
+
+```bash
+flutter build appbundle --release
+```
+
+```bash
+flutter build ipa --release
+```
+
 ### Lint
 
 ```bash
 flutter analyze
 ```
+
+### Store builds on Xcode Cloud
+
+App Store Connect rejects a binary whose `BuildMachineOSBuild` names an
+unreleased macOS, with `ITMS-90111`, an error whose text talks about Xcode and
+the SDK instead. A machine on a macOS beta therefore cannot produce a
+submittable build, however current its Xcode is. Xcode Cloud runs on released
+images and sidesteps that.
+
+`ios/ci_scripts/ci_post_clone.sh` is what makes it work: Xcode Cloud builds the
+Xcode project directly and knows nothing about Flutter, so the script installs
+the pinned SDK and writes `ios/Flutter/Generated.xcconfig`, which is not in the
+repository. The version still comes from `pubspec.yaml`, not from Xcode Cloud's
+own build counter, so a cloud build and a local one carry the same number.
+
+The workflow itself lives in App Store Connect, not in this repository. Nothing
+secret is committed, and the pinned Flutter version in the script is the one
+thing to keep in step with the SDK the app is developed against.
 
 ---
 
