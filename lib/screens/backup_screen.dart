@@ -502,7 +502,7 @@ class _BackupScreenState extends State<BackupScreen> {
           icon: Icon(_route == TransferRoute.ownNetwork
               ? Icons.wifi_tethering
               : Icons.wifi_rounded),
-          label: Text(l.backupShowCode),
+          label: Text(l.startServer),
           style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16)),
         ),
