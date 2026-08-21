@@ -1,4 +1,5 @@
 import Flutter
+import OSLog
 import UIKit
 
 /// Takes a file another app hands to DartScore, and passes it on to Dart.
@@ -18,6 +19,15 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
 
   /// The one handler, so the scene can reach it when a file arrives.
   static let shared = IncomingFileHandler()
+
+  /// Where this handler's side of a file arriving is written.
+  ///
+  /// A file the app was launched with cannot be watched from a debugger: the
+  /// launch is the thing under test, and by the time anything could attach it
+  /// has happened. What is left is the system log, which records this whether
+  /// anybody is watching or not. Filter the device log on the subsystem below.
+  private static let log = Logger(
+    subsystem: "com.ratka.dartscore", category: "incoming-file")
 
   private var channel: FlutterMethodChannel?
 
@@ -51,6 +61,7 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
       return
     }
     ready = true
+    Self.log.info("dart ready, waiting=\(self.pending != nil, privacy: .public)")
     result(pending)
     pending = nil
   }
@@ -67,6 +78,7 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
   /// is not reliably readable that early: the app came up on its home screen
   /// with the file silently dropped.
   func take(_ url: URL) {
+    Self.log.info("take \(url.lastPathComponent, privacy: .public)")
     DispatchQueue.main.async { [weak self] in
       self?.deliver(url)
     }
@@ -74,11 +86,13 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
 
   private func deliver(_ url: URL) {
     guard let path = copyToCache(url) else {
+      Self.log.error("copy failed \(url.lastPathComponent, privacy: .public)")
       // Never silently. A file that could not be read has to say so, or the
       // app just opens on its home screen and the user is left guessing.
       announce("failed", url.lastPathComponent)
       return
     }
+    Self.log.info("copied, ready=\(self.ready, privacy: .public)")
     announce("opened", path)
   }
 
@@ -124,6 +138,7 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
       } catch {
         // The item exists but would not copy, most often because it is not on
         // the device yet. Reading it pulls it down.
+        Self.log.error("copyItem failed: \(error.localizedDescription, privacy: .public)")
         if let data = try? Data(contentsOf: readable),
           (try? data.write(to: target, options: .atomic)) != nil
         {
@@ -132,6 +147,10 @@ class IncomingFileHandler: NSObject, FlutterPlugin {
       }
     }
 
+    if let coordinationError {
+      Self.log.error(
+        "coordination failed: \(coordinationError.localizedDescription, privacy: .public)")
+    }
     return copied
   }
 }
