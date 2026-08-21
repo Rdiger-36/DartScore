@@ -6,6 +6,34 @@ import 'package:flutter/services.dart';
 
 import 'sync_codec.dart' show kSyncPrefixV1, kSyncPrefixV2;
 
+// ── Sharing out ───────────────────────────────────────────────────────────────
+
+/// Deletes what earlier shares of [extension] left in [directory].
+///
+/// A file handed to the share sheet has to stay readable until the target has
+/// taken it, and there is no telling when that is: some copy while the sheet is
+/// open, some later, off the content URI. So it is cleared on the way in rather
+/// than on the way out. Nothing accumulates, and nothing is pulled out from
+/// under a share still in progress.
+///
+/// It matters because a backup is the whole database. Sharing one a few times
+/// used to leave a full copy behind each time, which is the same waste the
+/// picker's own copies are deliberately spared.
+Future<void> clearSharedFiles(Directory directory, String extension) async {
+  try {
+    await for (final entry in directory.list()) {
+      if (entry is! File || !entry.path.endsWith('.$extension')) continue;
+      try {
+        await entry.delete();
+      } catch (_) {
+        // In use, or already gone. Neither is worth failing a share over.
+      }
+    }
+  } catch (_) {
+    // An unreadable directory means there is nothing to clear.
+  }
+}
+
 // ── File kinds ────────────────────────────────────────────────────────────────
 
 /// Extension a whole database carries, so the system can hand one to this app.
