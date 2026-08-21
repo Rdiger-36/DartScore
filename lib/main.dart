@@ -57,6 +57,14 @@ class _AppGateState extends State<_AppGate> {
   /// one announced twice, does not open a second screen over the first.
   bool _opening = false;
 
+  /// A file that arrived before the database had finished loading.
+  ///
+  /// On a cold start the system hands the file over within milliseconds, and
+  /// the players are still being read at that point. Dropping it there is what
+  /// made a file tapped in Files open the app and nothing else: the native side
+  /// had already handed it over and cleared it, so it never came again.
+  IncomingFile? _waiting;
+
   @override
   void initState() {
     super.initState();
@@ -97,9 +105,14 @@ class _AppGateState extends State<_AppGate> {
   /// scanned one raises. Nothing is written until one of those is answered.
   Future<void> _open(IncomingFile file) async {
     if (_opening || !mounted) return;
-    // Nothing to import into before there is a player, and the onboarding is
-    // not a screen to push a restore over.
-    if (!context.read<PlayersProvider>().loaded) return;
+
+    // Neither screen can do anything until the database has been read, and on
+    // a cold start it has not been. Held rather than dropped: this is the one
+    // hand-over, and the system will not repeat it.
+    if (!context.read<PlayersProvider>().loaded) {
+      _waiting = file;
+      return;
+    }
 
     _opening = true;
     try {
@@ -127,6 +140,15 @@ class _AppGateState extends State<_AppGate> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PlayersProvider>();
+
+    // Whatever was waiting on the database goes now. After the frame, because
+    // a route cannot be pushed from inside a build.
+    final waiting = _waiting;
+    if (provider.loaded && waiting != null) {
+      _waiting = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _open(waiting));
+    }
+
     if (!provider.loaded) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
