@@ -18,14 +18,18 @@ class DartboardIcon extends StatelessWidget {
 }
 
 /// Paints a full dartboard: 20 alternating segments with double/triple scoring
-/// rings, the green outer bull and red bullseye, and subtle segment/ring wires.
+/// rings, the green outer bull and red bullseye, and the segment/ring wires.
+///
+/// The board ends at the outer edge of the double ring. There is no rim and no
+/// single area behind the doubles, so the coloured ring carries the outline and
+/// survives being scaled down to an icon.
 class DartboardPainter extends CustomPainter {
   // Segment colours: alternating black / cream, red / green for scoring rings
   static const _black  = Color(0xFF1A1A1A);
   static const _cream  = Color(0xFFF5E6C8);
   static const _red    = Color(0xFFC0392B);
   static const _green  = Color(0xFF1E7A3C);
-  static const _wire   = Color(0xFF888888);
+  static const _wire   = Color(0xFFC2C9D1);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -33,15 +37,16 @@ class DartboardPainter extends CustomPainter {
     final cy = size.height / 2;
     final r  = min(cx, cy);
 
-    // Radii as fractions of the full board radius
-    final rBull      = r * 0.055;  // inner bull (red)
-    final rBullOuter = r * 0.115;  // outer bull (green)
-    final rTriple1   = r * 0.470;  // inner edge of triple ring
-    final rTriple2   = r * 0.540;  // outer edge of triple ring
-    final rDouble1   = r * 0.840;  // inner edge of double ring
-    final rDouble2   = r * 0.940;  // outer edge of double ring (scoring)
-    final rBoard     = r * 0.970;  // outer black wire rim
-    final rOuter     = r * 1.000;  // outermost circle (raised rim)
+    // Radii as fractions of the full board radius. These are the classic
+    // proportions scaled up by 1/0.940, because dropping the rim promotes the
+    // outer edge of the double ring to the edge of the board. The last sliver
+    // is left free so the ring wire is not cut in half by the widget bounds.
+    final rBull      = r * 0.058;  // inner bull (red)
+    final rBullOuter = r * 0.122;  // outer bull (green)
+    final rTriple1   = r * 0.498;  // inner edge of triple ring
+    final rTriple2   = r * 0.572;  // outer edge of triple ring
+    final rDouble1   = r * 0.889;  // inner edge of double ring
+    final rDouble2   = r * 0.995;  // outer edge of double ring, the board edge
 
     const n       = 20;
     const sweep   = (2 * pi) / n;
@@ -50,15 +55,12 @@ class DartboardPainter extends CustomPainter {
 
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // ── 1. Outer rim (dark gray) ─────────────────────────────────────────
-    paint.color = const Color(0xFF2A2A2A);
-    canvas.drawCircle(Offset(cx, cy), rOuter, paint);
-
-    // ── 2. Black board background ────────────────────────────────────────
+    // ── 1. Black board background ────────────────────────────────────────
+    // Sits under the segments so their arcs cannot leave antialiasing seams.
     paint.color = _black;
-    canvas.drawCircle(Offset(cx, cy), rBoard, paint);
+    canvas.drawCircle(Offset(cx, cy), rDouble2, paint);
 
-    // ── 3. Segments – single / double / triple ───────────────────────────
+    // ── 2. Segments – single / double / triple ───────────────────────────
     for (int i = 0; i < n; i++) {
       final angle = startAngle + i * sweep;
       final isEven = i % 2 == 0;
@@ -66,10 +68,6 @@ class DartboardPainter extends CustomPainter {
       // colours for this segment pair
       final baseColor     = isEven ? _black  : _cream;
       final scoringColor  = isEven ? _red    : _green;
-
-      // Single outer (between double outer and board edge): black/cream
-      _drawSector(canvas, cx, cy, rDouble2, rBoard, angle, sweep,
-          paint, baseColor);
 
       // Double ring: red/green
       _drawSector(canvas, cx, cy, rDouble1, rDouble2, angle, sweep,
@@ -88,18 +86,21 @@ class DartboardPainter extends CustomPainter {
           paint, baseColor);
     }
 
-    // ── 4. Outer bull (green) ────────────────────────────────────────────
+    // ── 3. Outer bull (green) ────────────────────────────────────────────
     paint.color = _green;
     canvas.drawCircle(Offset(cx, cy), rBullOuter, paint);
 
-    // ── 5. Inner bull / bullseye (red) ───────────────────────────────────
+    // ── 4. Inner bull / bullseye (red) ───────────────────────────────────
     paint.color = _red;
     canvas.drawCircle(Offset(cx, cy), rBull, paint);
 
-    // ── 6. Wire lines between segments (thin, subtle) ────────────────────
+    // ── 5. Wire lines between segments ───────────────────────────────────
+    // Drawn thin and fully opaque: a translucent wire blurs the edge between a
+    // cream and a black segment instead of cutting it, which is what made the
+    // board look soft once it was scaled down.
     final wirePaint = Paint()
-      ..color = _wire.withValues(alpha: 0.55)
-      ..strokeWidth = r * 0.012
+      ..color = _wire
+      ..strokeWidth = r * 0.009
       ..style = PaintingStyle.stroke;
 
     for (int i = 0; i < n; i++) {
@@ -108,18 +109,17 @@ class DartboardPainter extends CustomPainter {
       final dy = sin(angle);
       canvas.drawLine(
         Offset(cx + dx * rBullOuter, cy + dy * rBullOuter),
-        Offset(cx + dx * rBoard,     cy + dy * rBoard),
+        Offset(cx + dx * rDouble2,   cy + dy * rDouble2),
         wirePaint,
       );
     }
 
     // Ring wires
-    for (final rad in [rTriple1, rTriple2, rDouble1, rDouble2, rBoard]) {
+    for (final rad in [rTriple1, rTriple2, rDouble1, rDouble2]) {
       canvas.drawCircle(Offset(cx, cy), rad, wirePaint);
     }
 
     // Bullseye wire
-    wirePaint.strokeWidth = r * 0.010;
     canvas.drawCircle(Offset(cx, cy), rBullOuter, wirePaint);
     canvas.drawCircle(Offset(cx, cy), rBull, wirePaint);
   }
