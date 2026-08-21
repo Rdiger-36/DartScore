@@ -123,14 +123,31 @@ class MainActivity : FlutterActivity() {
      * for this one launch, and nothing above this works on anything but paths.
      */
     private fun copyIncoming(intent: Intent?): String? {
-        if (intent?.action != Intent.ACTION_VIEW) return null
-        val uri = intent.data ?: return null
+        val uri = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.data
+            // Sharing carries the file in an extra rather than as the data of
+            // the intent, and on Android it is the route that actually gets
+            // used: a file manager that does not know an extension offers no
+            // "open with" at all, only "share".
+            Intent.ACTION_SEND -> intent.streamExtra()
+            else -> null
+        } ?: return null
+
         return try {
             copyToCache(uri).absolutePath
         } catch (e: Exception) {
             null
         }
     }
+
+    /** The shared file, across the versions that changed how it is read. */
+    @Suppress("DEPRECATION")
+    private fun Intent.streamExtra(): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            getParcelableExtra(Intent.EXTRA_STREAM)
+        }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
