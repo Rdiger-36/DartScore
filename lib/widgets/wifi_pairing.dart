@@ -304,9 +304,9 @@ class TransferRouteSelector extends StatelessWidget {
 
   /// What to say instead, when this device cannot raise a network at all.
   ///
-  /// Only worth a sentence where the user is otherwise stuck: an iPhone can
-  /// never host, so somebody with no shared Wi-Fi needs to be told which way
-  /// round to run the transfer. An Android too old for it says nothing extra,
+  /// Only worth a sentence where the user is otherwise stuck: iOS lets no app
+  /// raise a hotspot, so somebody with no shared Wi-Fi needs to be pointed at
+  /// the routes that are left. An Android too old for it says nothing extra,
   /// because the answer there is a Wi-Fi and that is already on screen.
   final String? unavailableHint;
 

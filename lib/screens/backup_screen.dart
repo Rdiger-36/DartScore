@@ -309,8 +309,8 @@ class _BackupScreenState extends State<BackupScreen> {
                     option(Icons.wifi_tethering, l.backupToDeviceDirect,
                         l.backupToDeviceDirectDesc,
                         _Destination.deviceWithoutWifi),
-                  // An iPhone has no third row and no way to run a transfer
-                  // without a shared Wi-Fi, so it gets told where to go instead.
+                  // An iPhone has no third row, because no app may raise a
+                  // hotspot there, so it gets told which routes are left.
                   if (!_canHostNetwork && Platform.isIOS)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
