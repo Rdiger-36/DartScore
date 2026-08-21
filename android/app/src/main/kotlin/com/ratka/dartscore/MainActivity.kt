@@ -13,14 +13,15 @@ import java.io.File
 import java.util.Locale
 
 /**
- * Hosts the Flutter engine and adds the two things this app needs from the
- * platform directly: the system document picker, and what this device calls
- * itself.
+ * Hosts the Flutter engine and adds the things this app needs from the platform
+ * directly: the system document picker, what this device calls itself, and the
+ * Wi-Fi network a transfer can raise for itself.
  *
  * Written by hand instead of taken from a package because every file picking
  * plugin still wants CocoaPods on the iOS side, which this project deliberately
- * does not use. The iOS halves live in `DocumentPickerHandler.swift` and
- * `DeviceDescriptionHandler.swift`.
+ * does not use. The iOS halves live in `DocumentPickerHandler.swift`,
+ * `DeviceDescriptionHandler.swift` and `HotspotJoinHandler.swift`; the hotspot
+ * itself has no iOS half, because Apple gives no app a way to raise a network.
  */
 class MainActivity : FlutterActivity() {
     /** Shared with `DocumentPicker` on the Dart side. */
@@ -29,10 +30,38 @@ class MainActivity : FlutterActivity() {
     /** Shared with `DeviceDescription` on the Dart side. */
     private val deviceChannelName = "dartscore/device_description"
 
+    /** Shared with `IncomingFiles` on the Dart side. */
+    private val incomingChannelName = "dartscore/incoming_file"
+
     private val requestPickFile = 0x0BAC
 
     /** The call waiting for the user to pick something, or null when idle. */
     private var pending: MethodChannel.Result? = null
+
+    /** Raises and joins the Wi-Fi network a transfer can run over. */
+    private val hotspot by lazy { LocalHotspotHandler(this) }
+
+    /** Channel the opened file is announced on, once Dart is listening. */
+    private var incomingChannel: MethodChannel? = null
+
+    /**
+     * A file this app was launched with, waiting to be asked for.
+     *
+     * The intent arrives before there is any Dart to hand it to, so it is kept
+     * until `initial` comes to collect it. Handing it over clears it: a file is
+     * offered once, not again on the next rebuild.
+     */
+    private var pendingIncoming: String? = null
+
+    /**
+     * Whether Dart has asked for its first file yet.
+     *
+     * The channel existing is not the same as somebody listening on it: it is
+     * set up while the engine is being configured, before any widget has
+     * attached a handler. The first `initial` call is what says the other end
+     * is there, and until it comes everything waits.
+     */
+    private var incomingReady = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -50,6 +79,96 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        incomingChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, incomingChannelName
+        ).apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "initial" -> {
+                        incomingReady = true
+                        result.success(pendingIncoming)
+                        pendingIncoming = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        hotspot.attach(flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingIncoming = copyIncoming(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val path = copyIncoming(intent) ?: return
+        // Dart is up by now, so the file goes straight over rather than waiting
+        // to be collected.
+        val channel = incomingChannel
+        if (!incomingReady || channel == null) {
+            pendingIncoming = path
+        } else {
+            channel.invokeMethod("opened", path)
+        }
+    }
+
+    /**
+     * Copies whatever a view intent points at into this app's cache and returns
+     * the path, or null when the intent carries no file.
+     *
+     * Copied rather than read where it lies, like the document picker beside
+     * it: what arrives is a `content://` URI belonging to another app, granted
+     * for this one launch, and nothing above this works on anything but paths.
+     */
+    private fun copyIncoming(intent: Intent?): String? {
+        val uri = when (intent?.action) {
+            Intent.ACTION_VIEW -> intent.data
+            // Sharing carries the file in an extra rather than as the data of
+            // the intent, and on Android it is the route that actually gets
+            // used: a file manager that does not know an extension offers no
+            // "open with" at all, only "share".
+            Intent.ACTION_SEND -> intent.streamExtra()
+            else -> null
+        } ?: return null
+
+        return try {
+            copyToCache(uri).absolutePath
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** The shared file, across the versions that changed how it is read. */
+    @Suppress("DEPRECATION")
+    private fun Intent.streamExtra(): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            getParcelableExtra(Intent.EXTRA_STREAM)
+        }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        hotspot.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    /**
+     * Nothing about a transfer survives the screen it ran on.
+     *
+     * A hotspot left up costs battery and confuses anyone looking at their
+     * Wi-Fi list, and a process still bound to a network that is gone has no
+     * route to anything at all.
+     */
+    override fun onDestroy() {
+        hotspot.stopHotspot()
+        hotspot.leave()
+        super.onDestroy()
     }
 
     /**

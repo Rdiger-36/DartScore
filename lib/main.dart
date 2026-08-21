@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,8 +15,11 @@ import 'providers/language_provider.dart';
 import 'providers/tablet_layout_provider.dart';
 import 'providers/text_scale_provider.dart';
 import 'providers/donation_provider.dart';
+import 'screens/backup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/sync_screen.dart';
+import 'services/incoming_file.dart';
 import 'utils/layout.dart';
 import 'utils/platform_notices.dart';
 
@@ -34,12 +38,117 @@ void main() async {
 }
 
 /// Routes to OnboardingScreen until a primary player exists, then HomeScreen.
-class _AppGate extends StatelessWidget {
+///
+/// Also the one place a file another app handed to DartScore is taken: it needs
+/// a navigator to push the screen that deals with it, and this is the first
+/// widget under the one that provides it.
+class _AppGate extends StatefulWidget {
   const _AppGate();
+
+  @override
+  State<_AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<_AppGate> {
+  StreamSubscription<IncomingFile>? _incoming;
+  StreamSubscription<String>? _incomingFailed;
+
+  /// Set while an arrival is being dealt with, so a second file, or the same
+  /// one announced twice, does not open a second screen over the first.
+  bool _opening = false;
+
+  /// A file that arrived before the database had finished loading.
+  ///
+  /// On a cold start the system hands the file over within milliseconds, and
+  /// the players are still being read at that point. Dropping it there is what
+  /// made a file tapped in Files open the app and nothing else: the native side
+  /// had already handed it over and cleared it, so it never came again.
+  IncomingFile? _waiting;
+
+  @override
+  void initState() {
+    super.initState();
+    _incoming = IncomingFiles.stream.listen(_open);
+    _incomingFailed = IncomingFiles.failures.listen(_reportFailure);
+    // A file the app was launched with is waiting rather than announced, since
+    // there was no Dart to announce it to when it arrived.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final file = await IncomingFiles.initial();
+      if (file != null) _open(file);
+    });
+  }
+
+  @override
+  void dispose() {
+    _incoming?.cancel();
+    _incomingFailed?.cancel();
+    super.dispose();
+  }
+
+  /// Says that a file arrived and came to nothing.
+  ///
+  /// A line rather than a dialog: the user asked for a file to be opened, and
+  /// what they get instead is the app they asked for plus the reason it could
+  /// not. Saying nothing at all is what made this look broken.
+  void _reportFailure(String name) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(content: Text('${context.l10n.fileOpenFailed}\n$name')),
+    );
+  }
+
+  /// Opens the screen that knows what to do with [file].
+  ///
+  /// Neither screen acts on it: a database lands on the confirmation that says
+  /// what it holds and what it replaces, a profile on the same questions a
+  /// scanned one raises. Nothing is written until one of those is answered.
+  Future<void> _open(IncomingFile file) async {
+    if (_opening || !mounted) return;
+
+    // Neither screen can do anything until the database has been read, and on
+    // a cold start it has not been. Held rather than dropped: this is the one
+    // hand-over, and the system will not repeat it.
+    if (!context.read<PlayersProvider>().loaded) {
+      _waiting = file;
+      return;
+    }
+
+    _opening = true;
+    try {
+      final navigator = Navigator.of(context);
+      switch (file.kind) {
+        case IncomingFileKind.backup:
+          await navigator.push(MaterialPageRoute(
+              builder: (_) => BackupScreen(incomingPath: file.path)));
+        case IncomingFileKind.profile:
+          final payload = await File(file.path).readAsString();
+          await File(file.path).delete();
+          if (!mounted) return;
+          await navigator.push(MaterialPageRoute(
+              builder: (_) => SyncScreen(incomingPayload: payload)));
+      }
+    } catch (_) {
+      // An unreadable file is not worth a dialog over the home screen. Both
+      // screens have their own way of saying a file was no good, and this is
+      // the case where there is no file left to say it about.
+    } finally {
+      _opening = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PlayersProvider>();
+
+    // Whatever was waiting on the database goes now. After the frame, because
+    // a route cannot be pushed from inside a build.
+    final waiting = _waiting;
+    if (provider.loaded && waiting != null) {
+      _waiting = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _open(waiting));
+    }
+
     if (!provider.loaded) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../models/dart_throw.dart';
 import '../models/player.dart';
 import '../services/device_description.dart';
 import '../services/device_identity.dart';
+import '../services/local_hotspot.dart';
 import '../services/sync_codec.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
@@ -232,12 +234,22 @@ Future<SyncPacket> buildSyncPacket(
 class SyncScreen extends StatefulWidget {
   final Player? initialPlayer;
 
+  /// A profile the system handed the app, to be imported straight away.
+  ///
+  /// The same text a QR code carries, so it runs through the same read, the
+  /// same name conflict check and the same confirmation as a scanned one.
+  final String? incomingPayload;
+
   /// Whether this sits inside a pane that already has a title bar of its own,
   /// as the player list gives it on a tablet. The tabs then head the body
   /// instead of hanging under an app bar that is not there.
   final bool embedded;
 
-  const SyncScreen({super.key, this.initialPlayer, this.embedded = false});
+  const SyncScreen(
+      {super.key,
+      this.initialPlayer,
+      this.incomingPayload,
+      this.embedded = false});
 
   @override
   State<SyncScreen> createState() => _SyncScreenState();
@@ -299,7 +311,7 @@ class _SyncScreenState extends State<SyncScreen>
           controller: _tab,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            const _ReceiverTab(),
+            _ReceiverTab(incomingPayload: widget.incomingPayload),
             _SenderTab(
               initialPlayer: widget.initialPlayer,
               visible: _tab.index == 1,
@@ -371,7 +383,7 @@ class _SenderTabState extends State<_SenderTab>
 
   // Server transport, only started when the user asks for it
   final _server = SyncServer();
-  SyncConnection? _connection;
+  TransferInvite? _invite;
   bool _serverStarting = false;
 
   /// Set while the approval dialog for a waiting peer is on screen, so a second
@@ -380,6 +392,33 @@ class _SenderTabState extends State<_SenderTab>
 
   /// Set once the exchange is over and the server has stopped itself.
   bool _served = false;
+
+  /// Why the server would not start, or null. Shown in place of the hint above
+  /// the button.
+  String? _startError;
+
+  /// Whether the time range picker is folded open.
+  bool _rangeOpen = false;
+
+  /// Anchor for the share sheet, which fails on an iPad without one.
+  final _shareKey = GlobalKey();
+
+  /// Set while the share sheet is being put together.
+  bool _sharing = false;
+
+  /// Which way the two devices reach each other.
+  TransferRoute _route = TransferRoute.sharedWifi;
+
+  /// Whether this device can raise a network of its own. False on iOS and
+  /// below Android 13, and then the route is not a choice at all.
+  bool _canHostNetwork = false;
+
+  /// The network this device raised, or null when the transfer runs over a
+  /// Wi-Fi both devices were already on.
+  HotspotCredentials? _hotspot;
+
+  /// Watches for the system taking the raised network down under the transfer.
+  StreamSubscription<void>? _hotspotStopped;
 
   /// What went wrong with the packet the peer sent back, if anything. The
   /// outgoing half already succeeded at that point, so this is reported next to
@@ -390,6 +429,16 @@ class _SenderTabState extends State<_SenderTab>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    LocalHotspot.isSupported().then((supported) {
+      if (mounted) setState(() => _canHostNetwork = supported);
+    });
+    // Wi-Fi switched off under a running hotspot takes the network with it.
+    // Without this the screen keeps showing a code for a network that is gone.
+    _hotspotStopped = LocalHotspot.onStopped.listen((_) {
+      if (!mounted || _hotspot == null) return;
+      _stopServer();
+      setState(() => _startError = context.l10n.hotspotStopped);
+    });
     if (widget.initialPlayer != null) {
       _selectedPlayer = widget.initialPlayer;
       // A player who has synced before rarely needs their whole history again.
@@ -422,8 +471,12 @@ class _SenderTabState extends State<_SenderTab>
     WidgetsBinding.instance.removeObserver(this);
     _frameTimer?.cancel();
     _frameIndex.dispose();
+    _hotspotStopped?.cancel();
     _server.state.removeListener(_onServerState);
     _server.stop();
+    // Nothing about a transfer survives the screen it ran on. A network left
+    // up costs battery and sits in everyone's Wi-Fi list.
+    if (_hotspot != null) LocalHotspot.stop();
     _server.dispose();
     super.dispose();
   }
@@ -501,7 +554,8 @@ class _SenderTabState extends State<_SenderTab>
   Future<void> _finishServing() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
-    if (mounted) setState(() { _connection = null; _served = sent; });
+    await _dropNetwork();
+    if (mounted) setState(() { _invite = null; _served = sent; });
   }
 
   /// Closes the session once the peer has answered, and imports what it sent.
@@ -512,9 +566,10 @@ class _SenderTabState extends State<_SenderTab>
   Future<void> _finishExchange() async {
     final payload = _server.returnedPayload;
     await _server.stop();
+    await _dropNetwork();
     if (!mounted) return;
     setState(() {
-      _connection  = null;
+      _invite      = null;
       _served      = true;
       _returnError = null;
     });
@@ -555,7 +610,7 @@ class _SenderTabState extends State<_SenderTab>
       _transmission = null;
       _encoder = null;
       _streaming = false;
-      _connection = null;
+      _invite = null;
       _served = false;
     });
 
@@ -607,26 +662,61 @@ class _SenderTabState extends State<_SenderTab>
 
   // ── Server transport ──────────────────────────────────────────────────────
 
-  /// Starts the local HTTP server serving the prepared packet and shows its
-  /// IP and port as a connection QR for the receiver.
+  /// Starts the local HTTP server serving the prepared packet and shows the
+  /// connection QR the receiver scans.
+  ///
+  /// Every failure lands in the error line and releases the button. Without the
+  /// catch a device with Wi-Fi off left the button spinning for the rest of the
+  /// session, with nothing on screen to say why.
   Future<void> _startServer() async {
     final transmission = _transmission;
     if (transmission == null) return;
-    setState(() { _serverStarting = true; _served = false; });
+    setState(() { _serverStarting = true; _served = false; _startError = null; });
 
-    if (_server.isRunning) await _server.stop();
-    _server.state.removeListener(_onServerState);
-    final connection = await _server.start(utf8.encode(transmission.payload));
-    _server.state.addListener(_onServerState);
+    try {
+      if (_server.isRunning) await _server.stop();
+      await _dropNetwork();
 
-    if (!mounted) return;
-    setState(() { _connection = connection; _serverStarting = false; });
+      // The network first, then the server: the address a peer reaches this
+      // device on only exists once the network is up, and the server reads the
+      // addresses as it binds.
+      final hotspot = _route == TransferRoute.ownNetwork
+          ? await LocalHotspot.start()
+          : null;
+      _hotspot = hotspot;
+
+      _server.state.removeListener(_onServerState);
+      final invite = await _server.start(utf8.encode(transmission.payload),
+          hotspot: hotspot);
+      _server.state.addListener(_onServerState);
+
+      if (!mounted) return;
+      setState(() { _invite = invite; _serverStarting = false; });
+    } catch (e) {
+      await _dropNetwork();
+      if (!mounted) return;
+      setState(() {
+        _serverStarting = false;
+        _startError = transferStartMessage(context, e);
+      });
+    }
   }
 
   /// Stops the transfer server and clears its connection details.
   Future<void> _stopServer() async {
     await _server.stop();
-    if (mounted) setState(() => _connection = null);
+    await _dropNetwork();
+    if (mounted) setState(() => _invite = null);
+  }
+
+  /// Takes the raised network down, if this transfer raised one.
+  ///
+  /// Has to run on every way out, the failures included: the screen is the only
+  /// thing that knows the network was for this transfer and nothing else.
+  Future<void> _dropNetwork() async {
+    if (_hotspot == null) return;
+    _hotspot = null;
+    await LocalHotspot.stop();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -643,6 +733,81 @@ class _SenderTabState extends State<_SenderTab>
     if (range == _range) return;
     setState(() => _range = range);
     _prepare();
+  }
+
+  /// The time range, folded away until somebody wants it.
+  ///
+  /// Almost nobody narrows it, and open it put two paragraphs about visits,
+  /// totals and device attribution in front of the one thing this screen exists
+  /// for. What stays out is the line that says how much there is and which way
+  /// it will travel, because that is the answer to "is this going to work",
+  /// which is the question the screen actually raises.
+  List<Widget> _rangeSection(AppLocalizations l, ThemeData theme,
+      ColorScheme cs, SyncPacket? packet) {
+    final locked = _preparing || _server.isRunning;
+    return [
+      InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: locked ? null : () => setState(() => _rangeOpen = !_rangeOpen),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${l.syncRangeLabel}: ${_rangeLabel(l, _range)}',
+                  style: theme.textTheme.labelMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Icon(_rangeOpen ? Icons.expand_less : Icons.expand_more,
+                  size: 20, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+      if (_rangeOpen) ...[
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: SyncRange.values
+              .map((range) => ChoiceChip(
+                    label: Text(_rangeLabel(l, range)),
+                    selected: _range == range,
+                    onSelected:
+                        locked ? null : (_) => _onRangeChanged(range),
+                  ))
+              .toList(),
+        ),
+        if (packet != null && !_preparing && _range != SyncRange.all) ...[
+          const SizedBox(height: 8),
+          Text(
+            l.syncRangeNote,
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          // Only worth saying while a range is picked: that is when the count
+          // stops moving and the picker looks broken.
+          if (_legacyCount(packet) > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              l.syncLegacyNote,
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ],
+      if (packet != null && !_preparing) ...[
+        const SizedBox(height: 10),
+        Text(
+          '${_visitCountLabel(l, packet)} · ${_transportLabel(l)}',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    ];
   }
 
   /// The localized label for [range].
@@ -719,8 +884,73 @@ class _SenderTabState extends State<_SenderTab>
 
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [...picker, const SizedBox(height: 12), transport],
+      children: [
+        ...picker,
+        const SizedBox(height: 12),
+        transport,
+        if (_transmission != null && !_preparing) ...[
+          const SizedBox(height: 20),
+          _buildShareFile(l),
+          const SizedBox(height: 8),
+          Text(
+            // Tapping the file is enough on iOS. On Android a file manager
+            // that does not know the extension offers no way to open it at
+            // all, so the route that works has to be the one named.
+            Platform.isIOS ? l.syncShareFileHint : l.syncShareFileHintShare,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ],
     );
+  }
+
+  /// Offers the same profile as a file, for whatever the system can carry one
+  /// with.
+  ///
+  /// The answer for two iPhones and no network between them: Apple lets no app
+  /// raise one, so AirDrop through the share sheet is what is left. It works
+  /// for mail and a chat just as well, and it is one direction only, like a
+  /// code on a screen.
+  Widget _buildShareFile(AppLocalizations l) => OutlinedButton.icon(
+        key: _shareKey,
+        onPressed: _sharing ? null : _shareFile,
+        icon: _sharing
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.ios_share),
+        label: Text(l.syncShareFile),
+        style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14)),
+      );
+
+  /// Writes the payload out and hands it to the share sheet.
+  Future<void> _shareFile() async {
+    final transmission = _transmission;
+    final player = _selectedPlayer;
+    if (transmission == null || player == null) return;
+
+    setState(() => _sharing = true);
+    try {
+      // Anchored on the button, because a popover without an anchor fails
+      // instead of opening on an iPad.
+      final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
+      final origin = box == null || !box.hasSize
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+
+      await shareSyncFile(transmission.payload,
+          playerName: player.name, origin: origin);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _startError = '${context.l10n.error}: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 
   /// Builds the range chips plus the line that translates the current choice
@@ -734,51 +964,7 @@ class _SenderTabState extends State<_SenderTab>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l.syncRangeLabel,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: SyncRange.values
-                  .map((range) => ChoiceChip(
-                        label: Text(_rangeLabel(l, range)),
-                        selected: _range == range,
-                        onSelected: _preparing || _server.isRunning
-                            ? null
-                            : (_) => _onRangeChanged(range),
-                      ))
-                  .toList(),
-            ),
-            if (packet != null && !_preparing) ...[
-              const SizedBox(height: 10),
-              Text(
-                '${_visitCountLabel(l, packet)} · ${_transportLabel(l)}',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              if (_range != SyncRange.all) ...[
-                const SizedBox(height: 6),
-                Text(
-                  l.syncRangeNote,
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                // Only worth saying while a range is picked: that is when the
-                // count stops moving and the picker looks broken.
-                if (_legacyCount(packet) > 0) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    l.syncLegacyNote,
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ],
-            ],
+            ..._rangeSection(l, theme, cs, packet),
           ],
         ),
       ),
@@ -907,7 +1093,7 @@ class _SenderTabState extends State<_SenderTab>
 
   /// Offers the Wi-Fi transfer for payloads no QR code can carry.
   Widget _buildServer(AppLocalizations l, ColorScheme cs, ThemeData theme) {
-    if (_connection == null) {
+    if (_invite == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -932,12 +1118,26 @@ class _SenderTabState extends State<_SenderTab>
             ),
             const SizedBox(height: 16),
           ],
-          Text(
-            l.syncServerHint,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: cs.onSurfaceVariant),
+          TransferRouteSelector(
+            value: _route,
+            ownNetworkAvailable: _canHostNetwork,
+            // An Android too old to raise a network needs no explanation: the
+            // answer there is a Wi-Fi, which the hint above already names.
+            unavailableHint: Platform.isIOS ? l.syncIosNoOwnNetwork : null,
+            enabled: !_serverStarting,
+            onChanged: (route) => setState(() {
+              _route      = route;
+              _startError = null;
+            }),
           ),
+          if (_startError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _startError!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+            ),
+          ],
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _serverStarting ? null : _startServer,
@@ -953,7 +1153,7 @@ class _SenderTabState extends State<_SenderTab>
       );
     }
 
-    final connection = _connection!;
+    final invite = _invite!;
     // The payload is out and the other device is putting its own together. The
     // code is gone from the screen by then: scanning it again would only reach
     // a session that is already spoken for.
@@ -979,8 +1179,18 @@ class _SenderTabState extends State<_SenderTab>
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
-        ] else
-          _qrCard(connection.qrPayload),
+        ] else ...[
+          _qrCard(invite.qrPayload(kSyncWifiPrefix)),
+          if (_hotspot != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              '${l.hotspotNetworkName(_hotspot!.ssid)}\n${l.hotspotSendHint}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ],
       ],
     );
   }
@@ -996,7 +1206,10 @@ class _SenderTabState extends State<_SenderTab>
 /// Receive tab: scans a QR code (or connects over Wi-Fi) to import a player's
 /// synced stats, resolving name conflicts and confirming before importing.
 class _ReceiverTab extends StatefulWidget {
-  const _ReceiverTab();
+  /// A profile handed over by another app, imported as if it had been scanned.
+  final String? incomingPayload;
+
+  const _ReceiverTab({this.incomingPayload});
 
   @override
   State<_ReceiverTab> createState() => _ReceiverTabState();
@@ -1018,15 +1231,67 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   /// compare it against the sending device.
   String? _pairingPin;
 
-  /// Starts a fresh scan, dropping anything a previous attempt collected.
-  void _startScanning() {
-    _decoder.reset();
-    setState(() {
-      _scanning    = true;
-      _handled     = false;
-      _error       = null;
-      _pairingPin  = null;
-    });
+  /// The network being joined, while that is happening. Null the rest of the
+  /// time.
+  String? _joiningNetwork;
+
+  /// Set once this tab joined a network, so it can be left again.
+  bool _joined = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // The camera comes up with the tab rather than behind a button. There is
+    // nothing else on this tab to do, and the backup screen has always shown
+    // its scanner straight away. Leaving the tab takes it away again: a
+    // `TabBarView` does not build the child that is not on screen, so the
+    // camera goes with it and needs no separate switch.
+    _scanning = true;
+
+    final incoming = widget.incomingPayload;
+    if (incoming != null) {
+      _handled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _finishScan(() async => decodeSyncPayload(incoming));
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // A phone left on a network with no internet on it is the one thing this
+    // must never do, so leaving happens whatever the transfer did.
+    if (_joined) WifiJoin.leave();
+    super.dispose();
+  }
+
+  /// Leaves the transfer network, if this tab joined one.
+  Future<void> _leaveNetwork() async {
+    if (!_joined) return;
+    _joined = false;
+    await WifiJoin.leave();
+  }
+
+  /// Joins the network the invitation names, when it names one.
+  ///
+  /// Nothing to do for a transfer over a shared Wi-Fi, which is what a null
+  /// [TransferInvite.hotspot] means. When the join is not possible from inside
+  /// the app the credentials go on screen instead, and the user picks the
+  /// network in the system settings themselves.
+  Future<void> _joinIfNeeded(TransferInvite invite) async {
+    final hotspot = invite.hotspot;
+    if (hotspot == null) return;
+
+    if (mounted) setState(() => _joiningNetwork = hotspot.ssid);
+    try {
+      if (!await WifiJoin.isSupported()) {
+        throw const HotspotException(HotspotFailure.unsupported);
+      }
+      await WifiJoin.join(hotspot);
+      _joined = true;
+    } finally {
+      if (mounted) setState(() => _joiningNetwork = null);
+    }
   }
 
   @override
@@ -1067,6 +1332,17 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
+            // Joining comes before the pairing number and takes long enough on
+            // its own that a bare spinner reads as a transfer that died.
+            if (_joiningNetwork != null) ...[
+              const SizedBox(height: 20),
+              Text(
+                l.hotspotJoining(_joiningNetwork!),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
             if (_pairingPin != null) ...[
               const SizedBox(height: 20),
               Text(
@@ -1110,20 +1386,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
         ],
       );
     } else {
-      // As wide as everything else in its column, wherever that column is.
-      stage = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          FilledButton.icon(
-            onPressed: _startScanning,
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text(l.scanQr),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16)),
-          ),
-        ],
-      );
+      stage = const SizedBox.shrink();
     }
 
     return Padding(
@@ -1173,34 +1436,52 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     }
 
     // ── Wi-Fi transfer ────────────────────────────────────────────────────
-    final connection = SyncConnection.parse(raw);
-    if (connection == null) {
+    final invite = TransferInvite.parse(raw, prefix: kSyncWifiPrefix);
+    if (invite == null) {
+      // A backup code is the one wrong code worth naming, because it looks
+      // right and belongs to a different screen. The backup screen makes the
+      // mirror check for a sync code.
+      final isBackupCode =
+          TransferInvite.parse(raw, prefix: kBackupWifiPrefix) != null;
+      if (isBackupCode) {
+        if (mounted) {
+          setState(() {
+            _scanning = false;
+            _error    = context.l10n.syncNotBackupCode;
+          });
+        }
+        return;
+      }
       await _finishScan(() async => throw const FormatException(
           'Not a sync code'));
       return;
     }
 
+    // One client for both directions, so the return leg goes back on the
+    // address that answered rather than working through the candidates again.
+    final client = SyncClient();
     await _finishScan(() async {
-      final payload = await SyncClient().fetch(
-        connection,
+      await _joinIfNeeded(invite);
+      final payload = await client.fetch(
+        invite,
         onPin: (pin) {
           if (mounted) setState(() => _pairingPin = pin);
         },
       );
       return decodeSyncPayload(payload);
-    }, connection: connection);
+    }, invite: invite, client: client);
   }
 
   /// Closes the camera, resolves [read] into a packet and imports it, turning
   /// any failure into the error banner.
   ///
-  /// [connection] is set for a Wi-Fi transfer. It picks the failure message,
+  /// [invite] is set for a Wi-Fi transfer. It picks the failure message,
   /// because a code that would not decode is not a network problem and pointing
   /// at the Wi-Fi would only mislead, and it is where this device's own side of
-  /// the exchange goes back to.
+  /// the exchange goes back to, over [client].
   Future<void> _finishScan(Future<SyncPacket> Function() read,
-      {SyncConnection? connection}) async {
-    final overWifi = connection != null;
+      {TransferInvite? invite, SyncClient? client}) async {
+    final overWifi = invite != null;
     setState(() {
       _scanning   = false;
       _fetching   = true;
@@ -1216,7 +1497,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
       // open until this answers, and a user reading a confirmation is easily
       // slower than any timeout worth having. The two directions do not depend
       // on each other, so there is nothing to wait for.
-      if (connection != null) await _returnOwnSide(packet, connection);
+      if (invite != null) await _returnOwnSide(packet, invite, client!);
       if (!mounted) return;
 
       final imported = await importPacket(packet);
@@ -1227,11 +1508,21 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
       if (imported) Navigator.of(context).pop();
       return;
     } catch (e) {
+      // Back onto the ordinary network before anything else. A retry rejoins,
+      // and a user who gives up here should not be left without internet.
+      await _leaveNetwork();
       if (mounted) {
         final l = context.l10n;
         setState(() {
           _fetching   = false;
+          // Rescanning is the retry, so the reason stays above a live camera
+          // rather than replacing it with a button that would only turn the
+          // camera back on. The decoder is reset with it, or a half-read
+          // animated code would poison the next one.
+          _scanning   = true;
+          _handled    = false;
           _pairingPin = null;
+          _decoder.reset();
           _error = switch (e) {
             // Both of these are ordinary outcomes of a pairing, not faults,
             // and pointing at the Wi-Fi would send the user looking in the
@@ -1239,6 +1530,17 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
             SyncRejectedException() => l.syncRejected,
             TimeoutException()      => l.syncNotConfirmed,
             SyncPayloadTooLargeException() => l.syncTooLarge,
+            // Nothing on the far side ever answered. That is a different fault
+            // from a timeout, and the network is the place to look.
+            TransferUnreachableException() => invite?.hotspot != null
+                ? l.syncUnreachableOnHotspot
+                : l.syncUnreachable,
+            TransferInviteExpiredException() => l.syncCodeExpired,
+            // The network was never joined, so the credentials go on screen and
+            // the user does it the long way round rather than being stuck.
+            HotspotException() when invite?.hotspot != null =>
+              '${l.hotspotJoinFailed}\n\n'
+                  '${l.hotspotJoinManually(invite!.hotspot!.ssid, invite.hotspot!.passphrase)}',
             _ => '${overWifi ? l.connectionFailed : l.syncReadFailed}'
                 '\n\n${l.error}: $e',
           };
@@ -1258,7 +1560,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
   /// when this device does not know the player at all, because it is holding
   /// its server open until it hears something.
   Future<void> _returnOwnSide(
-      SyncPacket packet, SyncConnection connection) async {
+      SyncPacket packet, TransferInvite invite, SyncClient client) async {
     var payload = '';
     try {
       final player =
@@ -1275,7 +1577,7 @@ class _ReceiverTabState extends State<_ReceiverTab> with _PacketImport {
     }
 
     try {
-      await SyncClient().post(connection, payload);
+      await client.post(invite, payload);
     } catch (_) {
       // The sender falls back on its own timeout.
     }

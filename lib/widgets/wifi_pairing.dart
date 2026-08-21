@@ -6,7 +6,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/local_hotspot.dart';
 import '../services/sync_codec.dart' show buildQrCode, kScannerDetectionTimeout;
+import '../services/sync_service.dart';
 import '../utils/layout.dart';
 
 /// The parts a device-to-device transfer shows on screen, shared by the profile
@@ -276,4 +278,123 @@ class PairingQrCard extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Which way the two devices reach each other.
+enum TransferRoute {
+  /// A Wi-Fi both are already on.
+  sharedWifi,
+
+  /// A network this device raises for the length of the transfer.
+  ownNetwork,
+}
+
+/// The choice between the two routes, above the button that starts a transfer.
+///
+/// [ownNetworkAvailable] is false on every device that cannot raise a network,
+/// which is every iPhone and every Android below 13. The row is then gone
+/// rather than disabled: an option that can never be picked on this device is
+/// not a choice, and explaining why would say more about Android versions than
+/// anyone wants to read while sending a profile.
+class TransferRouteSelector extends StatelessWidget {
+  final TransferRoute value;
+  final ValueChanged<TransferRoute> onChanged;
+  final bool ownNetworkAvailable;
+  final bool enabled;
+
+  /// What to say instead, when this device cannot raise a network at all.
+  ///
+  /// Only worth a sentence where the user is otherwise stuck: iOS lets no app
+  /// raise a hotspot, so somebody with no shared Wi-Fi needs to be pointed at
+  /// the routes that are left. An Android too old for it says nothing extra,
+  /// because the answer there is a Wi-Fi and that is already on screen.
+  final String? unavailableHint;
+
+  const TransferRouteSelector({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    required this.ownNetworkAvailable,
+    this.enabled = true,
+    this.unavailableHint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final cs = Theme.of(context).colorScheme;
+
+    // Nothing to choose between. The hint that used to stand here says the same
+    // thing the one remaining option would.
+    if (!ownNetworkAvailable) {
+      final hint = unavailableHint;
+      return Text(
+        hint == null ? l.routeSharedWifiHint : '${l.routeSharedWifiHint}\n$hint',
+        textAlign: TextAlign.center,
+        style: Theme.of(context)
+            .textTheme
+            .bodySmall
+            ?.copyWith(color: cs.onSurfaceVariant),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: RadioGroup<TransferRoute>(
+        groupValue: value,
+        onChanged: (picked) {
+          if (picked != null) onChanged(picked);
+        },
+        child: Column(
+          children: [
+            _option(context, TransferRoute.sharedWifi, Icons.wifi,
+                l.routeSharedWifi, l.routeSharedWifiHint),
+            Divider(height: 1, color: cs.outlineVariant),
+            _option(context, TransferRoute.ownNetwork, Icons.wifi_tethering,
+                l.routeOwnNetwork, l.routeOwnNetworkHint),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// One route as a tappable row.
+  Widget _option(BuildContext context, TransferRoute route, IconData icon,
+      String title, String hint) {
+    return RadioListTile<TransferRoute>(
+      value: route,
+      // Off while a transfer is running: the route cannot change under a
+      // server that is already up.
+      enabled: enabled,
+      controlAffinity: ListTileControlAffinity.leading,
+      secondary: Icon(icon),
+      title: Text(title),
+      subtitle: Text(hint, style: Theme.of(context).textTheme.bodySmall),
+    );
+  }
+}
+
+/// What to put on screen when a transfer would not start.
+///
+/// Shared by both screens because there is only one right answer per failure
+/// and two copies of this list is how they would start disagreeing. Each of
+/// these is a different thing for the user to do, which is the whole reason the
+/// failures are told apart in the first place: a running tethering hotspot is
+/// theirs to switch off, a refused permission is a dialog to open again, and no
+/// Wi-Fi at all is neither.
+String transferStartMessage(BuildContext context, Object error) {
+  final l = context.l10n;
+  return switch (error) {
+    TransferStartException(reason: TransferStartFailure.noLocalAddress) =>
+      l.syncNoWifiAddress,
+    TransferStartException() => l.syncServerFailed,
+    HotspotException(reason: HotspotFailure.incompatibleMode) =>
+      l.hotspotIncompatible,
+    HotspotException(reason: HotspotFailure.permissionDenied) => l.hotspotDenied,
+    HotspotException() => l.hotspotFailed,
+    _ => '${l.syncServerFailed}\n\n${l.error}: $error',
+  };
 }

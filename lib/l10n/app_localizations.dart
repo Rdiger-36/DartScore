@@ -461,18 +461,14 @@ class AppLocalizations {
          'zu viel für einen QR-Code, Übertragung über WLAN');
   String get syncStartStream     => _t('Start the code', 'Code starten');
   String get syncStartStreamHint =>
-      _t('Start the stream once the other device is scanning.',
-         'Starte den Strom, sobald das andere Gerät scannt.');
+      _t('Start the code once the other device is scanning.',
+         'Starte den Code, sobald das andere Gerät scannt.');
   String get syncAnimatedHint  =>
-      _t('Hold both phones steady until the receiver is finished.',
-         'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
+      _t('Hold both devices steady until the receiver is finished.',
+         'Halte beide Geräte ruhig, bis der Empfänger fertig ist.');
   String get syncStopStreamHint =>
       _t('Hold both devices steady until the receiver is finished. Tap the code to stop it.',
          'Halte beide Geräte ruhig, bis der Empfänger fertig ist. Tippe auf den Code, um ihn anzuhalten.');
-  String get syncServerHint    =>
-      _t('Both devices need to be on the same Wi-Fi for this.',
-         'Dafür müssen beide Geräte im selben WLAN sein.');
-
   String get syncSendDesc      =>
       _t('Pick a player and a time range. Which way the data travels follows from how much of it there is.',
          'Wähle Spieler und Zeitraum. Auf welchem Weg die Daten reisen, ergibt sich aus ihrer Menge.');
@@ -480,9 +476,24 @@ class AppLocalizations {
       _t('Scan the sender\'s QR code to import the profile.',
          'Scanne den QR-Code des Senders, um das Profil zu importieren.');
   String get selectPlayer      => _t('Select player', 'Spieler auswählen');
-  String get startServer       => _t('Start server', 'Server starten');
-  String get stopServer        => _t('Stop server', 'Server stoppen');
-  String get scanQr            => _t('Scan QR code', 'QR-Code scannen');
+  String get fileOpenFailed    =>
+      _t('This file could not be read as a DartScore backup or profile.',
+         'Diese Datei konnte nicht als DartScore-Sicherung oder -Profil gelesen werden.');
+  String get syncShareFile     =>
+      _t('Send as a file', 'Als Datei senden');
+  String get syncShareFileHint =>
+      _t('AirDrop, mail, a chat. The other device opens it in DartScore.',
+         'AirDrop, Mail, ein Chat. Das andere Gerät öffnet sie direkt in DartScore.');
+  /// The same, for a device where tapping the file will not do.
+  ///
+  /// Android file managers that do not know an extension offer no way to open
+  /// it and send the user to the store instead, so the one route that works has
+  /// to be the one named.
+  String get syncShareFileHintShare =>
+      _t('Nearby Share, mail, a chat. On the other device, share the file and pick DartScore.',
+         'Nearby Share, Mail, ein Chat. Auf dem anderen Gerät die Datei teilen und DartScore wählen.');
+  String get startServer       => _t('Show the code', 'Code anzeigen');
+  String get stopServer        => _t('Cancel', 'Abbrechen');
   String get profileAndStats   =>
       _t('Profile · Statistics · Visits', 'Profil · Statistiken · Aufnahmen');
   String get qrScanHint        =>
@@ -513,10 +524,67 @@ class AppLocalizations {
   String get syncTooLarge      =>
       _t('The other device sent more data than this app accepts.',
          'Das andere Gerät hat mehr Daten gesendet, als diese App annimmt.');
+  String get syncNoWifiAddress =>
+      _t('This device is not on a Wi-Fi network.\nTurn Wi-Fi on, join a network and try again.',
+         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem Netzwerk und versuche es erneut.');
+  String get syncServerFailed  =>
+      _t('The transfer could not be started.\nClose the app and open it again.',
+         'Die Übertragung konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
+  String get syncUnreachable   =>
+      _t('The other device did not answer.\nGuest networks, public Wi-Fi and hotspots in hotels, cafes or trains often stop devices from reaching each other. Try a different Wi-Fi.',
+         'Das andere Gerät hat nicht geantwortet.\nIn Gäste-WLANs, öffentlichen WLANs und Hotspots in Hotels, Cafés oder Zügen können sich Geräte oft nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
+  String get syncUnreachableOnHotspot =>
+      _t('The other device did not answer.\nStay close to it and leave its hotspot switched on until the transfer is finished.',
+         'Das andere Gerät hat nicht geantwortet.\nBleib in seiner Nähe und lass seinen Hotspot an, bis die Übertragung fertig ist.');
+  String get syncIosNoOwnNetwork =>
+      _t('Apps on iOS may not open a hotspot of their own. Without a shared Wi-Fi, switch the personal hotspot on in the iOS settings and let the other device join it, or send the profile as a file over AirDrop.',
+         'Apps dürfen unter iOS keinen eigenen Hotspot öffnen. Ohne gemeinsames WLAN schaltest du in den iOS-Einstellungen den persönlichen Hotspot ein und verbindest das andere Gerät damit, oder du sendest das Profil per AirDrop als Datei.');
+  String get backupIosNoOwnNetwork =>
+      _t('Apps on iOS may not open a hotspot of their own. Without a shared Wi-Fi, switch the personal hotspot on in the iOS settings and let the other device join it, or save the backup to a file and send it over AirDrop.',
+         'Apps dürfen unter iOS keinen eigenen Hotspot öffnen. Ohne gemeinsames WLAN schaltest du in den iOS-Einstellungen den persönlichen Hotspot ein und verbindest das andere Gerät damit, oder du speicherst die Sicherung als Datei und schickst sie per AirDrop.');
+  String get syncCodeExpired   =>
+      _t('This code has expired.\nCreate a new one on the other device.',
+         'Dieser Code ist abgelaufen.\nErzeuge auf dem anderen Gerät einen neuen.');
+  String get routeSharedWifi   => _t('Over a shared Wi-Fi', 'Über ein gemeinsames WLAN');
+  String get routeSharedWifiHint =>
+      _t('Both devices need to be connected to the same Wi-Fi.',
+         'Beide Geräte müssen mit dem selben WLAN verbunden sein.');
+  String get routeOwnNetwork   => _t('Over a hotspot from this device', 'Über einen Hotspot dieses Geräts');
+  String get routeOwnNetworkHint =>
+      _t('This device opens a Wi-Fi hotspot and the other one joins it when it scans the code. For anywhere without a Wi-Fi. This device has no internet while the hotspot runs.',
+         'Dieses Gerät öffnet einen WLAN-Hotspot, das andere tritt ihm beim Scannen des Codes bei. Für überall dort, wo kein WLAN ist. Solange der Hotspot läuft, hat dieses Gerät kein Internet.');
+  String hotspotNetworkName(String ssid) =>
+      _t('Hotspot: $ssid', 'Hotspot: $ssid');
+  String get hotspotSendHint   =>
+      _t('The other device joins the hotspot by itself when it scans the code.',
+         'Das andere Gerät tritt dem Hotspot beim Scannen des Codes von selbst bei.');
+  String hotspotJoining(String ssid) =>
+      _t('Joining $ssid', 'Verbinde mit $ssid');
+  String get hotspotIncompatible =>
+      _t('Turn the mobile hotspot in the Android settings off first. It cannot run at the same time as this one.',
+         'Schalte zuerst den mobilen Hotspot in den Android-Einstellungen aus. Er kann nicht gleichzeitig mit diesem laufen.');
+  String get hotspotDenied     =>
+      _t('Without the nearby devices permission this device cannot open a hotspot.',
+         'Ohne die Berechtigung für Geräte in der Nähe kann dieses Gerät keinen Hotspot öffnen.');
+  String get hotspotFailed     =>
+      _t('The hotspot could not be opened. Use a shared Wi-Fi instead.',
+         'Der Hotspot konnte nicht geöffnet werden. Nutze stattdessen ein gemeinsames WLAN.');
+  String get hotspotStopped    =>
+      _t('The hotspot was closed. Start the transfer again.',
+         'Der Hotspot wurde geschlossen. Starte die Übertragung neu.');
+  String get hotspotJoinFailed =>
+      _t('The hotspot was not joined.',
+         'Die Verbindung zum Hotspot kam nicht zustande.');
+  String hotspotJoinManually(String ssid, String password) =>
+      _t('Open the Wi-Fi settings, pick "$ssid", enter $password, come back here and scan again.',
+         'Öffne die WLAN-Einstellungen, wähle "$ssid", gib $password ein, komm zurück und scanne erneut.');
+  String get syncNotBackupCode =>
+      _t('That is a backup code. It belongs in Backup, not here.',
+         'Das ist ein Backup-Code. Er gehört ins Backup, nicht hierher.');
   String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
   String get syncServerSentHint =>
-      _t('The server has stopped. Start it again for another transfer.',
-         'Der Server wurde gestoppt. Für eine weitere Übertragung neu starten.');
+      _t('Show the code again for another transfer.',
+         'Für eine weitere Übertragung den Code neu anzeigen.');
 
   String get syncImporting     => _t('Importing', 'Wird importiert');
   String syncImportProgress(int done, int total) =>
@@ -524,8 +592,8 @@ class AppLocalizations {
   String get syncImportDone    => _t('Import complete', 'Import abgeschlossen');
   String get syncImportFailed  => _t('Import failed', 'Import fehlgeschlagen');
   String get connectionFailed  =>
-      _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
-         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte im selben WLAN sind.');
+      _t('Connection failed.\nCheck that both devices are connected to the same Wi-Fi.',
+         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte mit dem selben WLAN verbunden sind.');
   String get importNewPlayer   => _t('Import new player', 'Neuen Spieler importieren');
   String get updatePlayer      => _t('Update player', 'Spieler aktualisieren');
   String get nameConflictTitle => _t('Name already exists', 'Name bereits vorhanden');
@@ -570,14 +638,19 @@ class AppLocalizations {
       _t('Pick where the file goes: iCloud Drive, Google Drive, Files, mail or a chat. Nothing is uploaded anywhere by the app itself.',
          'Du wählst, wohin die Datei geht: iCloud Drive, Google Drive, Dateien, E-Mail oder ein Chat. Die App selbst lädt nichts irgendwo hoch.');
   String get backupCreated     => _t('Backup created.', 'Sicherung erstellt.');
-  String get backupToFile      => _t('Save to a file', 'In eine Datei speichern');
+  String get backupToFile      => _t('To a file', 'In eine Datei');
   String get backupToFileDesc  =>
       _t('iCloud Drive, Google Drive, Files, mail, anywhere you like',
          'iCloud Drive, Google Drive, Dateien, E-Mail, wohin du magst');
-  String get backupToDevice    => _t('Send to another device', 'An anderes Gerät senden');
+  String get backupToDevice    => _t('To another device on the same Wi-Fi', 'An anderes Gerät im selben WLAN');
   String get backupToDeviceDesc =>
-      _t('Straight over Wi-Fi, both devices on the same network',
-         'Direkt über WLAN, beide Geräte im selben Netz');
+      _t('Both devices are connected to the same Wi-Fi',
+         'Beide Geräte sind mit dem selben WLAN verbunden');
+  String get backupToDeviceDirect =>
+      _t('To another device over a hotspot', 'An anderes Gerät über einen Hotspot');
+  String get backupToDeviceDirectDesc =>
+      _t('This device opens a Wi-Fi hotspot for it, for anywhere without a Wi-Fi',
+         'Dieses Gerät öffnet dafür einen WLAN-Hotspot, für überall dort, wo kein WLAN ist');
   String get backupFromFile    => _t('From a file', 'Aus einer Datei');
   String get backupFromFileDesc =>
       _t('Pick a backup you saved earlier',
