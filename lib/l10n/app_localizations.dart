@@ -461,11 +461,11 @@ class AppLocalizations {
          'zu viel für einen QR-Code, Übertragung über WLAN');
   String get syncStartStream     => _t('Start the code', 'Code starten');
   String get syncStartStreamHint =>
-      _t('Start the stream once the other device is scanning.',
-         'Starte den Strom, sobald das andere Gerät scannt.');
+      _t('Start the code once the other device is scanning.',
+         'Starte den Code, sobald das andere Gerät scannt.');
   String get syncAnimatedHint  =>
-      _t('Hold both phones steady until the receiver is finished.',
-         'Halte beide Handys ruhig, bis der Empfänger fertig ist.');
+      _t('Hold both devices steady until the receiver is finished.',
+         'Halte beide Geräte ruhig, bis der Empfänger fertig ist.');
   String get syncStopStreamHint =>
       _t('Hold both devices steady until the receiver is finished. Tap the code to stop it.',
          'Halte beide Geräte ruhig, bis der Empfänger fertig ist. Tippe auf den Code, um ihn anzuhalten.');
@@ -526,7 +526,7 @@ class AppLocalizations {
          'Das andere Gerät hat mehr Daten gesendet, als diese App annimmt.');
   String get syncNoWifiAddress =>
       _t('This device is not on a Wi-Fi network.\nTurn Wi-Fi on, join a network and try again.',
-         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem WLAN und versuche es erneut.');
+         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem Netzwerk und versuche es erneut.');
   String get syncServerFailed  =>
       _t('The transfer could not be started.\nClose the app and open it again.',
          'Die Übertragung konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
@@ -592,8 +592,8 @@ class AppLocalizations {
   String get syncImportDone    => _t('Import complete', 'Import abgeschlossen');
   String get syncImportFailed  => _t('Import failed', 'Import fehlgeschlagen');
   String get connectionFailed  =>
-      _t('Connection failed.\nCheck that both devices are on the same Wi-Fi.',
-         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte im selben WLAN sind.');
+      _t('Connection failed.\nCheck that both devices are connected to the same Wi-Fi.',
+         'Verbindung fehlgeschlagen.\nPrüfe, ob beide Geräte mit dem selben WLAN verbunden sind.');
   String get importNewPlayer   => _t('Import new player', 'Neuen Spieler importieren');
   String get updatePlayer      => _t('Update player', 'Spieler aktualisieren');
   String get nameConflictTitle => _t('Name already exists', 'Name bereits vorhanden');
