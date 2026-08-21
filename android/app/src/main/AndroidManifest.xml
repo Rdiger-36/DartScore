@@ -95,6 +95,21 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="application/octet-stream"/>
             </intent-filter>
+            <!--
+                4. Sharing, which on Android is the route people actually use
+                and the only one some file managers offer at all. Samsung's own
+                looks an unknown extension up in a table of its own, finds
+                nothing and shows the Play Store instead: it never asks the
+                system who could open the file, so no VIEW filter above is ever
+                consulted. Sharing goes around that.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/vnd.ratka.dartscore"/>
+                <data android:mimeType="application/vnd.ratka.dartsync"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
         </activity>
         <!-- The barcode model is not bundled with the app (see useUnbundled in
              gradle.properties). This asks Play Services to fetch it right after
