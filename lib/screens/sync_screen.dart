@@ -893,7 +893,10 @@ class _SenderTabState extends State<_SenderTab>
           _buildShareFile(l),
           const SizedBox(height: 8),
           Text(
-            l.syncShareFileHint,
+            // Tapping the file is enough on iOS. On Android a file manager
+            // that does not know the extension offers no way to open it at
+            // all, so the route that works has to be the one named.
+            Platform.isIOS ? l.syncShareFileHint : l.syncShareFileHintShare,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: cs.onSurfaceVariant),

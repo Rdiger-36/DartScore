@@ -469,10 +469,6 @@ class AppLocalizations {
   String get syncStopStreamHint =>
       _t('Hold both devices steady until the receiver is finished. Tap the code to stop it.',
          'Halte beide Geräte ruhig, bis der Empfänger fertig ist. Tippe auf den Code, um ihn anzuhalten.');
-  String get syncServerHint    =>
-      _t('Both devices need to be on the same Wi-Fi for this.',
-         'Dafür müssen beide Geräte im selben WLAN sein.');
-
   String get syncSendDesc      =>
       _t('Pick a player and a time range. Which way the data travels follows from how much of it there is.',
          'Wähle Spieler und Zeitraum. Auf welchem Weg die Daten reisen, ergibt sich aus ihrer Menge.');
@@ -487,9 +483,17 @@ class AppLocalizations {
       _t('Send as a file', 'Als Datei senden');
   String get syncShareFileHint =>
       _t('AirDrop, mail, a chat. The other device opens it in DartScore.',
-         'AirDrop, Mail, ein Chat. Das andere Gerät öffnet sie in DartScore.');
-  String get startServer       => _t('Start server', 'Server starten');
-  String get stopServer        => _t('Stop server', 'Server stoppen');
+         'AirDrop, Mail, ein Chat. Das andere Gerät öffnet sie direkt in DartScore.');
+  /// The same, for a device where tapping the file will not do.
+  ///
+  /// Android file managers that do not know an extension offer no way to open
+  /// it and send the user to the store instead, so the one route that works has
+  /// to be the one named.
+  String get syncShareFileHintShare =>
+      _t('Nearby Share, mail, a chat. On the other device, share the file and pick DartScore.',
+         'Nearby Share, Mail, ein Chat. Auf dem anderen Gerät die Datei teilen und DartScore wählen.');
+  String get startServer       => _t('Show the code', 'Code anzeigen');
+  String get stopServer        => _t('Cancel', 'Abbrechen');
   String get profileAndStats   =>
       _t('Profile · Statistics · Visits', 'Profil · Statistiken · Aufnahmen');
   String get qrScanHint        =>
@@ -521,11 +525,11 @@ class AppLocalizations {
       _t('The other device sent more data than this app accepts.',
          'Das andere Gerät hat mehr Daten gesendet, als diese App annimmt.');
   String get syncNoWifiAddress =>
-      _t('This device is not on a Wi-Fi network.\nTurn Wi-Fi on and join a network, then start the server again.',
-         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem Netz und starte den Server erneut.');
+      _t('This device is not on a Wi-Fi network.\nTurn Wi-Fi on and join a network, then try again.',
+         'Dieses Gerät ist in keinem WLAN.\nSchalte WLAN ein, verbinde dich mit einem Netz und versuche es erneut.');
   String get syncServerFailed  =>
-      _t('The server could not be started.\nClose the app and open it again.',
-         'Der Server konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
+      _t('The transfer could not be started.\nClose the app and open it again.',
+         'Die Übertragung konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
   String get syncUnreachable   =>
       _t('The other device did not answer.\nSome guest networks stop devices from reaching each other. Try a different Wi-Fi.',
          'Das andere Gerät hat nicht geantwortet.\nIn manchen Gäste-WLANs können sich Geräte nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
@@ -579,8 +583,8 @@ class AppLocalizations {
          'Das ist ein Backup-Code. Er gehört ins Backup, nicht hierher.');
   String get syncServerSent    => _t('Profile sent', 'Profil übertragen');
   String get syncServerSentHint =>
-      _t('The server has stopped. Start it again for another transfer.',
-         'Der Server wurde gestoppt. Für eine weitere Übertragung neu starten.');
+      _t('Show the code again for another transfer.',
+         'Für eine weitere Übertragung den Code neu anzeigen.');
 
   String get syncImporting     => _t('Importing', 'Wird importiert');
   String syncImportProgress(int done, int total) =>
@@ -658,7 +662,6 @@ class AppLocalizations {
   String get backupSendHint    =>
       _t('Show this code to the other device and confirm the number both screens display. Everything on that device is replaced by this database.',
          'Zeige diesen Code dem anderen Gerät und bestätige die Zahl, die beide Bildschirme anzeigen. Alles auf jenem Gerät wird durch diese Datenbank ersetzt.');
-  String get backupShowCode    => _t('Show the code', 'Code anzeigen');
   String get backupSendPrep    => _t('Preparing the database', 'Datenbank wird vorbereitet');
   String get backupSent        => _t('Database transferred.', 'Datenbank übertragen.');
   String get backupSendAgain   => _t('Send again', 'Erneut senden');
