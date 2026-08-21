@@ -9,7 +9,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/dart_throw.dart';
-import 'incoming_file.dart' show kSyncExtension, kSyncMimeType;
+import 'incoming_file.dart'
+    show clearSharedFiles, kSyncExtension, kSyncMimeType;
 import 'local_addresses.dart';
 import 'transfer_invite.dart';
 
@@ -890,22 +891,23 @@ class SyncServer {
 Future<bool> shareSyncFile(String payload,
     {required String playerName, Rect? origin}) async {
   final dir = await getTemporaryDirectory();
+
+  // Whatever an earlier share left, cleared before the next one is written
+  // rather than after the sheet closes. A target may still be reading the file
+  // off its content URI at that point, and deleting it there is how a share
+  // that looked finished arrives empty.
+  await clearSharedFiles(dir, kSyncExtension);
+
   final file = File('${dir.path}/${syncFileName(playerName, DateTime.now())}');
   await file.writeAsString(payload, flush: true);
 
-  try {
-    final result = await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: kSyncMimeType)],
-        sharePositionOrigin: origin,
-      ),
-    );
-    return result.status == ShareResultStatus.success;
-  } finally {
-    // The share sheet has read it by the time it returns, and a player's whole
-    // history is not something to leave lying in a cache directory.
-    if (await file.exists()) await file.delete();
-  }
+  final result = await SharePlus.instance.share(
+    ShareParams(
+      files: [XFile(file.path, mimeType: kSyncMimeType)],
+      sharePositionOrigin: origin,
+    ),
+  );
+  return result.status == ShareResultStatus.success;
 }
 
 /// Name a shared profile is offered under.

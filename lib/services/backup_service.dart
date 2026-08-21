@@ -8,7 +8,8 @@ import '../database/db_helper.dart';
 import 'device_description.dart';
 import 'device_identity.dart';
 import 'document_picker.dart';
-import 'incoming_file.dart' show kBackupExtension, kBackupMimeType;
+import 'incoming_file.dart'
+    show clearSharedFiles, kBackupExtension, kBackupMimeType;
 
 /// Why a file the user picked cannot be restored.
 enum BackupRejection {
@@ -47,9 +48,14 @@ class BackupService {
   static Future<bool> exportAndShare({Rect? sharePositionOrigin}) async {
     final source = await _prepare();
     final tmp    = await getTemporaryDirectory();
-    final target = File('${tmp.path}/${backupFileName(DateTime.now())}');
 
-    if (await target.exists()) await target.delete();
+    // Whatever an earlier share left. Cleared here rather than after the sheet
+    // closes: a target may still be reading the file off its content URI then,
+    // and a backup is the whole database, so leaving them to pile up costs
+    // real space.
+    await clearSharedFiles(tmp, kBackupExtension);
+
+    final target = File('${tmp.path}/${backupFileName(DateTime.now())}');
     await File(source).copy(target.path);
 
     final result = await SharePlus.instance.share(
