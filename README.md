@@ -304,6 +304,8 @@ flutter analyze
 The source file is `assets/icon/app_icon.png`.  
 Icons are generated with [`flutter_launcher_icons`](https://pub.dev/packages/flutter_launcher_icons), configured in `pubspec.yaml`.
 
+The board on it is the one `lib/widgets/dartboard_icon.dart` paints in the home, onboarding and about screens, at the same proportions: twenty segments, no rim, the outer edge of the double ring is the edge of the board. A change to those radii belongs in both places, otherwise the icon and the app stop showing the same board. The dart, the soft focus and the wordmark exist only on the icon.
+
 ```bash
 dart run flutter_launcher_icons
 ```
@@ -397,7 +399,7 @@ lib/
 │   └── app_localizations.dart             # Hand-written EN/DE strings (no .arb, no codegen)
 └── widgets/
     ├── dartboard_input.dart                # Segment-level dartboard tap input
-    ├── dartboard_icon.dart                 # Decorative dartboard SVG widget
+    ├── dartboard_icon.dart                 # Decorative dartboard, painted; shares its geometry with the app icon
     ├── dartboard_target_painter.dart       # Custom painter for Shanghai target view
     ├── finish_suggestion_widget.dart       # X01 checkout hint display
     ├── cricket_marks_widget.dart           # Cricket field/marks grid
