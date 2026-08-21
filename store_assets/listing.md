@@ -4,13 +4,26 @@ The words the two listings show, kept here so they live somewhere other than in
 App Store Connect and the Play Console. Change them here first, then paste.
 
 Limits: the promotional text is 170 characters and can be changed without a new
-review, the subtitle is 30, the description is 4000. The pictures that go with
-them are generated, see `screenshots/README.md`.
+review, the subtitle is 30, the short description is 80, the description is
+4000. The pictures that go with them are generated, see `screenshots/README.md`.
+
+The subtitle belongs to App Store Connect, the short description to the Play
+Console. They are not the same field and neither store shows both.
 
 ## Subtitle (30)
 
 - German: Darts zählen, Statistik, Sync
 - English: Darts scoring, stats and sync
+
+## Short description (80)
+
+The line Google Play shows under the app name in search results and at the top
+of the listing. It is the first sentence most people read, so it names the four
+modes' payoff rather than the modes themselves, which the promotional text
+below already lists.
+
+- German (78): Jeder Wurf zählt. Vier Modi, Finish-Wege, Teams, Statistik. Offline und gratis
+- English (76): Track every dart. Four modes, live checkouts, teams, stats. Offline and free
 
 ## Promotional text (170)
 
