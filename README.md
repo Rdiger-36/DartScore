@@ -187,6 +187,8 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 | up to ~21,000 visits | an animated QR code, up to half a minute |
 | more than that | a local Wi-Fi transfer |
 
+A Wi-Fi transfer travels one of two ways, picked on the sending screen: over a Wi-Fi both devices are already connected to, or over a hotspot the sending device raises for the length of the transfer. Either way the data never leaves the two devices.
+
 - **Nothing is lost by picking a shorter range.** Only the individual visits are cut off; everything older is folded into the stats snapshot that travels along, so lifetime averages, checkout rates, the dartboard heatmap and the top doubles all arrive in full. What a short range gives up is only how far back the receiving device's "All Throws" list reaches
 - **Animated QR codes are fountain coded**, so the receiver needs any set of frames slightly larger than the payload rather than particular ones. A frame the camera blinks through costs nothing, and there is no waiting for it to come round again
 - **The Wi-Fi transfer is paired like Bluetooth.** The connection code carries a session token, so nobody else on the network gets an answer at all. Past that the sending device shows a four digit number, the receiving device shows the same one, and the payload only moves once the sender confirms. The server hands it over once and then stops
@@ -194,7 +196,10 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 - **Every part of a history is filed under the device it was played on.** That is what makes syncing in both directions safe: a device recognises and drops its own data when it comes back around, an incoming packet only replaces what that same device sent before, and what a third device contributed is left alone. Repeated syncs in either direction never double a number
 - Both screens name the device a transfer came from, the actual model rather than just "iPhone" or "Android"
 - Import new players or update existing ones, with a name-clash prompt
-- Works with no internet at all; the Wi-Fi transfer needs both devices on the same network, the QR codes need nothing
+- **A transfer needs no Wi-Fi to be there.** An Android device can raise a hotspot for one transfer and take it down afterwards, and the other device joins it from the scan without anyone typing a password. Apple lets no app raise a network, so an iPhone is always the device that joins; which of them hosts says nothing about which way the data travels. Hosting needs Android 13 or newer, where `NEARBY_WIFI_DEVICES` covers it and no location permission is asked for. Joining on iOS uses `NEHotspotConfiguration` and the Hotspot Configuration entitlement
+- **A profile can also travel as a file.** A `.dartsync` file goes through AirDrop, Nearby Share, a chat or a cloud drive, and the other device opens it straight into the app. That is the route for two iPhones with no Wi-Fi between them, and the one that needs no second device present at all
+- **The address in a connection code is one a peer can actually reach.** Candidates are ranked by interface and address range, a hotspot subnet first, and several travel in the code so the receiver can try them in turn. A device on no usable network says so instead of handing out an address that leads nowhere
+- Works with no internet at all; the QR codes need nothing, and the Wi-Fi transfer needs either a shared Wi-Fi or the hotspot one device raises
 
 ---
 
@@ -202,7 +207,7 @@ Pick a player and how far back to go: **1 day**, **7 days**, **30 days** or **ev
 
 A backup is the whole app database, every player, every game and every throw of every mode. Sync merges two devices, a backup replaces one.
 
-**Creating a backup** offers two routes: save or share the file through the system share sheet (iCloud Drive, Google Drive, Files, mail, whatever the device offers), or send it straight to another device over local Wi-Fi, on the same paired connection the profile sync uses.
+**Creating a backup** offers three routes: save or share the file through the system share sheet (iCloud Drive, Google Drive, Files, mail, whatever the device offers), send it to another device over a Wi-Fi both are connected to, or send it over a hotspot this device raises for the transfer. The two device routes run on the same paired connection the profile sync uses.
 
 **Restoring** walks through the steps in order, because it is the half that cannot be undone:
 
@@ -214,6 +219,7 @@ A backup is the whole app database, every player, every game and every throw of 
 - **A backup is the SQLite file itself**, not a dump of it, which keeps a restore exact. The price is that a file written by a newer version of the app is refused rather than half read
 - **A restored database keeps talking to where it came from.** The restoring device keeps its own identity and stamps the source's onto the history it took over, so the two devices can still sync afterwards without either claiming the other's games
 - **The two transfers refuse each other's codes.** One merges and one replaces, so a code scanned in the wrong screen fails instead of half working
+- **A backup file opens straight into the app.** A `.dartscore` file tapped in Files, in a chat or in a cloud drive lands in the restore flow, and on Android it can also be shared to the app, which is the route that works when a file manager refuses to open an extension it does not know
 - The file picker for the restore is written by hand on both platforms, so no file picking package is needed
 
 ---
@@ -370,6 +376,10 @@ lib/
 │   ├── sync_codec.dart                    # Sync wire format: binary packet, base45, fountain coded frames
 │   ├── sync_service.dart                  # Sync payload types, the Wi-Fi server and its paired client
 │   ├── backup_service.dart                # Writes the database out as one file and reads one back in
+│   ├── transfer_invite.dart               # What a connection code carries: addresses, token, expiry, hotspot credentials
+│   ├── local_addresses.dart               # Ranks this device's addresses, so a code names a reachable one
+│   ├── local_hotspot.dart                 # Dart side of raising a transfer hotspot and joining one
+│   ├── incoming_file.dart                 # A backup or profile file the system handed to the app
 │   ├── device_identity.dart               # This device's sync id, the key behind all origin tracking
 │   ├── device_description.dart            # The device name shown on a transfer, reported by the device
 │   └── document_picker.dart               # Dart side of the hand-written system file picker
@@ -407,13 +417,17 @@ lib/
     └── player_dialog.dart                  # Create/edit player dialog
 ```
 
-The native halves of the two hand-written platform channels sit outside `lib/`:
+The native halves of the hand-written platform channels sit outside `lib/`:
 
 ```
 ios/Runner/DocumentPickerHandler.swift      # System file picker (iOS)
 ios/Runner/DeviceDescriptionHandler.swift   # Device name (iOS)
+ios/Runner/HotspotJoinHandler.swift         # Joins a transfer hotspot (iOS)
+ios/Runner/IncomingFileHandler.swift        # Files the system opens the app with (iOS)
 android/app/src/main/kotlin/com/ratka/dartscore/MainActivity.kt
-                                            # File picker and device name (Android)
+                                            # File picker, device name and incoming files (Android)
+android/app/src/main/kotlin/com/ratka/dartscore/LocalHotspotHandler.kt
+                                            # Raises a transfer hotspot and joins one (Android)
 ```
 
 ### Intent layer
@@ -527,7 +541,7 @@ app_meta            (key, value)
 | `flutter_launcher_icons` *(dev)* | Icon generation |
 | `sqflite_common_ffi` *(dev)* | Runs SQLite in the Dart VM so tests drive a real database |
 
-There is deliberately **no file picking package**: every one of them still requires CocoaPods on iOS, which this project does not use, so the document picker is written by hand on both platforms instead.
+There is deliberately **no file picking package**: every one of them still requires CocoaPods on iOS, which this project does not use, so the document picker is written by hand on both platforms instead. The transfer hotspot and the files the system opens the app with are hand-written for the same reason.
 
 `share_plus` and `package_info_plus` are held to a version range on purpose. From `share_plus` 13.2 on, both expect AGP's built-in Kotlin to compile them, which this project cannot switch on yet. The full reasoning sits in `pubspec.yaml` next to the constraints.
 

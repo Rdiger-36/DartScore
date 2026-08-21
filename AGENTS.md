@@ -50,7 +50,7 @@ dart run tool/compose_store_screenshots.dart
 - `shared_preferences` — lightweight key/value persistence
 - `mobile_scanner` + `qr_flutter` — QR-based sync between devices (see `lib/services/AGENTS.md`)
 - `share_plus` + `gal` + `path_provider` — export/share functionality
-- No file picking package. The document picker for the backup restore is written by hand on both platforms (see `lib/services/AGENTS.md`)
+- No file picking package. The document picker for the backup restore, the transfer hotspot and the files the system opens the app with are written by hand on both platforms (see `lib/services/AGENTS.md`)
 - `in_app_purchase` — donation / supporter in-app purchases
 - `package_info_plus` + `url_launcher` — app metadata and external links (about screen)
 - `intl` + `flutter_localizations` — i18n (English/German); strings are maintained by hand, see Key Conventions
@@ -75,7 +75,7 @@ lib/
 │   └── dart_throw.dart              # Single throw record (value, multiplier, bust flag)
 ├── providers/                 # State machines, one per game mode plus the app-wide ones. See providers/AGENTS.md
 ├── screens/                   # Setup, live game, summary and history per mode, plus the app screens. See screens/AGENTS.md
-├── services/                  # Sync codec, sync transport, device identity, backup, document picker. See services/AGENTS.md
+├── services/                  # Sync codec, sync transport, transfer invites and addresses, hotspot, incoming files, device identity, backup, document picker. See services/AGENTS.md
 ├── widgets/                   # Shared UI building blocks. See widgets/AGENTS.md
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles; canFinishWithOneDart is the one-dart rule per check-out mode
