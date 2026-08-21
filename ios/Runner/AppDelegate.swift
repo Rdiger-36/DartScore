@@ -22,5 +22,15 @@ import UIKit
     ) {
       DeviceDescriptionHandler.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "HotspotJoinHandler"
+    ) {
+      HotspotJoinHandler.register(with: registrar)
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "IncomingFileHandler"
+    ) {
+      IncomingFileHandler.register(with: registrar)
+    }
   }
 }

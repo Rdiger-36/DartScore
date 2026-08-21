@@ -9,11 +9,15 @@ import '../l10n/app_localizations.dart';
 import '../providers/players_provider.dart';
 import '../database/db_helper.dart' show BackupInfo;
 import '../services/backup_service.dart';
+import '../services/local_hotspot.dart';
 import '../services/sync_service.dart';
 import '../utils/layout.dart';
 import '../widgets/wifi_pairing.dart';
 
 /// Which half of the screen the user is in.
+/// Where a backup is being sent.
+enum _Destination { file, deviceOverWifi, deviceWithoutWifi }
+
 enum _Mode {
   /// The two entries, waiting to be picked.
   idle,
@@ -44,7 +48,17 @@ enum _Mode {
 /// Whatever is being handed over or taken in is described in the same terms on
 /// both sides: when it was made, which device made it, and what is in it.
 class BackupScreen extends StatefulWidget {
-  const BackupScreen({super.key});
+  /// A backup the system handed the app, to be offered for restoring straight
+  /// away.
+  ///
+  /// It lands on the confirmation, not on the restore: what it holds goes on
+  /// screen with the warning beside it, and nothing is replaced until that is
+  /// answered. The steps in front of it, the warning page and the offer to save
+  /// the current data first, are for somebody hunting for a file. Whoever just
+  /// opened one has already decided which file they mean.
+  final String? incomingPath;
+
+  const BackupScreen({super.key, this.incomingPath});
 
   @override
   State<BackupScreen> createState() => _BackupScreenState();
@@ -61,7 +75,7 @@ class _BackupScreenState extends State<BackupScreen> {
 
   _Mode _mode = _Mode.idle;
   bool _busy = false;
-  SyncConnection? _connection;
+  TransferInvite? _invite;
   bool _sent = false;
   String? _error;
 
@@ -81,18 +95,91 @@ class _BackupScreenState extends State<BackupScreen> {
   /// a second one.
   bool _askingApproval = false;
 
+  /// Which way the two devices reach each other.
+  TransferRoute _route = TransferRoute.sharedWifi;
+
+  /// Whether this device can raise a network of its own. False on iOS and
+  /// below Android 13.
+  bool _canHostNetwork = false;
+
+  /// The network this device raised, or null when the transfer runs over a
+  /// Wi-Fi both devices were already on.
+  HotspotCredentials? _hotspot;
+
+  /// Set between the start button and the code appearing.
+  bool _starting = false;
+
+  /// The network being joined while receiving, or null.
+  String? _joiningNetwork;
+
+  /// Set once this screen joined a network, so it can be left again.
+  bool _joined = false;
+
+  /// Watches for the system taking the raised network down under the transfer.
+  StreamSubscription<void>? _hotspotStopped;
+
   @override
   void initState() {
     super.initState();
     _server.state.addListener(_onServerState);
+    LocalHotspot.isSupported().then((supported) {
+      if (mounted) setState(() => _canHostNetwork = supported);
+    });
+    final incoming = widget.incomingPath;
+    if (incoming != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _openIncoming(incoming));
+    }
+    // Wi-Fi switched off under a running hotspot takes the network with it.
+    _hotspotStopped = LocalHotspot.onStopped.listen((_) {
+      if (!mounted || _hotspot == null) return;
+      unawaited(_dropNetwork());
+      setState(() {
+        _invite = null;
+        _error  = context.l10n.hotspotStopped;
+      });
+    });
   }
 
   @override
   void dispose() {
     _server.state.removeListener(_onServerState);
+    _hotspotStopped?.cancel();
     unawaited(_server.stop());
+    // Nothing about a transfer survives the screen it ran on: a network left
+    // up costs battery, and a phone left on one with no internet has no route.
+    if (_hotspot != null) unawaited(LocalHotspot.stop());
+    if (_joined) unawaited(WifiJoin.leave());
     _server.dispose();
     super.dispose();
+  }
+
+  /// Reads a backup another app handed over and asks whether to restore it.
+  Future<void> _openIncoming(String path) async {
+    setState(() => _busy = true);
+    try {
+      await _confirmAndRestore(await BackupService.open(path));
+    } on BackupRejectedException catch (e) {
+      if (mounted) _toast(_rejectionMessage(e));
+    } catch (e) {
+      if (mounted) _toast('${context.l10n.error}: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Takes the raised network down, if this transfer raised one.
+  Future<void> _dropNetwork() async {
+    if (_hotspot == null) return;
+    _hotspot = null;
+    await LocalHotspot.stop();
+  }
+
+  /// Leaves the transfer network, if this screen joined one.
+  Future<void> _leaveNetwork() async {
+    if (!_joined) return;
+    _joined = false;
+    await WifiJoin.leave();
   }
 
   @override
@@ -158,21 +245,92 @@ class _BackupScreenState extends State<BackupScreen> {
     ];
   }
 
-  /// Asks whether the backup should become a file or go straight to the other
-  /// device.
+  /// Asks where the backup should go, connection and all.
+  ///
+  /// One list rather than a route dialog followed by a connection choice on the
+  /// next screen. Nobody thinks of those as two questions; they think about how
+  /// it gets across, and seeing every way at once beats guessing that a second
+  /// one exists behind the first.
   Future<void> _chooseCreate() async {
     final l = context.l10n;
-    final route = await _askRoute(
-      title: l.backupCreate,
-      first: (Icons.folder_outlined, l.backupToFile, l.backupToFileDesc),
-      second: (Icons.wifi_rounded, l.backupToDevice, l.backupToDeviceDesc),
-    );
-    if (route == null || !mounted) return;
-    if (route) {
+    final choice = await _askDestination(l);
+    if (choice == null || !mounted) return;
+
+    if (choice == _Destination.file) {
       await _export(_exportKey);
-    } else {
-      await _startSending();
+      return;
     }
+
+    // The connection is settled before anything is prepared, so the network is
+    // up before the server looks for the address to put in the code.
+    setState(() {
+      _route = choice == _Destination.deviceWithoutWifi
+          ? TransferRoute.ownNetwork
+          : TransferRoute.sharedWifi;
+      _mode     = _Mode.sending;
+      _sent     = false;
+      _error    = null;
+      _invite   = null;
+      _outgoing = null;
+    });
+  }
+
+  /// The list of ways a backup can leave this device.
+  Future<_Destination?> _askDestination(AppLocalizations l) {
+    return showDialog<_Destination>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        Widget option(IconData icon, String title, String hint,
+                _Destination value) =>
+            ListTile(
+              leading: Icon(icon, color: cs.primary),
+              title: Text(title),
+              subtitle: Text(hint),
+              onTap: () => Navigator.pop(ctx, value),
+            );
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+            child: AlertDialog(
+              title: Text(l.backupCreate),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  option(Icons.folder_outlined, l.backupToFile,
+                      l.backupToFileDesc, _Destination.file),
+                  option(Icons.wifi_rounded, l.backupToDevice,
+                      l.backupToDeviceDesc, _Destination.deviceOverWifi),
+                  // Only where this device can raise a network. An option that
+                  // can never be picked here is not a choice.
+                  if (_canHostNetwork)
+                    option(Icons.wifi_tethering, l.backupToDeviceDirect,
+                        l.backupToDeviceDirectDesc,
+                        _Destination.deviceWithoutWifi),
+                  // An iPhone has no third row, because no app may raise a
+                  // hotspot there, so it gets told which routes are left.
+                  if (!_canHostNetwork && Platform.isIOS)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Text(l.backupIosNoOwnNetwork,
+                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant)),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(ctx.l10n.cancel),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ── Restoring, step one: what it costs ────────────────────────────────────
@@ -283,47 +441,6 @@ class _BackupScreenState extends State<BackupScreen> {
     ];
   }
 
-  /// Offers the two routes out and returns true for the file one, false for the
-  /// other device, or null when the user backed out.
-  Future<bool?> _askRoute({
-    required String title,
-    required (IconData, String, String) first,
-    required (IconData, String, String) second,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        Widget option((IconData, String, String) o, bool value) => ListTile(
-              leading: Icon(o.$1, color: cs.primary),
-              title: Text(o.$2),
-              subtitle: Text(o.$3),
-              onTap: () => Navigator.pop(ctx, value),
-            );
-
-        return Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-            child: AlertDialog(
-              title: Text(title),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [option(first, true), option(second, false)],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(ctx.l10n.cancel),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   // ── Sending over the network ──────────────────────────────────────────────
 
   List<Widget> _sendingBody(AppLocalizations l) {
@@ -353,15 +470,42 @@ class _BackupScreenState extends State<BackupScreen> {
       ];
     }
 
-    final connection = _connection;
-    if (connection == null) {
+    final invite = _invite;
+    if (invite == null && _starting) {
       return [
         const Center(child: CircularProgressIndicator()),
         const SizedBox(height: 16),
-        Text(_error ?? l.backupSendPrep,
+        Text(l.backupSendPrep,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-                color: _error == null ? cs.onSurfaceVariant : cs.error)),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: cs.onSurfaceVariant)),
+      ];
+    }
+
+    if (invite == null) {
+      // The way across was settled in the dialog that got us here, so all that
+      // is left is the go-ahead: this is the moment the database is read out
+      // and, on the direct route, a network goes up.
+      return [
+        _note(_route == TransferRoute.ownNetwork
+            ? l.routeOwnNetworkHint
+            : l.routeSharedWifiHint),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(_error!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: cs.error)),
+        ],
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _startSending,
+          icon: Icon(_route == TransferRoute.ownNetwork
+              ? Icons.wifi_tethering
+              : Icons.wifi_rounded),
+          label: Text(l.startServer),
+          style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+        ),
       ];
     }
 
@@ -389,8 +533,16 @@ class _BackupScreenState extends State<BackupScreen> {
                           ?.copyWith(color: cs.onSurfaceVariant)),
                 ],
               ),
-        child: PairingQrCard(data: connection.qrPayload),
+        child: PairingQrCard(data: invite.qrPayload(kBackupWifiPrefix)),
       ),
+      if (_hotspot != null) ...[
+        const SizedBox(height: 16),
+        Text(
+          '${l.hotspotNetworkName(_hotspot!.ssid)}\n${l.hotspotSendHint}',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
     ];
   }
 
@@ -400,11 +552,11 @@ class _BackupScreenState extends State<BackupScreen> {
   /// Prepares the database and puts it on the network for one peer.
   Future<void> _startSending() async {
     setState(() {
-      _mode       = _Mode.sending;
-      _sent       = false;
-      _error      = null;
-      _connection = null;
-      _outgoing   = null;
+      _starting = true;
+      _sent     = false;
+      _error    = null;
+      _invite   = null;
+      _outgoing = null;
     });
 
     try {
@@ -413,18 +565,32 @@ class _BackupScreenState extends State<BackupScreen> {
       setState(() => _outgoing = info);
 
       if (_server.isRunning) await _server.stop();
+      await _dropNetwork();
+
+      // The network first, then the server: the address a peer reaches this
+      // device on only exists once the network is up.
+      final hotspot = _route == TransferRoute.ownNetwork
+          ? await LocalHotspot.start()
+          : null;
+      _hotspot = hotspot;
+
       // One way on purpose. A database replaces the device that takes it, so
       // there is nothing it could hand back.
-      final connection = await _server.start(
+      final invite = await _server.start(
         bytes,
         twoWay: false,
         contentType: ContentType.binary,
-        codePrefix: kBackupWifiPrefix,
+        hotspot: hotspot,
       );
       if (!mounted) return;
-      setState(() => _connection = connection);
+      setState(() { _invite = invite; _starting = false; });
     } catch (e) {
-      if (mounted) setState(() => _error = '${context.l10n.error}: $e');
+      await _dropNetwork();
+      if (!mounted) return;
+      setState(() {
+        _starting = false;
+        _error    = transferStartMessage(context, e);
+      });
     }
   }
 
@@ -467,7 +633,29 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _finishSending() async {
     final sent = _server.state.value == SyncServerState.served;
     await _server.stop();
-    if (mounted) setState(() { _connection = null; _sent = sent; });
+    await _dropNetwork();
+    if (mounted) setState(() { _invite = null; _sent = sent; });
+  }
+
+  /// Joins the network the invitation names, when it names one.
+  ///
+  /// Nothing to do for a transfer over a shared Wi-Fi. When the join cannot be
+  /// made from inside the app the credentials go on screen instead, and the
+  /// user picks the network in the system settings themselves.
+  Future<void> _joinIfNeeded(TransferInvite invite) async {
+    final hotspot = invite.hotspot;
+    if (hotspot == null) return;
+
+    if (mounted) setState(() => _joiningNetwork = hotspot.ssid);
+    try {
+      if (!await WifiJoin.isSupported()) {
+        throw const HotspotException(HotspotFailure.unsupported);
+      }
+      await WifiJoin.join(hotspot);
+      _joined = true;
+    } finally {
+      if (mounted) setState(() => _joiningNetwork = null);
+    }
   }
 
   // ── Receiving over the network ────────────────────────────────────────────
@@ -480,6 +668,15 @@ class _BackupScreenState extends State<BackupScreen> {
       final received = _received;
       return [
         const Center(child: CircularProgressIndicator()),
+        // Joining comes before the pairing number and takes long enough on its
+        // own that a bare spinner reads as a transfer that died.
+        if (_joiningNetwork != null) ...[
+          const SizedBox(height: 20),
+          Text(l.hotspotJoining(_joiningNetwork!),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+        ],
         // The number both devices show, so the user can tell that the device
         // asking is the one in front of them.
         if (_pairingPin != null) ...[
@@ -530,12 +727,12 @@ class _BackupScreenState extends State<BackupScreen> {
   Future<void> _onScanned(String raw) async {
     if (_busy) return;
 
-    final connection =
-        SyncConnection.parse(raw, prefix: kBackupWifiPrefix);
-    if (connection == null) {
+    final invite = TransferInvite.parse(raw, prefix: kBackupWifiPrefix);
+    if (invite == null) {
       // A profile sync code is the one wrong code worth naming, because it
       // looks right and belongs to a different screen.
-      final isSyncCode = SyncConnection.parse(raw) != null;
+      final isSyncCode =
+          TransferInvite.parse(raw, prefix: kSyncWifiPrefix) != null;
       if (mounted) {
         setState(() => _error = isSyncCode
             ? context.l10n.backupNotSyncCode
@@ -551,8 +748,9 @@ class _BackupScreenState extends State<BackupScreen> {
       _received   = null;
     });
     try {
+      await _joinIfNeeded(invite);
       final bytes = await SyncClient().fetchBytes(
-        connection,
+        invite,
         onPin: (pin) {
           if (mounted) setState(() => _pairingPin = pin);
         },
@@ -563,23 +761,37 @@ class _BackupScreenState extends State<BackupScreen> {
       if (!mounted) return;
       await _confirmAndRestore(await BackupService.acceptTransfer(bytes));
     } on BackupRejectedException catch (e) {
+      await _leaveNetwork();
       if (mounted) setState(() => _error = _rejectionMessage(e));
     } catch (e) {
+      // Back onto the ordinary network before anything else. A retry rejoins,
+      // and a user who gives up here should not be left without internet.
+      await _leaveNetwork();
       if (mounted) {
         final l = context.l10n;
         setState(() => _error = switch (e) {
               SyncRejectedException() => l.syncRejected,
               TimeoutException()      => l.syncNotConfirmed,
               SyncPayloadTooLargeException() => l.syncTooLarge,
+              TransferUnreachableException() => invite.hotspot != null
+                  ? l.syncUnreachableOnHotspot
+                  : l.syncUnreachable,
+              TransferInviteExpiredException() => l.syncCodeExpired,
+              // The network was never joined, so the credentials go on screen
+              // and the user does it the long way round rather than be stuck.
+              HotspotException() when invite.hotspot != null =>
+                '${l.hotspotJoinFailed}\n\n'
+                    '${l.hotspotJoinManually(invite.hotspot!.ssid, invite.hotspot!.passphrase)}',
               _ => '${l.connectionFailed}\n\n${l.error}: $e',
             });
       }
     } finally {
       if (mounted) {
         setState(() {
-          _busy       = false;
-          _pairingPin = null;
-          _received   = null;
+          _busy           = false;
+          _pairingPin     = null;
+          _received       = null;
+          _joiningNetwork = null;
         });
       }
     }
@@ -709,14 +921,21 @@ class _BackupScreenState extends State<BackupScreen> {
       Navigator.of(context).popUntil((route) => route.isFirst);
 
   /// Back to the two entries, shutting down whatever the mode was running.
+  ///
+  /// A transfer in flight is dropped rather than asked about. The network and
+  /// the binding have to be given back on every way out, and a dialog is no
+  /// help on the way most transfers are abandoned, which is the app going to
+  /// the background.
   Future<void> _leaveMode() async {
     await _server.stop();
+    await _dropNetwork();
+    await _leaveNetwork();
     if (!mounted) return;
     setState(() {
-      _mode       = _Mode.idle;
-      _connection = null;
-      _sent       = false;
-      _error      = null;
+      _mode   = _Mode.idle;
+      _invite = null;
+      _sent   = false;
+      _error  = null;
     });
   }
 
