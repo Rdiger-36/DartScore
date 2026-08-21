@@ -531,8 +531,8 @@ class AppLocalizations {
       _t('The transfer could not be started.\nClose the app and open it again.',
          'Die Übertragung konnte nicht gestartet werden.\nSchließe die App und öffne sie erneut.');
   String get syncUnreachable   =>
-      _t('The other device did not answer.\nSome guest networks stop devices from reaching each other. Try a different Wi-Fi.',
-         'Das andere Gerät hat nicht geantwortet.\nIn manchen Gäste-WLANs können sich Geräte nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
+      _t('The other device did not answer.\nGuest networks, public Wi-Fi and hotspots in hotels, cafes or trains often stop devices from reaching each other. Try a different Wi-Fi.',
+         'Das andere Gerät hat nicht geantwortet.\nIn Gäste-WLANs, öffentlichen WLANs und Hotspots in Hotels, Cafés oder Zügen können sich Geräte oft nicht gegenseitig erreichen. Versuche ein anderes WLAN.');
   String get syncUnreachableOnHotspot =>
       _t('The other device did not answer.\nStay close to it and leave its hotspot switched on until the transfer is finished.',
          'Das andere Gerät hat nicht geantwortet.\nBleib in seiner Nähe und lass seinen Hotspot an, bis die Übertragung fertig ist.');
