@@ -67,6 +67,59 @@ void main() {
       expect(tester.testTextInput.isVisible, isFalse);
     });
 
+    /// The background the button actually paints, which is the default of the
+    /// theme when the screen leaves it alone.
+    Color buttonColor(WidgetTester tester) {
+      final material = tester.widget<Material>(find.descendant(
+        of: find.widgetWithText(FilledButton, "Let's go!"),
+        matching: find.byType(Material),
+      ));
+      return material.color!;
+    }
+
+    testWidgets('marks both fields as required', (tester) async {
+      await pumpOnboarding(tester);
+
+      expect(find.text('Required'), findsOneWidget);
+      expect(find.text('Required: tap a double on the board'), findsOneWidget);
+    });
+
+    testWidgets('drops the board hint once a double is picked',
+        (tester) async {
+      await pumpOnboarding(tester);
+
+      await pickDouble(tester);
+
+      expect(find.text('Required: tap a double on the board'), findsNothing);
+    });
+
+    testWidgets('stays grey until both are given', (tester) async {
+      await pumpOnboarding(tester);
+      final empty = buttonColor(tester);
+
+      await tester.enterText(find.byType(TextField), 'Tester');
+      await tester.pumpAndSettle();
+      expect(buttonColor(tester), empty, reason: 'the double is still missing');
+
+      await pickDouble(tester);
+
+      final ready = buttonColor(tester);
+      expect(ready, isNot(empty));
+      expect(
+          ready,
+          Theme.of(tester.element(find.byType(OnboardingScreen)))
+              .colorScheme
+              .primary);
+    });
+
+    testWidgets('answers the press while it is still grey', (tester) async {
+      await pumpOnboarding(tester);
+
+      await tapLetsGo(tester);
+
+      expect(find.text('Please enter a name'), findsOneWidget);
+    });
+
     testWidgets('takes the press once both are given', (tester) async {
       await pumpOnboarding(tester);
 

@@ -95,6 +95,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final cs = theme.colorScheme;
     final l = context.l10n;
 
+    // Whether both required fields are filled, which is what the button
+    // colours itself by.
+    final canSubmit =
+        _nameCtrl.text.trim().isNotEmpty && _selectedDouble != null;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -139,13 +144,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       labelText: l.yourName,
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.person_outline),
+                      helperText: l.requiredField,
                       errorText: _showNameError ? l.nameRequired : null,
                     ),
-                    onChanged: (value) {
-                      if (_showNameError && value.trim().isNotEmpty) {
-                        setState(() => _showNameError = false);
-                      }
-                    },
+                    // Every keystroke, because the button reads the field to
+                    // decide whether it looks ready.
+                    onChanged: (value) => setState(() {
+                      if (value.trim().isNotEmpty) _showNameError = false;
+                    }),
                     onSubmitted: (_) => FocusScope.of(context).unfocus(),
                   ),
                   const SizedBox(height: 24),
@@ -168,6 +174,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ],
                     ],
                   ),
+                  if (_selectedDouble == null && !_showDoubleError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Center(
+                        child: Text(
+                          l.tapDoubleHint,
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Center(
                     child: ConstrainedBox(
@@ -211,6 +228,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const SizedBox(height: 24),
 
                   // ── CTA ──────────────────────────────────────────────────
+                  //
+                  // Greyed out until the profile is complete, and still
+                  // pressable there: a button that goes quiet under the finger
+                  // is exactly what this screen was rejected for, so the grey
+                  // one answers with the field it is waiting for rather than
+                  // with nothing.
                   FilledButton.icon(
                     onPressed: _saving ? null : _save,
                     icon: _saving
@@ -224,6 +247,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       textStyle: theme.textTheme.titleMedium,
+                      backgroundColor: canSubmit ? null : cs.surfaceContainerHighest,
+                      foregroundColor: canSubmit ? null : cs.onSurfaceVariant,
                     ),
                   ),
                 ],
