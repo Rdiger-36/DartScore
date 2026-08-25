@@ -52,6 +52,9 @@ class AppLocalizations {
   String get yourName          => _t('Your name', 'Dein Name');
   String get letsGo            => _t("Let's go!", 'Loslegen!');
   String get nameRequired      => _t('Please enter a name', 'Bitte einen Namen eingeben');
+  String get requiredField     => _t('Required', 'Pflichtfeld');
+  String get tapDoubleHint     => _t('Required: tap a double on the board',
+                                     'Pflichtfeld: Tippe ein Double auf dem Board');
   String get profileFailed     => _t('Profile could not be created', 'Profil konnte nicht erstellt werden');
   String get myProfile         => _t('My Profile', 'Mein Profil');
 
