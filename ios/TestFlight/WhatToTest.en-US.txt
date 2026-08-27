@@ -1,0 +1,5 @@
+Improved support screen
+
+When the donation options cannot be loaded, the app now names the reason instead of blaming the device. Messages from the store are shown in full, and a single missing donation tier no longer passes unnoticed.
+
+Worth a look: open Settings and then Support Developer, and check that the donation tiers appear with their prices.
