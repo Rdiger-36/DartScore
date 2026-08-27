@@ -1,5 +1,5 @@
-Verbesserte Spendenseite
+Spendenseite verbessert
 
-Lassen sich die Spendenoptionen nicht laden, nennt die App jetzt den Grund, statt pauschal das Gerät verantwortlich zu machen. Meldungen aus dem Store stehen im Wortlaut dabei, und eine einzelne fehlende Spendenstufe fällt nicht mehr unter den Tisch.
+Wenn sich die Spendenoptionen einmal nicht laden lassen, sagt die App jetzt verständlich, woran es liegt, statt einfach nichts anzuzeigen.
 
 Einen Blick wert: Einstellungen öffnen, dann Entwickler unterstützen, und schauen, ob die Spendenstufen mit ihren Preisen erscheinen.
