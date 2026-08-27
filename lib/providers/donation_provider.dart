@@ -3,6 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Why the donation screen has no tiers to offer.
+///
+/// The two causes need different words and different fixes, and telling them
+/// apart is only possible here: an unreachable store is the device's doing,
+/// while an empty product list after a successful query is the store listing's.
+enum DonationUnavailableReason {
+  /// The tiers loaded, there is nothing to explain.
+  none,
+
+  /// The billing service said no. Purchases are switched off on the device
+  /// (Screen Time on iOS, a restricted profile on Android) or the store app is
+  /// signed out.
+  storeUnavailable,
+
+  /// The store answered but knew none of the [DonationProvider.productIds].
+  /// The products are not approved and released for sale under this bundle id.
+  noProducts,
+}
+
 /// Manages in-app donation purchases and the resulting "supporter" status.
 ///
 /// Wraps the `in_app_purchase` plugin: loads the consumable donation products,
@@ -30,7 +49,9 @@ class DonationProvider extends ChangeNotifier {
   bool _thankYouPending = false;
   bool _loading = false;
   bool _available = false;
+  DonationUnavailableReason _unavailableReason = DonationUnavailableReason.none;
   List<ProductDetails> _products = [];
+  List<String> _notFoundProductIds = const [];
   String? _errorMessage;
   StreamSubscription<List<PurchaseDetails>>? _sub;
 
@@ -50,8 +71,17 @@ class DonationProvider extends ChangeNotifier {
   /// Whether in-app purchases are available on this device/store.
   bool get available => _available;
 
+  /// Why there is nothing to donate to, once the loading is done.
+  DonationUnavailableReason get unavailableReason => _unavailableReason;
+
   /// The loaded donation products, sorted cheapest-first.
   List<ProductDetails> get products => _products;
+
+  /// The donation ids the store did not know, empty until the query has run.
+  ///
+  /// A tier missing from here while the others load is the quiet case: the
+  /// screen would simply show one card fewer and nothing would say why.
+  List<String> get notFoundProductIds => _notFoundProductIds;
 
   /// The last purchase error message, or null if none.
   String? get errorMessage => _errorMessage;
@@ -97,6 +127,7 @@ class DonationProvider extends ChangeNotifier {
 
     _available = await InAppPurchase.instance.isAvailable();
     if (!_available) {
+      _unavailableReason = DonationUnavailableReason.storeUnavailable;
       _loading = false;
       notifyListeners();
       return;
@@ -113,8 +144,16 @@ class DonationProvider extends ChangeNotifier {
 
     final response =
         await InAppPurchase.instance.queryProductDetails(productIds);
+    // The store's own words for why it refused, which the plugin hands over and
+    // the screen has so far thrown away. Without it a failed query and a store
+    // that lists nothing look the same from the outside.
+    _errorMessage = response.error?.message;
     _products = List.of(response.productDetails)
       ..sort((a, b) => a.rawPrice.compareTo(b.rawPrice));
+    _notFoundProductIds = List.unmodifiable(response.notFoundIDs);
+    _unavailableReason = _products.isEmpty
+        ? DonationUnavailableReason.noProducts
+        : DonationUnavailableReason.none;
     _loading = false;
     notifyListeners();
   }
