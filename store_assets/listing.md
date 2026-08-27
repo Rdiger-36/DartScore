@@ -189,3 +189,32 @@ AND ALSO
 DartScore runs entirely on your device. There is no advertising, no tracking and no account you have to create.
 Anyone who would like to support the work can do so voluntarily, with a small tip inside the app.
 ```
+
+## Release notes
+
+What the two stores show as "Was ist neu" and "Neue Funktionen". The Play
+Console takes 500 characters per language, App Store Connect 4000, so one text
+serves both. Kept here for the same reason as everything above: the wording
+should survive the release it was written for.
+
+TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
+which Xcode Cloud picks up on its own. Those carry the same words plus a line
+naming what a tester should actually try, so keep the two in step.
+
+### 1.0.1 (build 202600015)
+
+German:
+
+```
+Verbesserte Spendenseite
+
+Lassen sich die Spendenoptionen nicht laden, nennt die App jetzt den Grund, statt pauschal das Gerät verantwortlich zu machen. Meldungen aus dem Store stehen im Wortlaut dabei, und eine einzelne fehlende Spendenstufe fällt nicht mehr unter den Tisch.
+```
+
+English:
+
+```
+Improved support screen
+
+When the donation options cannot be loaded, the app now names the reason instead of blaming the device. Messages from the store are shown in full, and a single missing donation tier no longer passes unnoticed.
+```
