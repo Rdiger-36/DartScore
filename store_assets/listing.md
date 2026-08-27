@@ -197,6 +197,10 @@ Console takes 500 characters per language, App Store Connect 4000, so one text
 serves both. Kept here for the same reason as everything above: the wording
 should survive the release it was written for.
 
+TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
+which Xcode Cloud picks up on its own. Those carry the same words plus a line
+naming what a tester should actually try, so keep the two in step.
+
 ### 1.0.1 (build 202600015)
 
 German:
