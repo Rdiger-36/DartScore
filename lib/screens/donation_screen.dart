@@ -63,16 +63,30 @@ class _DonationScreenState extends State<DonationScreen> {
           const SizedBox(height: 28),
           if (dp.loading)
             const Center(child: CircularProgressIndicator())
-          else if (!dp.available || dp.products.isEmpty)
+          else if (dp.unavailableReason != DonationUnavailableReason.none)
             Center(
               child: Text(
-                l.donationUnavailable,
+                switch (dp.unavailableReason) {
+                  DonationUnavailableReason.storeUnavailable =>
+                    l.donationUnavailable,
+                  _ => l.donationNoProducts,
+                },
                 textAlign: TextAlign.center,
                 style: TextStyle(color: cs.onSurfaceVariant),
               ),
             )
-          else
+          else ...[
             ...dp.products.map((p) => _TierCard(product: p)),
+            if (dp.notFoundProductIds.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  l.donationSomeMissing,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              ),
+          ],
           if (dp.errorMessage != null) ...[
             const SizedBox(height: 8),
             Text(
