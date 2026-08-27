@@ -197,24 +197,28 @@ Console takes 500 characters per language, App Store Connect 4000, so one text
 serves both. Kept here for the same reason as everything above: the wording
 should survive the release it was written for.
 
+These are read by people who do not know what a product identifier is, so they
+say what changed for the reader and leave the mechanism out. The reasoning
+belongs in the commit, not in the store.
+
 TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
 
-### 1.0.1 (build 202600015)
+### 1.0.1 (build 202600017)
 
 German:
 
 ```
-Verbesserte Spendenseite
+Spendenseite verbessert
 
-Lassen sich die Spendenoptionen nicht laden, nennt die App jetzt den Grund, statt pauschal das Gerät verantwortlich zu machen. Meldungen aus dem Store stehen im Wortlaut dabei, und eine einzelne fehlende Spendenstufe fällt nicht mehr unter den Tisch.
+Wenn sich die Spendenoptionen einmal nicht laden lassen, sagt die App jetzt verständlich, woran es liegt, statt einfach nichts anzuzeigen.
 ```
 
 English:
 
 ```
-Improved support screen
+Support screen improved
 
-When the donation options cannot be loaded, the app now names the reason instead of blaming the device. Messages from the store are shown in full, and a single missing donation tier no longer passes unnoticed.
+If the donation options cannot be loaded, the app now tells you why in plain words instead of just showing nothing.
 ```
