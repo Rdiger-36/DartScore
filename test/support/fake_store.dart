@@ -20,6 +20,12 @@ class FakeStore extends InAppPurchasePlatform with MockPlatformInterfaceMixin {
   /// What [isAvailable] answers.
   bool availability = true;
 
+  /// The ids [queryProductDetails] reports back as unknown to the store.
+  List<String> notFoundIDs = const [];
+
+  /// The refusal [queryProductDetails] answers with, or null for a clean query.
+  IAPError? queryError;
+
   @override
   Stream<List<PurchaseDetails>> get purchaseStream {
     calls.add('purchaseStream');
@@ -37,7 +43,7 @@ class FakeStore extends InAppPurchasePlatform with MockPlatformInterfaceMixin {
       Set<String> identifiers) async {
     calls.add('queryProductDetails');
     return ProductDetailsResponse(
-        productDetails: products, notFoundIDs: const []);
+        productDetails: products, notFoundIDs: notFoundIDs, error: queryError);
   }
 
   @override
@@ -51,6 +57,8 @@ class FakeStore extends InAppPurchasePlatform with MockPlatformInterfaceMixin {
     calls.clear();
     products = const [];
     availability = true;
+    notFoundIDs = const [];
+    queryError = null;
   }
 }
 

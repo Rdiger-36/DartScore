@@ -1,5 +1,6 @@
 import 'package:dartscore_app/providers/donation_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/fake_store.dart';
@@ -119,6 +120,64 @@ void main() {
 
       expect(provider.loading, isTrue);
       await pending;
+    });
+  });
+
+  group('telling the two empty screens apart', () {
+    test('blames the device when the store will not talk at all', () async {
+      store.availability = false;
+      final provider = await _created();
+
+      await provider.connectToStore();
+
+      expect(provider.unavailableReason,
+          DonationUnavailableReason.storeUnavailable);
+    });
+
+    test('blames the listing when the store answers but knows no tier',
+        () async {
+      // What an app whose products were never approved for sale sees: the
+      // billing service is right there, it just has nothing under these ids.
+      store.notFoundIDs = DonationProvider.productIds.toList();
+      final provider = await _created();
+
+      await provider.connectToStore();
+
+      expect(provider.unavailableReason, DonationUnavailableReason.noProducts);
+      expect(provider.notFoundProductIds, hasLength(3));
+    });
+
+    test('keeps the words the store refused with', () async {
+      store.queryError = IAPError(
+          source: 'test', code: 'query_failed', message: 'store said no');
+      final provider = await _created();
+
+      await provider.connectToStore();
+
+      expect(provider.errorMessage, 'store said no');
+    });
+
+    test('explains nothing when the tiers are there', () async {
+      store.products = [fakeProduct('donation_coffee', 1.99)];
+      final provider = await _created();
+
+      await provider.connectToStore();
+
+      expect(provider.unavailableReason, DonationUnavailableReason.none);
+      expect(provider.notFoundProductIds, isEmpty);
+    });
+
+    test('names the tiers missing from a list that still has some', () async {
+      // The quiet one: two cards show, the third never existed, and without
+      // this the screen would look perfectly healthy.
+      store.products = [fakeProduct('donation_coffee', 1.99)];
+      store.notFoundIDs = ['donation_beer', 'donation_pizza'];
+      final provider = await _created();
+
+      await provider.connectToStore();
+
+      expect(provider.unavailableReason, DonationUnavailableReason.none);
+      expect(provider.notFoundProductIds, ['donation_beer', 'donation_pizza']);
     });
   });
 }
