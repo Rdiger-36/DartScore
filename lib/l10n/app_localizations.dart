@@ -399,6 +399,12 @@ class AppLocalizations {
   String get donationUnavailable => _t(
       'In-app purchases are not available on this device.',
       'In-App-Käufe sind auf diesem Gerät nicht verfügbar.');
+  String get donationNoProducts => _t(
+      'The donation options could not be loaded from the store. Please try again later.',
+      'Die Spendenoptionen konnten nicht aus dem Store geladen werden. Bitte versuche es später noch einmal.');
+  String get donationSomeMissing => _t(
+      'Some donation options are currently unavailable.',
+      'Einige Spendenoptionen sind gerade nicht verfügbar.');
   String get donationThankYouTitle => _t('Thank you! 🎯', 'Danke! 🎯');
   String get donationThankYouBody  => _t(
       'Your support means a lot and helps keep DartScore free for everyone.',
