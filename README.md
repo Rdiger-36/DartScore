@@ -29,14 +29,14 @@ DartScore is **released on the App Store** for iOS. On Android it is still in a 
     <img src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" height="48" />
   </a>
   &nbsp;&nbsp;
-  <a href="https://play.google.com/store/apps/details?id=com.ratka.dartscore">
+  <a href="https://play.google.com/apps/testing/com.ratka.dartscore">
     <img src="https://img.shields.io/badge/Google%20Play-Join%20the%20Beta-34A853?style=for-the-badge&logo=googleplay&logoColor=white" alt="Join the Android beta on Google Play" height="48" />
   </a>
 </p>
 
 > **iOS:** install DartScore from the App Store. Builds of the next version go through [TestFlight](https://testflight.apple.com/join/ddnv8dgP) first, if you want to try them early.
 >   
-> **Android:** the beta is distributed via a Google Play test track. Please contact me, you need to be added as a tester first.
+> **Android:** the beta is distributed via a Google Play test track.
 
 ---
 
