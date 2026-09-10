@@ -80,6 +80,9 @@ lib/
 ├── widgets/                   # Shared UI building blocks. See widgets/AGENTS.md
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles; canFinishWithOneDart is the one-dart rule per check-out mode
+│   ├── dartboard_geometry.dart # The segment order and the board in millimetres: aimPointFor a target, hitAt a point, scoreOf a hit
+│   ├── bot_thrower.dart        # BotThrower: lands a bot's dart around its aim with the tier's scatter; scatterOf is the one number per BotLevel
+│   ├── bot_strategy_x01.dart   # x01Target: where a bot aims in X01, driven by FinishCalculator under the player's own check-out rule
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
 │   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot; checkoutDartsInVisit classifies a visit as it is recorded
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
@@ -126,6 +129,8 @@ These hold in every directory, whatever the local node says.
 - State goes through a Provider, database access goes through `db_helper.dart`, and no screen or widget touches SQLite
 - Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
 - Finish/checkout logic is isolated in `FinishCalculator`, do not inline checkout logic elsewhere
+- A bot's dart is a target from a strategy in `utils/bot_strategy_*.dart` landed by `BotThrower`, and the tier's skill is nothing but `scatterOf` in `bot_thrower.dart`. The calibration test pins the three-dart average each tier plays, so a change to a scatter value or to the X01 strategy is a change to what the tier names promise: move the test's numbers with it, on purpose
+- The segment order of the board lives in `utils/dartboard_geometry.dart`; the painter re-exports it, nothing declares it twice
 - Whether a visit was an attempt at the finish, and how many of its darts flew at one, is decided once when the visit is recorded and stored as `dart_throws.checkout_darts`. Deciding it needs the individual darts and the player's own check-out rule, neither of which reaches every place the statistics are counted. Never re-derive it from `remaining_before`
 - A rebuild of a board (undo, redo, resume) reads the turn and the position off the stored throws, which carry the player, the leg and the set of every visit. Never count them from the number of visits a leg holds: that count only describes a leg that opened with the first slot and the first team member, and the leg after a checkout opens with the slot behind the winner. See `providers/AGENTS.md`
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
