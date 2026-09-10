@@ -20,13 +20,13 @@
 
 ---
 
-## Test this App
+## Get the App
 
-DartScore is currently in **public beta** on iOS and **closed Beta** on Android. Pick your device and join the test track to try the latest build:
+DartScore is **released on the App Store** for iOS. On Android it is still in a **closed beta** on Google Play. Pick your device:
 
 <p align="center">
-  <a href="https://testflight.apple.com/join/ddnv8dgP">
-    <img src="https://img.shields.io/badge/TestFlight-Join%20the%20Beta-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="Join the iOS beta on TestFlight" height="48" />
+  <a href="https://apps.apple.com/app/id6777464330">
+    <img src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" height="48" />
   </a>
   &nbsp;&nbsp;
   <a href="https://play.google.com/store/apps/details?id=com.ratka.dartscore">
@@ -34,7 +34,7 @@ DartScore is currently in **public beta** on iOS and **closed Beta** on Android.
   </a>
 </p>
 
-> **iOS:** open the TestFlight link on your iPhone, install Apple's TestFlight app if prompted, then tap *Accept* to install DartScore.
+> **iOS:** install DartScore from the App Store. Builds of the next version go through [TestFlight](https://testflight.apple.com/join/ddnv8dgP) first, if you want to try them early.
 >   
 > **Android:** the beta is distributed via a Google Play test track. Please contact me, you need to be added as a tester first.
 
@@ -322,9 +322,11 @@ the pinned SDK and writes `ios/Flutter/Generated.xcconfig`, which is not in the
 repository. The version still comes from `pubspec.yaml`, not from Xcode Cloud's
 own build counter, so a cloud build and a local one carry the same number.
 
-The workflow itself lives in App Store Connect, not in this repository. Nothing
-secret is committed, and the pinned Flutter version in the script is the one
-thing to keep in step with the SDK the app is developed against.
+The workflow itself lives in App Store Connect; the repository only carries
+Xcode's manifest for it under `ios/Runner.xcodeproj/xcshareddata/xcodecloud/`,
+which names the target the workflow builds. Nothing secret is committed, and the
+pinned Flutter version in the script is the one thing to keep in step with the
+SDK the app is developed against.
 
 ---
 
