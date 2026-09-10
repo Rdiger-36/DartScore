@@ -12,6 +12,7 @@ import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
 import '../utils/layout.dart';
 import '../utils/team_color.dart';
+import '../utils/player_label.dart';
 import 'around_the_clock_screen.dart';
 
 /// Setup screen for Around the Clock: pick the rule variant and the players,
@@ -78,7 +79,7 @@ class _AroundTheClockSetupScreenState extends State<AroundTheClockSetupScreen> {
             color: teamColor(ti),
           ))
       : _selectedPlayers
-          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.name))
+          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.label(context.l10n)))
           .toList();
 
   /// Moves the entry at [oldIndex] to [newIndex] in the throwing order: the

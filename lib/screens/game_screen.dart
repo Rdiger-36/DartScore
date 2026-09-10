@@ -10,6 +10,7 @@ import 'game_summary_screen.dart';
 import 'live_player_stats_screen.dart';
 import '../utils/layout.dart';
 import '../utils/match_format.dart';
+import '../utils/player_label.dart';
 
 /// Live X01 game screen: scoreboard with live running score, dartboard/numpad
 /// input, finish suggestions, and undo. Routes to the summary when the game ends.
@@ -265,6 +266,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               FilledButton(
                 onPressed: () {
+                  context.read<GameProvider>().stopBot();
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },
@@ -533,7 +535,7 @@ class _Scoreboard extends StatelessWidget {
             children: [
               // Name: team name (big) + current player (small) for teams
               Text(
-                s.displayName,
+                s.label(context.l10n),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: sized(theme.textTheme.titleSmall)?.copyWith(
@@ -543,7 +545,7 @@ class _Scoreboard extends StatelessWidget {
               ),
               if (s.isTeamSlot)
                 Text(
-                  s.player.name,
+                  s.player.label(context.l10n),
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: sized(theme.textTheme.labelSmall)?.copyWith(
@@ -722,8 +724,8 @@ class _Scoreboard extends StatelessWidget {
                           radius: 9 * scale,
                           backgroundColor: cs.outline.withValues(alpha: 0.3),
                           child: Text(
-                            s.player.name.isNotEmpty
-                                ? s.player.name[0].toUpperCase()
+                            s.player.label(context.l10n).isNotEmpty
+                                ? s.player.label(context.l10n)[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
                               fontSize: 9 * scale,
@@ -734,7 +736,7 @@ class _Scoreboard extends StatelessWidget {
                         ),
                         SizedBox(width: 5 * scale),
                         Text(
-                          s.displayName.split(' ').first,
+                          s.label(context.l10n).split(' ').first,
                           style: theme.textTheme.labelSmall
                               ?.copyWith(
                             fontSize:

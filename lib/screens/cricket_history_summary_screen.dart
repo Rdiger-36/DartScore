@@ -11,6 +11,7 @@ import '../widgets/cricket_marks_widget.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
+import '../utils/player_label.dart';
 import 'cricket_screen.dart';
 
 /// Detailed view of a finished Cricket game from history, with final marks and
@@ -143,9 +144,9 @@ class _Body extends StatelessWidget {
       ],
       slots: states
           .map((s) => s.isTeamSlot
-              ? RematchSlot.team(s.displayName,
-                  s.players.map((p) => RematchSlot.player(p.name)).toList())
-              : RematchSlot.player(s.displayName))
+              ? RematchSlot.team(s.label(l),
+                  s.players.map((p) => RematchSlot.player(p.label(l))).toList())
+              : RematchSlot.player(s.label(l)))
           .toList(),
       onRematch: () =>
           context.read<CricketProvider>().startRematch(game, players),
@@ -173,7 +174,7 @@ class _Body extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.cricketWinner(winnerSlot.displayName),
+                  l.cricketWinner(winnerSlot.label(l)),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -229,7 +230,7 @@ class _Body extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(slot.displayName,
+                              Text(slot.label(l),
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: isWinner
                                         ? FontWeight.bold
@@ -238,7 +239,7 @@ class _Body extends StatelessWidget {
                                   )),
                               if (slot.isTeamSlot)
                                 Text(
-                                  slot.players.map((p) => p.name).join(' & '),
+                                  slot.players.map((p) => p.label(l)).join(' & '),
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: cs.onSurfaceVariant),
                                 ),
@@ -282,14 +283,14 @@ class _Body extends StatelessWidget {
                     ...sorted.map((slot) => Expanded(
                           child: Column(
                             children: [
-                              Text(slot.displayName,
+                              Text(slot.label(l),
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.labelSmall),
                               if (slot.isTeamSlot)
                                 Text(
-                                  slot.players.map((p) => p.name).join(' & '),
+                                  slot.players.map((p) => p.label(l)).join(' & '),
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

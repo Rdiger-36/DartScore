@@ -18,6 +18,7 @@ import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
 import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
+import '../utils/player_label.dart';
 import 'game_screen.dart';
 
 /// Detailed view of a finished X01 game from history: per-player stats and the
@@ -128,7 +129,8 @@ class _GameData {
 /// A team game announces the team rather than whoever hit the last double, the
 /// same way the post-game summary does: the shared rule hands back every member
 /// of the winning side, and the side is what won.
-String? _winnerName(Game game, List<Player> players, Set<int> winnerIds) {
+String? _winnerName(AppLocalizations l, Game game, List<Player> players,
+    Set<int> winnerIds) {
   if (winnerIds.isEmpty) return null;
 
   if (game.isTeamGame) {
@@ -139,7 +141,7 @@ String? _winnerName(Game game, List<Player> players, Set<int> winnerIds) {
   }
 
   for (final p in players) {
-    if (winnerIds.contains(p.id)) return p.name;
+    if (winnerIds.contains(p.id)) return p.label(l);
   }
   return null;
 }
@@ -167,11 +169,11 @@ class _SummaryBody extends StatelessWidget {
     // game is played for points and goes to the best ranked.
     final winnerIds = winningPlayerIds(game, data.allThrows,
         participantIds: [for (final p in players) if (p.id != null) p.id!]);
-    final String? winnerName = _winnerName(game, players, winnerIds);
+    final String? winnerName = _winnerName(context.l10n, game, players, winnerIds);
 
     // Team configs only store player ids, so the rematch dialog needs a name
     // lookup to list a team's members.
-    final namesById = {for (final p in players) p.id: p.name};
+    final namesById = {for (final p in players) p.id: p.label(context.l10n)};
 
     final rematch = RematchButton(
       modeName: context.l10n.modeX01Name,
@@ -214,7 +216,7 @@ class _SummaryBody extends StatelessWidget {
               .toList()
           : players
               .map((p) => RematchSlot.player(
-                    p.name,
+                    p.label(context.l10n),
                     rules:
                         handicapRulesLabel(context.l10n, game, p.id),
                   ))
@@ -297,7 +299,7 @@ class _SummaryBody extends StatelessWidget {
                     for (var ti = 0; ti < game.teams!.length; ti++)
                       ti: game.teams![ti].name,
                   }
-                : {for (final p in players) p.id!: p.name},
+                : {for (final p in players) p.id!: p.label(context.l10n)},
           ),
         ],
         // Per-team or per-player stats
@@ -338,7 +340,7 @@ class _SummaryBody extends StatelessWidget {
                     .legsWon[p.id!])
                 : null;
             return SummaryPlayerCard(
-              name:    p.name,
+              name:    p.label(context.l10n),
               throws:  throws,
               legsWon: legsWonOverride ?? legsWonFromThrows(throws),
             );

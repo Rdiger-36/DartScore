@@ -23,7 +23,7 @@ void main() {
     });
 
     Future<void> pumpSetup(WidgetTester tester) async {
-      usePhoneSurface(tester, size: const Size(400, 1600));
+      usePhoneSurface(tester, size: const Size(400, 2000));
       await tester.pumpWidget(
           testApp(const GameSetupScreen(), players: players));
       await tester.pumpAndSettle();
@@ -47,6 +47,43 @@ void main() {
       expect(find.text('Select at least 1 player'), findsOneWidget);
       final button = tester.widget<FilledButton>(startButton());
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets('adds a computer opponent by its chip and says where it throws',
+        (tester) async {
+      await pumpSetup(tester);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Pro'));
+      // The bot row is written to the database on first use, which is real
+      // I/O a widget test only reaches by letting it through.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pro bot'), findsOneWidget);
+      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget);
+      expect(find.text('Ada'), findsOneWidget,
+          reason: 'the roster still lists people only');
+      expect(find.textContaining('Bot Pro'), findsNothing,
+          reason: 'the stored name never shows');
+      // Two players now, so the game has a format, not a solo leg count.
+      expect(find.textContaining('Start'), findsOneWidget);
+      expect(find.text('Start Open Play'), findsNothing);
+    });
+
+    testWidgets('will not start a game with only a bot in it', (tester) async {
+      await pumpSetup(tester);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Legend'));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Legend bot'), findsOneWidget);
+      expect(tester.widget<FilledButton>(startButton()).onPressed, isNull);
+      expect(find.text('Select at least 1 player'), findsOneWidget);
     });
 
     testWidgets('starts once a player is picked, and says it is a solo game',

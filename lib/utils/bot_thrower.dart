@@ -17,6 +17,17 @@ double scatterOf(BotLevel level) => switch (level) {
       BotLevel.legend  => 6.5,
     };
 
+/// The three-dart average a tier plays to, which is what its name promises
+/// and what the setup shows next to it. The calibration test holds
+/// [scatterOf] to these numbers.
+int expectedAverageOf(BotLevel level) => switch (level) {
+      BotLevel.rookie  => 35,
+      BotLevel.amateur => 50,
+      BotLevel.semiPro => 65,
+      BotLevel.pro     => 85,
+      BotLevel.legend  => 100,
+    };
+
 /// Throws darts for a computer opponent: takes the target the strategy picked,
 /// lands the dart somewhere around it, and reports the field it came down in.
 ///

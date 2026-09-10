@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
 import '../database/db_helper.dart';
 import '../models/player.dart';
 import '../models/game.dart';
 import '../models/dart_throw.dart';
+import '../utils/bot_strategy_x01.dart';
+import '../utils/bot_thrower.dart';
 import '../utils/placement.dart';
 import '../utils/throw_stats.dart';
+import '../utils/player_label.dart';
 import '../widgets/dartboard_input.dart' show DartEntry;
 
 /// Minimum darts to finish a game from a given start score (double-out).
@@ -199,10 +204,12 @@ class _RedoEntry {
 /// A slot is either a single player or a whole team. For teams, [players] holds
 /// every member and [currentPlayerIdx] tracks whose turn it is within the team;
 /// [displayName] is the team or player name shown on the scoreboard.
-class PlayerState {
+class PlayerState implements LabelledSlot {
   /// Human-readable name for the scoreboard: team name or player name.
+  @override
   final String displayName;
   /// All players in this slot: 1 for individual, N for team.
+  @override
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
@@ -213,6 +220,7 @@ class PlayerState {
   final List<DartThrow> throws;
   final int perfectLegs;
 
+  @override
   final bool isTeamSlot;
 
   /// In placement-mode games: this slot's 1-based finishing position for the
@@ -313,7 +321,7 @@ class PlayerState {
 /// and undo/redo. Every throw is persisted immediately via [DbHelper]; resuming
 /// rebuilds the full state by replaying stored throws, which is also how undo
 /// and redo recompute the board.
-class GameProvider extends ChangeNotifier {
+class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   final DbHelper _db = DbHelper.instance;
 
   Game?              _game;
@@ -357,10 +365,16 @@ class GameProvider extends ChangeNotifier {
 
   /// Whether there is any dart left to undo: either in the in-progress visit
   /// or in a previously recorded visit (possibly a previous player's turn).
-  bool               get canUndoDart        => _currentVisitDarts.isNotEmpty || allThrows().isNotEmpty;
+  ///
+  /// Not while a bot is throwing, and not when every recorded visit is a
+  /// bot's: those are never undone on their own, see [undoLastDart].
+  bool               get canUndoDart        =>
+      !isBotTurn &&
+      (_currentVisitDarts.isNotEmpty ||
+          allThrows().any((t) => !_isBotId(t.playerId)));
 
   /// Whether a previously undone dart (or legacy visit) can be restored.
-  bool               get canRedoDart        => _redoStack.isNotEmpty;
+  bool               get canRedoDart        => !isBotTurn && _redoStack.isNotEmpty;
 
   /// The slot that throws after the current one.
   ///
@@ -433,11 +447,125 @@ class GameProvider extends ChangeNotifier {
   /// Read-only view of all per-player handicaps keyed by player id.
   Map<int, PlayerHandicap> get handicaps => Map.unmodifiable(_handicaps);
 
+  // ── Bot ───────────────────────────────────────────────────────────────────
+
+  /// Throws the bots' darts. Replaceable so a test can seed it.
+  BotThrower botThrower = BotThrower();
+
+  /// The pause before each bot dart, long enough to follow on the scoreboard.
+  /// Tests set it to zero.
+  Duration botDartDelay = const Duration(milliseconds: 800);
+
+  Timer? _botTimer;
+  bool   _botDartInFlight = false;
+  bool   _botSuspended    = false;
+  bool   _observingLifecycle = false;
+
+  /// Whether the slot about to throw is a computer opponent in a game that is
+  /// still open. The input is locked while this holds.
+  bool get isBotTurn =>
+      _game != null &&
+      !_gameOver &&
+      _playerStates.isNotEmpty &&
+      currentPlayerState.player.isBot;
+
+  /// Whether a bot dart is scheduled or being recorded right now. Tests wait
+  /// on this rather than on a guessed duration.
+  bool get botThrowing => _botTimer != null || _botDartInFlight;
+
+  /// Whether [playerId] belongs to one of the bots in this game.
+  bool _isBotId(int playerId) => _playerStates
+      .expand((s) => s.players)
+      .any((p) => p.id == playerId && p.isBot);
+
+  /// Lines the next bot dart up, if it is a bot's turn and nothing holds it
+  /// back. Called after every change of turn; a call that finds a person on
+  /// turn does nothing, so it is cheap to call generously.
+  ///
+  /// Each dart is its own timer rather than one loop, so that anything that
+  /// happens between two darts, an undo, a quit, the app going to the
+  /// background, only has to cancel the timer to stop the bot.
+  void _scheduleBot() {
+    _botTimer?.cancel();
+    _botTimer = null;
+    if (_botSuspended || !isBotTurn) return;
+    _observeLifecycle();
+    _botTimer = Timer(botDartDelay, _throwBotDart);
+  }
+
+  /// Aims and records one bot dart, then lines up the next.
+  Future<void> _throwBotDart() async {
+    _botTimer = null;
+    if (_botSuspended || !isBotTurn) return;
+    _botDartInFlight = true;
+    try {
+      final target = x01Target(
+        remaining: liveRunningRemaining,
+        dartsLeft: 3 - _currentVisitDarts.length,
+        checkedIn: currentHasCheckedIn || _checkedInThisVisit,
+        checkOut:  currentCheckoutMode,
+        checkIn:   currentGameMode,
+      );
+      final hit = botThrower.throwAt(target, currentPlayerState.player.botLevel!);
+      _redoStack.clear();
+      await _addDart(hit.field, hit.multiplier == 0 ? 1 : hit.multiplier);
+      notifyListeners();
+    } finally {
+      _botDartInFlight = false;
+    }
+    _scheduleBot();
+  }
+
+  /// Stops the bot for good until the next start or resume: the screen calls
+  /// this when the game is left, so a bot does not keep throwing into a game
+  /// nobody is watching.
+  void stopBot() {
+    _botSuspended = true;
+    _botTimer?.cancel();
+    _botTimer = null;
+  }
+
+  /// Registers for app lifecycle events the first time a bot is on turn, so
+  /// that the bot pauses while the app is in the background on either
+  /// platform and picks up where it left off when it comes back.
+  void _observeLifecycle() {
+    if (_observingLifecycle) return;
+    _observingLifecycle = true;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _scheduleBot();
+    } else {
+      _botTimer?.cancel();
+      _botTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _botTimer?.cancel();
+    if (_observingLifecycle) WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   // ── Resume ────────────────────────────────────────────────────────────────
 
   /// Restores a previously started game from the database by replaying all
-  /// stored throws, rebuilding per-slot state and the current leg/set/turn.
+  /// stored throws, rebuilding per-slot state and the current leg/set/turn,
+  /// and sets a bot on turn throwing again.
   Future<void> resumeGame(Game game, List<Player> players) async {
+    _botSuspended = false;
+    await _rebuildFromDb(game, players);
+    _scheduleBot();
+  }
+
+  /// The rebuild behind [resumeGame], shared with undo and redo, which must
+  /// finish restoring the in-progress visit before any bot dart may fly and so
+  /// keep the bot held back until they are done.
+  Future<void> _rebuildFromDb(Game game, List<Player> players) async {
     // Always reassign, never merge: leaving the previous game's handicaps in
     // place would silently apply them to this one.
     _handicaps = game.handicaps ?? {};
@@ -951,7 +1079,9 @@ class GameProvider extends ChangeNotifier {
     _currentVisitDarts  = [];
     _checkedInThisVisit = false;
     _redoStack.clear();
+    _botSuspended = false;
     notifyListeners();
+    _scheduleBot();
   }
 
   /// Starts a fresh game that reuses [template]'s settings (start score, check
@@ -1328,9 +1458,11 @@ class GameProvider extends ChangeNotifier {
   /// in-progress visit. Any new dart invalidates the redo stack.
   Future<void> tapField(int field, int modifier) async {
     if (_game == null || _gameOver || _currentVisitDarts.length >= 3) return;
+    if (isBotTurn) return;
     _redoStack.clear();
     await _addDart(field, modifier);
     notifyListeners();
+    _scheduleBot();
   }
 
   // ── Undo / Redo ───────────────────────────────────────────────────────────
@@ -1344,8 +1476,14 @@ class GameProvider extends ChangeNotifier {
   /// reverts any leg/set it had completed). If that visit had more than one
   /// dart, the darts before the removed one become the new in-progress visit
   /// so the UI shows them pre-filled.
+  ///
+  /// A bot's darts are never undone one at a time: the bot would only throw
+  /// the same dart again, and the person could never get back to their own
+  /// visit. Undo over a bot's visit removes every bot visit since the last
+  /// human dart, then that dart, and the bot throws afresh once the person
+  /// has thrown again.
   Future<void> undoLastDart() async {
-    if (_game == null) return;
+    if (_game == null || isBotTurn) return;
 
     if (_currentVisitDarts.isNotEmpty) {
       _redoStack.add(_RedoEntry.dart(_currentVisitDarts.removeLast()));
@@ -1355,12 +1493,19 @@ class GameProvider extends ChangeNotifier {
     }
 
     final all = allThrows();
+    while (all.isNotEmpty && _isBotId(all.last.playerId)) {
+      all.removeLast();
+    }
     if (all.isEmpty) return;
 
+    _botSuspended = true;
     final wasGameOver = _gameOver;
     final lastVisit = all.last;
     final hits = _parseHits(lastVisit.hitsJson);
 
+    for (final t in allThrows().where((t) => _byThrowOrder(t, lastVisit) > 0)) {
+      await _db.deleteThrow(t.id!);
+    }
     await _db.deleteThrow(lastVisit.id!);
 
     final preservedRedo = List<_RedoEntry>.from(_redoStack);
@@ -1374,7 +1519,7 @@ class GameProvider extends ChangeNotifier {
     }
 
     final players = _playerStates.expand((s) => s.players).toList();
-    await resumeGame(_game!, players);
+    await _rebuildFromDb(_game!, players);
 
     // Undoing the winning dart un-finishes the game; resumeGame already reset
     // _gameOver/_winnerId in-memory, so persist that the game is open again.
@@ -1387,20 +1532,23 @@ class GameProvider extends ChangeNotifier {
       ..clear()
       ..addAll(preservedRedo);
     _recomputeCheckedInThisVisit();
+    _botSuspended = false;
     notifyListeners();
+    _scheduleBot();
   }
 
   /// Redoes the last undone dart: restores it to the in-progress visit
   /// (committing the visit again if that completes it), or, for a legacy
   /// whole-visit redo, re-inserts the previously removed visit verbatim.
   Future<void> redoLastDart() async {
-    if (_game == null || _redoStack.isEmpty) return;
+    if (_game == null || _redoStack.isEmpty || isBotTurn) return;
 
     final entry = _redoStack.removeLast();
 
     if (entry.dart != null) {
       await _addDart(entry.dart!.field, entry.dart!.modifier);
       notifyListeners();
+      _scheduleBot();
       return;
     }
 
@@ -1414,12 +1562,15 @@ class GameProvider extends ChangeNotifier {
 
     final preservedRedo = List<_RedoEntry>.from(_redoStack);
     final players = _playerStates.expand((s) => s.players).toList();
-    await resumeGame(_game!, players);
+    _botSuspended = true;
+    await _rebuildFromDb(_game!, players);
 
     _redoStack
       ..clear()
       ..addAll(preservedRedo);
+    _botSuspended = false;
     notifyListeners();
+    _scheduleBot();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

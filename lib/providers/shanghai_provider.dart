@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/shanghai_game.dart';
 import '../models/player.dart';
+import '../utils/player_label.dart';
 
 // ── ShanghaiPlayerState ───────────────────────────────────────────────────────
 
@@ -15,13 +16,16 @@ import '../models/player.dart';
 /// the team; score and (in the sequential variant) progress are shared by the
 /// whole team, relay-style. [displayName] is the team or player name shown on
 /// the scoreboard.
-class ShanghaiPlayerState {
+class ShanghaiPlayerState implements LabelledSlot {
+  @override
   final String displayName;
   /// All players in this slot: 1 for individual, N for team.
+  @override
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
   /// Whether this slot represents a team rather than a single player.
+  @override
   final bool isTeamSlot;
   final int score;
   /// Sequential variant only: the number this slot is currently aiming for (1-20).

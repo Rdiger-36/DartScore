@@ -6,16 +6,10 @@ import 'package:dartscore_app/utils/bot_thrower.dart';
 import 'package:dartscore_app/utils/dartboard_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The three-dart average each tier is meant to play, and the band it may
-/// drift in. These numbers are what the tier names promise, so a change to
-/// `scatterOf` that moves one out of its band is a change to the product.
-const _expected = <BotLevel, ({double average, double tolerance})>{
-  BotLevel.rookie:  (average: 35,  tolerance: 4),
-  BotLevel.amateur: (average: 50,  tolerance: 4),
-  BotLevel.semiPro: (average: 65,  tolerance: 4),
-  BotLevel.pro:     (average: 85,  tolerance: 4),
-  BotLevel.legend:  (average: 100, tolerance: 4),
-};
+/// How far a tier's measured average may drift from the one `expectedAverageOf`
+/// promises. A change to `scatterOf` that moves a tier out of this band is a
+/// change to the product, not a tuning.
+const _tolerance = 4.0;
 
 /// Plays [legs] legs of 501 double-out for one bot and returns its three-dart
 /// average over all of them, busts counted as zero the way `ThrowStats`
@@ -56,13 +50,12 @@ const _expected = <BotLevel, ({double average, double tolerance})>{
 
 void main() {
   group('the tiers play the averages their names promise', () {
-    for (final entry in _expected.entries) {
-      test('${entry.key.name} averages about ${entry.value.average}', () {
-        final result = _play(entry.key, 300, Random(20260910));
+    for (final level in BotLevel.values) {
+      test('${level.name} averages about ${expectedAverageOf(level)}', () {
+        final result = _play(level, 300, Random(20260910));
 
-        expect(result.average,
-            closeTo(entry.value.average, entry.value.tolerance),
-            reason: '${entry.key.name} over ${result.darts} darts');
+        expect(result.average, closeTo(expectedAverageOf(level), _tolerance),
+            reason: '${level.name} over ${result.darts} darts');
       });
     }
 

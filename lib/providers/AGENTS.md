@@ -4,7 +4,7 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 
 ## Entry Points
 
-- `game_provider.dart`, X01: score calculation, bust detection, turn logic
+- `game_provider.dart`, X01: score calculation, bust detection, turn logic, and the bot runner: when the slot on turn is a bot, a timer per dart aims through `x01Target`, lands through `BotThrower` and goes down the same `_addDart` path a tap does
 - `cricket_provider.dart`, Cricket: marks, scoring, cut-throat logic
 - `shanghai_provider.dart`, Shanghai: round targets, scoring, the Shanghai win
 - `around_the_clock_provider.dart`, Around the Clock: per-player target progress
@@ -23,6 +23,8 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 - `GameProvider` is the one place that decides `DartThrow.checkoutDarts`, in `_submitVisit`, via `checkoutDartsInVisit`. It is stored rather than derived because nothing downstream can work it out again: counting the darts that flew while a single dart could have finished needs the individual darts and the player's own check-out rule, and a throw that arrives over sync carries neither. Two statistics rest on it, the check-out rate over visits and the double rate over darts, so a second formula anywhere would make them disagree
 - Undo, redo and resume all rebuild the board from the stored throws, and everything about the turn is read off those throws, never counted from how many visits a leg happens to hold. Whose turn it is comes from who threw last, the member of a team from the member who threw its last visit (in Cricket, from the member who threw its last dart, since a visit there is counted in darts), and the leg and set from `openLegAndSet`, which moves past a leg its last visit already decided. Visit counts only describe a game whose every leg opened with the first slot and the first member, and no leg after the first one does: the slot after the winner opens it, and a team's rotation runs on across legs and sets
 - `DonationProvider` owns everything `in_app_purchase` touches. No screen talks to the plugin
+- The bot runner schedules after every change of turn (`_scheduleBot`) and is held back (`_botSuspended`) while undo and redo rebuild the board, so no bot dart lands on a half restored visit. `resumeGame` is the public rebuild that releases the bot; undo and redo use `_rebuildFromDb` and release it themselves at the end. `stopBot` is what the live screen calls on quit, and the provider watches the app lifecycle itself so a bot pauses in the background on both platforms
+- `isBotTurn` locks the input, undo and redo. Bot visits are never undone on their own: `undoLastDart` skips back over every trailing bot visit to the last human dart, and `canUndoDart` is false when only bots have thrown. Tests drive the bot with `botDartDelay = Duration.zero` and a seeded `BotThrower`, and wait on `isBotTurn || botThrowing`, never on a guessed duration
 - `TextScaleProvider` holds a factor, not a font size, and the app applies it in one place: the `MaterialApp` builder in `main.dart`, and only on a tablet sized window. A screen that scales its own text again is a screen the setting no longer describes
 - `TabletLayoutProvider` keys a divider by the screen **and** the orientation it belongs to. A scoreboard next to an input divides differently than a list next to a page of statistics, and a share that reads well across a landscape tablet leaves an upright one with two columns too narrow. The values are loaded on a phone too, they are simply never read there
 

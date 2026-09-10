@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/cricket_game.dart';
 import '../models/player.dart';
+import '../utils/player_label.dart';
 
 // ── CricketPlayerState ────────────────────────────────────────────────────────
 
@@ -14,13 +15,16 @@ import '../models/player.dart';
 /// the team; marks and score are shared by the whole team (real cricket
 /// doubles rules). [displayName] is the team or player name shown on the
 /// scoreboard.
-class CricketPlayerState {
+class CricketPlayerState implements LabelledSlot {
+  @override
   final String displayName;
   /// All players in this slot: 1 for individual, N for team.
+  @override
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
   /// Whether this slot represents a team rather than a single player.
+  @override
   final bool isTeamSlot;
   /// Marks per field, capped at 3 because that closes it. Anything a Double or
   /// Triple adds beyond the third mark turns into points instead, so the excess

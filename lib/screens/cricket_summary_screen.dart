@@ -7,6 +7,7 @@ import '../utils/game_labels.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
+import '../utils/player_label.dart';
 import 'cricket_screen.dart';
 
 /// Post-game summary for Cricket: the winner plus each player's final marks and
@@ -59,7 +60,7 @@ class CricketSummaryScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.cricketWinner(winnerSlot.displayName),
+                  l.cricketWinner(winnerSlot.label(l)),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -121,7 +122,7 @@ class CricketSummaryScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  s.displayName,
+                                  s.label(l),
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: isWinner
                                         ? FontWeight.bold
@@ -131,7 +132,7 @@ class CricketSummaryScreen extends StatelessWidget {
                                 ),
                                 if (s.isTeamSlot)
                                   Text(
-                                    s.players.map((p) => p.name).join(' & '),
+                                    s.players.map((p) => p.label(l)).join(' & '),
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: cs.onSurfaceVariant,
                                     ),
@@ -193,14 +194,14 @@ class CricketSummaryScreen extends StatelessWidget {
                       ...sorted.map((s) => Expanded(
                             child: Column(
                               children: [
-                                Text(s.displayName,
+                                Text(s.label(l),
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.labelSmall),
                                 if (s.isTeamSlot)
                                   Text(
-                                    s.players.map((p) => p.name).join(' & '),
+                                    s.players.map((p) => p.label(l)).join(' & '),
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -265,9 +266,9 @@ class CricketSummaryScreen extends StatelessWidget {
             ],
             slots: states
                 .map((s) => s.isTeamSlot
-                    ? RematchSlot.team(s.displayName,
-                        s.players.map((p) => RematchSlot.player(p.name)).toList())
-                    : RematchSlot.player(s.displayName))
+                    ? RematchSlot.team(s.label(l),
+                        s.players.map((p) => RematchSlot.player(p.label(l))).toList())
+                    : RematchSlot.player(s.label(l)))
                 .toList(),
             onRematch: () => provider.startRematch(
               game,

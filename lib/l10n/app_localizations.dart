@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/bot_level.dart';
 import '../utils/match_format.dart';
 
 /// Convenience access to [AppLocalizations] from any [BuildContext] via
@@ -343,6 +344,27 @@ class AppLocalizations {
   String get gameLabel           => _t('Game', 'Spiel');
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
+
+  // ── Bot opponent ─────────────────────────────────────────────────────────
+  String get botOpponent => _t('Computer opponent', 'Computergegner');
+  String get botHint     => _t(
+      'Tap a tier to play against the computer. More than one is fine.',
+      'Tippe eine Stufe, um gegen den Computer zu spielen. Mehrere sind erlaubt.');
+  /// The short name of a tier, as the chips in the setup show it.
+  String botTier(BotLevel level) => switch (level) {
+        BotLevel.rookie  => _t('Rookie', 'Anfänger'),
+        BotLevel.amateur => _t('Amateur', 'Amateur'),
+        BotLevel.semiPro => _t('Semi-pro', 'Fortgeschritten'),
+        BotLevel.pro     => _t('Pro', 'Profi'),
+        BotLevel.legend  => _t('Legend', 'Legende'),
+      };
+  /// The name a bot of [level] plays under wherever a player's name is shown.
+  /// One word in German, so that the compact scoreboard, which shows the first
+  /// word of a name, still tells the tiers apart.
+  String botName(BotLevel level) =>
+      _t('${botTier(level)} bot', '${botTier(level)}-Bot');
+  String botAverageHint(int average) => _t(
+      'about $average points per visit', 'etwa $average Punkte pro Aufnahme');
 
   // ── Starting order ───────────────────────────────────────────────────────
   String get startingOrder       => _t('Starting order', 'Startreihenfolge');

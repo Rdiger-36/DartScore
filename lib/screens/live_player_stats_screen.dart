@@ -12,6 +12,7 @@ import '../utils/layout.dart';
 import '../utils/throw_stats.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../widgets/stat_row.dart';
+import '../utils/player_label.dart';
 
 /// Route that slides the live info screen in from the right on both platforms
 /// and keeps the iOS edge swipe back gesture, which a plain [PageRouteBuilder]
@@ -145,7 +146,7 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
                 Text(
                   [
                     for (var i = firstSlot; i <= lastSlot; i++)
-                      states[i].displayName,
+                      states[i].label(context.l10n),
                   ].join(' · '),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -430,7 +431,7 @@ class _HeaderCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              state.displayName,
+              state.label(context.l10n),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium
@@ -438,7 +439,7 @@ class _HeaderCard extends StatelessWidget {
             ),
             if (state.isTeam)
               Text(
-                state.player.name,
+                state.player.label(context.l10n),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall
@@ -516,14 +517,14 @@ class _PanelTitle extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  state.displayName,
+                  state.label(context.l10n),
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 if (state.isTeam)
                   Text(
-                    state.player.name,
+                    state.player.label(context.l10n),
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: cs.onSurfaceVariant),
@@ -631,7 +632,7 @@ class _RulesCard extends StatelessWidget {
       rows: [
         for (final p in state.throwingOrder)
           (
-            p.name,
+            p.label(context.l10n),
             checkInOutLabel(l, game.checkInFor(p.id), game.checkOutFor(p.id)),
           ),
       ],
@@ -828,7 +829,7 @@ class _MemberRow extends StatelessWidget {
       radius: 12,
       backgroundColor: cs.primaryContainer,
       child: Text(
-        player.name.isNotEmpty ? player.name[0].toUpperCase() : '?',
+        player.label(context.l10n).isNotEmpty ? player.label(context.l10n)[0].toUpperCase() : '?',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -841,7 +842,7 @@ class _MemberRow extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            player.name,
+            player.label(context.l10n),
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(fontWeight: FontWeight.bold),

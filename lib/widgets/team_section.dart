@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/player.dart';
 import '../utils/team_color.dart';
+import '../utils/player_label.dart';
 
 /// Optional section to enable team play, name teams, add/remove them, and assign
 /// each selected player to a team. Shared by every game mode's setup screen.
@@ -124,7 +125,7 @@ class TeamSection extends StatelessWidget {
                         radius: 14,
                         backgroundColor: teamColor(clampedAssigned).withValues(alpha: 0.2),
                         child: Text(
-                          p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                          p.label(context.l10n).isNotEmpty ? p.label(context.l10n)[0].toUpperCase() : '?',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -134,7 +135,7 @@ class TeamSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(p.name, style: theme.textTheme.bodyMedium),
+                        child: Text(p.label(context.l10n), style: theme.textTheme.bodyMedium),
                       ),
                       DropdownButton<int>(
                         value: clampedAssigned,

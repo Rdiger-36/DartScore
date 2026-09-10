@@ -16,6 +16,7 @@ import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
 import '../widgets/summary_player_card.dart';
 import '../widgets/throw_log_card.dart';
+import '../utils/player_label.dart';
 import 'game_screen.dart';
 
 /// Width the exported result card is laid out at, whatever the screen showing
@@ -141,7 +142,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     // Name of every player in the game, keyed by id, for the throw log.
     final throwerNames = {
       for (final s in states)
-        for (final p in s.players) p.id: p.name,
+        for (final p in s.players) p.id: p.label(l),
     };
 
     // ── The parts, built once and placed twice ───────────────────────────────
@@ -162,7 +163,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            l.wins(winner.displayName),
+            l.wins(winner.label(l)),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: cs.primary,
@@ -199,7 +200,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
               for (var i = 0; i < states.length; i++) i: states[i].throws,
             },
             namesById:    {
-              for (var i = 0; i < states.length; i++) i: states[i].displayName,
+              for (var i = 0; i < states.length; i++) i: states[i].label(l),
             },
             legsWon:      {
               for (var i = 0; i < states.length; i++) i: states[i].legsWon,
@@ -217,7 +218,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
     final playerCards = [
       for (final s in states)
         SummaryPlayerCard(
-          name:    s.isTeam ? s.displayName : s.player.name,
+          name:    s.label(l),
           throws:  s.throws,
           // In placement mode every slot checks out every leg, so legs won come
           // from the provider's tally instead of counting checkout visits.
@@ -229,7 +230,7 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
           members: s.isTeam
               ? [
                   for (final p in s.players)
-                    (p.name, throwsOfPlayer(s.throws, p.id ?? -1)),
+                    (p.label(l), throwsOfPlayer(s.throws, p.id ?? -1)),
                 ]
               : const [],
           badge: s.perfectLegs > 0 ? perfectLabel : null,
@@ -296,14 +297,14 @@ class _GameSummaryScreenState extends State<GameSummaryScreen> {
           slots: states
               .map((s) => s.isTeamSlot
                   ? RematchSlot.team(
-                      s.displayName,
+                      s.label(l),
                       s.players
-                          .map((p) => RematchSlot.player(p.name,
+                          .map((p) => RematchSlot.player(p.label(l),
                               rules: handicapRulesLabel(
                                   l, provider.game!, p.id)))
                           .toList())
                   : RematchSlot.player(
-                      s.displayName,
+                      s.label(l),
                       rules: handicapRulesLabel(l, provider.game!, s.player.id),
                     ))
               .toList(),
