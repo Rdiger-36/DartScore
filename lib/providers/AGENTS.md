@@ -8,7 +8,7 @@ The state machines. Owns the rules of each game mode, the in-flight game state, 
 - `cricket_provider.dart`, Cricket: marks, scoring, cut-throat logic
 - `shanghai_provider.dart`, Shanghai: round targets, scoring, the Shanghai win
 - `around_the_clock_provider.dart`, Around the Clock: per-player target progress
-- `players_provider.dart`, player CRUD, loads from the DB and notifies listeners
+- `players_provider.dart`, player CRUD, loads from the DB and notifies listeners. Keeps the computer opponents apart in `bots` and creates a tier's row on first use through `botFor`
 - `donation_provider.dart`, in-app purchase / supporter state via `in_app_purchase`
 - `theme_provider.dart` and `language_provider.dart`, light/dark and en/de, both persisted via `shared_preferences`
 - `tablet_layout_provider.dart`, which side the input sits on and where each divider stands, persisted via `shared_preferences`
@@ -35,6 +35,7 @@ A new game mode gets its own provider next to these, with the same shape: load t
 - No `print()` or `debugPrint()`, here or anywhere else in committed code
 - Do not reach into another mode's provider to reuse a rule. Shared rules belong in `utils/`
 - Do not reorder `StartingOrder`: `random` is index 0 because that is the DB default
+- Do not reorder `BotLevel` either, and do not insert a bot row by hand: `PlayersProvider.botFor` is the one place that makes one, so a tier stays a single row that every game against it shares
 
 ## Related Context
 

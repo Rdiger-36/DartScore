@@ -27,7 +27,7 @@ class DbHelper {
 
   /// Schema version this build knows how to open. A backup written at a higher
   /// version is refused rather than opened, see [inspectBackup].
-  static const int schemaVersion = 22;
+  static const int schemaVersion = 23;
 
   /// Where the database file lives, overriding the platform default. Only set
   /// by tests, which point it at an in-memory database so each case starts on
@@ -259,6 +259,9 @@ class DbHelper {
           'ALTER TABLE dart_throws ADD COLUMN checkout_darts INTEGER NOT NULL DEFAULT 0');
       await _backfillCheckoutDarts(db);
     }
+    if (oldVersion < 23) {
+      await db.execute('ALTER TABLE players ADD COLUMN bot_level INTEGER');
+    }
   }
 
   /// Recomputes `dart_throws.checkout_darts` for every visit already on the
@@ -441,7 +444,8 @@ class DbHelper {
         uuid TEXT NOT NULL DEFAULT '',
         last_synced_at INTEGER,
         synced_stats TEXT,
-        local_stats_json TEXT
+        local_stats_json TEXT,
+        bot_level INTEGER
       )
     ''');
     await db.execute('''
@@ -595,11 +599,24 @@ class DbHelper {
     return d.insert('players', p.toMap()..remove('id'));
   }
 
-  /// All non-deleted players ordered by name.
+  /// All non-deleted human players ordered by name.
+  ///
+  /// Bots are left out on purpose: this is the roster the setup screens, the
+  /// player list and the sync sender offer, and a bot belongs in none of them.
+  /// [getBots] holds the rest and [getPlayersById] both.
   Future<List<Player>> getPlayers() async {
     final d = await db;
     final rows = await d.query('players',
-        where: 'is_deleted = 0', orderBy: 'name ASC');
+        where: 'is_deleted = 0 AND bot_level IS NULL', orderBy: 'name ASC');
+    return rows.map(Player.fromMap).toList();
+  }
+
+  /// All non-deleted computer opponents, weakest tier first.
+  Future<List<Player>> getBots() async {
+    final d = await db;
+    final rows = await d.query('players',
+        where: 'is_deleted = 0 AND bot_level IS NOT NULL',
+        orderBy: 'bot_level ASC');
     return rows.map(Player.fromMap).toList();
   }
 
@@ -1751,7 +1768,7 @@ class DbHelper {
             ? null
             : DateTime.fromMillisecondsSinceEpoch(createdAt),
         playerCount: Sqflite.firstIntValue(await file.rawQuery(
-                'SELECT COUNT(*) FROM players WHERE is_deleted = 0')) ??
+                'SELECT COUNT(*) FROM players WHERE is_deleted = 0 AND bot_level IS NULL')) ??
             0,
         gameCount:  games,
         sizeBytes:  await File(path).length(),
@@ -1898,7 +1915,7 @@ extension LocalBackupSummary on DbHelper {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(createdAt),
       playerCount: Sqflite.firstIntValue(await d.rawQuery(
-              'SELECT COUNT(*) FROM players WHERE is_deleted = 0')) ??
+              'SELECT COUNT(*) FROM players WHERE is_deleted = 0 AND bot_level IS NULL')) ??
           0,
       gameCount: games,
       sizeBytes: await File(await databasePath).length(),

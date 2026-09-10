@@ -65,7 +65,8 @@ lib/
 ├── database/
 │   └── db_helper.dart         # Singleton SQLite wrapper; all schema definitions and migrations live here
 ├── models/
-│   ├── player.dart                  # Player entity with favorite doubles
+│   ├── player.dart                  # Player entity with favorite doubles; a bot is a player with a botLevel
+│   ├── bot_level.dart               # BotLevel enum for the players.bot_level column, one shared row per tier
 │   ├── game.dart                    # X01 game entity; GameMode/CheckoutMode enums, PlayerHandicap, TeamConfig
 │   ├── cricket_game.dart            # Cricket entity; CricketVariant/CricketScoringMode enums, cricketFields
 │   ├── shanghai_game.dart           # Shanghai entity; ShanghaiVariant enum
@@ -140,6 +141,7 @@ These hold in every directory, whatever the local node says.
 - Each game mode keeps its enums in its own model file: `GameMode`/`CheckoutMode` in `game.dart`, `CricketVariant`/`CricketScoringMode` in `cricket_game.dart`, `ShanghaiVariant` in `shanghai_game.dart`, `AroundTheClockVariant` in `around_the_clock_game.dart`
 - Settings that every mode shares live in their own model file and are re-exported by each game model, so screens need no extra import: `TeamConfig` in `team_config.dart`, `StartingOrder` in `starting_order.dart`
 - `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
+- A computer opponent is a `Player` row with a non-null `bot_level`, one row per `BotLevel` with a fixed name and uuid, created by `PlayersProvider.botFor`. That is what keeps every table, screen and statistic keyed on a player id working unchanged. The price is paid in the queries: `getPlayers()` is the roster of people and leaves bots out, `getBots()` holds them, `getPlayersById()` holds both because the history prints their names. Never reorder `BotLevel`, its index is the column value
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
 
 ### Localization

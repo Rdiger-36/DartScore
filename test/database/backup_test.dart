@@ -54,6 +54,10 @@ void main() {
     test('reports the device, the time and what it holds', () async {
       await DbHelper.instance.insertPlayer(Player(name: 'Ann'));
       await DbHelper.instance.insertPlayer(Player(name: 'Bob'));
+      await DbHelper.instance.insertPlayer(Player(
+          name: BotLevel.pro.storedName,
+          uuid: BotLevel.pro.uuid,
+          botLevel: BotLevel.pro));
 
       final path = await writeBackup('DEVICE0000000001');
       final info = await DbHelper.instance.inspectBackup(path);
@@ -62,7 +66,8 @@ void main() {
       expect(info!.deviceId, 'DEVICE0000000001');
       expect(info.deviceLabel, 'iPhone',
           reason: 'the receiving screen names where the data comes from');
-      expect(info.playerCount, 2);
+      expect(info.playerCount, 2,
+          reason: 'a bot is a row, not a person the backup holds');
       expect(info.gameCount, 0);
       expect(info.schemaVersion, DbHelper.schemaVersion);
       expect(info.createdAt, isNotNull);
