@@ -108,6 +108,8 @@ lib/
 - Always create a **new branch** before making changes when the current branch is `main`
 - Name the branch after everything it ends up holding, not just its first commit. Rename it when the scope grows
 - Never open a pull request on your own. Commit, push, report the branch, and wait: a PR may only be created once the user has given an explicit go-ahead for that specific PR. A general permission is not a standing one, ask again for the next
+- Commit messages are one short, precise line stating the change (`type: what changed`); add a body only when the why is not obvious
+- No AI attribution anywhere: no `Co-Authored-By: Claude` trailer in commits and no "Generated with Claude Code" footer in pull request descriptions
 - Both platforms (Android and iOS) must be considered for every change; flag platform-specific implications when relevant
 - GUI/design changes and larger changes that touch many references must be discussed and approved first before they are applied
 - No inline comments unless the WHY is non-obvious (hidden constraint, workaround, subtle invariant)
