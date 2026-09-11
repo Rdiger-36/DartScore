@@ -186,6 +186,7 @@ class _CricketGameView extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () {
+                context.read<CricketProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -677,28 +678,37 @@ class _CricketInputState extends State<_CricketInput> {
       );
     }
 
-    // Show field grid
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
+    // Show field grid. Dimmed and deaf while a bot throws or a finished
+    // visit is still on show; the provider refuses the dart either way, this
+    // only says so.
+    final locked = widget.provider.inputLocked;
+    return IgnorePointer(
+      ignoring: locked,
+      child: Opacity(
+        opacity: locked ? 0.5 : 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ...cricketFields.map((field) {
-              final allClosed = states.every((s) => s.hasClosedField(field));
-              final label = field == 25 ? l.bull : '$field';
-              return _FieldButton(
-                label: label,
-                allClosed: allClosed,
-                onTap: allClosed ? null : () => _onFieldTap(field),
-              );
-            }),
-            _MissButton(onTap: _onMiss, l: l),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                ...cricketFields.map((field) {
+                  final allClosed = states.every((s) => s.hasClosedField(field));
+                  final label = field == 25 ? l.bull : '$field';
+                  return _FieldButton(
+                    label: label,
+                    allClosed: allClosed,
+                    onTap: allClosed ? null : () => _onFieldTap(field),
+                  );
+                }),
+                _MissButton(onTap: _onMiss, l: l),
+              ],
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 }

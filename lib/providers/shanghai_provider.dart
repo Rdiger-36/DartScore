@@ -1,9 +1,12 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBindingObserver;
 import '../database/db_helper.dart';
 import '../models/shanghai_game.dart';
 import '../models/player.dart';
+import '../utils/bot_strategy_shanghai.dart';
 import '../utils/player_label.dart';
+import 'bot_runner.dart';
 
 // ── ShanghaiPlayerState ───────────────────────────────────────────────────────
 
@@ -89,7 +92,8 @@ const int _sequentialMaxTarget = 20;
 /// + triple, or three consecutive targets). With two players a Shanghai can be
 /// voided by the opponent matching it on the next visit, hence
 /// [pendingShanghaiIdx]. Every dart is persisted; undo replays the rest.
-class ShanghaiProvider extends ChangeNotifier {
+class ShanghaiProvider extends ChangeNotifier
+    with WidgetsBindingObserver, BotRunner {
   final DbHelper _db = DbHelper.instance;
 
   ShanghaiGame? _game;
@@ -125,7 +129,11 @@ class ShanghaiProvider extends ChangeNotifier {
   int? get winnerId => _winnerId;
   List<ShanghaiThrow> get visitBuffer => List.unmodifiable(_visitBuffer);
   int get dartsInVisit => _visitBuffer.length;
-  bool get canUndo => _throwHistory.isNotEmpty;
+  /// Whether there is a dart to undo. Not while a bot is throwing, and not
+  /// when every recorded dart is a bot's: those are never undone on their
+  /// own, see [undoLastDart].
+  bool get canUndo =>
+      !isBotTurn && _throwHistory.any((t) => !_isBotId(t.playerId));
 
   /// Index of the player awaiting Shanghai confirmation (cancelled if the
   /// next player also throws a Shanghai), or null if none is pending.
@@ -244,8 +252,11 @@ class ShanghaiProvider extends ChangeNotifier {
     _pendingShanghaiPlayerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     await _replayState();
     notifyListeners();
+    scheduleBot();
   }
 
   /// Starts a new Shanghai game: persists it, builds fresh zeroed player states,
@@ -272,7 +283,10 @@ class ShanghaiProvider extends ChangeNotifier {
     _pendingShanghaiPlayerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     notifyListeners();
+    scheduleBot();
   }
 
   /// Starts a fresh Shanghai game that reuses [template]'s settings (variant,
@@ -302,8 +316,46 @@ class ShanghaiProvider extends ChangeNotifier {
 
   // ── Record a dart ──────────────────────────────────────────────────────────
 
-  /// Records one dart for the active target. [multiplier]=0 means miss.
+  // ── Bot ───────────────────────────────────────────────────────────────────
+
+  @override
+  bool get isBotTurn =>
+      _game != null &&
+      !_gameOver &&
+      _playerStates.isNotEmpty &&
+      currentPlayerState.player.isBot;
+
+  /// Whether [playerId] belongs to one of the bots in this game.
+  bool _isBotId(int playerId) => _playerStates
+      .expand((s) => s.players)
+      .any((p) => p.id == playerId && p.isBot);
+
+  @override
+  Future<void> throwBotDart() async {
+    final target = activeTarget;
+    final aim = shanghaiTarget(
+      target:             target,
+      neededMultipliers:  shanghaiNeededMultipliers,
+    );
+    final hit = botThrower.throwAt(aim, currentPlayerState.player.botLevel!);
+    // A dart on any other number is a miss here: the visit is scored on the
+    // target alone.
+    await _recordDart(hit.field == target ? hit.multiplier : 0);
+  }
+
+  // ── Record a dart ──────────────────────────────────────────────────────────
+
+  /// Records one dart of the person on turn for the active target.
+  /// [multiplier]=0 means miss. Refused while a bot is on turn or a finished
+  /// visit is still shown.
   Future<void> recordDart(int multiplier) async {
+    if (inputLocked) return;
+    await _recordDart(multiplier);
+    scheduleBot();
+  }
+
+  /// Records one dart for whoever is on turn, bot or person.
+  Future<void> _recordDart(int multiplier) async {
     if (_game == null || _gameOver) return;
     if (_visitBuffer.length >= visitDartLimit) return;
 
@@ -365,11 +417,13 @@ class ShanghaiProvider extends ChangeNotifier {
 
   // ── Visit completion ───────────────────────────────────────────────────────
 
-  /// Ends the visit if it is complete; otherwise does nothing.
+  /// Ends the visit if it is complete, after its pause on the board;
+  /// otherwise does nothing.
   Future<void> _maybeEndVisit() async {
     final visitComplete = _isVisitComplete();
     if (!visitComplete) return;
-    await _endVisit();
+    notifyListeners();
+    await holdVisit(_endVisit);
   }
 
   /// Whether the current visit is over (dart limit reached, or the sequential
@@ -536,8 +590,19 @@ class ShanghaiProvider extends ChangeNotifier {
   /// Undoes the last dart: deletes it from the database and replays the
   /// remaining darts to rebuild scores and turn state. Undoing the winning
   /// dart un-finishes the game and clears its persisted finish time.
+  ///
+  /// A bot's darts are never undone one at a time: the bot would only throw
+  /// again, and the person could never get back to their own visit. Undo over
+  /// a bot's darts removes every bot dart since the last human dart, then that
+  /// dart, in one rebuild.
   Future<void> undoLastDart() async {
-    if (_game == null || _throwHistory.isEmpty) return;
+    if (_game == null || isBotTurn) return;
+    if (!_throwHistory.any((t) => !_isBotId(t.playerId))) return;
+    while (_isBotId(_throwHistory.last.playerId)) {
+      await _db.deleteShanghaiThrow(_throwHistory.removeLast().id!);
+    }
+    dropHeldVisit();
+    botSuspended = true;
 
     final wasGameOver = _gameOver;
     final last = _throwHistory.removeLast();
@@ -553,7 +618,9 @@ class ShanghaiProvider extends ChangeNotifier {
       await _db.updateShanghaiGame(_game!);
     }
 
+    botSuspended = false;
     notifyListeners();
+    scheduleBot();
   }
 
   /// Rebuilds the full game state from the persisted darts: zeroes scores and

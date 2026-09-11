@@ -225,6 +225,7 @@ class _ShanghaiGameView extends StatelessWidget {
                 onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
             FilledButton(
               onPressed: () {
+                context.read<ShanghaiProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -532,18 +533,27 @@ class _ShanghaiInput extends StatelessWidget {
     final l = context.l10n;
     final target = provider.activeTarget;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => provider.recordDart(1)),
-        const SizedBox(width: 10),
-        _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => provider.recordDart(2)),
-        const SizedBox(width: 10),
-        if (target != 25)
-          _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => provider.recordDart(3)),
-        const SizedBox(width: 10),
-        _MissBtn(label: l.shanghaiMiss, onTap: () => provider.recordDart(0)),
-      ],
+    // Dimmed and deaf while a bot throws or a finished visit is still on
+    // show; the provider refuses the dart either way, this only says so.
+    final locked = provider.inputLocked;
+    return IgnorePointer(
+      ignoring: locked,
+      child: Opacity(
+        opacity: locked ? 0.5 : 1,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => provider.recordDart(1)),
+            const SizedBox(width: 10),
+            _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => provider.recordDart(2)),
+            const SizedBox(width: 10),
+            if (target != 25)
+              _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => provider.recordDart(3)),
+            const SizedBox(width: 10),
+            _MissBtn(label: l.shanghaiMiss, onTap: () => provider.recordDart(0)),
+          ],
+        ),
+      ),
     );
   }
 }

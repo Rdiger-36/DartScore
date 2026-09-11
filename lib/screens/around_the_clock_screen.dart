@@ -226,6 +226,7 @@ class _AroundTheClockGameView extends StatelessWidget {
                 onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
             FilledButton(
               onPressed: () {
+                context.read<AroundTheClockProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -533,13 +534,20 @@ class _AroundTheClockInput extends StatelessWidget {
     final btnCount = 2 + (showTriple ? 1 : 0) + (showJoker ? 1 : 0) + 1;
     const spacing  = 10.0;
 
+    // Dimmed and deaf while a bot throws or a finished visit is still on
+    // show; the provider refuses the dart either way, this only says so.
+    final locked = provider.inputLocked;
     return LayoutBuilder(
       builder: (context, constraints) {
         final btnW = ((constraints.maxWidth - spacing * (btnCount - 1)) / btnCount)
             .clamp(48.0, 72.0);
         final btnH = (btnW * 64 / 72).clamp(44.0, 64.0);
 
-        return Wrap(
+        return IgnorePointer(
+          ignoring: locked,
+          child: Opacity(
+          opacity: locked ? 0.5 : 1,
+          child: Wrap(
           alignment: WrapAlignment.center,
           spacing: spacing,
           runSpacing: spacing,
@@ -557,6 +565,8 @@ class _AroundTheClockInput extends StatelessWidget {
             _MissBtn(label: l.aroundClockMiss, width: btnW, height: btnH,
                 onTap: () => provider.recordDart(0, 0)),
           ],
+        ),
+        ),
         );
       },
     );

@@ -1,7 +1,7 @@
 import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
-import 'package:dartscore_app/providers/game_provider.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/services/device_identity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,13 +34,13 @@ void useInMemoryDatabase() {
     // A completed visit settles at once. The pause it waits out in the app is
     // real time that a widget test's clock never reaches and a provider test
     // would have to sleep through; the tests of the pause set their own.
-    GameProvider.debugVisitPause = Duration.zero;
+    TurnPacing.debugVisitPause = Duration.zero;
   });
 
   tearDown(() async {
     await DbHelper.debugReset();
     DeviceIdentity.debugSetId(null);
-    GameProvider.debugVisitPause = null;
+    TurnPacing.debugVisitPause = null;
   });
 }
 
