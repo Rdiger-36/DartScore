@@ -217,25 +217,7 @@ TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
 
-### 1.1.1 (build 202600020)
-
-German:
-
-```
-Computergegner leichter auswählen
-
-Im Setup hat jede Bot-Stufe jetzt eine eigene Zeile mit Plus und Minus. Wie viele Bots einer Stärke mitspielen, siehst du auf einen Blick, und eine Zeile darunter sagt, als welche Spieler sie werfen.
-```
-
-English:
-
-```
-Easier picking of computer opponents
-
-In the setup, every bot tier now has a row of its own with a plus and a minus. How many bots of one strength are playing is visible at a glance, and a line below says which players they throw as.
-```
-
-### 1.1.0 (build 202600019)
+### 1.1.0 (build 202600020)
 
 German:
 

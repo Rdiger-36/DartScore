@@ -1,5 +1,7 @@
-Computergegner leichter auswählen
+Gegen den Computer spielen
 
-Im Setup hat jede Bot-Stufe jetzt eine eigene Zeile mit Plus und Minus. Wie viele Bots einer Stärke mitspielen, siehst du auf einen Blick, und eine Zeile darunter sagt, als welche Spieler sie werfen.
+Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch gegen mehrere auf einmal. Der Bot wirft von allein, seine Darts erscheinen auf dem Board.
 
-Einen Blick wert: im Setup den Computergegner einschalten, mit Plus drei Bots einer Stufe holen, einen mit Minus wieder entfernen, und prüfen, dass die Zeile darunter die richtigen Spielernummern nennt.
+Außerdem: Jede fertige Aufnahme bleibt kurz stehen. Cricket, Shanghai und Around the Clock zeigen die Darts der Aufnahme als Chips und je Spieler die letzten drei Aufnahmen. Das Spieltempo wählst du in den Einstellungen.
+
+Einen Blick wert: im Setup den Computergegner einschalten, mit Plus und Minus mehrere Bots einer Stufe holen und wieder entfernen, ein 501 gegen den Profi-Bot spielen, und in den Einstellungen das Spieltempo umstellen.
