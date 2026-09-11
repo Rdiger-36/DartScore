@@ -217,7 +217,7 @@ class _ShanghaiGameView extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       _ShanghaiHint(provider: provider),
                       const SizedBox(height: 10),
                       _ShanghaiInput(provider: provider),
@@ -501,8 +501,10 @@ class _ShanghaiHint extends StatelessWidget {
 
     if (content == null) return const SizedBox.shrink();
 
+    // The same room above as below, so the hint sits halfway between the
+    // name and the buttons.
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Column(
