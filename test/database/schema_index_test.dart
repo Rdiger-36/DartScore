@@ -98,7 +98,8 @@ void main() {
       await db.execute('DROP TABLE player_origin_stats');
       // Version 22 recorded per visit how many darts flew at a finish.
       await db.execute('ALTER TABLE dart_throws DROP COLUMN checkout_darts');
-      // Version 23 gave players a bot tier.
+      // Versions 23 and 24 gave players a bot tier and a number within it.
+      await db.execute('ALTER TABLE players DROP COLUMN bot_ordinal');
       await db.execute('ALTER TABLE players DROP COLUMN bot_level');
       await db.execute('PRAGMA user_version = 18');
     }

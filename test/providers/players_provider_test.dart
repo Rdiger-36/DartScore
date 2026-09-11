@@ -163,6 +163,18 @@ void main() {
       expect((await DbHelper.instance.getPlayers()), isEmpty);
     });
 
+    test('numbers a second bot of the same tier and keeps them apart', () async {
+      final first  = await provider.botFor(BotLevel.pro);
+      final second = await provider.botFor(BotLevel.pro, ordinal: 2);
+      final again  = await provider.botFor(BotLevel.pro, ordinal: 2);
+
+      expect(second.id, isNot(first.id));
+      expect(again.id, second.id);
+      expect(second.botOrdinal, 2);
+      expect(second.uuid, BotLevel.pro.uuidFor(2));
+      expect(provider.bots.map((b) => b.botOrdinal), [1, 2]);
+    });
+
     test('finds the bots it made again after a reload', () async {
       final bot = await provider.botFor(BotLevel.legend);
 

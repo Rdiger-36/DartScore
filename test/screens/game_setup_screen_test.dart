@@ -84,6 +84,38 @@ void main() {
       expect(find.text('Start Solo Game'), findsNothing);
     });
 
+    testWidgets('adds a second bot of the same strength and takes one away',
+        (tester) async {
+      await pumpSetup(tester);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(find.widgetWithText(FilterChip, 'Pro').first);
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('Pro bot'), findsOneWidget);
+      expect(find.text('Pro bot 2'), findsOneWidget);
+      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget);
+      expect(find.text('Player 3 · about 85 points per visit'), findsOneWidget);
+      expect(find.widgetWithText(FilterChip, 'Pro · 2'), findsOneWidget,
+          reason: 'the chip counts what it added');
+
+      await tester.tap(find.byTooltip('Remove bot').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pro bot'), findsNothing);
+      expect(find.text('Pro bot 2'), findsOneWidget);
+      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget,
+          reason: 'the one left moved up a slot');
+      expect(find.widgetWithText(FilterChip, 'Pro'), findsOneWidget);
+    });
+
     testWidgets('drops the bots again when the card is switched off',
         (tester) async {
       await pumpSetup(tester);

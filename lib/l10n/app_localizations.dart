@@ -350,8 +350,8 @@ class AppLocalizations {
   // ── Bot opponent ─────────────────────────────────────────────────────────
   String get botOpponent => _t('Computer opponent', 'Computergegner');
   String get botHint     => _t(
-      'Tap a tier to play against the computer. More than one is fine.',
-      'Tippe eine Stufe, um gegen den Computer zu spielen. Mehrere sind erlaubt.');
+      'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
+      'Tippe eine Stufe, um einen Computergegner hinzuzufügen. Nochmal tippen für einen zweiten derselben Stärke.');
   /// The short name of a tier, as the chips in the setup show it.
   String botTier(BotLevel level) => switch (level) {
         BotLevel.rookie  => _t('Rookie', 'Anfänger'),
@@ -360,11 +360,15 @@ class AppLocalizations {
         BotLevel.pro     => _t('Pro', 'Profi'),
         BotLevel.legend  => _t('Legend', 'Legende'),
       };
-  /// The name a bot of [level] plays under wherever a player's name is shown.
-  /// One word in German, so that the compact scoreboard, which shows the first
-  /// word of a name, still tells the tiers apart.
-  String botName(BotLevel level) =>
-      _t('${botTier(level)} bot', '${botTier(level)}-Bot');
+  /// The name a bot of [level] plays under wherever a player's name is shown,
+  /// numbered from the second bot of a tier on. One word in German before the
+  /// number, so that the compact scoreboard, which shows a person's first
+  /// name, still tells the tiers apart.
+  String botName(BotLevel level, [int ordinal = 1]) {
+    final base = _t('${botTier(level)} bot', '${botTier(level)}-Bot');
+    return ordinal == 1 ? base : '$base $ordinal';
+  }
+  String get removeBot => _t('Remove bot', 'Bot entfernen');
   String botAverageHint(int average) => _t(
       'about $average points per visit', 'etwa $average Punkte pro Aufnahme');
 

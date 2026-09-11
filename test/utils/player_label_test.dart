@@ -36,6 +36,15 @@ void main() {
       expect(bot.name, 'Bot Pro');
     });
 
+    test('numbers a bot from the second of its tier on', () {
+      final second = Player(name: 'Bot Pro 2', botLevel: BotLevel.pro, botOrdinal: 2);
+
+      expect(second.label(en), 'Pro bot 2');
+      expect(second.label(de), 'Profi-Bot 2');
+      expect(Player(name: 'Bot Pro', botLevel: BotLevel.pro, botOrdinal: 1)
+          .label(en), 'Pro bot');
+    });
+
     test('keeps every German bot name one word for the compact scoreboard', () {
       for (final level in BotLevel.values) {
         final bot = Player(name: level.storedName, botLevel: level);

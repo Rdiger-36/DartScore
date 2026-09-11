@@ -577,6 +577,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
 
   /// The computer opponents, picked by tier. A bot joins the selection the
   /// way a person does, so everything below the card treats it as a player.
+  /// A second tap on a tier adds its next free number, so two bots of one
+  /// strength can play, and a removed one frees its number again.
   Widget _botCard(BuildContext context) {
     return BotSelectSection(
       enabled: _botEnabled,
@@ -585,16 +587,23 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
         _botEnabled = v;
         if (!v) _selectedPlayers.removeWhere((p) => p.isBot);
       }),
-      onToggle: (level, selected) async {
-        if (!selected) {
-          setState(() =>
-              _selectedPlayers.removeWhere((p) => p.botLevel == level));
-          return;
+      onAdd: (level) async {
+        final taken = {
+          for (final p in _selectedPlayers)
+            if (p.botLevel == level) p.botOrdinal!,
+        };
+        var ordinal = 1;
+        while (taken.contains(ordinal)) {
+          ordinal++;
         }
-        final bot = await context.read<PlayersProvider>().botFor(level);
+        final bot = await context
+            .read<PlayersProvider>()
+            .botFor(level, ordinal: ordinal);
         if (!mounted) return;
         setState(() => _selectedPlayers.add(bot));
       },
+      onRemove: (bot) =>
+          setState(() => _selectedPlayers.removeWhere((p) => p.id == bot.id)),
     );
   }
 

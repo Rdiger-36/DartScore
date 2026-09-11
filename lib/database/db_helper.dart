@@ -27,7 +27,7 @@ class DbHelper {
 
   /// Schema version this build knows how to open. A backup written at a higher
   /// version is refused rather than opened, see [inspectBackup].
-  static const int schemaVersion = 23;
+  static const int schemaVersion = 24;
 
   /// Where the database file lives, overriding the platform default. Only set
   /// by tests, which point it at an in-memory database so each case starts on
@@ -262,6 +262,11 @@ class DbHelper {
     if (oldVersion < 23) {
       await db.execute('ALTER TABLE players ADD COLUMN bot_level INTEGER');
     }
+    if (oldVersion < 24) {
+      await db.execute('ALTER TABLE players ADD COLUMN bot_ordinal INTEGER');
+      await db.execute(
+          'UPDATE players SET bot_ordinal = 1 WHERE bot_level IS NOT NULL');
+    }
   }
 
   /// Recomputes `dart_throws.checkout_darts` for every visit already on the
@@ -445,7 +450,8 @@ class DbHelper {
         last_synced_at INTEGER,
         synced_stats TEXT,
         local_stats_json TEXT,
-        bot_level INTEGER
+        bot_level INTEGER,
+        bot_ordinal INTEGER
       )
     ''');
     await db.execute('''
@@ -611,12 +617,13 @@ class DbHelper {
     return rows.map(Player.fromMap).toList();
   }
 
-  /// All non-deleted computer opponents, weakest tier first.
+  /// All non-deleted computer opponents, weakest tier first and numbered
+  /// within it.
   Future<List<Player>> getBots() async {
     final d = await db;
     final rows = await d.query('players',
         where: 'is_deleted = 0 AND bot_level IS NOT NULL',
-        orderBy: 'bot_level ASC');
+        orderBy: 'bot_level ASC, bot_ordinal ASC');
     return rows.map(Player.fromMap).toList();
   }
 

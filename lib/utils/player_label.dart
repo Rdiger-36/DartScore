@@ -24,7 +24,7 @@ abstract interface class LabelledSlot {
 extension PlayerLabel on Player {
   /// The localized display name of this player.
   String label(AppLocalizations l) =>
-      botLevel == null ? name : l.botName(botLevel!);
+      botLevel == null ? name : l.botName(botLevel!, botOrdinal ?? 1);
 }
 
 /// The name a scoreboard slot is shown under: the team name, or the label of

@@ -26,11 +26,32 @@ void main() {
       expect(Player.fromMap({'name': 'Ada'}).botLevel, isNull);
     });
 
-    test('keeps its tier through copyWith', () {
-      final bot = Player(name: 'Bot Pro', botLevel: BotLevel.pro);
+    test('keeps its tier and number through copyWith', () {
+      final bot = Player(name: 'Bot Pro 2', botLevel: BotLevel.pro, botOrdinal: 2);
 
       expect(bot.copyWith(id: 7).botLevel, BotLevel.pro);
+      expect(bot.copyWith(id: 7).botOrdinal, 2);
       expect(bot.copyWith(favoriteDoubles: 'D16').isBot, isTrue);
+    });
+
+    test('is the first of its tier when the row predates the numbering', () {
+      final back = Player.fromMap({'name': 'Bot Pro', 'bot_level': 3});
+
+      expect(back.botOrdinal, 1);
+      expect(Player.fromMap({'name': 'Ada'}).botOrdinal, isNull);
+    });
+
+    test('round-trips its number', () {
+      final bot = Player(
+          name: BotLevel.legend.storedNameFor(3),
+          uuid: BotLevel.legend.uuidFor(3),
+          botLevel: BotLevel.legend,
+          botOrdinal: 3);
+
+      final back = Player.fromMap(bot.toMap());
+
+      expect(back.botOrdinal, 3);
+      expect(back.name, 'Bot Legend 3');
     });
   });
 
@@ -49,6 +70,12 @@ void main() {
       for (final u in uuids) {
         expect(u, matches(RegExp(r'^0{8}-0{4}-4000-8000-0{9}b\d{2}$')));
       }
+      // Numbered bots get uuids of their own in the same range, and the
+      // first keeps the one it had before there was a number.
+      expect(BotLevel.pro.uuidFor(1), BotLevel.pro.uuid);
+      expect(BotLevel.pro.uuidFor(2), '00000000-0000-4000-8000-000000001b03');
+      expect(BotLevel.pro.storedNameFor(1), 'Bot Pro');
+      expect(BotLevel.pro.storedNameFor(2), 'Bot Pro 2');
       // A generated uuid never starts with eight zeros, or the tiers could
       // collide with a person made on some other device.
       expect(Player(name: 'x').uuid, isNot(startsWith('00000000-')));

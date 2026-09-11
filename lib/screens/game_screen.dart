@@ -736,7 +736,11 @@ class _Scoreboard extends StatelessWidget {
                         ),
                         SizedBox(width: 5 * scale),
                         Text(
-                          s.label(context.l10n).split(' ').first,
+                          // A person's first name; a bot's whole label, or
+                          // the number that tells two of a tier apart is lost.
+                          !s.isTeamSlot && s.player.isBot
+                              ? s.label(context.l10n)
+                              : s.label(context.l10n).split(' ').first,
                           style: theme.textTheme.labelSmall
                               ?.copyWith(
                             fontSize:

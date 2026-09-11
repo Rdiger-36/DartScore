@@ -38,7 +38,7 @@ A new game mode gets its own provider next to these, with the same shape: load t
 - No `print()` or `debugPrint()`, here or anywhere else in committed code
 - Do not reach into another mode's provider to reuse a rule. Shared rules belong in `utils/`
 - Do not reorder `StartingOrder`: `random` is index 0 because that is the DB default
-- Do not reorder `BotLevel` either, and do not insert a bot row by hand: `PlayersProvider.botFor` is the one place that makes one, so a tier stays a single row that every game against it shares
+- Do not reorder `BotLevel` either, and do not insert a bot row by hand: `PlayersProvider.botFor(level, ordinal:)` is the one place that makes one, so each numbered bot stays a single row that every game it plays in shares. The first bot of a tier keeps the uuid it had before the numbering, `uuidFor(1)` is `uuid`
 
 ## Related Context
 

@@ -25,6 +25,9 @@ class Player {
   final String? localStatsJson; // Persistent local stats accumulated over cleared games
   /// The skill tier when this player is a computer opponent, null for a human.
   final BotLevel? botLevel;
+  /// Which bot of its tier this is, counted from one, so that a game can hold
+  /// two of the same strength. Null for a human.
+  final int? botOrdinal;
 
   Player({
     this.id,
@@ -37,6 +40,7 @@ class Player {
     this.syncedStats,
     this.localStatsJson,
     this.botLevel,
+    this.botOrdinal,
   }) : uuid = uuid?.isNotEmpty == true ? uuid! : _newUuid();
 
   /// Whether this player is a computer opponent rather than a person.
@@ -50,8 +54,9 @@ class Player {
   List<String> get favoriteDoublesList =>
       favoriteDouble != null ? [favoriteDouble!] : [];
 
-  /// Returns a copy with the given fields replaced; [uuid] and [botLevel] are
-  /// always preserved, since neither changes over a player's life.
+  /// Returns a copy with the given fields replaced; [uuid], [botLevel] and
+  /// [botOrdinal] are always preserved, since none of them changes over a
+  /// player's life.
   Player copyWith({
     int? id,
     String? name,
@@ -73,6 +78,7 @@ class Player {
         syncedStats: syncedStats ?? this.syncedStats,
         localStatsJson: localStatsJson ?? this.localStatsJson,
         botLevel: botLevel,
+        botOrdinal: botOrdinal,
       );
 
   /// Serializes this player to a row map for the SQLite `players` table.
@@ -87,6 +93,7 @@ class Player {
         'synced_stats': syncedStats,
         'local_stats_json': localStatsJson,
         'bot_level': botLevel?.index,
+        'bot_ordinal': botOrdinal,
       };
 
   /// Reconstructs a player from a SQLite row map, applying defaults for any
@@ -104,6 +111,11 @@ class Player {
         botLevel:       map['bot_level'] == null
             ? null
             : BotLevel.values[map['bot_level'] as int],
+        // Rows from before the numbering carry no ordinal and are the first
+        // of their tier.
+        botOrdinal:     map['bot_level'] == null
+            ? null
+            : map['bot_ordinal'] as int? ?? 1,
       );
 
   /// Generates a random RFC 4122 version-4 UUID using a secure RNG.

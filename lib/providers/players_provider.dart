@@ -85,24 +85,36 @@ class PlayersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The player row of the computer opponent at [level], created on first use.
+  /// The player row of the computer opponent numbered [ordinal] at [level],
+  /// created on first use.
   ///
-  /// One row per tier, shared by every game against it, so the second call
-  /// returns the row the first one made rather than a twin.
-  Future<Player> botFor(BotLevel level) async {
-    final existing = _bots.where((b) => b.botLevel == level).firstOrNull;
+  /// One row per bot, shared by every game it plays in, so the second call
+  /// returns the row the first one made rather than a twin. The ordinal
+  /// counts from one; a game that wants two bots of one tier asks for one
+  /// and two.
+  Future<Player> botFor(BotLevel level, {int ordinal = 1}) async {
+    assert(ordinal >= 1, 'bots are numbered from one');
+    final existing = _bots
+        .where((b) => b.botLevel == level && b.botOrdinal == ordinal)
+        .firstOrNull;
     if (existing != null) return existing;
     final bot = Player(
-      name:     level.storedName,
-      uuid:     level.uuid,
-      botLevel: level,
+      name:       level.storedNameFor(ordinal),
+      uuid:       level.uuidFor(ordinal),
+      botLevel:   level,
+      botOrdinal: ordinal,
     );
     final id = await _db.insertPlayer(bot);
     final saved = bot.copyWith(id: id);
-    _bots = [..._bots, saved]
-      ..sort((a, b) => a.botLevel!.index.compareTo(b.botLevel!.index));
+    _bots = [..._bots, saved]..sort(_byTierAndNumber);
     notifyListeners();
     return saved;
+  }
+
+  /// Weakest tier first, numbered within it.
+  static int _byTierAndNumber(Player a, Player b) {
+    final byTier = a.botLevel!.index.compareTo(b.botLevel!.index);
+    return byTier != 0 ? byTier : a.botOrdinal!.compareTo(b.botOrdinal!);
   }
 
   /// Returns the loaded player or bot with [id], or null if not present.
