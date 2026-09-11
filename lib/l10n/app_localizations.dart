@@ -362,6 +362,9 @@ class AppLocalizations {
   String get teamPlayers         => _t('Players', 'Spieler');
 
   // ── Bot opponent ─────────────────────────────────────────────────────────
+  String get modeBotNote => _t(
+      'Against the computer: every setup can add a bot, in five tiers from rookie to legend, and more than one at a time. A bot throws by itself, plays under the same rules as everyone else, and its darts show on the board as they land. How quickly it throws, and how long a finished visit stays on the board, is the game pace in the settings.',
+      'Gegen den Computer: In jedem Setup lässt sich ein Bot dazunehmen, in fünf Stufen vom Anfänger bis zur Legende, auch mehrere auf einmal. Ein Bot wirft von allein, spielt nach denselben Regeln wie alle anderen, und seine Darts erscheinen auf dem Board, wie sie fallen. Wie schnell er wirft, und wie lange eine fertige Aufnahme stehen bleibt, ist das Spieltempo in den Einstellungen.');
   String get botOpponent => _t('Computer opponent', 'Computergegner');
   String get botHint     => _t(
       'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
@@ -414,6 +417,10 @@ class AppLocalizations {
       _t('How large the app draws its text on this device.',
          'Wie groß die App ihre Schrift auf diesem Gerät zeichnet.');
   String get textSizeReset     => _t('Standard', 'Standard');
+  String get gamePace          => _t('Game pace', 'Spieltempo');
+  String get paceFast          => _t('Fast', 'Schnell');
+  String get paceNormal        => _t('Normal', 'Normal');
+  String get paceSlow          => _t('Slow', 'Langsam');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',

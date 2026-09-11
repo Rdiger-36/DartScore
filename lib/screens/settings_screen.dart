@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/bot_runner.dart' show GamePace;
+import '../providers/pace_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/donation_provider.dart';
 import '../providers/text_scale_provider.dart';
@@ -40,9 +42,10 @@ class _DisplaySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tp = context.watch<ThemeProvider>();
-    final lp = context.watch<LanguageProvider>();
-    final cs = Theme.of(context).colorScheme;
+    final tp   = context.watch<ThemeProvider>();
+    final lp   = context.watch<LanguageProvider>();
+    final pace = context.watch<PaceProvider>();
+    final cs   = Theme.of(context).colorScheme;
     final l  = context.l10n;
 
     return _Card(
@@ -94,6 +97,30 @@ class _DisplaySection extends StatelessWidget {
                 value: 'de',
                 label: 'Deutsch',
                 leading: _LanguageBadge('DE', cs: cs),
+              ),
+            ],
+          ),
+          const Divider(height: 1),
+          _MenuRow<GamePace>(
+            icon: Icons.speed_rounded,
+            label: l.gamePace,
+            value: pace.pace,
+            onSelected: pace.setPace,
+            options: [
+              _MenuOption(
+                value: GamePace.fast,
+                label: l.paceFast,
+                leading: const Icon(Icons.fast_forward_rounded),
+              ),
+              _MenuOption(
+                value: GamePace.normal,
+                label: l.paceNormal,
+                leading: const Icon(Icons.play_arrow_rounded),
+              ),
+              _MenuOption(
+                value: GamePace.slow,
+                label: l.paceSlow,
+                leading: const Icon(Icons.slow_motion_video_rounded),
               ),
             ],
           ),

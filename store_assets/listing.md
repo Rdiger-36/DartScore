@@ -40,7 +40,7 @@ English (146):
 The German text is the original and the English one follows it section by
 section, so a change to one belongs in the other.
 
-### German (3047)
+### German (3379)
 
 ```
 DartScore begleitet dein Spiel während des Wurfs. Du kannst allein, gegen Freunde oder im Team spielen, auf dem Handy wie auf dem Tablet. Jeder Wurf wird erfasst, jede Zahl wird als Statistik zurückgegeben, und nichts verlässt dein Gerät. Es gibt kein Konto, kein Internet und keine Werbung.
@@ -100,6 +100,12 @@ SICHERUNG
 • Alternativ erfolgt die Übertragung direkt per WLAN auf ein anderes Gerät
 • Die Wiederherstellung ist jederzeit möglich
 
+COMPUTERGEGNER
+• In jedem Modus gegen den Computer spielen, in fünf Stufen vom Anfänger bis zur Legende
+• Auch mehrere Bots auf einmal, im Team oder als Gegner
+• Der Bot wirft von allein, seine Darts erscheinen auf dem Board, wie sie fallen
+• Spieltempo wählbar: wie schnell der Bot wirft und wie lange eine Aufnahme stehen bleibt
+
 VERLAUF
 • Jedes abgeschlossene und offene Spiel in allen vier Modi
 • Jede Aufnahme jedes Spielers, Wurf für Wurf
@@ -115,7 +121,7 @@ DartScore läuft vollständig auf deinem Gerät. Es gibt keine Werbung, kein Tra
 Wer die Arbeit unterstützen möchte, kann dies freiwillig in Form einer kleinen Spende innerhalb der App tun.
 ```
 
-### English (2844)
+### English (3160)
 
 ```
 DartScore follows your game throw by throw. Play solo, against friends or in teams, on a phone as well as on a tablet. Every dart is recorded, every number comes back as a statistic, and nothing leaves your device. There is no account, no internet and no advertising.
@@ -175,6 +181,12 @@ BACKUP
 • Or sent straight to another device over Wi-Fi
 • Restoring it is possible at any time
 
+COMPUTER OPPONENT
+• Play against the computer in every mode, in five tiers from rookie to legend
+• Several bots at once, in a team or as opponents
+• The bot throws by itself, and its darts show on the board as they land
+• Game pace of your choice: how quickly the bot throws and how long a visit stays on the board
+
 HISTORY
 • Every finished and every open game, in all four modes
 • Every visit of every player, throw by throw
@@ -204,6 +216,28 @@ belongs in the commit, not in the store.
 TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
+
+### 1.1.0 (next)
+
+German:
+
+```
+Gegen den Computer spielen
+
+Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch mehrere auf einmal. Der Bot wirft von allein, und seine Darts erscheinen auf dem Board, wie sie fallen.
+
+Außerdem bleibt jede fertige Aufnahme kurz auf dem Board stehen, in Cricket, Shanghai und Around the Clock zeigen Chips die Darts der Aufnahme, ein Tipp auf einen Spieler öffnet seine letzten drei Aufnahmen und Zahlen, und das Spieltempo lässt sich in den Einstellungen wählen.
+```
+
+English:
+
+```
+Play against the computer
+
+Every mode can now be played against a bot, in five tiers from rookie to legend, and against several at once. The bot throws by itself, and its darts show on the board as they land.
+
+A finished visit also stays on the board for a moment, Cricket, Shanghai and Around the Clock show the darts of the visit as chips, a tap on a player opens their last three visits and numbers, and the game pace can be chosen in the settings.
+```
 
 ### 1.0.1 (build 202600017)
 

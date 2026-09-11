@@ -197,12 +197,20 @@ class _ShanghaiGameView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Flexible(
-                            child: VisitDartsRow(
-                              slots: provider.visitDartLimit,
-                              darts: [
-                                for (final t in provider.visitBuffer)
-                                  visitDartFrom(t.target, t.multiplier, l),
-                              ],
+                            // A tap on the chips while a finished visit is
+                            // on show moves the game on without the wait.
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: provider.visitPending
+                                  ? provider.flushHeldVisit
+                                  : null,
+                              child: VisitDartsRow(
+                                slots: provider.visitDartLimit,
+                                darts: [
+                                  for (final t in provider.visitBuffer)
+                                    visitDartFrom(t.target, t.multiplier, l),
+                                ],
+                              ),
                             ),
                           ),
                         ],

@@ -360,16 +360,21 @@ class _DartboardInputState extends State<DartboardInput> {
               ? MainAxisAlignment.spaceBetween
               : MainAxisAlignment.start,
           children: [
-            // Dart progress row with undo/redo
-            _DartProgressRow(
-              darts: darts,
-              isNegative: provider.liveBust,
-              canUndo: provider.canUndoDart,
-              canRedo: provider.canRedoDart,
-              compact: compact,
-              scale: rowScale,
-              onUndo: provider.undoLastDart,
-              onRedo: provider.redoLastDart,
+            // Dart progress row with undo/redo. A tap on it while a finished
+            // visit is on show moves the game on without the wait.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: provider.visitPending ? provider.flushHeldVisit : null,
+              child: _DartProgressRow(
+                darts: darts,
+                isNegative: provider.liveBust,
+                canUndo: provider.canUndoDart,
+                canRedo: provider.canRedoDart,
+                compact: compact,
+                scale: rowScale,
+                onUndo: provider.undoLastDart,
+                onRedo: provider.redoLastDart,
+              ),
             ),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on

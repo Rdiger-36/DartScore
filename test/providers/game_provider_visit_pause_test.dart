@@ -104,6 +104,27 @@ void main() {
       expect(provider.currentPlayerIndex, 1);
     });
 
+    test('is cut short by a tap on the dart row', () async {
+      await provider.startGame(game(), players);
+      await _visit(provider, const [(20, 1), (20, 1), (20, 1)]);
+      expect(provider.visitPending, isTrue);
+
+      await provider.flushHeldVisit();
+
+      expect(provider.visitPending, isFalse);
+      expect(provider.currentPlayerIndex, 1);
+      expect(provider.allThrows().single.score, 60);
+    });
+
+    test('follows the pace the settings hand it', () async {
+      TurnPacing.debugVisitPause = null;
+      TurnPacing.pace = GamePace.fast;
+      addTearDown(() => TurnPacing.pace = GamePace.normal);
+
+      expect(TurnPacing.visitPause, GamePace.fast.visitPause);
+      expect(TurnPacing.botDartDelay, GamePace.fast.botDartDelay);
+    });
+
     test('is cut short when the game is left, so nothing is lost', () async {
       await provider.startGame(game(), players);
       await _visit(provider, const [(20, 1), (20, 1), (20, 1)]);

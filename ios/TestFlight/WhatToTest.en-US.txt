@@ -1,5 +1,7 @@
-Support screen improved
+Play against the computer
 
-If the donation options cannot be loaded, the app now tells you why in plain words instead of just showing nothing.
+Every mode can now be played against a bot, in five tiers from rookie to legend, and against several at once. The bot throws by itself, and its darts show on the board as they land.
 
-Worth a look: open Settings and then Support Developer, and check that the donation tiers appear with their prices.
+A finished visit also stays on the board for a moment, Cricket, Shanghai and Around the Clock show the darts of the visit as chips, a tap on a player opens their last three visits and numbers, and the game pace can be chosen in the settings.
+
+Worth a look: switch the computer opponent on in the setup, play a 501 against the Pro bot, and change the game pace in the settings.

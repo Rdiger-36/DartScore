@@ -197,10 +197,18 @@ class _AroundTheClockGameView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Flexible(
-                            child: VisitDartsRow(darts: [
-                              for (final t in provider.visitBuffer)
-                                visitDartFrom(t.field, t.multiplier, l),
-                            ]),
+                            // A tap on the chips while a finished visit is
+                            // on show moves the game on without the wait.
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: provider.visitPending
+                                  ? provider.flushHeldVisit
+                                  : null,
+                              child: VisitDartsRow(darts: [
+                                for (final t in provider.visitBuffer)
+                                  visitDartFrom(t.field, t.multiplier, l),
+                              ]),
+                            ),
                           ),
                         ],
                       ),

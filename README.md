@@ -95,6 +95,7 @@ Mark-based game on fields **15–20** and **Bull**. Each field requires 3 marks 
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard-style input with mark tracking
 - Undo support (dart-by-dart)
+- The darts of the visit as chips, and a **live info** per player with the last three visits, marks per round, hit rate, fields closed and best visit
 
 ---
 
@@ -113,6 +114,7 @@ Score on the target number each round. Hit it cleanly for an instant win.
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Dartboard input centred on the active target field
 - Shanghai (hitting Single + Double + Triple of the target) triggers an instant win
+- The darts of the visit as chips, and a **live info** per player with the last three visits, points per round, hit rate, best visit and Shanghais thrown
 
 ---
 
@@ -131,8 +133,25 @@ Hit every number 1–20 in order, then finish on Bull.
 - **Starting order** can be fixed by hand, dragging players or teams into position after throwing for the bull, or drawn at random when the game starts
 - Legs & Sets configurable
 - Joker mechanic (Skip Rules variant)
+- The darts of the visit as chips, and a **live info** per player with the last three visits, darts per target, hit rate, longest streak and fields skipped
 
 ---
+
+### Computer Opponent
+
+Every mode can be played against the computer, in every setting the mode offers: legs and sets, placement mode, handicaps, teams, a fixed or drawn starting order.
+
+- **Five tiers**, rookie to legend, playing three-dart averages of about 35, 50, 65, 85 and 100 in X01. A calibration test pins the numbers
+- **A bot is a player**: it appears on the scoreboard, in the summary and in the history under its localised name, and never in the player list or the sync
+- **More than one at a time**, and more than one of the same strength
+- **One throw model for all modes**: the bot aims at a segment and its dart lands with a scatter that is the whole difference between the tiers, so the misses look like real ones. Where it aims follows the checkout table in X01, the open fields and the score in Cricket, and the target in Shanghai and Around the Clock
+- **Its darts show as they land**, and the input is locked while it throws
+- **Undo skips over a bot's visit** back to the last human dart, so the bot cannot throw the undone dart straight back
+
+### Pace
+
+- A finished visit stays on the board for a moment before the turn moves on, so the thrower sees their last dart. A tap on the dart row moves on at once
+- The **game pace** in the settings sets that moment and how quickly a bot throws: fast, normal or slow
 
 ### After the Game
 
@@ -241,7 +260,7 @@ From 600 dp on the shortest side, the screens that have two things to show put t
 - **Onboarding**: name entry on first launch, sets the primary player
 - **Manage Players**: add, edit, delete (soft-delete preserves history), set favourite double
 - **Player selection**: all four setup screens share one player list, sorted the way names actually sort
-- **Settings**: theme and language as menu rows in a display section, with the text size slider beside them on a tablet; backup, donations, about and licences in an app section
+- **Settings**: theme, language and game pace as menu rows in a display section, with the text size slider beside them on a tablet; backup, donations, about and licences in an app section
 - **Dark / Light / System theme**
 - **German / English localisation**: auto-detected from device locale, switchable in settings
 - **Leaving a running game** needs a deliberate act: the close button and the Android back button ask for confirmation, and the iOS edge swipe stays disabled for as long as the game runs
@@ -475,7 +494,8 @@ Each of the four directories that carry rules of their own has an `AGENTS.md` ne
 
 ```sql
 players      (id, name, favorite_doubles, is_deleted, is_primary,
-              uuid, last_synced_at, synced_stats, local_stats_json)
+              uuid, last_synced_at, synced_stats, local_stats_json,
+              bot_level, bot_ordinal)
 
 games        (id, start_score, game_mode, checkout_mode, legs, sets,
               created_at, finished_at, is_synced, origin_device,
