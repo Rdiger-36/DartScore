@@ -42,7 +42,8 @@ X01 has one screen the others do not: `live_player_stats_screen.dart`, the playe
 - Every user-visible string comes from `AppLocalizations`, every themed color from `ThemeProvider`
 - A roster is `PlayersProvider.players`, which holds people only. The player list, the sync sender and the setup screens read it and so never show a computer opponent; a bot joins a game through `BotSelectSection`, whose `onAdd` asks `PlayersProvider.botFor` for the row with the lowest ordinal not yet in the selection and adds it like a person, and whose `onRemove` drops that one row
 - A name on screen is `player.label(l)` or `slot.label(l)` from `utils/player_label.dart`, never `.name`: a bot is shown under its localized tier name. The start button of a setup needs a person in the selection, `any((p) => !p.isBot)`, not merely a non-empty one
-- The live X01 screen calls `leaveGame()` before it pops on quit: that stops the bot and records a visit still waiting out its pause. A screen that leaves a running game any other way has to do the same, or the bot keeps throwing into a game nobody is watching and the last visit is lost
+- Every live screen calls `leaveGame()` on its provider before it pops on quit: that stops the bot and, in X01, records a visit still waiting out its pause. A screen that leaves a running game any other way has to do the same, or the bot keeps throwing into a game nobody is watching and the last visit is lost
+- The input of every mode reads `inputLocked` and goes dim and deaf while it holds; the provider refuses the dart either way, the widget only says so
 - The live info's recent visits card renders `ThrowRow`, the same row the throw log and the lifetime statistics use. A visit reads the same everywhere it is listed
 
 ## Patterns
