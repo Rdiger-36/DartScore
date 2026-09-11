@@ -362,9 +362,12 @@ class AppLocalizations {
   String get teamPlayers         => _t('Players', 'Spieler');
 
   // ── Bot opponent ─────────────────────────────────────────────────────────
+  String get modeBotTitle => _t('Against the computer', 'Gegen den Computer');
   String get modeBotNote => _t(
-      'Against the computer: every setup can add a bot, in five tiers from rookie to legend, and more than one at a time. A bot throws by itself, plays under the same rules as everyone else, and its darts show on the board as they land. How quickly it throws, and how long a finished visit stays on the board, is the game pace in the settings.',
-      'Gegen den Computer: In jedem Setup lässt sich ein Bot dazunehmen, in fünf Stufen vom Anfänger bis zur Legende, auch mehrere auf einmal. Ein Bot wirft von allein, spielt nach denselben Regeln wie alle anderen, und seine Darts erscheinen auf dem Board, wie sie fallen. Wie schnell er wirft, und wie lange eine fertige Aufnahme stehen bleibt, ist das Spieltempo in den Einstellungen.');
+      'You can play against a computer opponent in every mode. Switch it on in the setup and pick one of five tiers, from rookie to legend. You can also bring several bots into a game, even several of the same tier.\n\n'
+      'The bot plays by the same rules you do. When it is its turn, it throws by itself, and you see each of its darts on the board. How fast it throws is set under Game pace in the settings.',
+      'Du kannst in jedem Modus gegen einen Computergegner spielen. Schalte ihn im Setup ein und wähle eine von fünf Stufen, vom Anfänger bis zur Legende. Du kannst auch mehrere Bots ins Spiel nehmen, sogar mehrere derselben Stufe.\n\n'
+      'Der Bot spielt nach denselben Regeln wie du. Wenn er dran ist, wirft er von allein, und du siehst jeden seiner Darts auf dem Board. Wie schnell er wirft, stellst du in den Einstellungen unter Spieltempo ein.');
   String get botOpponent => _t('Computer opponent', 'Computergegner');
   String get botHint     => _t(
       'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
