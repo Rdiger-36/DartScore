@@ -577,7 +577,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
 
   /// The computer opponents, picked by tier. A bot joins the selection the
   /// way a person does, so everything below the card treats it as a player.
-  /// A second tap on a tier adds its next free number, so two bots of one
+  /// A second plus on a tier adds its next free number, so two bots of one
   /// strength can play, and a removed one frees its number again.
   Widget _botCard(BuildContext context) {
     return BotSelectSection(

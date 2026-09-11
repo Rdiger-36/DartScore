@@ -370,10 +370,7 @@ class AppLocalizations {
       'Du kannst in jedem Modus gegen einen Computergegner spielen. Schalte ihn im Setup ein und wähle eine von fünf Stufen, vom Anfänger bis zur Legende. Du kannst auch mehrere Bots ins Spiel nehmen, sogar mehrere derselben Stufe.\n\n'
       'Der Bot spielt nach denselben Regeln wie du. Wenn er dran ist, wirft er von allein, und du siehst jeden seiner Darts auf dem Board. Wie schnell er wirft, stellst du in den Einstellungen unter Spieltempo ein.');
   String get botOpponent => _t('Computer opponent', 'Computergegner');
-  String get botHint     => _t(
-      'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
-      'Tippe eine Stufe, um einen Computergegner hinzuzufügen. Nochmal tippen für einen zweiten derselben Stärke.');
-  /// The short name of a tier, as the chips in the setup show it.
+  /// The short name of a tier, as the rows of the setup card show it.
   String botTier(BotLevel level) => switch (level) {
         BotLevel.rookie  => _t('Rookie', 'Anfänger'),
         BotLevel.amateur => _t('Amateur', 'Amateur'),
@@ -389,9 +386,23 @@ class AppLocalizations {
     final base = _t('${botTier(level)} bot', '${botTier(level)}-Bot');
     return ordinal == 1 ? base : '$base $ordinal';
   }
-  String get removeBot => _t('Remove bot', 'Bot entfernen');
+  String addBot(BotLevel level)    => _t('Add ${botName(level)}', '${botName(level)} hinzufügen');
+  String removeBot(BotLevel level) => _t('Remove ${botName(level)}', '${botName(level)} entfernen');
   String botAverageHint(int average) => _t(
       'about $average points per visit', 'etwa $average Punkte pro Aufnahme');
+  /// The line under the tier rows naming the slots the bots throw in, in the
+  /// throwing order the setup keeps. [slots] are counted from one and hold
+  /// at least one entry.
+  String botSlotsHint(List<int> slots) {
+    if (slots.length == 1) {
+      return _t('The bot throws as player ${slots.single}.',
+          'Der Bot wirft als Spieler ${slots.single}.');
+    }
+    final list = '${slots.sublist(0, slots.length - 1).join(', ')} '
+        '${_t('and', 'und')} ${slots.last}';
+    return _t('The bots throw as players $list.',
+        'Die Bots werfen als Spieler $list.');
+  }
 
   // ── Starting order ───────────────────────────────────────────────────────
   String get startingOrder       => _t('Starting order', 'Startreihenfolge');

@@ -2,19 +2,21 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/player.dart';
 import '../utils/bot_thrower.dart';
-import '../utils/player_label.dart';
 
 /// The card under the roster that adds computer opponents to a game: a
 /// switch in the header like the handicap and team cards, and once it is on,
-/// one chip per tier and under them a row for every bot picked, saying which
-/// slot it throws in and roughly how well, with a button that drops it again.
+/// one row per tier with the tier's name, roughly how well it throws and a
+/// counter with a minus and a plus, and under the rows one line saying which
+/// slots the bots throw in.
 ///
-/// Shared by all four setup screens. Every tap on a chip adds one more bot of
-/// that tier, so a game can hold two of the same strength; a bot leaves
-/// through its own row. The roster above never lists a bot. [selectedPlayers]
-/// is the whole selection in throwing order, people included, so a bot's slot
-/// number is the one it will really throw in. Switching the card off drops
-/// every bot from the selection, which the caller does in [onEnabledChanged].
+/// Shared by all four setup screens. Plus adds one more bot of that tier, so
+/// a game can hold two of the same strength; minus takes away the bot of that
+/// tier that throws last, so the others keep their slots. Every tier is always
+/// listed, which is what keeps the card the same height however many bots are
+/// in the game. [selectedPlayers] is the whole selection in throwing order,
+/// people included, so the slot numbers are the ones the bots will really
+/// throw in. Switching the card off drops every bot from the selection, which
+/// the caller does in [onEnabledChanged].
 class BotSelectSection extends StatelessWidget {
   final bool enabled;
   final List<Player> selectedPlayers;
@@ -37,9 +39,13 @@ class BotSelectSection extends StatelessWidget {
     final cs    = theme.colorScheme;
     final l     = context.l10n;
 
-    final counts = <BotLevel, int>{};
-    for (final p in selectedPlayers) {
-      if (p.botLevel != null) counts[p.botLevel!] = (counts[p.botLevel!] ?? 0) + 1;
+    final byTier = <BotLevel, List<Player>>{};
+    final slots  = <int>[];
+    for (var i = 0; i < selectedPlayers.length; i++) {
+      final level = selectedPlayers[i].botLevel;
+      if (level == null) continue;
+      (byTier[level] ??= []).add(selectedPlayers[i]);
+      slots.add(i + 1);
     }
 
     return Card(
@@ -62,51 +68,67 @@ class BotSelectSection extends StatelessWidget {
               ],
             ),
             if (enabled) ...[
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final level in BotLevel.values)
-                  FilterChip(
-                    label: Text((counts[level] ?? 0) > 1
-                        ? '${l.botTier(level)} · ${counts[level]}'
-                        : l.botTier(level)),
-                    selected: (counts[level] ?? 0) > 0,
-                    // Not a toggle: every tap adds one, the rows take away.
-                    onSelected: (_) => onAdd(level),
-                    visualDensity: VisualDensity.compact,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (counts.isEmpty)
-              Text(l.botHint,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant))
+            for (final level in BotLevel.values)
+              _tierRow(context, level, byTier[level] ?? const []),
+            if (slots.isEmpty)
+              const SizedBox(height: 8)
             else
-              for (var i = 0; i < selectedPlayers.length; i++)
-                if (selectedPlayers[i].isBot)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Text(selectedPlayers[i].label(l)),
-                    subtitle: Text(
-                      '${l.playerN(i + 1)} · '
-                      '${l.botAverageHint(expectedAverageOf(selectedPlayers[i].botLevel!))}',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                      color: cs.error,
-                      tooltip: l.removeBot,
-                      onPressed: () => onRemove(selectedPlayers[i]),
-                    ),
-                  ),
-            const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(l.botSlotsHint(slots),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant)),
+              ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// One tier's row: its name and expected average on the left, and on the
+  /// right the counter with the minus, which is off while the tier has no
+  /// bot in the game, and the plus. [bots] are this tier's bots in throwing
+  /// order, so minus hands the last of them to [onRemove].
+  Widget _tierRow(BuildContext context, BotLevel level, List<Player> bots) {
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
+    final l     = context.l10n;
+    final none  = bots.isEmpty;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      title: Text(l.botTier(level),
+          style: none ? TextStyle(color: cs.onSurfaceVariant) : null),
+      subtitle: Text(l.botAverageHint(expectedAverageOf(level))),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline, size: 22),
+            tooltip: l.removeBot(level),
+            visualDensity: VisualDensity.compact,
+            onPressed: none ? null : () => onRemove(bots.last),
+          ),
+          SizedBox(
+            width: 24,
+            child: Text('${bots.length}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: none ? cs.outlineVariant : cs.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                )),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, size: 22),
+            tooltip: l.addBot(level),
+            color: cs.primary,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => onAdd(level),
+          ),
+        ],
       ),
     );
   }
