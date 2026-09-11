@@ -55,26 +55,31 @@ void main() {
           matching: find.byType(Switch),
         );
 
-    testWidgets('adds a computer opponent by its chip and says where it throws',
+    testWidgets('adds a computer opponent by its plus and says where it throws',
         (tester) async {
       await pumpSetup(tester);
       await tester.tap(find.byType(Checkbox).first);
       await tester.pumpAndSettle();
 
-      expect(find.byType(FilterChip), findsNothing,
+      expect(find.byTooltip('Add Pro bot'), findsNothing,
           reason: 'the tiers stay folded away until the card is switched on');
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilterChip, 'Pro'));
+      expect(find.text('about 85 points per visit'), findsOneWidget,
+          reason: 'every tier is listed with its average before any is picked');
+      expect(find.textContaining('throws as player'), findsNothing);
+
+      await tester.tap(find.byTooltip('Add Pro bot'));
       // The bot row is written to the database on first use, which is real
       // I/O a widget test only reaches by letting it through.
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pro bot'), findsOneWidget);
-      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget);
+      expect(find.text('The bot throws as player 2.'), findsOneWidget);
+      expect(find.text('Pro bot'), findsNothing,
+          reason: 'the rows name the tiers, the counter says how many');
       expect(find.text('Ada'), findsOneWidget,
           reason: 'the roster still lists people only');
       expect(find.textContaining('Bot Pro'), findsNothing,
@@ -92,28 +97,73 @@ void main() {
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
 
+      /// The counter of the Pro row.
+      String proCount() => (tester.widget<Text>(find.descendant(
+            of: find.ancestor(
+                of: find.byTooltip('Add Pro bot'),
+                matching: find.byType(ListTile)),
+            matching: find.byWidgetPredicate((w) =>
+                w is Text && RegExp(r'^\d$').hasMatch(w.data ?? '')),
+          ))).data!;
+
+      /// The minus of the Pro row, which is off while the row counts zero.
+      IconButton proMinus() => tester.widget<IconButton>(find.ancestor(
+            of: find.byTooltip('Remove Pro bot'),
+            matching: find.byType(IconButton),
+          ));
+
+      expect(proCount(), '0');
+      expect(proMinus().onPressed, isNull, reason: 'nothing to take away yet');
+
       for (var i = 0; i < 2; i++) {
-        await tester.tap(find.widgetWithText(FilterChip, 'Pro').first);
+        await tester.tap(find.byTooltip('Add Pro bot'));
         await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 50)));
         await tester.pumpAndSettle();
       }
 
-      expect(find.text('Pro bot'), findsOneWidget);
-      expect(find.text('Pro bot 2'), findsOneWidget);
-      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget);
-      expect(find.text('Player 3 · about 85 points per visit'), findsOneWidget);
-      expect(find.widgetWithText(FilterChip, 'Pro · 2'), findsOneWidget,
-          reason: 'the chip counts what it added');
+      expect(proCount(), '2');
+      expect(find.text('The bots throw as players 2 and 3.'), findsOneWidget);
+      expect(proMinus().onPressed, isNotNull);
 
-      await tester.tap(find.byTooltip('Remove bot').first);
+      await tester.tap(find.byTooltip('Remove Pro bot'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pro bot'), findsNothing);
-      expect(find.text('Pro bot 2'), findsOneWidget);
-      expect(find.text('Player 2 · about 85 points per visit'), findsOneWidget,
-          reason: 'the one left moved up a slot');
-      expect(find.widgetWithText(FilterChip, 'Pro'), findsOneWidget);
+      expect(proCount(), '1');
+      expect(find.text('The bot throws as player 2.'), findsOneWidget,
+          reason: 'the last one added went, the first keeps its slot');
+    });
+
+    testWidgets('holds no more than five bots of one strength', (tester) async {
+      await pumpSetup(tester);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+
+      IconButton proPlus() => tester.widget<IconButton>(find.ancestor(
+            of: find.byTooltip('Add Pro bot'),
+            matching: find.byType(IconButton),
+          ));
+
+      for (var i = 0; i < 5; i++) {
+        expect(proPlus().onPressed, isNotNull);
+        await tester.tap(find.byTooltip('Add Pro bot'));
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('The bots throw as players 2, 3, 4, 5 and 6.'),
+          findsOneWidget);
+      expect(proPlus().onPressed, isNull, reason: 'the tier is full');
+      expect(
+          tester.widget<IconButton>(find.ancestor(
+            of: find.byTooltip('Add Legend bot'),
+            matching: find.byType(IconButton),
+          )).onPressed,
+          isNotNull,
+          reason: 'the cap is per tier');
     });
 
     testWidgets('drops the bots again when the card is switched off',
@@ -123,17 +173,17 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilterChip, 'Amateur'));
+      await tester.tap(find.byTooltip('Add Amateur bot'));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
-      expect(find.text('Amateur bot'), findsOneWidget);
+      expect(find.text('The bot throws as player 2.'), findsOneWidget);
 
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
 
-      expect(find.text('Amateur bot'), findsNothing);
-      expect(find.byType(FilterChip), findsNothing);
+      expect(find.textContaining('throws as player'), findsNothing);
+      expect(find.byTooltip('Add Amateur bot'), findsNothing);
       expect(find.text('Start Solo Game'), findsOneWidget,
           reason: 'Ada is alone again');
     });
@@ -143,12 +193,12 @@ void main() {
 
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilterChip, 'Legend'));
+      await tester.tap(find.byTooltip('Add Legend bot'));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
 
-      expect(find.text('Legend bot'), findsOneWidget);
+      expect(find.text('The bot throws as player 1.'), findsOneWidget);
       expect(tester.widget<FilledButton>(startButton()).onPressed, isNull);
       expect(find.text('Select at least 1 player'), findsOneWidget);
     });

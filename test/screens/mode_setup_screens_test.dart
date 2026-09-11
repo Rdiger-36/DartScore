@@ -65,7 +65,7 @@ void main() {
     Future<void> addProBot(WidgetTester tester) async {
       await tester.tap(botSwitch());
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilterChip, 'Pro'));
+      await tester.tap(find.byTooltip('Add Pro bot'));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
@@ -83,9 +83,7 @@ void main() {
 
           await addProBot(tester);
 
-          expect(find.text('Pro bot'), findsOneWidget);
-          expect(find.text('Player 2 · about 85 points per visit'),
-              findsOneWidget);
+          expect(find.text('The bot throws as player 2.'), findsOneWidget);
           expect(canStart(tester), isTrue);
         });
 
@@ -94,7 +92,7 @@ void main() {
 
           await addProBot(tester);
 
-          expect(find.text('Pro bot'), findsOneWidget);
+          expect(find.text('The bot throws as player 1.'), findsOneWidget);
           expect(canStart(tester), isFalse);
         });
       }
