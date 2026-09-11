@@ -65,6 +65,20 @@ class GameModeInfoScreen extends StatelessWidget {
                     textAlign: TextAlign.start,
                     style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
                   ),
+                  const SizedBox(height: 20),
+                  Divider(color: cs.outlineVariant),
+                  const SizedBox(height: 20),
+                  Text(
+                    l.modeBotTitle,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l.modeBotNote,
+                    textAlign: TextAlign.start,
+                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),

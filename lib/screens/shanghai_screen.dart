@@ -10,6 +10,7 @@ import '../utils/player_label.dart';
 import '../utils/shanghai_stats.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'shanghai_summary_screen.dart';
 
@@ -173,6 +174,7 @@ class _ShanghaiGameView extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Column(
@@ -195,18 +197,27 @@ class _ShanghaiGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Flexible(
-                            child: VisitDartsRow(
-                              slots: provider.visitDartLimit,
-                              darts: [
-                                for (final t in provider.visitBuffer)
-                                  visitDartFrom(t.target, t.multiplier, l),
-                              ],
+                            // A tap on the chips while a finished visit is
+                            // on show moves the game on without the wait.
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: provider.visitPending
+                                  ? provider.flushHeldVisit
+                                  : null,
+                              child: VisitDartsRow(
+                                slots: provider.visitDartLimit,
+                                darts: [
+                                  for (final t in provider.visitBuffer)
+                                    visitDartFrom(t.target, t.multiplier, l),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
                       _ShanghaiHint(provider: provider),
                       const SizedBox(height: 10),
                       _ShanghaiInput(provider: provider),
@@ -490,8 +501,10 @@ class _ShanghaiHint extends StatelessWidget {
 
     if (content == null) return const SizedBox.shrink();
 
+    // The same room above as below, so the hint sits halfway between the
+    // name and the buttons.
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.symmetric(vertical: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Column(
@@ -521,6 +534,15 @@ class _ShanghaiInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l10n;
     final target = provider.activeTarget;
+
+    if (provider.visitPending) {
+      // Three ring buttons and their two gaps.
+      return ContinueButton(
+        onPressed: provider.flushHeldVisit,
+        width: 3 * 72 + 2 * 10,
+        height: 64,
+      );
+    }
 
     // Dimmed and deaf while a bot throws or a finished visit is still on
     // show; the provider refuses the dart either way, this only says so.

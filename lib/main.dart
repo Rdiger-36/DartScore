@@ -14,6 +14,7 @@ import 'providers/theme_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/tablet_layout_provider.dart';
 import 'providers/text_scale_provider.dart';
+import 'providers/pace_provider.dart';
 import 'providers/donation_provider.dart';
 import 'screens/backup_screen.dart';
 import 'screens/home_screen.dart';
@@ -323,6 +324,7 @@ class DartScoreApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => TabletLayoutProvider()),
         ChangeNotifierProvider(create: (_) => TextScaleProvider()),
+        ChangeNotifierProvider(create: (_) => PaceProvider()),
         ChangeNotifierProvider(create: (_) => DonationProvider()),
         ChangeNotifierProvider(create: (_) => PlayersProvider()..load()),
         ChangeNotifierProvider(create: (_) => GameProvider()),

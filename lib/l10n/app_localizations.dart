@@ -178,6 +178,7 @@ class AppLocalizations {
   String get dartsAtFinish      => _t('Darts at a Finish', 'Darts aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
   String get lastVisits         => _t('Last 3 Visits', 'Letzte 3 Aufnahmen');
+  String get continueNow        => _t('Continue', 'Weiter');
   String get noVisitsYet        => _t('No visits yet', 'Noch keine Aufnahmen');
   String get dartsThrown        => _t('Darts', 'Darts');
   String get marksPerRound      => _t('Marks per round', 'Marks pro Aufnahme');
@@ -362,6 +363,12 @@ class AppLocalizations {
   String get teamPlayers         => _t('Players', 'Spieler');
 
   // ── Bot opponent ─────────────────────────────────────────────────────────
+  String get modeBotTitle => _t('Against the computer', 'Gegen den Computer');
+  String get modeBotNote => _t(
+      'You can play against a computer opponent in every mode. Switch it on in the setup and pick one of five tiers, from rookie to legend. You can also bring several bots into a game, even several of the same tier.\n\n'
+      'The bot plays by the same rules you do. When it is its turn, it throws by itself, and you see each of its darts on the board. How fast it throws is set under Game pace in the settings.',
+      'Du kannst in jedem Modus gegen einen Computergegner spielen. Schalte ihn im Setup ein und wähle eine von fünf Stufen, vom Anfänger bis zur Legende. Du kannst auch mehrere Bots ins Spiel nehmen, sogar mehrere derselben Stufe.\n\n'
+      'Der Bot spielt nach denselben Regeln wie du. Wenn er dran ist, wirft er von allein, und du siehst jeden seiner Darts auf dem Board. Wie schnell er wirft, stellst du in den Einstellungen unter Spieltempo ein.');
   String get botOpponent => _t('Computer opponent', 'Computergegner');
   String get botHint     => _t(
       'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
@@ -414,6 +421,14 @@ class AppLocalizations {
       _t('How large the app draws its text on this device.',
          'Wie groß die App ihre Schrift auf diesem Gerät zeichnet.');
   String get textSizeReset     => _t('Standard', 'Standard');
+  String get gamePace          => _t('Game pace', 'Spieltempo');
+  String get paceFast          => _t('Fast', 'Schnell');
+  String get paceNormal        => _t('Normal', 'Normal');
+  String get paceSlow          => _t('Slow', 'Langsam');
+  String get gamePaceHint      => _t(
+      'How long a finished visit stays on the board before the turn moves on, and how quickly a computer opponent throws. Continue moves on at once, whenever you like.',
+      'Wie lange eine fertige Aufnahme auf dem Board stehen bleibt, bevor der Zug weitergeht, und wie schnell ein Computergegner wirft. Mit Weiter geht es jederzeit sofort weiter.');
+  String get whatItDoes        => _t('What it does', 'Was es bewirkt');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',

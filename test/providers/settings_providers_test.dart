@@ -1,4 +1,6 @@
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/language_provider.dart';
+import 'package:dartscore_app/providers/pace_provider.dart';
 import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
 import 'package:dartscore_app/utils/layout.dart';
@@ -15,6 +17,52 @@ Future<T> _loaded<T extends ChangeNotifier>(T provider) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('PaceProvider', () {
+    tearDown(() => TurnPacing.pace = GamePace.normal);
+
+    test('runs at the normal pace until the user picks one', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      final provider = await _loaded(PaceProvider());
+
+      expect(provider.pace, GamePace.normal);
+      expect(TurnPacing.pace, GamePace.normal);
+      expect(TurnPacing.visitPause, const Duration(seconds: 2));
+    });
+
+    test('comes back on the pace the user left it on, and hands it to the games',
+        () async {
+      SharedPreferences.setMockInitialValues({'game_pace': GamePace.fast.index});
+
+      final provider = await _loaded(PaceProvider());
+
+      expect(provider.pace, GamePace.fast);
+      expect(TurnPacing.pace, GamePace.fast);
+      expect(TurnPacing.botDartDelay, const Duration(milliseconds: 400));
+      expect(TurnPacing.visitPause, const Duration(seconds: 1));
+    });
+
+    test('writes a change down and passes it on at once', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = await _loaded(PaceProvider());
+
+      await provider.setPace(GamePace.slow);
+
+      expect(TurnPacing.pace, GamePace.slow);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('game_pace'), GamePace.slow.index);
+    });
+
+    test('shrugs off a stored value from a version with other options',
+        () async {
+      SharedPreferences.setMockInitialValues({'game_pace': 42});
+
+      final provider = await _loaded(PaceProvider());
+
+      expect(provider.pace, GamePace.normal);
+    });
+  });
 
   group('ThemeProvider', () {
     test('follows the system until the user picks something', () async {

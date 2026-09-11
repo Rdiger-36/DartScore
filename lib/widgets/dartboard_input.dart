@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
 import '../utils/segment_color.dart';
+import 'visit_pause.dart';
 
 /// A single dart entered on the board input: which [field] was hit, the
 /// [modifier] (single/double/triple) and the resulting [score].
@@ -121,11 +122,40 @@ class _DartboardInputState extends State<DartboardInput> {
   /// There is no button that ends a visit: a visit ends when its third dart
   /// lands, or the moment the leg is checked out or busted, and the provider
   /// decides that on its own.
-  Widget _actions({required bool vertical, required double verticalPadding}) {
+  Widget _actions({
+    required bool vertical,
+    required double verticalPadding,
+    required double gridSpacing,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final provider = context.read<GameProvider>();
     // Full, a bot's, or still being shown: no dart of the person's lands now.
     final dartCount = provider.inputLocked ? 3 : provider.currentVisitDarts.length;
+
+    // While a finished visit is on show the two are locked anyway, so their
+    // place goes to the one thing that can be done: moving on now. Under the
+    // grid it is as wide as three of its five columns and centred, so it
+    // sits under the 17, 18 and 19 rather than spanning the row.
+    if (provider.visitPending) {
+      final button = _ActionButton(
+        label: context.l10n.continueNow,
+        icon: Icons.skip_next_rounded,
+        color: cs.primary,
+        textColor: cs.onPrimary,
+        disabled: false,
+        verticalPadding: verticalPadding,
+        onTap: provider.flushHeldVisit,
+      );
+      if (vertical) return button;
+      return LayoutBuilder(
+        builder: (context, box) => Center(
+          child: SizedBox(
+            width: (3 * box.maxWidth - 2 * gridSpacing) / 5,
+            child: button,
+          ),
+        ),
+      );
+    }
 
     final miss = _ActionButton(
       label: context.l10n.miss,
@@ -288,6 +318,7 @@ class _DartboardInputState extends State<DartboardInput> {
                       child: _actions(
                         vertical: true,
                         verticalPadding: actionVPadding,
+                        gridSpacing: spacing,
                       ),
                     ),
                   ],
@@ -360,16 +391,28 @@ class _DartboardInputState extends State<DartboardInput> {
               ? MainAxisAlignment.spaceBetween
               : MainAxisAlignment.start,
           children: [
-            // Dart progress row with undo/redo
-            _DartProgressRow(
-              darts: darts,
-              isNegative: provider.liveBust,
-              canUndo: provider.canUndoDart,
-              canRedo: provider.canRedoDart,
-              compact: compact,
-              scale: rowScale,
-              onUndo: provider.undoLastDart,
-              onRedo: provider.redoLastDart,
+            // Dart progress row with undo/redo. A tap on it while a finished
+            // visit is on show moves the game on without the wait.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: provider.visitPending ? provider.flushHeldVisit : null,
+              child: _DartProgressRow(
+                darts: darts,
+                isNegative: provider.liveBust,
+                canUndo: provider.canUndoDart,
+                canRedo: provider.canRedoDart,
+                compact: compact,
+                scale: rowScale,
+                onUndo: provider.undoLastDart,
+                onRedo: provider.redoLastDart,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // As wide as the visit row above it, which keeps a margin of its
+            // own inside the column.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: VisitPauseBar(pending: provider.visitPending),
             ),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on
@@ -463,7 +506,10 @@ class _DartboardInputState extends State<DartboardInput> {
                           .toDouble()
                       : null,
                   child: _actions(
-                      vertical: false, verticalPadding: actionVPadding),
+                    vertical: false,
+                    verticalPadding: actionVPadding,
+                    gridSpacing: gridSpacing,
+                  ),
                 ),
               ),
             ] else

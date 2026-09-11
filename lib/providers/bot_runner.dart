@@ -6,8 +6,37 @@ import 'package:flutter/widgets.dart'
 
 import '../utils/bot_thrower.dart';
 
-/// Test hooks for the pauses the game providers keep.
+/// How fast a game moves on its own: how long a finished visit stays on the
+/// board and how quickly a bot throws. Picked in the settings, kept by
+/// [PaceProvider], read through [TurnPacing]. The index is what the setting
+/// stores, so the order is fixed.
+enum GamePace {
+  fast,
+  normal,
+  slow;
+
+  /// How long a finished visit stays on the board.
+  Duration get visitPause => switch (this) {
+        GamePace.fast   => const Duration(seconds: 1),
+        GamePace.normal => const Duration(seconds: 2),
+        GamePace.slow   => const Duration(seconds: 3),
+      };
+
+  /// The pause before each bot dart.
+  Duration get botDartDelay => switch (this) {
+        GamePace.fast   => const Duration(milliseconds: 400),
+        GamePace.normal => const Duration(milliseconds: 800),
+        GamePace.slow   => const Duration(milliseconds: 1400),
+      };
+}
+
+/// The pauses the game providers keep, and the test hooks over them.
 abstract final class TurnPacing {
+  /// The pace the reader picked. [PaceProvider] sets it when it loads and
+  /// whenever the setting changes; every provider reads it as it goes, so a
+  /// game already running follows a change at its next visit.
+  static GamePace pace = GamePace.normal;
+
   /// Overrides the pause a completed visit stays on the board for. Tests set
   /// it to zero so a visit settles in the same call that completes it; the
   /// tests of the pause itself set a short real one. Null in the app.
@@ -15,8 +44,10 @@ abstract final class TurnPacing {
 
   /// How long a completed visit stays on the board before it is recorded and
   /// the turn moves on, so the thrower sees their last dart.
-  static Duration get visitPause =>
-      debugVisitPause ?? const Duration(seconds: 2);
+  static Duration get visitPause => debugVisitPause ?? pace.visitPause;
+
+  /// The pause before each bot dart, long enough to follow on the scoreboard.
+  static Duration get botDartDelay => pace.botDartDelay;
 }
 
 /// What every game provider does the same way once a computer opponent can be
@@ -34,9 +65,9 @@ mixin BotRunner on ChangeNotifier, WidgetsBindingObserver {
   /// Throws the bots' darts. Replaceable so a test can seed it.
   BotThrower botThrower = BotThrower();
 
-  /// The pause before each bot dart, long enough to follow on the scoreboard.
-  /// Tests set it to zero.
-  Duration botDartDelay = const Duration(milliseconds: 800);
+  /// Overrides the pace's pause before each bot dart. Tests set it to zero;
+  /// the app leaves it null and follows [TurnPacing.botDartDelay].
+  Duration? botDartDelay;
 
   Timer? _botTimer;
   bool   _botDartInFlight = false;
@@ -83,7 +114,7 @@ mixin BotRunner on ChangeNotifier, WidgetsBindingObserver {
     _botTimer = null;
     if (_botSuspended || visitPending || !isBotTurn) return;
     _observeLifecycle();
-    _botTimer = Timer(botDartDelay, _fireBotDart);
+    _botTimer = Timer(botDartDelay ?? TurnPacing.botDartDelay, _fireBotDart);
   }
 
   /// Throws one bot dart, then lines up the next.

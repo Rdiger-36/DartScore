@@ -10,6 +10,7 @@ import '../utils/around_the_clock_rules.dart';
 import '../utils/player_label.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'around_the_clock_summary_screen.dart';
 
@@ -173,6 +174,7 @@ class _AroundTheClockGameView extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Column(
@@ -195,12 +197,20 @@ class _AroundTheClockGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Flexible(
-                            child: VisitDartsRow(darts: [
-                              for (final t in provider.visitBuffer)
-                                visitDartFrom(t.field, t.multiplier, l),
-                            ]),
+                            // A tap on the chips while a finished visit is
+                            // on show moves the game on without the wait.
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: provider.visitPending
+                                  ? provider.flushHeldVisit
+                                  : null,
+                              child: VisitDartsRow(darts: [
+                                for (final t in provider.visitBuffer)
+                                  visitDartFrom(t.field, t.multiplier, l),
+                              ]),
+                            ),
                           ),
                         ],
                       ),
@@ -514,6 +524,7 @@ class _AroundTheClockInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final l      = context.l10n;
     final target = provider.activeTarget;
+
     final showJoker  = provider.game!.variant == AroundTheClockVariant.skipRules && target != 25;
     final showTriple = target != 25;
 
@@ -529,6 +540,15 @@ class _AroundTheClockInput extends StatelessWidget {
         final btnW = ((constraints.maxWidth - spacing * (btnCount - 1)) / btnCount)
             .clamp(48.0, 72.0);
         final btnH = (btnW * 64 / 72).clamp(44.0, 64.0);
+
+        if (provider.visitPending) {
+          // Three of the buttons this row would hold, and their two gaps.
+          return ContinueButton(
+            onPressed: provider.flushHeldVisit,
+            width: 3 * btnW + 2 * spacing,
+            height: btnH,
+          );
+        }
 
         return IgnorePointer(
           ignoring: locked,

@@ -1,5 +1,7 @@
-Spendenseite verbessert
+Gegen den Computer spielen
 
-Wenn sich die Spendenoptionen einmal nicht laden lassen, sagt die App jetzt verständlich, woran es liegt, statt einfach nichts anzuzeigen.
+Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch mehrere auf einmal. Der Bot wirft von allein, und seine Darts erscheinen auf dem Board, wie sie fallen.
 
-Einen Blick wert: Einstellungen öffnen, dann Entwickler unterstützen, und schauen, ob die Spendenstufen mit ihren Preisen erscheinen.
+Außerdem bleibt jede fertige Aufnahme kurz auf dem Board stehen, in Cricket, Shanghai und Around the Clock zeigen Chips die Darts der Aufnahme, ein Tipp auf einen Spieler öffnet seine letzten drei Aufnahmen und Zahlen, und das Spieltempo lässt sich in den Einstellungen wählen.
+
+Einen Blick wert: im Setup den Computergegner einschalten, ein 501 gegen den Profi-Bot spielen, und in den Einstellungen das Spieltempo umstellen.

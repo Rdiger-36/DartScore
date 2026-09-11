@@ -10,6 +10,7 @@ import '../utils/cricket_stats.dart';
 import '../utils/player_label.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'cricket_summary_screen.dart';
 
@@ -130,6 +131,7 @@ class _CricketGameView extends StatelessWidget {
                     children: [
                       // Current player/team + dart counter
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Column(
@@ -152,12 +154,20 @@ class _CricketGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Flexible(
-                            child: VisitDartsRow(darts: [
-                              for (final t in provider.visitBuffer)
-                                visitDartFrom(t.field, t.multiplier, l),
-                            ]),
+                            // A tap on the chips while a finished visit is
+                            // on show moves the game on without the wait.
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: provider.visitPending
+                                  ? provider.flushHeldVisit
+                                  : null,
+                              child: VisitDartsRow(darts: [
+                                for (final t in provider.visitBuffer)
+                                  visitDartFrom(t.field, t.multiplier, l),
+                              ]),
+                            ),
                           ),
                         ],
                       ),
@@ -652,6 +662,14 @@ class _CricketInputState extends State<_CricketInput> {
   Widget build(BuildContext context) {
     final states = widget.provider.playerStates;
     final l = context.l10n;
+
+    if (widget.provider.visitPending) {
+      // Three field buttons and their two gaps.
+      return ContinueButton(
+        onPressed: widget.provider.flushHeldVisit,
+        width: 3 * 56 + 2 * 8,
+      );
+    }
 
     if (_selectedField != null && _isStandard) {
       // Show multiplier selector

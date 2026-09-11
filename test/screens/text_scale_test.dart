@@ -1,5 +1,6 @@
 import 'package:dartscore_app/providers/donation_provider.dart';
 import 'package:dartscore_app/providers/language_provider.dart';
+import 'package:dartscore_app/providers/pace_provider.dart';
 import 'package:dartscore_app/providers/text_scale_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
 import 'package:dartscore_app/screens/settings_screen.dart';
@@ -35,6 +36,7 @@ void main() {
             ChangeNotifierProvider(create: (_) => ThemeProvider()),
             ChangeNotifierProvider(create: (_) => LanguageProvider()),
             ChangeNotifierProvider(create: (_) => DonationProvider()),
+            ChangeNotifierProvider(create: (_) => PaceProvider()),
           ],
           child: testApp(const SettingsScreen()),
         ),

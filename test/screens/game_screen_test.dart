@@ -1,6 +1,7 @@
 import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/screens/game_screen.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +75,34 @@ void main() {
 
       expect(provider.dartsInVisit, 0);
       expect(provider.playerStates[0].remaining, 501);
+    });
+
+    testWidgets('offers Continue while a finished visit is on show',
+        (tester) async {
+      // A pause long enough never to run out on its own: what ends it here
+      // is the button.
+      TurnPacing.debugVisitPause = const Duration(hours: 1);
+      await pumpGame(tester);
+
+      await tapField(tester, '20');
+      await tapField(tester, '20');
+      await tapField(tester, '20');
+
+      expect(provider.visitPending, isTrue);
+      expect(find.text('Continue'), findsOneWidget);
+      expect(find.text('Miss'), findsNothing, reason: 'its place is taken');
+
+      // Recording the visit is a real write, let through.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Continue'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+
+      expect(provider.visitPending, isFalse);
+      expect(provider.currentPlayerIndex, 1);
+      expect(find.text('Continue'), findsNothing);
+      expect(find.text('Miss'), findsOneWidget);
     });
 
     testWidgets('shows both players on their start score', (tester) async {
