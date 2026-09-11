@@ -104,6 +104,7 @@ class _DisplaySection extends StatelessWidget {
           _MenuRow<GamePace>(
             icon: Icons.speed_rounded,
             label: l.gamePace,
+            hint: l.gamePaceHint,
             value: pace.pace,
             onSelected: pace.setPace,
             options: [
@@ -349,6 +350,10 @@ class _MenuRow<T> extends StatefulWidget {
   final List<_MenuOption<T>> options;
   final ValueChanged<T> onSelected;
 
+  /// What the setting does, folded away behind an info icon in the row and
+  /// shown under it on a tap. Only for a setting whose name does not say it.
+  final String? hint;
+
   const _MenuRow({
     super.key,
     required this.icon,
@@ -356,6 +361,7 @@ class _MenuRow<T> extends StatefulWidget {
     required this.value,
     required this.options,
     required this.onSelected,
+    this.hint,
   });
 
   @override
@@ -365,10 +371,16 @@ class _MenuRow<T> extends StatefulWidget {
 class _MenuRowState<T> extends State<_MenuRow<T>> {
   final _controller = MenuController();
 
+  /// Whether the hint is unfolded. View state: it says nothing about the
+  /// setting and is meant to be forgotten with the screen.
+  bool _hintOpen = false;
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs    = theme.colorScheme;
     final current = widget.options.firstWhere((o) => o.value == widget.value);
+    final hint  = widget.hint;
 
     // The row is the anchor, not the value at its end: MenuAnchor counts a tap
     // on its own child as inside the menu, and a tap anywhere else closes it.
@@ -385,19 +397,58 @@ class _MenuRowState<T> extends State<_MenuRow<T>> {
             onTap   : () => widget.onSelected(option.value),
           ),
       ],
-      child: ListTile(
-        leading: Icon(widget.icon, color: cs.onSurfaceVariant),
-        title  : Text(widget.label),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(current.label, style: TextStyle(color: cs.onSurfaceVariant)),
-            const SizedBox(width: 4),
-            Icon(Icons.unfold_more_rounded, size: 18, color: cs.onSurfaceVariant),
-          ],
-        ),
-        onTap: () =>
-            _controller.isOpen ? _controller.close() : _controller.open(),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(widget.icon, color: cs.onSurfaceVariant),
+            title  : hint == null
+                ? Text(widget.label)
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: Text(widget.label)),
+                      IconButton(
+                        icon: Icon(
+                          _hintOpen
+                              ? Icons.info_rounded
+                              : Icons.info_outline_rounded,
+                          size: 18,
+                        ),
+                        color: cs.onSurfaceVariant,
+                        visualDensity: VisualDensity.compact,
+                        tooltip: context.l10n.whatItDoes,
+                        onPressed: () =>
+                            setState(() => _hintOpen = !_hintOpen),
+                      ),
+                    ],
+                  ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(current.label, style: TextStyle(color: cs.onSurfaceVariant)),
+                const SizedBox(width: 4),
+                Icon(Icons.unfold_more_rounded, size: 18, color: cs.onSurfaceVariant),
+              ],
+            ),
+            onTap: () =>
+                _controller.isOpen ? _controller.close() : _controller.open(),
+          ),
+          if (hint != null)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 150),
+              alignment: Alignment.topCenter,
+              child: _hintOpen
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
+                      child: Text(
+                        hint,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+        ],
       ),
     );
   }

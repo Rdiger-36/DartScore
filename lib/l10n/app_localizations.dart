@@ -421,6 +421,10 @@ class AppLocalizations {
   String get paceFast          => _t('Fast', 'Schnell');
   String get paceNormal        => _t('Normal', 'Normal');
   String get paceSlow          => _t('Slow', 'Langsam');
+  String get gamePaceHint      => _t(
+      'How long a finished visit stays on the board before the turn moves on, and how quickly a computer opponent throws. A tap on the dart row moves on at once.',
+      'Wie lange eine fertige Aufnahme auf dem Board stehen bleibt, bevor der Zug weitergeht, und wie schnell ein Computergegner wirft. Ein Tipp auf die Dart-Zeile geht sofort weiter.');
+  String get whatItDoes        => _t('What it does', 'Was es bewirkt');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>
       _t('Share your profile as a QR code with friends.',
