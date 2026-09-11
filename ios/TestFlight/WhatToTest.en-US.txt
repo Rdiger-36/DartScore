@@ -1,7 +1,5 @@
-Play against the computer
+Easier picking of computer opponents
 
-Every mode can now be played against a bot, in five tiers from rookie to legend, and against several at once. The bot throws by itself, and its darts show on the board as they land.
+In the setup, every bot tier now has a row of its own with a plus and a minus. How many bots of one strength are playing is visible at a glance, and a line below says which players they throw as.
 
-Also: a finished visit stays on the board for a moment. Cricket, Shanghai and Around the Clock show the darts of the visit as chips and, per player, the last three visits. The game pace is yours to pick in the settings.
-
-Worth a look: switch the computer opponent on in the setup, play a 501 against the Pro bot, and change the game pace in the settings.
+Worth a look: switch the computer opponent on in the setup, add three bots of one tier with plus, remove one with minus, and check that the line below names the right player numbers.
