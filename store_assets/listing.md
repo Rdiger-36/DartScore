@@ -224,9 +224,9 @@ German:
 ```
 Gegen den Computer spielen
 
-Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch mehrere auf einmal. Der Bot wirft von allein, und seine Darts erscheinen auf dem Board, wie sie fallen.
+Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch gegen mehrere auf einmal. Der Bot wirft von allein, seine Darts erscheinen auf dem Board.
 
-Außerdem bleibt jede fertige Aufnahme kurz auf dem Board stehen, in Cricket, Shanghai und Around the Clock zeigen Chips die Darts der Aufnahme, ein Tipp auf einen Spieler öffnet seine letzten drei Aufnahmen und Zahlen, und das Spieltempo lässt sich in den Einstellungen wählen.
+Außerdem: Jede fertige Aufnahme bleibt kurz stehen. Cricket, Shanghai und Around the Clock zeigen die Darts der Aufnahme als Chips und je Spieler die letzten drei Aufnahmen. Das Spieltempo wählst du in den Einstellungen.
 ```
 
 English:
@@ -236,7 +236,7 @@ Play against the computer
 
 Every mode can now be played against a bot, in five tiers from rookie to legend, and against several at once. The bot throws by itself, and its darts show on the board as they land.
 
-A finished visit also stays on the board for a moment, Cricket, Shanghai and Around the Clock show the darts of the visit as chips, a tap on a player opens their last three visits and numbers, and the game pace can be chosen in the settings.
+Also: a finished visit stays on the board for a moment. Cricket, Shanghai and Around the Clock show the darts of the visit as chips and, per player, the last three visits. The game pace is yours to pick in the settings.
 ```
 
 ### 1.0.1 (build 202600017)
