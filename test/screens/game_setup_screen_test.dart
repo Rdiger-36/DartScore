@@ -49,10 +49,21 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    /// The switch in the header of the computer opponent card.
+    Finder botSwitch() => find.descendant(
+          of: find.widgetWithText(Card, 'Computer opponent'),
+          matching: find.byType(Switch),
+        );
+
     testWidgets('adds a computer opponent by its chip and says where it throws',
         (tester) async {
       await pumpSetup(tester);
       await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FilterChip), findsNothing,
+          reason: 'the tiers stay folded away until the card is switched on');
+      await tester.tap(botSwitch());
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(FilterChip, 'Pro'));
@@ -70,12 +81,36 @@ void main() {
           reason: 'the stored name never shows');
       // Two players now, so the game has a format, not a solo leg count.
       expect(find.textContaining('Start'), findsOneWidget);
-      expect(find.text('Start Open Play'), findsNothing);
+      expect(find.text('Start Solo Game'), findsNothing);
+    });
+
+    testWidgets('drops the bots again when the card is switched off',
+        (tester) async {
+      await pumpSetup(tester);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilterChip, 'Amateur'));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+      expect(find.text('Amateur bot'), findsOneWidget);
+
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Amateur bot'), findsNothing);
+      expect(find.byType(FilterChip), findsNothing);
+      expect(find.text('Start Solo Game'), findsOneWidget,
+          reason: 'Ada is alone again');
     });
 
     testWidgets('will not start a game with only a bot in it', (tester) async {
       await pumpSetup(tester);
 
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilterChip, 'Legend'));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 50)));

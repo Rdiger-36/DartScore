@@ -37,6 +37,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   // Default matches the previous standard of 3 legs / 1 set (best of 5).
   MatchFormat _format = MatchFormat.bo5;
   final List<Player> _selectedPlayers = [];
+  /// Whether the computer opponent card is open. Off drops every bot.
+  bool _botEnabled = false;
 
   // ── Handicap ─────────────────────────────────────────────────────────────
   bool _handicapEnabled = false;
@@ -577,7 +579,12 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   /// way a person does, so everything below the card treats it as a player.
   Widget _botCard(BuildContext context) {
     return BotSelectSection(
+      enabled: _botEnabled,
       selectedPlayers: _selectedPlayers,
+      onEnabledChanged: (v) => setState(() {
+        _botEnabled = v;
+        if (!v) _selectedPlayers.removeWhere((p) => p.isBot);
+      }),
       onToggle: (level, selected) async {
         if (!selected) {
           setState(() =>

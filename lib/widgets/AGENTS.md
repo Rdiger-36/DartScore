@@ -9,7 +9,7 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 - `dartboard_input.dart`, dartboard-style tap input
 - `dartboard_icon.dart`, decorative dartboard SVG widget
 - `dartboard_target_painter.dart`, paints a dartboard with a target segment highlighted
-- `bot_select_section.dart`, the card under the roster that adds a computer opponent by tier: one `FilterChip` per `BotLevel`, and a row per picked bot with its slot number and expected average. Shared by all four setups; the roster above never lists a bot
+- `bot_select_section.dart`, the card under the roster that adds a computer opponent by tier: a switch in the header like the handicap and team cards, then one `FilterChip` per `BotLevel` and a row per picked bot with its slot number and expected average. Switching it off drops the bots from the selection. Shared by all four setups; the roster above never lists a bot
 - `cricket_marks_widget.dart`, renders Cricket marks (slash / X / circle-X) for a field
 - `finish_suggestion_widget.dart`, checkout hint display
 - `favorite_double_picker.dart`, picks a player's favorite doubles
