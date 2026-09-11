@@ -23,6 +23,7 @@ import 'shanghai_screen.dart';
 import 'around_the_clock_history_summary_screen.dart';
 import 'around_the_clock_screen.dart';
 import '../utils/layout.dart';
+import '../utils/player_label.dart';
 
 enum _ModeFilter { all, x01, cricket, shanghai, aroundTheClock }
 
@@ -746,7 +747,7 @@ class _GameTile extends StatelessWidget {
     final fmt         = DateFormat('dd.MM.yy  HH:mm');
     final finished    = entry.finishedAt != null;
     final cs          = Theme.of(context).colorScheme;
-    final playerNames = entry.players.map((p) => p.name).join(' vs ');
+    final playerNames = entry.players.map((p) => p.label(l)).join(' vs ');
 
     final subtitle = entry.isCricket
         ? l.cricketGameInfo(

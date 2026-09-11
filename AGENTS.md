@@ -65,7 +65,8 @@ lib/
 ├── database/
 │   └── db_helper.dart         # Singleton SQLite wrapper; all schema definitions and migrations live here
 ├── models/
-│   ├── player.dart                  # Player entity with favorite doubles
+│   ├── player.dart                  # Player entity with favorite doubles; a bot is a player with a botLevel
+│   ├── bot_level.dart               # BotLevel enum for the players.bot_level column, one shared row per tier
 │   ├── game.dart                    # X01 game entity; GameMode/CheckoutMode enums, PlayerHandicap, TeamConfig
 │   ├── cricket_game.dart            # Cricket entity; CricketVariant/CricketScoringMode enums, cricketFields
 │   ├── shanghai_game.dart           # Shanghai entity; ShanghaiVariant enum
@@ -79,6 +80,10 @@ lib/
 ├── widgets/                   # Shared UI building blocks. See widgets/AGENTS.md
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles; canFinishWithOneDart is the one-dart rule per check-out mode
+│   ├── dartboard_geometry.dart # The segment order and the board in millimetres: aimPointFor a target, hitAt a point, scoreOf a hit
+│   ├── bot_thrower.dart        # BotThrower: lands a bot's dart around its aim with the tier's scatter; scatterOf is the one number per BotLevel
+│   ├── bot_strategy_x01.dart   # x01Target: where a bot aims in X01, driven by FinishCalculator under the player's own check-out rule
+│   ├── player_label.dart       # label(l): the name a player or a scoreboard slot is shown under; a bot's is localized, its stored name never shows
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
 │   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot; checkoutDartsInVisit classifies a visit as it is recorded
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
@@ -125,6 +130,11 @@ These hold in every directory, whatever the local node says.
 - State goes through a Provider, database access goes through `db_helper.dart`, and no screen or widget touches SQLite
 - Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
 - Finish/checkout logic is isolated in `FinishCalculator`, do not inline checkout logic elsewhere
+- A bot's dart is a target from a strategy in `utils/bot_strategy_*.dart` landed by `BotThrower`, and the tier's skill is nothing but `scatterOf` in `bot_thrower.dart`. The calibration test pins the three-dart average each tier plays, so a change to a scatter value or to the X01 strategy is a change to what the tier names promise: move the test's numbers with it, on purpose
+- The segment order of the board lives in `utils/dartboard_geometry.dart`; the painter re-exports it, nothing declares it twice
+- A player's name reaches the screen through `label(l)` from `utils/player_label.dart`, never through `name` directly, and a slot's through the same `label(l)` on the state class. A person's label is their name; a bot's is the localized tier name, so the neutral name its row stores is only ever seen where no localization can reach. The roster widgets and the sync screen are the exception, because a bot never gets there
+- A completed visit stays on the board for `visitPause` before it is recorded and the turn moves on, for people and bots alike; until then it exists only in the provider, so leaving the game and the app going to the background flush it (`leaveGame`, `flushPendingVisit`). Tests zero the pause through `debugVisitPause`, which `useInMemoryDatabase` does for them
+- The bot's turn is driven by the mode's provider, one timer per dart, and stops on quit (`leaveGame`), on undo and redo, and while the app is in the background. Bot darts are never undone one at a time: undo over a bot visit removes every bot visit since the last human dart and that dart with them, or the bot would throw the undone dart straight back
 - Whether a visit was an attempt at the finish, and how many of its darts flew at one, is decided once when the visit is recorded and stored as `dart_throws.checkout_darts`. Deciding it needs the individual darts and the player's own check-out rule, neither of which reaches every place the statistics are counted. Never re-derive it from `remaining_before`
 - A rebuild of a board (undo, redo, resume) reads the turn and the position off the stored throws, which carry the player, the leg and the set of every visit. Never count them from the number of visits a leg holds: that count only describes a leg that opened with the first slot and the first team member, and the leg after a checkout opens with the slot behind the winner. See `providers/AGENTS.md`
 - Localized strings go through `AppLocalizations`; no hardcoded user-visible strings
@@ -140,6 +150,7 @@ These hold in every directory, whatever the local node says.
 - Each game mode keeps its enums in its own model file: `GameMode`/`CheckoutMode` in `game.dart`, `CricketVariant`/`CricketScoringMode` in `cricket_game.dart`, `ShanghaiVariant` in `shanghai_game.dart`, `AroundTheClockVariant` in `around_the_clock_game.dart`
 - Settings that every mode shares live in their own model file and are re-exported by each game model, so screens need no extra import: `TeamConfig` in `team_config.dart`, `StartingOrder` in `starting_order.dart`
 - `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
+- A computer opponent is a `Player` row with a non-null `bot_level` and a `bot_ordinal` counted from one, one row per bot with a fixed name and uuid from `BotLevel.storedNameFor` and `uuidFor`, created by `PlayersProvider.botFor(level, ordinal:)`. Two bots of one tier are two rows, which is how a game holds two of the same strength. That is what keeps every table, screen and statistic keyed on a player id working unchanged. The price is paid in the queries: `getPlayers()` is the roster of people and leaves bots out, `getBots()` holds them, `getPlayersById()` holds both because the history prints their names. Never reorder `BotLevel`, its index is the column value
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
 
 ### Localization

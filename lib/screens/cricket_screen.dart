@@ -6,6 +6,7 @@ import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
 import '../utils/segment_color.dart';
 import '../widgets/cricket_marks_widget.dart';
+import '../utils/player_label.dart';
 import 'cricket_summary_screen.dart';
 
 /// Live Cricket game screen. Watches the provider and routes to the summary
@@ -132,7 +133,7 @@ class _CricketGameView extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                current.displayName,
+                                current.label(l),
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: cs.primary,
@@ -140,7 +141,7 @@ class _CricketGameView extends StatelessWidget {
                               ),
                               if (current.isTeamSlot)
                                 Text(
-                                  current.player.name,
+                                  current.player.label(l),
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
@@ -504,7 +505,7 @@ class _CricketBoardState extends State<_CricketBoard> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    s.displayName,
+                                    s.label(l),
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -520,7 +521,7 @@ class _CricketBoardState extends State<_CricketBoard> {
                                   ),
                                   if (s.isTeamSlot)
                                     Text(
-                                      s.player.name,
+                                      s.player.label(l),
                                       textAlign: TextAlign.center,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,

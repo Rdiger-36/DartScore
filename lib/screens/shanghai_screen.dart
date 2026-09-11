@@ -6,6 +6,7 @@ import '../providers/shanghai_provider.dart';
 import '../utils/layout.dart';
 import '../utils/segment_color.dart';
 import '../widgets/dartboard_target_painter.dart';
+import '../utils/player_label.dart';
 import 'shanghai_summary_screen.dart';
 
 /// Live Shanghai game screen. Watches the provider and routes to the summary
@@ -175,7 +176,7 @@ class _ShanghaiGameView extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                current.displayName,
+                                current.label(l),
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: cs.primary,
@@ -183,7 +184,7 @@ class _ShanghaiGameView extends StatelessWidget {
                               ),
                               if (current.isTeamSlot)
                                 Text(
-                                  current.player.name,
+                                  current.player.label(l),
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
@@ -348,7 +349,7 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                s.displayName,
+                                s.label(l),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -358,7 +359,7 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
                               ),
                               if (s.isTeamSlot)
                                 Text(
-                                  s.player.name,
+                                  s.player.label(l),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.labelSmall?.copyWith(

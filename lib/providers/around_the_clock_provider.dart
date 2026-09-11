@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../database/db_helper.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/player.dart';
+import '../utils/player_label.dart';
 
 // ── AroundTheClockPlayerState ─────────────────────────────────────────────────
 
@@ -15,13 +16,16 @@ import '../models/player.dart';
 /// the team; progress and hit segments are shared by the whole team,
 /// relay-style. [displayName] is the team or player name shown on the
 /// scoreboard.
-class AroundTheClockPlayerState {
+class AroundTheClockPlayerState implements LabelledSlot {
+  @override
   final String displayName;
   /// All players in this slot: 1 for individual, N for team.
+  @override
   final List<Player> players;
   /// Which player in [players] throws NEXT (rotates after each team visit).
   final int currentPlayerIdx;
   /// Whether this slot represents a team rather than a single player.
+  @override
   final bool isTeamSlot;
   /// Index into [aroundTheClockOrder] of the number this slot must hit next.
   final int progress;

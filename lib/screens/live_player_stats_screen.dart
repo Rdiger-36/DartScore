@@ -12,6 +12,8 @@ import '../utils/layout.dart';
 import '../utils/throw_stats.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../widgets/stat_row.dart';
+import '../widgets/throw_row.dart';
+import '../utils/player_label.dart';
 
 /// Route that slides the live info screen in from the right on both platforms
 /// and keeps the iOS edge swipe back gesture, which a plain [PageRouteBuilder]
@@ -145,7 +147,7 @@ class _LivePlayerStatsScreenState extends State<LivePlayerStatsScreen> {
                 Text(
                   [
                     for (var i = firstSlot; i <= lastSlot; i++)
-                      states[i].displayName,
+                      states[i].label(context.l10n),
                   ].join(' · '),
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -340,6 +342,8 @@ class _SlotStatsPage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
+        _RecentVisitsCard(state: state, game: game),
+        const SizedBox(height: 10),
         _RulesCard(state: state, game: game),
         const SizedBox(height: 10),
         _SectionCard(
@@ -430,7 +434,7 @@ class _HeaderCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              state.displayName,
+              state.label(context.l10n),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium
@@ -438,7 +442,7 @@ class _HeaderCard extends StatelessWidget {
             ),
             if (state.isTeam)
               Text(
-                state.player.name,
+                state.player.label(context.l10n),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall
@@ -516,14 +520,14 @@ class _PanelTitle extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  state.displayName,
+                  state.label(context.l10n),
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 if (state.isTeam)
                   Text(
-                    state.player.name,
+                    state.player.label(context.l10n),
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: cs.onSurfaceVariant),
@@ -631,7 +635,7 @@ class _RulesCard extends StatelessWidget {
       rows: [
         for (final p in state.throwingOrder)
           (
-            p.name,
+            p.label(context.l10n),
             checkInOutLabel(l, game.checkInFor(p.id), game.checkOutFor(p.id)),
           ),
       ],
@@ -663,6 +667,66 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             for (final row in rows) StatRow(label: row.$1, value: row.$2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The last three visits of the slot, newest last, so a thrower can check
+/// what was just entered after it has left the board. Names the member in a
+/// team slot, where the three may come from different people.
+class _RecentVisitsCard extends StatelessWidget {
+  final PlayerState state;
+  final Game game;
+
+  const _RecentVisitsCard({required this.state, required this.game});
+
+  /// How many visits the card shows.
+  static const _count = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l     = context.l10n;
+
+    final ordered = List<DartThrow>.of(state.throws)
+      ..sort((a, b) {
+        final byTime = a.thrownAt.compareTo(b.thrownAt);
+        return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
+      });
+    final recent = ordered.length <= _count
+        ? ordered
+        : ordered.sublist(ordered.length - _count);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l.lastVisits,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            if (recent.isEmpty)
+              Text(l.noVisitsYet,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+            else
+              for (final t in recent)
+                ThrowRow(
+                  t:          t,
+                  playerName: state.isTeam
+                      ? state.players
+                          .firstWhere((p) => p.id == t.playerId)
+                          .label(l)
+                      : null,
+                  showSet:    game.sets > 1,
+                ),
           ],
         ),
       ),
@@ -828,7 +892,7 @@ class _MemberRow extends StatelessWidget {
       radius: 12,
       backgroundColor: cs.primaryContainer,
       child: Text(
-        player.name.isNotEmpty ? player.name[0].toUpperCase() : '?',
+        player.label(context.l10n).isNotEmpty ? player.label(context.l10n)[0].toUpperCase() : '?',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -841,7 +905,7 @@ class _MemberRow extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            player.name,
+            player.label(context.l10n),
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(fontWeight: FontWeight.bold),

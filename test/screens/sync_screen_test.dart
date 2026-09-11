@@ -115,6 +115,17 @@ void main() {
       expect(find.text('Nik'), findsWidgets);
     });
 
+    testWidgets('never offers a bot to send', (tester) async {
+      await tester.runAsync(() => players.botFor(BotLevel.legend));
+
+      await pumpSync(tester, initial: player);
+      await tester.tap(find.byType(DropdownButton<Player>));
+      await tester.pump();
+
+      expect(find.text('Nik'), findsWidgets);
+      expect(find.textContaining('Bot'), findsNothing);
+    });
+
     testWidgets('offers every range to pick from, once unfolded',
         (tester) async {
       // Folded away on arrival: the range is a rarity, and open it stood

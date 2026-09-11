@@ -5,13 +5,22 @@ import '../models/player.dart';
 /// Owns the in-memory list of players and mediates all player CRUD between the
 /// UI and the database. Keeps the list sorted (primary user first, then
 /// alphabetical) and notifies listeners on every change.
+///
+/// Computer opponents are kept apart in [bots]: [players] is the roster of
+/// people, which is what every list in the app shows, and a bot row only comes
+/// into being through [botFor] when a game against that tier is set up.
 class PlayersProvider extends ChangeNotifier {
   final DbHelper _db = DbHelper.instance;
   List<Player> _players = [];
+  List<Player> _bots = [];
   bool _loaded = false;
 
-  /// The current players, sorted with the primary user first.
+  /// The current human players, sorted with the primary user first.
   List<Player> get players => _players;
+
+  /// The computer opponents that have been played against so far, weakest
+  /// tier first. A tier nobody has picked yet has no row and is not listed.
+  List<Player> get bots => _bots;
 
   /// Whether the initial load from the database has completed.
   bool get loaded => _loaded;
@@ -23,6 +32,7 @@ class PlayersProvider extends ChangeNotifier {
   /// Loads all players from the database and marks the provider as loaded.
   Future<void> load() async {
     _players = await _db.getPlayers();
+    _bots    = await _db.getBots();
     _sort();
     _loaded = true;
     notifyListeners();
@@ -75,10 +85,42 @@ class PlayersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Returns the loaded player with [id], or null if not present.
+  /// The player row of the computer opponent numbered [ordinal] at [level],
+  /// created on first use.
+  ///
+  /// One row per bot, shared by every game it plays in, so the second call
+  /// returns the row the first one made rather than a twin. The ordinal
+  /// counts from one; a game that wants two bots of one tier asks for one
+  /// and two.
+  Future<Player> botFor(BotLevel level, {int ordinal = 1}) async {
+    assert(ordinal >= 1, 'bots are numbered from one');
+    final existing = _bots
+        .where((b) => b.botLevel == level && b.botOrdinal == ordinal)
+        .firstOrNull;
+    if (existing != null) return existing;
+    final bot = Player(
+      name:       level.storedNameFor(ordinal),
+      uuid:       level.uuidFor(ordinal),
+      botLevel:   level,
+      botOrdinal: ordinal,
+    );
+    final id = await _db.insertPlayer(bot);
+    final saved = bot.copyWith(id: id);
+    _bots = [..._bots, saved]..sort(_byTierAndNumber);
+    notifyListeners();
+    return saved;
+  }
+
+  /// Weakest tier first, numbered within it.
+  static int _byTierAndNumber(Player a, Player b) {
+    final byTier = a.botLevel!.index.compareTo(b.botLevel!.index);
+    return byTier != 0 ? byTier : a.botOrdinal!.compareTo(b.botOrdinal!);
+  }
+
+  /// Returns the loaded player or bot with [id], or null if not present.
   Player? getById(int id) {
     try {
-      return _players.firstWhere((p) => p.id == id);
+      return [..._players, ..._bots].firstWhere((p) => p.id == id);
     } catch (_) {
       return null;
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/bot_level.dart';
 import '../utils/match_format.dart';
 
 /// Convenience access to [AppLocalizations] from any [BuildContext] via
@@ -176,6 +177,8 @@ class AppLocalizations {
   String get checkoutsHit       => _t('Check-Outs hit', 'Check-Outs getroffen');
   String get dartsAtFinish      => _t('Darts at a Finish', 'Darts aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
+  String get lastVisits         => _t('Last 3 Visits', 'Letzte 3 Aufnahmen');
+  String get noVisitsYet        => _t('No visits yet', 'Noch keine Aufnahmen');
 
   // ── Game Summary ─────────────────────────────────────────────────────────
   String get gameOverview      => _t('Game Summary', 'Spielübersicht');
@@ -343,6 +346,31 @@ class AppLocalizations {
   String get gameLabel           => _t('Game', 'Spiel');
   String get unknownDevice       => _t('Unknown device', 'Unbekanntes Gerät');
   String get teamPlayers         => _t('Players', 'Spieler');
+
+  // ── Bot opponent ─────────────────────────────────────────────────────────
+  String get botOpponent => _t('Computer opponent', 'Computergegner');
+  String get botHint     => _t(
+      'Tap a tier to add a computer opponent. Tap again for a second one of the same strength.',
+      'Tippe eine Stufe, um einen Computergegner hinzuzufügen. Nochmal tippen für einen zweiten derselben Stärke.');
+  /// The short name of a tier, as the chips in the setup show it.
+  String botTier(BotLevel level) => switch (level) {
+        BotLevel.rookie  => _t('Rookie', 'Anfänger'),
+        BotLevel.amateur => _t('Amateur', 'Amateur'),
+        BotLevel.semiPro => _t('Semi-pro', 'Fortgeschritten'),
+        BotLevel.pro     => _t('Pro', 'Profi'),
+        BotLevel.legend  => _t('Legend', 'Legende'),
+      };
+  /// The name a bot of [level] plays under wherever a player's name is shown,
+  /// numbered from the second bot of a tier on. One word in German before the
+  /// number, so that the compact scoreboard, which shows a person's first
+  /// name, still tells the tiers apart.
+  String botName(BotLevel level, [int ordinal = 1]) {
+    final base = _t('${botTier(level)} bot', '${botTier(level)}-Bot');
+    return ordinal == 1 ? base : '$base $ordinal';
+  }
+  String get removeBot => _t('Remove bot', 'Bot entfernen');
+  String botAverageHint(int average) => _t(
+      'about $average points per visit', 'etwa $average Punkte pro Aufnahme');
 
   // ── Starting order ───────────────────────────────────────────────────────
   String get startingOrder       => _t('Starting order', 'Startreihenfolge');

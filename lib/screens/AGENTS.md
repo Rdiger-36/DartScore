@@ -40,6 +40,10 @@ X01 has one screen the others do not: `live_player_stats_screen.dart`, the playe
 - The live game screens answer the system back with their quit dialog via `PopScope(canPop: false)`. That also suppresses the iOS edge swipe for as long as the game runs, which is the point: Flutter only installs the Cupertino back gesture on a route that may pop, so a confirmation cannot be shown from the gesture itself
 - `licenses_screen.dart` shows what the `LicenseRegistry` holds, which is Flutter's `NOTICES` plus the native Android notices `utils/platform_notices.dart` registers at startup. It hides a package name only through `kDevelopmentOnlyPackages`, and hiding a name never hides a license: an entry shared with a shipped package still shows under that one. Over-listing a package is noise, leaving one out is a missing attribution
 - Every user-visible string comes from `AppLocalizations`, every themed color from `ThemeProvider`
+- A roster is `PlayersProvider.players`, which holds people only. The player list, the sync sender and the setup screens read it and so never show a computer opponent; a bot joins a game through `BotSelectSection`, whose `onAdd` asks `PlayersProvider.botFor` for the row with the lowest ordinal not yet in the selection and adds it like a person, and whose `onRemove` drops that one row
+- A name on screen is `player.label(l)` or `slot.label(l)` from `utils/player_label.dart`, never `.name`: a bot is shown under its localized tier name. The start button of a setup needs a person in the selection, `any((p) => !p.isBot)`, not merely a non-empty one
+- The live X01 screen calls `leaveGame()` before it pops on quit: that stops the bot and records a visit still waiting out its pause. A screen that leaves a running game any other way has to do the same, or the bot keeps throwing into a game nobody is watching and the last visit is lost
+- The live info's recent visits card renders `ThrowRow`, the same row the throw log and the lifetime statistics use. A visit reads the same everywhere it is listed
 
 ## Patterns
 

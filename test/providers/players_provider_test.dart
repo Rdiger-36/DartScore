@@ -1,4 +1,5 @@
 import 'package:dartscore_app/database/db_helper.dart';
+import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -138,6 +139,51 @@ void main() {
 
       expect(provider.getById(ada.id!)?.name, 'Ada');
       expect(provider.getById(9999), isNull);
+    });
+
+    test('keeps the bots out of the roster and finds them by id', () async {
+      await provider.addPlayer('Ada');
+      final bot = await provider.botFor(BotLevel.pro);
+
+      expect(provider.players.map((p) => p.name), ['Ada']);
+      expect(provider.bots.single.id, bot.id);
+      expect(provider.getById(bot.id!)?.botLevel, BotLevel.pro);
+    });
+
+    test('makes one row per tier and hands the same one out again', () async {
+      final first  = await provider.botFor(BotLevel.amateur);
+      final second = await provider.botFor(BotLevel.amateur);
+      await provider.botFor(BotLevel.rookie);
+
+      expect(second.id, first.id);
+      expect(provider.bots.map((b) => b.botLevel),
+          [BotLevel.rookie, BotLevel.amateur],
+          reason: 'weakest tier first, whatever order they were made in');
+      expect((await DbHelper.instance.getBots()).length, 2);
+      expect((await DbHelper.instance.getPlayers()), isEmpty);
+    });
+
+    test('numbers a second bot of the same tier and keeps them apart', () async {
+      final first  = await provider.botFor(BotLevel.pro);
+      final second = await provider.botFor(BotLevel.pro, ordinal: 2);
+      final again  = await provider.botFor(BotLevel.pro, ordinal: 2);
+
+      expect(second.id, isNot(first.id));
+      expect(again.id, second.id);
+      expect(second.botOrdinal, 2);
+      expect(second.uuid, BotLevel.pro.uuidFor(2));
+      expect(provider.bots.map((b) => b.botOrdinal), [1, 2]);
+    });
+
+    test('finds the bots it made again after a reload', () async {
+      final bot = await provider.botFor(BotLevel.legend);
+
+      final reloaded = PlayersProvider();
+      await reloaded.load();
+
+      expect(reloaded.bots.single.id, bot.id);
+      expect(reloaded.bots.single.uuid, BotLevel.legend.uuid);
+      expect(reloaded.players, isEmpty);
     });
   });
 }

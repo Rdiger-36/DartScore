@@ -2,11 +2,9 @@ import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
-// Standard dartboard segment order (clockwise from top)
-const dartboardSegmentOrder = [
-  20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
-  3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
-];
+import '../utils/dartboard_geometry.dart';
+
+export '../utils/dartboard_geometry.dart' show dartboardSegmentOrder;
 
 /// Radius of the inner (double) bullseye, as a fraction of the board radius.
 const dartboardBullInnerRadius = 0.050;

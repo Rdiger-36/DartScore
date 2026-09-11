@@ -6,6 +6,7 @@ import '../models/game.dart';
 import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
+import '../widgets/bot_select_section.dart';
 import '../widgets/player_dialog.dart';
 import '../widgets/player_select_section.dart';
 import '../widgets/starting_order_section.dart';
@@ -14,6 +15,7 @@ import 'game_screen.dart';
 import '../utils/layout.dart';
 import '../utils/match_format.dart';
 import '../utils/team_color.dart';
+import '../utils/player_label.dart';
 
 /// Setup screen for an X01 game: start score, in/out modes, legs/sets, player
 /// selection, and optional per-player handicaps or team configuration.
@@ -35,6 +37,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   // Default matches the previous standard of 3 legs / 1 set (best of 5).
   MatchFormat _format = MatchFormat.bo5;
   final List<Player> _selectedPlayers = [];
+  /// Whether the computer opponent card is open. Off drops every bot.
+  bool _botEnabled = false;
 
   // ── Handicap ─────────────────────────────────────────────────────────────
   bool _handicapEnabled = false;
@@ -125,7 +129,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
             color: teamColor(ti),
           ))
       : _selectedPlayers
-          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.name))
+          .map((p) => StartingOrderEntry(key: ValueKey(p.id), label: p.label(context.l10n)))
           .toList();
 
   /// Moves the entry at [oldIndex] to [newIndex] in the throwing order: the
@@ -177,10 +181,11 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                 ..._modeSections(theme, l),
                 const SizedBox(height: 16),
                 _playersCard(context, allPlayers),
+                _botCard(context),
                 ..._matchFormatBlock(theme, l),
                 ..._playerExtras(),
                 const SizedBox(height: 24),
-                if (_selectedPlayers.isEmpty)
+                if (!_selectedPlayers.any((p) => !p.isBot))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
@@ -230,6 +235,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
               children: [
                 _playersCard(context, allPlayers),
+                _botCard(context),
                 ..._playerExtras(),
               ],
             ),
@@ -253,7 +259,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
           child: Row(
             children: [
               Expanded(
-                child: _selectedPlayers.isEmpty
+                child: !_selectedPlayers.any((p) => !p.isBot)
                     ? Text(
                         l.minOnePlayer,
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -271,10 +277,11 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
     );
   }
 
-  /// The button that starts the game, disabled until somebody plays it.
+  /// The button that starts the game, disabled until somebody plays it. A bot
+  /// alone is nobody: it needs a person to play against.
   Widget _startButton(ThemeData theme, AppLocalizations l) {
     return FilledButton.icon(
-      onPressed: _selectedPlayers.isNotEmpty ? _startGame : null,
+      onPressed: _selectedPlayers.any((p) => !p.isBot) ? _startGame : null,
       icon: const Icon(Icons.play_arrow),
       label: Text(
         _selectedPlayers.length == 1 ? l.startOpenPlay : l.startGame,
@@ -565,6 +572,38 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
         });
       },
       onAddPlayer: () => _showAddPlayerDialog(context),
+    );
+  }
+
+  /// The computer opponents, picked by tier. A bot joins the selection the
+  /// way a person does, so everything below the card treats it as a player.
+  /// A second tap on a tier adds its next free number, so two bots of one
+  /// strength can play, and a removed one frees its number again.
+  Widget _botCard(BuildContext context) {
+    return BotSelectSection(
+      enabled: _botEnabled,
+      selectedPlayers: _selectedPlayers,
+      onEnabledChanged: (v) => setState(() {
+        _botEnabled = v;
+        if (!v) _selectedPlayers.removeWhere((p) => p.isBot);
+      }),
+      onAdd: (level) async {
+        final taken = {
+          for (final p in _selectedPlayers)
+            if (p.botLevel == level) p.botOrdinal!,
+        };
+        var ordinal = 1;
+        while (taken.contains(ordinal)) {
+          ordinal++;
+        }
+        final bot = await context
+            .read<PlayersProvider>()
+            .botFor(level, ordinal: ordinal);
+        if (!mounted) return;
+        setState(() => _selectedPlayers.add(bot));
+      },
+      onRemove: (bot) =>
+          setState(() => _selectedPlayers.removeWhere((p) => p.id == bot.id)),
     );
   }
 
@@ -906,7 +945,7 @@ class _HandicapSection extends StatelessWidget {
                 radius: 12,
                 backgroundColor: cs.primaryContainer,
                 child: Text(
-                  p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                  p.label(context.l10n).isNotEmpty ? p.label(context.l10n)[0].toUpperCase() : '?',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -915,7 +954,7 @@ class _HandicapSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(p.name,
+              Text(p.label(context.l10n),
                   style: theme.textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.w600)),
             ],

@@ -1,10 +1,18 @@
 import 'dart:math';
 
+import 'bot_level.dart';
+
+export 'bot_level.dart';
+
 /// A dart player and the metadata needed for stats and cross-device sync.
 ///
 /// Players are soft-deleted (see [isDeleted]) so historical games keep a valid
 /// reference. Each player carries a stable [uuid] used to match the same person
 /// across devices during QR sync, plus optional JSON stat snapshots.
+///
+/// A computer opponent is a player too, marked by a non-null [botLevel]: that
+/// keeps every table, screen and statistic that keys on a player id working
+/// unchanged, and the places that must not show a bot filter on [isBot].
 class Player {
   final int? id;
   final String name;
@@ -15,6 +23,11 @@ class Player {
   final int? lastSyncedAt;
   final String? syncedStats;    // JSON snapshot from last sync (other device)
   final String? localStatsJson; // Persistent local stats accumulated over cleared games
+  /// The skill tier when this player is a computer opponent, null for a human.
+  final BotLevel? botLevel;
+  /// Which bot of its tier this is, counted from one, so that a game can hold
+  /// two of the same strength. Null for a human.
+  final int? botOrdinal;
 
   Player({
     this.id,
@@ -26,7 +39,12 @@ class Player {
     this.lastSyncedAt,
     this.syncedStats,
     this.localStatsJson,
+    this.botLevel,
+    this.botOrdinal,
   }) : uuid = uuid?.isNotEmpty == true ? uuid! : _newUuid();
+
+  /// Whether this player is a computer opponent rather than a person.
+  bool get isBot => botLevel != null;
 
   /// Single selected favorite double (first entry, ignores any legacy extras).
   String? get favoriteDouble =>
@@ -36,7 +54,9 @@ class Player {
   List<String> get favoriteDoublesList =>
       favoriteDouble != null ? [favoriteDouble!] : [];
 
-  /// Returns a copy with the given fields replaced; [uuid] is always preserved.
+  /// Returns a copy with the given fields replaced; [uuid], [botLevel] and
+  /// [botOrdinal] are always preserved, since none of them changes over a
+  /// player's life.
   Player copyWith({
     int? id,
     String? name,
@@ -57,6 +77,8 @@ class Player {
         lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
         syncedStats: syncedStats ?? this.syncedStats,
         localStatsJson: localStatsJson ?? this.localStatsJson,
+        botLevel: botLevel,
+        botOrdinal: botOrdinal,
       );
 
   /// Serializes this player to a row map for the SQLite `players` table.
@@ -70,6 +92,8 @@ class Player {
         'last_synced_at': lastSyncedAt,
         'synced_stats': syncedStats,
         'local_stats_json': localStatsJson,
+        'bot_level': botLevel?.index,
+        'bot_ordinal': botOrdinal,
       };
 
   /// Reconstructs a player from a SQLite row map, applying defaults for any
@@ -84,6 +108,14 @@ class Player {
         lastSyncedAt: map['last_synced_at'] as int?,
         syncedStats:    map['synced_stats'] as String?,
         localStatsJson: map['local_stats_json'] as String?,
+        botLevel:       map['bot_level'] == null
+            ? null
+            : BotLevel.values[map['bot_level'] as int],
+        // Rows from before the numbering carry no ordinal and are the first
+        // of their tier.
+        botOrdinal:     map['bot_level'] == null
+            ? null
+            : map['bot_ordinal'] as int? ?? 1,
       );
 
   /// Generates a random RFC 4122 version-4 UUID using a secure RNG.

@@ -10,6 +10,7 @@ import '../utils/layout.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
+import '../utils/player_label.dart';
 import 'around_the_clock_screen.dart';
 
 /// Detailed view of a finished Around the Clock game from history, rebuilt by
@@ -138,9 +139,9 @@ class _Body extends StatelessWidget {
       ],
       slots: states
           .map((s) => s.isTeamSlot
-              ? RematchSlot.team(s.displayName,
-                  s.players.map((p) => RematchSlot.player(p.name)).toList())
-              : RematchSlot.player(s.displayName))
+              ? RematchSlot.team(s.label(l),
+                  s.players.map((p) => RematchSlot.player(p.label(l))).toList())
+              : RematchSlot.player(s.label(l)))
           .toList(),
       onRematch: () => context
           .read<AroundTheClockProvider>()
@@ -168,7 +169,7 @@ class _Body extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  l.aroundClockWinner(winnerSlot.displayName),
+                  l.aroundClockWinner(winnerSlot.label(l)),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: cs.primary,
@@ -221,7 +222,7 @@ class _Body extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(s.displayName,
+                              Text(s.label(l),
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: isWinner
                                         ? FontWeight.bold
@@ -230,7 +231,7 @@ class _Body extends StatelessWidget {
                                   )),
                               if (s.isTeamSlot)
                                 Text(
-                                  s.players.map((p) => p.name).join(' & '),
+                                  s.players.map((p) => p.label(l)).join(' & '),
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: cs.onSurfaceVariant),
                                 ),

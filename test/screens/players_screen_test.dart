@@ -1,3 +1,4 @@
+import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/player_stats_screen.dart';
@@ -119,6 +120,17 @@ void main() {
       expect(sync.embedded, isTrue);
       expect(sync.initialPlayer, isNull);
       expect(find.text('Profile Sync'), findsWidgets);
+    });
+
+    testWidgets('never lists a bot, whatever tier has been played against',
+        (tester) async {
+      await tester.runAsync(() => players.botFor(BotLevel.pro));
+
+      await pumpPlayers(tester, const Size(390, 844));
+
+      expect(find.text('Ada'), findsOneWidget);
+      expect(find.text('Zoe'), findsOneWidget);
+      expect(find.textContaining('Bot'), findsNothing);
     });
 
     testWidgets('opens them on top of the list on a phone', (tester) async {

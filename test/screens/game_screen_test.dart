@@ -1,3 +1,4 @@
+import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
@@ -42,6 +43,38 @@ void main() {
       await tester.tap(find.widgetWithText(InkWell, label).first);
       await tester.pump();
     }
+
+    testWidgets('locks the input while a bot is on turn', (tester) async {
+      // Real writes, let through: the fake clock of a widget test never
+      // completes them.
+      await tester.runAsync(() async {
+        final botId = await DbHelper.instance.insertPlayer(Player(
+            name: BotLevel.pro.storedName,
+            uuid: BotLevel.pro.uuid,
+            botLevel: BotLevel.pro));
+        final bot = (await DbHelper.instance.getPlayer(botId))!;
+        await provider.startGame(
+          Game(
+            startScore: 501,
+            legs: 1,
+            createdAt: DateTime.now(),
+            startingOrder: StartingOrder.fixed,
+          ),
+          [bot, players.first],
+        );
+      });
+      // Held back, or its timer would outlive this test's fake clock.
+      provider.stopBot();
+      await pumpGame(tester);
+
+      expect(find.text('Pro bot'), findsOneWidget);
+
+      await tapField(tester, '20');
+      await tester.pump();
+
+      expect(provider.dartsInVisit, 0);
+      expect(provider.playerStates[0].remaining, 501);
+    });
 
     testWidgets('shows both players on their start score', (tester) async {
       await pumpGame(tester);

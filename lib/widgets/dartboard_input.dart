@@ -109,6 +109,7 @@ class _DartboardInputState extends State<DartboardInput> {
 
   /// Registers a tap on [field] (0=miss, 25=bull) with the active modifier.
   void _tapField(int field) {
+    if (context.read<GameProvider>().inputLocked) return;
     context.read<GameProvider>().tapField(field, _modifier);
     setState(() => _modifier = 1);
   }
@@ -123,7 +124,8 @@ class _DartboardInputState extends State<DartboardInput> {
   Widget _actions({required bool vertical, required double verticalPadding}) {
     final cs = Theme.of(context).colorScheme;
     final provider = context.read<GameProvider>();
-    final dartCount = provider.currentVisitDarts.length;
+    // Full, a bot's, or still being shown: no dart of the person's lands now.
+    final dartCount = provider.inputLocked ? 3 : provider.currentVisitDarts.length;
 
     final miss = _ActionButton(
       label: context.l10n.miss,
@@ -301,7 +303,9 @@ class _DartboardInputState extends State<DartboardInput> {
     final theme = Theme.of(context);
     final provider = context.watch<GameProvider>();
     final darts = provider.currentVisitDarts;
-    final dartCount = darts.length;
+    // A bot's visit fills the row as it flies, and a finished one stays on
+    // show for its pause; neither takes a tap.
+    final dartCount = provider.inputLocked ? 3 : darts.length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
