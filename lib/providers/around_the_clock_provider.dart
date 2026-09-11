@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart' show WidgetsBindingObserver;
 import '../database/db_helper.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/player.dart';
+import '../utils/around_the_clock_rules.dart';
 import '../utils/bot_strategy_around_the_clock.dart';
 import '../utils/bot_thrower.dart';
 import '../utils/player_label.dart';
@@ -119,6 +120,8 @@ class AroundTheClockProvider extends ChangeNotifier
   /// Whether there is a dart to undo. Not while a bot is throwing, and not
   /// when every recorded dart is a bot's: those are never undone on their
   /// own, see [undoLastDart].
+  /// Every persisted dart of the game, oldest first.
+  List<AroundTheClockThrow>        get throwHistory       => List.unmodifiable(_throwHistory);
   bool                             get canUndo            =>
       !isBotTurn && _throwHistory.any((t) => !_isBotId(t.playerId));
 
@@ -321,52 +324,21 @@ class AroundTheClockProvider extends ChangeNotifier
 
   // ── Apply dart to state ────────────────────────────────────────────────────
 
-  /// Applies one dart to [playerIdx]'s progress per the active variant: advance
-  /// on a hit (basic), collect single/double/triple before advancing (full
-  /// segments), or skip ahead by the multiplier and via the Bull joker (skip
-  /// rules). Records the finishing dart when the final target is completed.
+  /// Applies one dart to [playerIdx]'s progress through
+  /// [applyAroundTheClockDart], the one place the variant rules live, and
+  /// records the finishing dart when the final target is completed.
   void _applyDart(int playerIdx, AroundTheClockThrow t) {
-    final state  = _playerStates[playerIdx];
-    final target = state.currentTarget;
+    final state = _playerStates[playerIdx];
+    final next  = applyAroundTheClockDart(
+      variant:    _variant,
+      position:   (progress: state.progress, hitSegments: state.hitSegments),
+      field:      t.field,
+      multiplier: t.multiplier,
+    );
+    final newProgress = next.progress;
 
-    var newProgress    = state.progress;
-    var newHitSegments = state.hitSegments;
-
-    if (t.field == target) {
-      switch (_variant) {
-        case AroundTheClockVariant.basic:
-          newProgress = state.progress + 1;
-          break;
-
-        case AroundTheClockVariant.fullSegments:
-          // The Bull only has Single (25) and Double (50), no Triple.
-          final required = target == 25 ? const [1, 2] : const [1, 2, 3];
-          newHitSegments = {...state.hitSegments, t.multiplier};
-          if (newHitSegments.containsAll(required)) {
-            newProgress    = state.progress + 1;
-            newHitSegments = const {};
-          }
-          break;
-
-        case AroundTheClockVariant.skipRules:
-          final skip = switch (t.multiplier) {
-            3 => 3,
-            2 => 2,
-            _ => 1,
-          };
-          newProgress = state.progress + skip;
-          break;
-      }
-    } else if (_variant == AroundTheClockVariant.skipRules &&
-        t.field == 25 &&
-        target != 25) {
-      // Bull's Eye joker: skip the current field, advance by one.
-      newProgress = state.progress + 1;
-    }
-
-    newProgress = newProgress.clamp(0, aroundTheClockOrder.length);
-
-    var updated = state.copyWith(progress: newProgress, hitSegments: newHitSegments);
+    var updated = state.copyWith(
+        progress: newProgress, hitSegments: next.hitSegments);
     if (newProgress >= aroundTheClockOrder.length) {
       final slotPlayerIds = state.players.map((p) => p.id).toSet();
       final dartsThrown = _throwHistory.where((h) => slotPlayerIds.contains(h.playerId)).length;

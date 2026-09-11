@@ -127,6 +127,8 @@ class CricketProvider extends ChangeNotifier
   List<CricketThrow>       get visitBuffer        => List.unmodifiable(_visitBuffer);
   int                      get dartsInVisit       => _visitBuffer.length;
   int                      get throwCount         => _throwHistory.length;
+  /// Every persisted dart of the game, oldest first.
+  List<CricketThrow>       get throwHistory       => List.unmodifiable(_throwHistory);
   /// Whether there is a dart to undo. Not while a bot is throwing, and not
   /// when every recorded dart is a bot's: those are never undone on their
   /// own, see [undoLastDart].
@@ -270,7 +272,10 @@ class CricketProvider extends ChangeNotifier
       aimTriples:     aimsForTriples(own.player.botLevel!),
     );
     final hit = botThrower.throwAt(target, own.player.botLevel!);
-    await _recordDart(hit.field, hit.multiplier);
+    // A number off the seven is a miss here: the board has no marks for it,
+    // and applying one would let a stray dart on the 1 score points.
+    final counts = cricketFields.contains(hit.field);
+    await _recordDart(counts ? hit.field : 0, counts ? hit.multiplier : 0);
   }
 
   // ── Record a dart ──────────────────────────────────────────────────────────

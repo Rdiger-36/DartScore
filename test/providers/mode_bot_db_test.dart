@@ -110,6 +110,34 @@ void main() {
       expect(provider.isBotTurn, isFalse);
     });
 
+    test('records a dart off the seven as a miss, never as marks on the 1',
+        () async {
+      // A wide thrower: over a whole game some darts land beside the 20.
+      final rookie = (await DbHelper.instance.getPlayer(
+          await DbHelper.instance.insertPlayer(Player(
+              name: BotLevel.rookie.storedName,
+              uuid: BotLevel.rookie.uuid,
+              botLevel: BotLevel.rookie,
+              botOrdinal: 1))))!;
+      await provider.startGame(game([rookie, human]), [rookie, human]);
+      for (var i = 0; i < 10; i++) {
+        await _settleBot(provider);
+        if (provider.gameOver) break;
+        for (var d = 0; d < 3 && !provider.inputLocked; d++) {
+          await provider.recordDart(0, 0);
+        }
+      }
+
+      final fields = provider.throwHistory
+          .where((t) => t.playerId == rookie.id)
+          .map((t) => t.field)
+          .toSet();
+      expect(fields.every((f) => f == 0 || cricketFields.contains(f)), isTrue,
+          reason: 'landed on $fields');
+      expect(provider.playerStates[0].marks.keys.every(cricketFields.contains),
+          isTrue);
+    });
+
     test('has nothing to undo when only bots have thrown', () async {
       await provider.startGame(game([bot, human]), [bot, human]);
       await _settleBot(provider);

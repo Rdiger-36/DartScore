@@ -129,6 +129,8 @@ class ShanghaiProvider extends ChangeNotifier
   int? get winnerId => _winnerId;
   List<ShanghaiThrow> get visitBuffer => List.unmodifiable(_visitBuffer);
   int get dartsInVisit => _visitBuffer.length;
+  /// Every persisted dart of the game, oldest first.
+  List<ShanghaiThrow> get throwHistory => List.unmodifiable(_throwHistory);
   /// Whether there is a dart to undo. Not while a bot is throwing, and not
   /// when every recorded dart is a bot's: those are never undone on their
   /// own, see [undoLastDart].
