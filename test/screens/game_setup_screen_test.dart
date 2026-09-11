@@ -134,6 +134,38 @@ void main() {
           reason: 'the last one added went, the first keeps its slot');
     });
 
+    testWidgets('holds no more than five bots of one strength', (tester) async {
+      await pumpSetup(tester);
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+
+      IconButton proPlus() => tester.widget<IconButton>(find.ancestor(
+            of: find.byTooltip('Add Pro bot'),
+            matching: find.byType(IconButton),
+          ));
+
+      for (var i = 0; i < 5; i++) {
+        expect(proPlus().onPressed, isNotNull);
+        await tester.tap(find.byTooltip('Add Pro bot'));
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('The bots throw as players 2, 3, 4, 5 and 6.'),
+          findsOneWidget);
+      expect(proPlus().onPressed, isNull, reason: 'the tier is full');
+      expect(
+          tester.widget<IconButton>(find.ancestor(
+            of: find.byTooltip('Add Legend bot'),
+            matching: find.byType(IconButton),
+          )).onPressed,
+          isNotNull,
+          reason: 'the cap is per tier');
+    });
+
     testWidgets('drops the bots again when the card is switched off',
         (tester) async {
       await pumpSetup(tester);

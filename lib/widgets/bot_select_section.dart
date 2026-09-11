@@ -3,6 +3,11 @@ import '../l10n/app_localizations.dart';
 import '../models/player.dart';
 import '../utils/bot_thrower.dart';
 
+/// How many bots of one tier a game can hold; the plus of a row that has
+/// reached it goes off. Five keeps the counter to one digit and is more of
+/// one strength than any round needs.
+const int kMaxBotsPerTier = 5;
+
 /// The card under the roster that adds computer opponents to a game: a
 /// switch in the header like the handicap and team cards, and once it is on,
 /// one row per tier with the tier's name, roughly how well it throws and a
@@ -10,7 +15,8 @@ import '../utils/bot_thrower.dart';
 /// slots the bots throw in.
 ///
 /// Shared by all four setup screens. Plus adds one more bot of that tier, so
-/// a game can hold two of the same strength; minus takes away the bot of that
+/// a game can hold two of the same strength, up to [kMaxBotsPerTier]; minus
+/// takes away the bot of that
 /// tier that throws last, so the others keep their slots. Every tier is always
 /// listed, which is what keeps the card the same height however many bots are
 /// in the game. [selectedPlayers] is the whole selection in throwing order,
@@ -88,8 +94,9 @@ class BotSelectSection extends StatelessWidget {
 
   /// One tier's row: its name and expected average on the left, and on the
   /// right the counter with the minus, which is off while the tier has no
-  /// bot in the game, and the plus. [bots] are this tier's bots in throwing
-  /// order, so minus hands the last of them to [onRemove].
+  /// bot in the game, and the plus, which is off once it holds
+  /// [kMaxBotsPerTier]. [bots] are this tier's bots in throwing order, so
+  /// minus hands the last of them to [onRemove].
   Widget _tierRow(BuildContext context, BotLevel level, List<Player> bots) {
     final theme = Theme.of(context);
     final cs    = theme.colorScheme;
@@ -126,7 +133,8 @@ class BotSelectSection extends StatelessWidget {
             tooltip: l.addBot(level),
             color: cs.primary,
             visualDensity: VisualDensity.compact,
-            onPressed: () => onAdd(level),
+            onPressed:
+                bots.length >= kMaxBotsPerTier ? null : () => onAdd(level),
           ),
         ],
       ),
