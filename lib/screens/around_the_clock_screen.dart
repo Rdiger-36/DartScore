@@ -213,8 +213,6 @@ class _AroundTheClockGameView extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      VisitPauseBar(pending: provider.visitPending),
                       _AroundTheClockHint(provider: provider),
                       const SizedBox(height: 10),
                       _AroundTheClockInput(provider: provider),
@@ -526,9 +524,6 @@ class _AroundTheClockInput extends StatelessWidget {
     final l      = context.l10n;
     final target = provider.activeTarget;
 
-    if (provider.visitPending) {
-      return ContinueButton(onPressed: provider.flushHeldVisit);
-    }
     final showJoker  = provider.game!.variant == AroundTheClockVariant.skipRules && target != 25;
     final showTriple = target != 25;
 
@@ -544,6 +539,15 @@ class _AroundTheClockInput extends StatelessWidget {
         final btnW = ((constraints.maxWidth - spacing * (btnCount - 1)) / btnCount)
             .clamp(48.0, 72.0);
         final btnH = (btnW * 64 / 72).clamp(44.0, 64.0);
+
+        if (provider.visitPending) {
+          // Three of the buttons this row would hold, and their two gaps.
+          return ContinueButton(
+            onPressed: provider.flushHeldVisit,
+            width: 3 * btnW + 2 * spacing,
+            height: btnH,
+          );
+        }
 
         return IgnorePointer(
           ignoring: locked,

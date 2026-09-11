@@ -170,9 +170,7 @@ class _CricketGameView extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      VisitPauseBar(pending: provider.visitPending),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
                       _CricketInput(
                         provider: provider,
                         scoringMode: game.scoringMode,
@@ -665,7 +663,11 @@ class _CricketInputState extends State<_CricketInput> {
     final l = context.l10n;
 
     if (widget.provider.visitPending) {
-      return ContinueButton(onPressed: widget.provider.flushHeldVisit);
+      // Three field buttons and their two gaps.
+      return ContinueButton(
+        onPressed: widget.provider.flushHeldVisit,
+        width: 3 * 56 + 2 * 8,
+      );
     }
 
     if (_selectedField != null && _isStandard) {

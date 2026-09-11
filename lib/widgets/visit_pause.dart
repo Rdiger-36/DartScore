@@ -70,23 +70,45 @@ class _VisitPauseBarState extends State<VisitPauseBar>
   }
 }
 
-/// The button that ends the pause a finished visit stays on the board for.
-/// The target modes show it where their throw buttons sit, which are locked
-/// meanwhile anyway, so the hand finds it where it already is.
+/// The button that ends the pause a finished visit stays on the board for,
+/// with the [VisitPauseBar] running out above it at the same width. The
+/// target modes show it where their throw buttons sit, which are locked
+/// meanwhile anyway, so the hand finds it where it already is; [width] is
+/// three of those buttons and their gaps, so it takes no more room than
+/// they do.
 class ContinueButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final double width;
+  final double height;
 
-  const ContinueButton({super.key, required this.onPressed});
+  const ContinueButton({
+    super.key,
+    required this.onPressed,
+    required this.width,
+    this.height = 56,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: FilledButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Icons.skip_next_rounded),
-        label: Text(context.l10n.continueNow),
+    return Center(
+      child: SizedBox(
+        width: width,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const VisitPauseBar(pending: true),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: height,
+              child: FilledButton.icon(
+                onPressed: onPressed,
+                icon: const Icon(Icons.skip_next_rounded),
+                label: Text(context.l10n.continueNow),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

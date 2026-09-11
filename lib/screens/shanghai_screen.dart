@@ -216,8 +216,6 @@ class _ShanghaiGameView extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      VisitPauseBar(pending: provider.visitPending),
                       _ShanghaiHint(provider: provider),
                       const SizedBox(height: 10),
                       _ShanghaiInput(provider: provider),
@@ -534,7 +532,12 @@ class _ShanghaiInput extends StatelessWidget {
     final target = provider.activeTarget;
 
     if (provider.visitPending) {
-      return ContinueButton(onPressed: provider.flushHeldVisit);
+      // Three ring buttons and their two gaps.
+      return ContinueButton(
+        onPressed: provider.flushHeldVisit,
+        width: 3 * 72 + 2 * 10,
+        height: 64,
+      );
     }
 
     // Dimmed and deaf while a bot throws or a finished visit is still on

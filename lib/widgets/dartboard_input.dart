@@ -122,16 +122,22 @@ class _DartboardInputState extends State<DartboardInput> {
   /// There is no button that ends a visit: a visit ends when its third dart
   /// lands, or the moment the leg is checked out or busted, and the provider
   /// decides that on its own.
-  Widget _actions({required bool vertical, required double verticalPadding}) {
+  Widget _actions({
+    required bool vertical,
+    required double verticalPadding,
+    required double gridSpacing,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final provider = context.read<GameProvider>();
     // Full, a bot's, or still being shown: no dart of the person's lands now.
     final dartCount = provider.inputLocked ? 3 : provider.currentVisitDarts.length;
 
     // While a finished visit is on show the two are locked anyway, so their
-    // place goes to the one thing that can be done: moving on now.
+    // place goes to the one thing that can be done: moving on now. Under the
+    // grid it is as wide as three of its five columns and centred, so it
+    // sits under the 17, 18 and 19 rather than spanning the row.
     if (provider.visitPending) {
-      return _ActionButton(
+      final button = _ActionButton(
         label: context.l10n.continueNow,
         icon: Icons.skip_next_rounded,
         color: cs.primary,
@@ -139,6 +145,15 @@ class _DartboardInputState extends State<DartboardInput> {
         disabled: false,
         verticalPadding: verticalPadding,
         onTap: provider.flushHeldVisit,
+      );
+      if (vertical) return button;
+      return LayoutBuilder(
+        builder: (context, box) => Center(
+          child: SizedBox(
+            width: (3 * box.maxWidth - 2 * gridSpacing) / 5,
+            child: button,
+          ),
+        ),
       );
     }
 
@@ -303,6 +318,7 @@ class _DartboardInputState extends State<DartboardInput> {
                       child: _actions(
                         vertical: true,
                         verticalPadding: actionVPadding,
+                        gridSpacing: spacing,
                       ),
                     ),
                   ],
@@ -392,7 +408,12 @@ class _DartboardInputState extends State<DartboardInput> {
               ),
             ),
             const SizedBox(height: 4),
-            VisitPauseBar(pending: provider.visitPending),
+            // As wide as the visit row above it, which keeps a margin of its
+            // own inside the column.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: VisitPauseBar(pending: provider.visitPending),
+            ),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on
             // the middle line of the pane whatever the grid does, and fills
@@ -485,7 +506,10 @@ class _DartboardInputState extends State<DartboardInput> {
                           .toDouble()
                       : null,
                   child: _actions(
-                      vertical: false, verticalPadding: actionVPadding),
+                    vertical: false,
+                    verticalPadding: actionVPadding,
+                    gridSpacing: gridSpacing,
+                  ),
                 ),
               ),
             ] else
