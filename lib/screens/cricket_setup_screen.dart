@@ -6,6 +6,7 @@ import '../models/cricket_game.dart';
 import '../models/player.dart';
 import '../providers/players_provider.dart';
 import '../providers/cricket_provider.dart';
+import '../widgets/bot_select_section.dart';
 import '../widgets/player_dialog.dart';
 import '../widgets/player_select_section.dart';
 import '../widgets/starting_order_section.dart';
@@ -31,6 +32,8 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
 
   // ── Team game ─────────────────────────────────────────────────────────────
   bool _teamGameEnabled = false;
+  /// Whether the computer opponent card is open. Off drops every bot.
+  bool _botEnabled = false;
   final Map<Player, int> _teamAssignment = {}; // player → team index
   final List<String> _teamNames = ['Team 1', 'Team 2'];
   final List<TextEditingController> _teamNameCtrl = [
@@ -211,6 +214,8 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
             },
             onAddPlayer: () => _showAddPlayerDialog(context),
           ),
+          const SizedBox(height: 16),
+          _botCard(context),
 
           // ── Team game ────────────────────────────────────────────────────
           if (_selectedPlayers.length >= 2) ...[
@@ -251,7 +256,7 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
           ],
 
           const SizedBox(height: 24),
-          if (_selectedPlayers.length < 2)
+          if (!_canStart)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
@@ -264,7 +269,7 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
             ),
           FilledButton.icon(
             onPressed:
-                _selectedPlayers.length >= 2 ? _startGame : null,
+                _canStart ? _startGame : null,
             icon: const Icon(Icons.play_arrow),
             label: Text(l.startGame),
             style: FilledButton.styleFrom(
@@ -292,6 +297,48 @@ class _CricketSetupScreenState extends State<CricketSetupScreen> {
       ),
     );
   }
+
+
+  /// The computer opponents, picked by tier. A bot joins the selection the
+  /// way a person does, so everything below the card treats it as a player.
+  /// A second tap on a tier adds its next free number, so two bots of one
+  /// strength can play, and a removed one frees its number again.
+  Widget _botCard(BuildContext context) {
+    return BotSelectSection(
+      enabled: _botEnabled,
+      selectedPlayers: _selectedPlayers,
+      onEnabledChanged: (v) => setState(() {
+        _botEnabled = v;
+        if (!v) {
+          _selectedPlayers.removeWhere((p) => p.isBot);
+          if (_selectedPlayers.length < 2) _teamGameEnabled = false;
+        }
+      }),
+      onAdd: (level) async {
+        final taken = {
+          for (final p in _selectedPlayers)
+            if (p.botLevel == level) p.botOrdinal!,
+        };
+        var ordinal = 1;
+        while (taken.contains(ordinal)) {
+          ordinal++;
+        }
+        final bot = await context
+            .read<PlayersProvider>()
+            .botFor(level, ordinal: ordinal);
+        if (!mounted) return;
+        setState(() => _selectedPlayers.add(bot));
+      },
+      onRemove: (bot) => setState(() {
+        _selectedPlayers.removeWhere((p) => p.id == bot.id);
+        if (_selectedPlayers.length < 2) _teamGameEnabled = false;
+      }),
+    );
+  }
+
+  /// Whether a game can start: at least two in it, one of them a person.
+  bool get _canStart =>
+      _selectedPlayers.length >= 2 && _selectedPlayers.any((p) => !p.isBot);
 
   /// Builds the game with the chosen throwing order and navigates to the play
   /// screen.

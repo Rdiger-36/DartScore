@@ -28,6 +28,13 @@ int expectedAverageOf(BotLevel level) => switch (level) {
       BotLevel.legend  => 100,
     };
 
+/// Whether a bot of [level] goes for the triple when a plain hit on the
+/// number would do, as in Cricket, Shanghai and Around the Clock. The upper
+/// tiers land the triple often enough for it to pay; below them the fat
+/// single is the surer way onto the number at all.
+bool aimsForTriples(BotLevel level) =>
+    level.index >= BotLevel.semiPro.index;
+
 /// Throws darts for a computer opponent: takes the target the strategy picked,
 /// lands the dart somewhere around it, and reports the field it came down in.
 ///

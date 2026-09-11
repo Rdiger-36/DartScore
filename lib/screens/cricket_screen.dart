@@ -6,7 +6,11 @@ import '../providers/cricket_provider.dart';
 import '../utils/layout.dart';
 import '../utils/segment_color.dart';
 import '../widgets/cricket_marks_widget.dart';
+import '../utils/cricket_stats.dart';
 import '../utils/player_label.dart';
+import '../utils/visit_darts.dart';
+import '../widgets/visit_darts_row.dart';
+import 'mode_live_info_screen.dart';
 import 'cricket_summary_screen.dart';
 
 /// Live Cricket game screen. Watches the provider and routes to the summary
@@ -148,8 +152,13 @@ class _CricketGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const Spacer(),
-                          _DartDots(count: provider.dartsInVisit),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: VisitDartsRow(darts: [
+                              for (final t in provider.visitBuffer)
+                                visitDartFrom(t.field, t.multiplier, l),
+                            ]),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -186,6 +195,7 @@ class _CricketGameView extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () {
+                context.read<CricketProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -501,7 +511,9 @@ class _CricketBoardState extends State<_CricketBoard> {
                             return SizedBox(
                               width: m.columnWidth,
                               height: headerHeight,
-                              child: Column(
+                              child: InkWell(
+                                onTap: () => openCricketSlotInfo(context, i),
+                                child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
@@ -544,6 +556,7 @@ class _CricketBoardState extends State<_CricketBoard> {
                                     ),
                                   ),
                                 ],
+                              ),
                               ),
                             );
                           }).toList(),
@@ -588,33 +601,6 @@ class _CricketBoardState extends State<_CricketBoard> {
 
 // ── Marks widget: shows /, X, or ⊗ ──────────────────────────────────────────
 
-// ── Dart dot indicator ────────────────────────────────────────────────────────
-
-/// Three dots showing how many darts of the current visit have been thrown.
-class _DartDots extends StatelessWidget {
-  final int count;
-  const _DartDots({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final filled = i < count;
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? cs.primary : cs.outlineVariant,
-          ),
-        );
-      }),
-    );
-  }
-}
 
 // ── Cricket Input ─────────────────────────────────────────────────────────────
 
@@ -677,28 +663,37 @@ class _CricketInputState extends State<_CricketInput> {
       );
     }
 
-    // Show field grid
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
+    // Show field grid. Dimmed and deaf while a bot throws or a finished
+    // visit is still on show; the provider refuses the dart either way, this
+    // only says so.
+    final locked = widget.provider.inputLocked;
+    return IgnorePointer(
+      ignoring: locked,
+      child: Opacity(
+        opacity: locked ? 0.5 : 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ...cricketFields.map((field) {
-              final allClosed = states.every((s) => s.hasClosedField(field));
-              final label = field == 25 ? l.bull : '$field';
-              return _FieldButton(
-                label: label,
-                allClosed: allClosed,
-                onTap: allClosed ? null : () => _onFieldTap(field),
-              );
-            }),
-            _MissButton(onTap: _onMiss, l: l),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                ...cricketFields.map((field) {
+                  final allClosed = states.every((s) => s.hasClosedField(field));
+                  final label = field == 25 ? l.bull : '$field';
+                  return _FieldButton(
+                    label: label,
+                    allClosed: allClosed,
+                    onTap: allClosed ? null : () => _onFieldTap(field),
+                  );
+                }),
+                _MissButton(onTap: _onMiss, l: l),
+              ],
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -905,4 +900,48 @@ class _MultBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Opens the live info of the Cricket slot at [slotIndex]: its last three
+/// visits and the numbers Cricket is played by.
+void openCricketSlotInfo(BuildContext context, int slotIndex) {
+  final provider = context.read<CricketProvider>();
+  Navigator.of(context).push(MaterialPageRoute<void>(
+    builder: (_) => ModeLiveInfoScreen(
+      listenable: provider,
+      data: (context) {
+        final l       = context.l10n;
+        final s       = provider.playerStates[slotIndex];
+        final ids     = s.players.map((p) => p.id).toSet();
+        final throws  = provider.throwHistory
+            .where((t) => ids.contains(t.playerId))
+            .toList();
+        final scoring = provider.game!.scoringMode;
+        final stats   = CricketStats.of(throws, scoring);
+        final visits  = cricketVisits(throws);
+        final recent  = visits.length <= 3 ? visits : visits.sublist(visits.length - 3);
+        final closed  = cricketFields.where(s.hasClosedField).length;
+        return (
+          title:    s.label(l),
+          subtitle: s.isTeamSlot ? s.player.label(l) : null,
+          visitSlots: 3,
+          recentVisits: [
+            for (final v in recent.reversed)
+              (
+                darts: [for (final t in v) visitDartFrom(t.field, t.multiplier, l)],
+                yield: l.marksN(cricketMarksOfVisit(v, scoring)),
+              ),
+          ],
+          stats: [
+            (l.marksPerRound, stats.marksPerRound.toStringAsFixed(1)),
+            (l.hitRate, '${(stats.hitRate * 100).round()} %'),
+            (l.fieldsClosed, l.nOfM(closed, cricketFields.length)),
+            if (scoring == CricketScoringMode.standard) (l.points, '${s.score}'),
+            (l.dartsThrown, '${stats.darts}'),
+            (l.bestVisit, l.marksN(stats.bestVisitMarks)),
+          ],
+        );
+      },
+    ),
+  ));
 }

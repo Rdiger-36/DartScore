@@ -7,6 +7,10 @@ import '../utils/layout.dart';
 import '../utils/segment_color.dart';
 import '../widgets/dartboard_target_painter.dart';
 import '../utils/player_label.dart';
+import '../utils/shanghai_stats.dart';
+import '../utils/visit_darts.dart';
+import '../widgets/visit_darts_row.dart';
+import 'mode_live_info_screen.dart';
 import 'shanghai_summary_screen.dart';
 
 /// Live Shanghai game screen. Watches the provider and routes to the summary
@@ -191,8 +195,16 @@ class _ShanghaiGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const Spacer(),
-                          _DartDots(count: provider.dartsInVisit, total: provider.visitDartLimit),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: VisitDartsRow(
+                              slots: provider.visitDartLimit,
+                              darts: [
+                                for (final t in provider.visitBuffer)
+                                  visitDartFrom(t.target, t.multiplier, l),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                       _ShanghaiHint(provider: provider),
@@ -225,6 +237,7 @@ class _ShanghaiGameView extends StatelessWidget {
                 onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
             FilledButton(
               onPressed: () {
+                context.read<ShanghaiProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -338,6 +351,8 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
             return Padding(
               key: _keys[i],
               padding: const EdgeInsets.symmetric(vertical: 3),
+              child: InkWell(
+              onTap: () => openShanghaiSlotInfo(context, i),
               child: Row(
                 children: [
                   Expanded(
@@ -415,6 +430,7 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
                   ),
                 ],
               ),
+              ),
             );
           }).toList(),
         ),
@@ -425,32 +441,6 @@ class _ShanghaiBoardState extends State<_ShanghaiBoard> {
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 
-/// Dots showing how many darts of the current visit have been thrown.
-class _DartDots extends StatelessWidget {
-  final int count;
-  final int total;
-  const _DartDots({required this.count, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(total, (i) {
-        final filled = i < count;
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? cs.primary : cs.outlineVariant,
-          ),
-        );
-      }),
-    );
-  }
-}
 
 // ── Shanghai hint ─────────────────────────────────────────────────────────────
 
@@ -532,18 +522,27 @@ class _ShanghaiInput extends StatelessWidget {
     final l = context.l10n;
     final target = provider.activeTarget;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => provider.recordDart(1)),
-        const SizedBox(width: 10),
-        _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => provider.recordDart(2)),
-        const SizedBox(width: 10),
-        if (target != 25)
-          _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => provider.recordDart(3)),
-        const SizedBox(width: 10),
-        _MissBtn(label: l.shanghaiMiss, onTap: () => provider.recordDart(0)),
-      ],
+    // Dimmed and deaf while a bot throws or a finished visit is still on
+    // show; the provider refuses the dart either way, this only says so.
+    final locked = provider.inputLocked;
+    return IgnorePointer(
+      ignoring: locked,
+      child: Opacity(
+        opacity: locked ? 0.5 : 1,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _MultBtn(label: l.single, sub: '×1', multiplier: 1, onTap: () => provider.recordDart(1)),
+            const SizedBox(width: 10),
+            _MultBtn(label: l.double_, sub: '×2', multiplier: 2, onTap: () => provider.recordDart(2)),
+            const SizedBox(width: 10),
+            if (target != 25)
+              _MultBtn(label: l.triple, sub: '×3', multiplier: 3, onTap: () => provider.recordDart(3)),
+            const SizedBox(width: 10),
+            _MissBtn(label: l.shanghaiMiss, onTap: () => provider.recordDart(0)),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -639,4 +638,50 @@ class _MissBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Opens the live info of the Shanghai slot at [slotIndex]: its last three
+/// visits and the numbers Shanghai is played by.
+void openShanghaiSlotInfo(BuildContext context, int slotIndex) {
+  final provider = context.read<ShanghaiProvider>();
+  Navigator.of(context).push(MaterialPageRoute<void>(
+    builder: (_) => ModeLiveInfoScreen(
+      listenable: provider,
+      data: (context) {
+        final l       = context.l10n;
+        final s       = provider.playerStates[slotIndex];
+        final ids     = s.players.map((p) => p.id).toSet();
+        final throws  = provider.throwHistory
+            .where((t) => ids.contains(t.playerId))
+            .toList();
+        final variant = provider.game!.variant;
+        final limit   = provider.visitDartLimit;
+        final stats   = ShanghaiStats.of(throws, variant, limit);
+        final visits  = shanghaiVisits(throws, limit);
+        final recent  = visits.length <= 3 ? visits : visits.sublist(visits.length - 3);
+        return (
+          title:    s.label(l),
+          subtitle: s.isTeamSlot ? s.player.label(l) : null,
+          visitSlots: limit,
+          recentVisits: [
+            for (final v in recent.reversed)
+              (
+                darts: [for (final t in v) visitDartFrom(t.target, t.multiplier, l)],
+                yield: l.pointsN(shanghaiPointsOfVisit(v)),
+              ),
+          ],
+          stats: [
+            (l.points, '${s.score}'),
+            (l.pointsPerRound, stats.pointsPerRound.toStringAsFixed(1)),
+            (l.hitRate, '${(stats.hitRate * 100).round()} %'),
+            (l.bestVisit, l.pointsN(stats.bestVisitPoints)),
+            (l.shanghaisThrown, '${stats.shanghais}'),
+            if (variant == ShanghaiVariant.sequential)
+              (l.shanghaiTarget, '${s.progress}'),
+            (l.dartsThrown, '${stats.darts}'),
+          ],
+        );
+      },
+    ),
+  ));
 }

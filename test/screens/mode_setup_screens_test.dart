@@ -29,7 +29,7 @@ void main() {
 
     /// Pumps [screen] on a surface tall enough for the whole form.
     Future<void> pumpSetup(WidgetTester tester, Widget screen) async {
-      usePhoneSurface(tester, size: const Size(400, 1600));
+      usePhoneSurface(tester, size: const Size(400, 2000));
       await tester.pumpWidget(testApp(screen, players: players));
       await tester.pumpAndSettle();
     }
@@ -53,6 +53,52 @@ void main() {
       await tester.tap(find.byType(Checkbox).at(index));
       await tester.pumpAndSettle();
     }
+
+    /// The switch in the header of the computer opponent card.
+    Finder botSwitch() => find.descendant(
+          of: find.widgetWithText(Card, 'Computer opponent'),
+          matching: find.byType(Switch),
+        );
+
+    /// Opens the bot card and adds the Pro bot, letting the row's database
+    /// write through.
+    Future<void> addProBot(WidgetTester tester) async {
+      await tester.tap(botSwitch());
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilterChip, 'Pro'));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+    }
+
+    group('a computer opponent', () {
+      for (final (name, screen) in [
+        ('Cricket', const CricketSetupScreen() as Widget),
+        ('Shanghai', const ShanghaiSetupScreen()),
+        ('Around the Clock', const AroundTheClockSetupScreen()),
+      ]) {
+        testWidgets('makes a game of one person in $name', (tester) async {
+          await pumpSetup(tester, screen);
+          await tapPlayer(tester, 0);
+
+          await addProBot(tester);
+
+          expect(find.text('Pro bot'), findsOneWidget);
+          expect(find.text('Player 2 · about 85 points per visit'),
+              findsOneWidget);
+          expect(canStart(tester), isTrue);
+        });
+
+        testWidgets('is no game on its own in $name', (tester) async {
+          await pumpSetup(tester, screen);
+
+          await addProBot(tester);
+
+          expect(find.text('Pro bot'), findsOneWidget);
+          expect(canStart(tester), isFalse);
+        });
+      }
+    });
 
     // ── Cricket ───────────────────────────────────────────────────────────────
 

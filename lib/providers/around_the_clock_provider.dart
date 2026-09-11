@@ -1,9 +1,14 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBindingObserver;
 import '../database/db_helper.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/player.dart';
+import '../utils/around_the_clock_rules.dart';
+import '../utils/bot_strategy_around_the_clock.dart';
+import '../utils/bot_thrower.dart';
 import '../utils/player_label.dart';
+import 'bot_runner.dart';
 
 // ── AroundTheClockPlayerState ─────────────────────────────────────────────────
 
@@ -89,7 +94,8 @@ class AroundTheClockPlayerState implements LabelledSlot {
 /// first to complete the final Bull target wins instantly. Darts are recorded
 /// into a three-dart visit buffer and persisted, so undo deletes the last dart
 /// and replays the rest.
-class AroundTheClockProvider extends ChangeNotifier {
+class AroundTheClockProvider extends ChangeNotifier
+    with WidgetsBindingObserver, BotRunner {
   final DbHelper _db = DbHelper.instance;
 
   AroundTheClockGame? _game;
@@ -111,7 +117,13 @@ class AroundTheClockProvider extends ChangeNotifier {
   int?                             get winnerId           => _winnerId;
   List<AroundTheClockThrow>        get visitBuffer        => List.unmodifiable(_visitBuffer);
   int                              get dartsInVisit       => _visitBuffer.length;
-  bool                             get canUndo            => _throwHistory.isNotEmpty;
+  /// Whether there is a dart to undo. Not while a bot is throwing, and not
+  /// when every recorded dart is a bot's: those are never undone on their
+  /// own, see [undoLastDart].
+  /// Every persisted dart of the game, oldest first.
+  List<AroundTheClockThrow>        get throwHistory       => List.unmodifiable(_throwHistory);
+  bool                             get canUndo            =>
+      !isBotTurn && _throwHistory.any((t) => !_isBotId(t.playerId));
 
   /// The active game's rule variant.
   AroundTheClockVariant get _variant => _game!.variant;
@@ -164,8 +176,11 @@ class AroundTheClockProvider extends ChangeNotifier {
     _winnerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     await _replayState();
     notifyListeners();
+    scheduleBot();
   }
 
   /// Starts a new game: persists it, builds fresh player states, and resets the
@@ -189,7 +204,10 @@ class AroundTheClockProvider extends ChangeNotifier {
     _winnerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     notifyListeners();
+    scheduleBot();
   }
 
   /// Starts a fresh Around the Clock game that reuses [template]'s settings
@@ -220,8 +238,45 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── Record a dart ──────────────────────────────────────────────────────────
 
-  /// Records one dart. [field]=0 / [multiplier]=0 means miss.
+  // ── Bot ───────────────────────────────────────────────────────────────────
+
+  @override
+  bool get isBotTurn =>
+      _game != null &&
+      !_gameOver &&
+      _playerStates.isNotEmpty &&
+      currentPlayerState.player.isBot;
+
+  /// Whether [playerId] belongs to one of the bots in this game.
+  bool _isBotId(int playerId) => _playerStates
+      .expand((s) => s.players)
+      .any((p) => p.id == playerId && p.isBot);
+
+  @override
+  Future<void> throwBotDart() async {
+    final level = currentPlayerState.player.botLevel!;
+    final aim = aroundTheClockTarget(
+      target:         activeTarget,
+      variant:        _variant,
+      aimTriples:     aimsForTriples(level),
+      neededSegments: neededSegments,
+    );
+    final hit = botThrower.throwAt(aim, level);
+    await _recordDart(hit.field, hit.multiplier);
+  }
+
+  // ── Record a dart ──────────────────────────────────────────────────────────
+
+  /// Records one dart of the person on turn. [field]=0 / [multiplier]=0 means
+  /// miss. Refused while a bot is on turn or a finished visit is still shown.
   Future<void> recordDart(int field, int multiplier) async {
+    if (inputLocked) return;
+    await _recordDart(field, multiplier);
+    scheduleBot();
+  }
+
+  /// Records one dart for whoever is on turn, bot or person.
+  Future<void> _recordDart(int field, int multiplier) async {
     if (_game == null || _gameOver) return;
     if (_visitBuffer.length >= 3) return;
 
@@ -260,7 +315,8 @@ class AroundTheClockProvider extends ChangeNotifier {
     }
 
     if (_visitBuffer.length == 3) {
-      await _endVisit();
+      notifyListeners();
+      await holdVisit(_endVisit);
     } else {
       notifyListeners();
     }
@@ -268,52 +324,21 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   // ── Apply dart to state ────────────────────────────────────────────────────
 
-  /// Applies one dart to [playerIdx]'s progress per the active variant: advance
-  /// on a hit (basic), collect single/double/triple before advancing (full
-  /// segments), or skip ahead by the multiplier and via the Bull joker (skip
-  /// rules). Records the finishing dart when the final target is completed.
+  /// Applies one dart to [playerIdx]'s progress through
+  /// [applyAroundTheClockDart], the one place the variant rules live, and
+  /// records the finishing dart when the final target is completed.
   void _applyDart(int playerIdx, AroundTheClockThrow t) {
-    final state  = _playerStates[playerIdx];
-    final target = state.currentTarget;
+    final state = _playerStates[playerIdx];
+    final next  = applyAroundTheClockDart(
+      variant:    _variant,
+      position:   (progress: state.progress, hitSegments: state.hitSegments),
+      field:      t.field,
+      multiplier: t.multiplier,
+    );
+    final newProgress = next.progress;
 
-    var newProgress    = state.progress;
-    var newHitSegments = state.hitSegments;
-
-    if (t.field == target) {
-      switch (_variant) {
-        case AroundTheClockVariant.basic:
-          newProgress = state.progress + 1;
-          break;
-
-        case AroundTheClockVariant.fullSegments:
-          // The Bull only has Single (25) and Double (50), no Triple.
-          final required = target == 25 ? const [1, 2] : const [1, 2, 3];
-          newHitSegments = {...state.hitSegments, t.multiplier};
-          if (newHitSegments.containsAll(required)) {
-            newProgress    = state.progress + 1;
-            newHitSegments = const {};
-          }
-          break;
-
-        case AroundTheClockVariant.skipRules:
-          final skip = switch (t.multiplier) {
-            3 => 3,
-            2 => 2,
-            _ => 1,
-          };
-          newProgress = state.progress + skip;
-          break;
-      }
-    } else if (_variant == AroundTheClockVariant.skipRules &&
-        t.field == 25 &&
-        target != 25) {
-      // Bull's Eye joker: skip the current field, advance by one.
-      newProgress = state.progress + 1;
-    }
-
-    newProgress = newProgress.clamp(0, aroundTheClockOrder.length);
-
-    var updated = state.copyWith(progress: newProgress, hitSegments: newHitSegments);
+    var updated = state.copyWith(
+        progress: newProgress, hitSegments: next.hitSegments);
     if (newProgress >= aroundTheClockOrder.length) {
       final slotPlayerIds = state.players.map((p) => p.id).toSet();
       final dartsThrown = _throwHistory.where((h) => slotPlayerIds.contains(h.playerId)).length;
@@ -356,8 +381,19 @@ class AroundTheClockProvider extends ChangeNotifier {
 
   /// Undoes the last dart: deletes it from the database, un-finishes the game if
   /// it was the winning dart, and replays the remaining darts to rebuild state.
+  ///
+  /// A bot's darts are never undone one at a time: the bot would only throw
+  /// again, and the person could never get back to their own visit. Undo over
+  /// a bot's darts removes every bot dart since the last human dart, then that
+  /// dart, in one rebuild.
   Future<void> undoLastDart() async {
-    if (_game == null || _throwHistory.isEmpty) return;
+    if (_game == null || isBotTurn) return;
+    if (!_throwHistory.any((t) => !_isBotId(t.playerId))) return;
+    while (_isBotId(_throwHistory.last.playerId)) {
+      await _db.deleteAroundTheClockThrow(_throwHistory.removeLast().id!);
+    }
+    dropHeldVisit();
+    botSuspended = true;
 
     final last = _throwHistory.removeLast();
     await _db.deleteAroundTheClockThrow(last.id!);
@@ -374,7 +410,9 @@ class AroundTheClockProvider extends ChangeNotifier {
     }
 
     await _replayState();
+    botSuspended = false;
     notifyListeners();
+    scheduleBot();
   }
 
   /// Rebuilds the full game state from the persisted darts: resets progress and

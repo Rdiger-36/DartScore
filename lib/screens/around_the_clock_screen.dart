@@ -6,7 +6,11 @@ import '../providers/around_the_clock_provider.dart';
 import '../utils/layout.dart';
 import '../utils/segment_color.dart';
 import '../widgets/dartboard_target_painter.dart';
+import '../utils/around_the_clock_rules.dart';
 import '../utils/player_label.dart';
+import '../utils/visit_darts.dart';
+import '../widgets/visit_darts_row.dart';
+import 'mode_live_info_screen.dart';
 import 'around_the_clock_summary_screen.dart';
 
 /// Live Around the Clock game screen. Watches the provider and routes to the
@@ -191,8 +195,13 @@ class _AroundTheClockGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const Spacer(),
-                          _DartDots(count: provider.dartsInVisit),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: VisitDartsRow(darts: [
+                              for (final t in provider.visitBuffer)
+                                visitDartFrom(t.field, t.multiplier, l),
+                            ]),
+                          ),
                         ],
                       ),
                       _AroundTheClockHint(provider: provider),
@@ -226,6 +235,7 @@ class _AroundTheClockGameView extends StatelessWidget {
                 onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
             FilledButton(
               onPressed: () {
+                context.read<AroundTheClockProvider>().leaveGame();
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -351,6 +361,8 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
             return Padding(
               key: _keys[i],
               padding: const EdgeInsets.symmetric(vertical: 3),
+              child: InkWell(
+              onTap: () => openAroundTheClockSlotInfo(context, i),
               child: Row(
                 children: [
                   Expanded(
@@ -400,6 +412,7 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
                   ),
                 ],
               ),
+              ),
             );
           }).toList(),
         ),
@@ -410,31 +423,6 @@ class _AroundTheClockBoardState extends State<_AroundTheClockBoard> {
 
 // ── Dart dot indicator ────────────────────────────────────────────────────────
 
-/// Three dots showing how many darts of the current visit have been thrown.
-class _DartDots extends StatelessWidget {
-  final int count;
-  const _DartDots({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        final filled = i < count;
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? cs.primary : cs.outlineVariant,
-          ),
-        );
-      }),
-    );
-  }
-}
 
 // ── Hint (full-segments variant) ──────────────────────────────────────────────
 
@@ -533,13 +521,20 @@ class _AroundTheClockInput extends StatelessWidget {
     final btnCount = 2 + (showTriple ? 1 : 0) + (showJoker ? 1 : 0) + 1;
     const spacing  = 10.0;
 
+    // Dimmed and deaf while a bot throws or a finished visit is still on
+    // show; the provider refuses the dart either way, this only says so.
+    final locked = provider.inputLocked;
     return LayoutBuilder(
       builder: (context, constraints) {
         final btnW = ((constraints.maxWidth - spacing * (btnCount - 1)) / btnCount)
             .clamp(48.0, 72.0);
         final btnH = (btnW * 64 / 72).clamp(44.0, 64.0);
 
-        return Wrap(
+        return IgnorePointer(
+          ignoring: locked,
+          child: Opacity(
+          opacity: locked ? 0.5 : 1,
+          child: Wrap(
           alignment: WrapAlignment.center,
           spacing: spacing,
           runSpacing: spacing,
@@ -557,6 +552,8 @@ class _AroundTheClockInput extends StatelessWidget {
             _MissBtn(label: l.aroundClockMiss, width: btnW, height: btnH,
                 onTap: () => provider.recordDart(0, 0)),
           ],
+        ),
+        ),
         );
       },
     );
@@ -716,4 +713,52 @@ class _MissBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Opens the live info of the Around the Clock slot at [slotIndex]: its last
+/// three visits and the numbers the mode is played by.
+void openAroundTheClockSlotInfo(BuildContext context, int slotIndex) {
+  final provider = context.read<AroundTheClockProvider>();
+  Navigator.of(context).push(MaterialPageRoute<void>(
+    builder: (_) => ModeLiveInfoScreen(
+      listenable: provider,
+      data: (context) {
+        final l       = context.l10n;
+        final s       = provider.playerStates[slotIndex];
+        final ids     = s.players.map((p) => p.id).toSet();
+        final throws  = provider.throwHistory
+            .where((t) => ids.contains(t.playerId))
+            .toList();
+        final variant = provider.game!.variant;
+        final stats   = AroundTheClockStats.of(throws, variant);
+        final visits  = aroundTheClockVisits(throws);
+        final hits    = stats.visitHits;
+        final from    = visits.length <= 3 ? 0 : visits.length - 3;
+        return (
+          title:    s.label(l),
+          subtitle: s.isTeamSlot ? s.player.label(l) : null,
+          visitSlots: 3,
+          recentVisits: [
+            for (var i = visits.length - 1; i >= from; i--)
+              (
+                darts: [for (final t in visits[i]) visitDartFrom(t.field, t.multiplier, l)],
+                yield: l.hitsN(hits[i].where((h) => h).length),
+              ),
+          ],
+          stats: [
+            (l.aroundClockProgress,
+                l.aroundClockProgressN(
+                    s.progress.clamp(0, aroundTheClockOrder.length),
+                    aroundTheClockOrder.length)),
+            (l.dartsThrown, '${stats.darts}'),
+            (l.dartsPerTarget, stats.dartsPerTarget.toStringAsFixed(1)),
+            (l.hitRate, '${(stats.hitRate * 100).round()} %'),
+            (l.longestStreak, '${stats.longestStreak}'),
+            if (variant == AroundTheClockVariant.skipRules)
+              (l.fieldsSkipped, '${stats.fieldsSkipped}'),
+          ],
+        );
+      },
+    ),
+  ));
 }

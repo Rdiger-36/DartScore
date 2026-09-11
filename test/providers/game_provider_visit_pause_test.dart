@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dartscore_app/database/db_helper.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/utils/bot_thrower.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +31,7 @@ void main() {
     setUp(() async {
       // Short, but real: what is under test is that the game holds still for
       // it and moves on after it.
-      GameProvider.debugVisitPause = const Duration(milliseconds: 40);
+      TurnPacing.debugVisitPause = const Duration(milliseconds: 40);
       provider = GameProvider();
       players = await insertPlayers(['Ada', 'Zoe']);
     });

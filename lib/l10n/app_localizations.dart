@@ -179,6 +179,20 @@ class AppLocalizations {
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
   String get lastVisits         => _t('Last 3 Visits', 'Letzte 3 Aufnahmen');
   String get noVisitsYet        => _t('No visits yet', 'Noch keine Aufnahmen');
+  String get dartsThrown        => _t('Darts', 'Darts');
+  String get marksPerRound      => _t('Marks per round', 'Marks pro Aufnahme');
+  String get hitRate            => _t('Hit rate', 'Trefferquote');
+  String get fieldsClosed       => _t('Fields closed', 'Felder geschlossen');
+  String get bestVisit          => _t('Best visit', 'Beste Aufnahme');
+  String get pointsPerRound     => _t('Points per round', 'Punkte pro Runde');
+  String get shanghaisThrown    => _t('Shanghais', 'Shanghais');
+  String get dartsPerTarget     => _t('Darts per target', 'Darts pro Ziel');
+  String get longestStreak      => _t('Longest streak', 'Längste Serie');
+  String get fieldsSkipped      => _t('Fields skipped', 'Übersprungene Felder');
+  String nOfM(int n, int m)     => _t('$n of $m', '$n von $m');
+  String marksN(int n)          => _t('$n marks', '$n Marks');
+  String pointsN(int n)         => _t('$n points', '$n Punkte');
+  String hitsN(int n)           => n == 1 ? _t('1 hit', '1 Treffer') : _t('$n hits', '$n Treffer');
 
   // ── Game Summary ─────────────────────────────────────────────────────────
   String get gameOverview      => _t('Game Summary', 'Spielübersicht');

@@ -1,9 +1,13 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBindingObserver;
 import '../database/db_helper.dart';
 import '../models/cricket_game.dart';
 import '../models/player.dart';
+import '../utils/bot_strategy_cricket.dart';
+import '../utils/bot_thrower.dart';
 import '../utils/player_label.dart';
+import 'bot_runner.dart';
 
 // ── CricketPlayerState ────────────────────────────────────────────────────────
 
@@ -99,7 +103,8 @@ int _memberOnTurn(List<Player> members, List<CricketThrow> slotThrows) {
 /// scoring, and detects a win as soon as a player closes their last field while
 /// ahead (or via score once all fields are closed). Every dart is persisted, so
 /// undo simply deletes the last throw and replays the remaining ones.
-class CricketProvider extends ChangeNotifier {
+class CricketProvider extends ChangeNotifier
+    with WidgetsBindingObserver, BotRunner {
   final DbHelper _db = DbHelper.instance;
 
   CricketGame?              _game;
@@ -122,7 +127,13 @@ class CricketProvider extends ChangeNotifier {
   List<CricketThrow>       get visitBuffer        => List.unmodifiable(_visitBuffer);
   int                      get dartsInVisit       => _visitBuffer.length;
   int                      get throwCount         => _throwHistory.length;
-  bool                     get canUndo            => _throwHistory.isNotEmpty;
+  /// Every persisted dart of the game, oldest first.
+  List<CricketThrow>       get throwHistory       => List.unmodifiable(_throwHistory);
+  /// Whether there is a dart to undo. Not while a bot is throwing, and not
+  /// when every recorded dart is a bot's: those are never undone on their
+  /// own, see [undoLastDart].
+  bool                     get canUndo            =>
+      !isBotTurn && _throwHistory.any((t) => !_isBotId(t.playerId));
 
   // ── Slot construction ────────────────────────────────────────────────────
 
@@ -163,8 +174,11 @@ class CricketProvider extends ChangeNotifier {
     _winnerId           = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     await _replayState();
     notifyListeners();
+    scheduleBot();
   }
 
   // ── Start ──────────────────────────────────────────────────────────────────
@@ -193,7 +207,10 @@ class CricketProvider extends ChangeNotifier {
     _winnerId           = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    dropHeldVisit();
+    releaseBot();
     notifyListeners();
+    scheduleBot();
   }
 
   /// Starts a fresh Cricket game that reuses [template]'s settings (variant,
@@ -224,8 +241,55 @@ class CricketProvider extends ChangeNotifier {
 
   // ── Record a dart ──────────────────────────────────────────────────────────
 
-  /// Records one dart. [field]=0 / [multiplier]=0 means miss.
+  // ── Bot ───────────────────────────────────────────────────────────────────
+
+  @override
+  bool get isBotTurn =>
+      _game != null &&
+      !_gameOver &&
+      _playerStates.isNotEmpty &&
+      currentPlayerState.player.isBot;
+
+  /// Whether [playerId] belongs to one of the bots in this game.
+  bool _isBotId(int playerId) => _playerStates
+      .expand((s) => s.players)
+      .any((p) => p.id == playerId && p.isBot);
+
+  @override
+  Future<void> throwBotDart() async {
+    final own = currentPlayerState;
+    final others = [
+      for (var i = 0; i < _playerStates.length; i++)
+        if (i != _currentPlayerIndex) _playerStates[i],
+    ];
+    final target = cricketTarget(
+      ownMarks:       own.marks,
+      opponentMarks:  others.map((s) => s.marks).toList(),
+      ownScore:       own.score,
+      opponentScores: others.map((s) => s.score).toList(),
+      variant:        _game!.variant,
+      scoring:        _game!.scoringMode,
+      aimTriples:     aimsForTriples(own.player.botLevel!),
+    );
+    final hit = botThrower.throwAt(target, own.player.botLevel!);
+    // A number off the seven is a miss here: the board has no marks for it,
+    // and applying one would let a stray dart on the 1 score points.
+    final counts = cricketFields.contains(hit.field);
+    await _recordDart(counts ? hit.field : 0, counts ? hit.multiplier : 0);
+  }
+
+  // ── Record a dart ──────────────────────────────────────────────────────────
+
+  /// Records one dart of the person on turn. [field]=0 / [multiplier]=0 means
+  /// miss. Refused while a bot is on turn or a finished visit is still shown.
   Future<void> recordDart(int field, int multiplier) async {
+    if (inputLocked) return;
+    await _recordDart(field, multiplier);
+    scheduleBot();
+  }
+
+  /// Records one dart for whoever is on turn, bot or person.
+  Future<void> _recordDart(int field, int multiplier) async {
     if (_game == null || _gameOver) return;
     if (_visitBuffer.length >= 3) return;
 
@@ -266,7 +330,8 @@ class CricketProvider extends ChangeNotifier {
     }
 
     if (_visitBuffer.length == 3) {
-      await _endVisit();
+      notifyListeners();
+      await holdVisit(_endVisit);
     } else {
       notifyListeners();
     }
@@ -400,8 +465,19 @@ class CricketProvider extends ChangeNotifier {
 
   /// Undoes the last dart: deletes it from the database, un-finishes the game if
   /// it was the winning dart, and replays the remaining darts to rebuild state.
+  ///
+  /// A bot's darts are never undone one at a time: the bot would only throw
+  /// again, and the person could never get back to their own visit. Undo over
+  /// a bot's darts removes every bot dart since the last human dart, then that
+  /// dart, in one rebuild.
   Future<void> undoLastDart() async {
-    if (_game == null || _throwHistory.isEmpty) return;
+    if (_game == null || isBotTurn) return;
+    if (!_throwHistory.any((t) => !_isBotId(t.playerId))) return;
+    while (_isBotId(_throwHistory.last.playerId)) {
+      await _db.deleteCricketThrow(_throwHistory.removeLast().id!);
+    }
+    dropHeldVisit();
+    botSuspended = true;
 
     final last = _throwHistory.removeLast();
     await _db.deleteCricketThrow(last.id!);
@@ -424,7 +500,9 @@ class CricketProvider extends ChangeNotifier {
 
     // Replay from scratch for this leg/set
     await _replayState();
+    botSuspended = false;
     notifyListeners();
+    scheduleBot();
   }
 
   /// Rebuilds all slot states from the persisted darts: zeroes marks/scores,
