@@ -266,7 +266,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               FilledButton(
                 onPressed: () {
-                  context.read<GameProvider>().stopBot();
+                  context.read<GameProvider>().leaveGame();
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },

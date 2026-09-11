@@ -345,6 +345,28 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// removed by [undoLastDart], in undo order, restorable via [redoLastDart].
   final List<_RedoEntry> _redoStack = [];
 
+  /// A visit that is complete but not yet recorded: it stays on the board for
+  /// [visitPause] so the thrower sees their last dart before the turn moves
+  /// on. Nothing about the game changes until it settles, so undo in that
+  /// window simply takes the dart back off the board.
+  ({int score, int dartsUsed, bool bust, List<DartEntry> hits})? _pendingVisit;
+  Timer? _visitTimer;
+
+  /// Overrides [visitPause] for tests, which set it to zero so a visit
+  /// settles in the same call that completes it. Null in the app.
+  static Duration? debugVisitPause;
+
+  /// How long a completed visit stays on the board before it is recorded and
+  /// the turn moves on.
+  Duration get visitPause => debugVisitPause ?? const Duration(seconds: 2);
+
+  /// Whether a completed visit is waiting out [visitPause].
+  bool get visitPending => _pendingVisit != null;
+
+  /// Whether no dart of the person's may land right now: a bot is on turn, or
+  /// a completed visit is still being shown.
+  bool get inputLocked => isBotTurn || visitPending;
+
   Game?              get game               => _game;
   List<PlayerState>  get playerStates       => _playerStates;
   int                get currentPlayerIndex => _currentPlayerIndex;
@@ -488,7 +510,7 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _scheduleBot() {
     _botTimer?.cancel();
     _botTimer = null;
-    if (_botSuspended || !isBotTurn) return;
+    if (_botSuspended || visitPending || !isBotTurn) return;
     _observeLifecycle();
     _botTimer = Timer(botDartDelay, _throwBotDart);
   }
@@ -516,13 +538,49 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
     _scheduleBot();
   }
 
-  /// Stops the bot for good until the next start or resume: the screen calls
-  /// this when the game is left, so a bot does not keep throwing into a game
-  /// nobody is watching.
+  /// Stops the bot for good until the next start or resume, so a bot does not
+  /// keep throwing into a game nobody is watching.
   void stopBot() {
     _botSuspended = true;
     _botTimer?.cancel();
     _botTimer = null;
+  }
+
+  /// What the live screen calls before it pops: stops the bot and records a
+  /// visit still waiting out its pause, so nothing thrown is lost with the
+  /// screen.
+  Future<void> leaveGame() async {
+    stopBot();
+    await flushPendingVisit();
+  }
+
+  /// Records a pending visit now rather than after its pause. Nothing to do
+  /// when no visit is pending.
+  Future<void> flushPendingVisit() async {
+    final pending = _pendingVisit;
+    if (pending == null) return;
+    _visitTimer?.cancel();
+    await _settleVisit(pending);
+  }
+
+  /// Forgets a pending visit without recording it: the darts stay on the
+  /// board as an in-progress visit, which is what undo wants.
+  void _cancelPendingVisit() {
+    _visitTimer?.cancel();
+    _visitTimer   = null;
+    _pendingVisit = null;
+  }
+
+  /// Records [pending] as the current slot's visit and moves the turn on.
+  Future<void> _settleVisit(
+      ({int score, int dartsUsed, bool bust, List<DartEntry> hits}) pending) async {
+    _visitTimer         = null;
+    _pendingVisit       = null;
+    _currentVisitDarts  = [];
+    _checkedInThisVisit = false;
+    await _submitVisit(pending.score, pending.dartsUsed,
+        bust: pending.bust, hits: pending.hits);
+    _scheduleBot();
   }
 
   /// Registers for app lifecycle events the first time a bot is on turn, so
@@ -541,12 +599,16 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       _botTimer?.cancel();
       _botTimer = null;
+      // A visit waiting out its pause is not in the database yet, and an app
+      // in the background may not come back: record it now.
+      unawaited(flushPendingVisit());
     }
   }
 
   @override
   void dispose() {
     _botTimer?.cancel();
+    _visitTimer?.cancel();
     if (_observingLifecycle) WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -577,6 +639,7 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentVisitDarts = [];
     _checkedInThisVisit = false;
     _redoStack.clear();
+    _cancelPendingVisit();
 
     final allThrowsRaw = await _db.getThrowsForGame(game.id!);
 
@@ -1079,6 +1142,7 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentVisitDarts  = [];
     _checkedInThisVisit = false;
     _redoStack.clear();
+    _cancelPendingVisit();
     _botSuspended = false;
     notifyListeners();
     _scheduleBot();
@@ -1444,12 +1508,19 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     if (endVisit) {
-      final dartsUsed  = _currentVisitDarts.length;
-      final finalScore = bust ? 0 : newVisitTotal;
-      final hits       = List<DartEntry>.from(_currentVisitDarts);
-      _currentVisitDarts  = [];
-      _checkedInThisVisit = false;
-      await _submitVisit(finalScore, dartsUsed, bust: bust, hits: hits);
+      final pending = (
+        score:     bust ? 0 : newVisitTotal,
+        dartsUsed: _currentVisitDarts.length,
+        bust:      bust,
+        hits:      List<DartEntry>.from(_currentVisitDarts),
+      );
+      if (visitPause == Duration.zero) {
+        await _settleVisit(pending);
+      } else {
+        _pendingVisit = pending;
+        _observeLifecycle();
+        _visitTimer = Timer(visitPause, () => _settleVisit(pending));
+      }
     }
   }
 
@@ -1458,7 +1529,7 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// in-progress visit. Any new dart invalidates the redo stack.
   Future<void> tapField(int field, int modifier) async {
     if (_game == null || _gameOver || _currentVisitDarts.length >= 3) return;
-    if (isBotTurn) return;
+    if (inputLocked) return;
     _redoStack.clear();
     await _addDart(field, modifier);
     notifyListeners();
@@ -1484,6 +1555,10 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// has thrown again.
   Future<void> undoLastDart() async {
     if (_game == null || isBotTurn) return;
+
+    // A visit still on the board is not recorded yet: taking its last dart
+    // back is enough, and the pause it was waiting out is off.
+    _cancelPendingVisit();
 
     if (_currentVisitDarts.isNotEmpty) {
       _redoStack.add(_RedoEntry.dart(_currentVisitDarts.removeLast()));
@@ -1541,7 +1616,7 @@ class GameProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// (committing the visit again if that completes it), or, for a legacy
   /// whole-visit redo, re-inserts the previously removed visit verbatim.
   Future<void> redoLastDart() async {
-    if (_game == null || _redoStack.isEmpty || isBotTurn) return;
+    if (_game == null || _redoStack.isEmpty || inputLocked) return;
 
     final entry = _redoStack.removeLast();
 

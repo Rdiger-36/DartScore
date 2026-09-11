@@ -12,6 +12,7 @@ import '../utils/layout.dart';
 import '../utils/throw_stats.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import '../widgets/stat_row.dart';
+import '../widgets/throw_row.dart';
 import '../utils/player_label.dart';
 
 /// Route that slides the live info screen in from the right on both platforms
@@ -341,6 +342,8 @@ class _SlotStatsPage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
+        _RecentVisitsCard(state: state, game: game),
+        const SizedBox(height: 10),
         _RulesCard(state: state, game: game),
         const SizedBox(height: 10),
         _SectionCard(
@@ -664,6 +667,66 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             for (final row in rows) StatRow(label: row.$1, value: row.$2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The last three visits of the slot, newest last, so a thrower can check
+/// what was just entered after it has left the board. Names the member in a
+/// team slot, where the three may come from different people.
+class _RecentVisitsCard extends StatelessWidget {
+  final PlayerState state;
+  final Game game;
+
+  const _RecentVisitsCard({required this.state, required this.game});
+
+  /// How many visits the card shows.
+  static const _count = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l     = context.l10n;
+
+    final ordered = List<DartThrow>.of(state.throws)
+      ..sort((a, b) {
+        final byTime = a.thrownAt.compareTo(b.thrownAt);
+        return byTime != 0 ? byTime : (a.id ?? 0).compareTo(b.id ?? 0);
+      });
+    final recent = ordered.length <= _count
+        ? ordered
+        : ordered.sublist(ordered.length - _count);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l.lastVisits,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            if (recent.isEmpty)
+              Text(l.noVisitsYet,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant))
+            else
+              for (final t in recent)
+                ThrowRow(
+                  t:          t,
+                  playerName: state.isTeam
+                      ? state.players
+                          .firstWhere((p) => p.id == t.playerId)
+                          .label(l)
+                      : null,
+                  showSet:    game.sets > 1,
+                ),
           ],
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/live_player_stats_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
+import 'package:dartscore_app/widgets/throw_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -106,6 +107,33 @@ void main() {
       final header = headerRect(tester, 'Bo');
       expect(header.center.dx, closeTo(1180 / 2, 40));
       expect(find.byKey(kPaneDividerKey), findsNothing);
+    });
+
+    testWidgets('shows the last three visits, and says so before the first',
+        (tester) async {
+      await pumpInfo(tester, size: const Size(400, 1400));
+      expect(find.text('No visits yet'), findsOneWidget);
+      expect(find.byType(ThrowRow), findsNothing);
+
+      // Four visits by Ada, with Zoe missing in between so the turn returns.
+      await tester.runAsync(() async {
+        for (final score in [(20, 1), (19, 1), (18, 1), (17, 1)]) {
+          for (var d = 0; d < 3; d++) {
+            await game.tapField(score.$1, score.$2);
+          }
+          for (var d = 0; d < 3; d++) {
+            await game.tapField(0, 1);
+          }
+        }
+      });
+      await tester.pumpAndSettle();
+
+      final shown = tester
+          .widgetList<ThrowRow>(find.byType(ThrowRow))
+          .map((r) => r.t.score)
+          .toList();
+      expect(shown, [57, 54, 51],
+          reason: 'the newest three in order, the sixty has dropped off');
     });
 
     testWidgets('is one column at a phone size', (tester) async {

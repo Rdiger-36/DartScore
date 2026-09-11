@@ -177,6 +177,8 @@ class AppLocalizations {
   String get checkoutsHit       => _t('Check-Outs hit', 'Check-Outs getroffen');
   String get dartsAtFinish      => _t('Darts at a Finish', 'Darts aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
+  String get lastVisits         => _t('Last 3 Visits', 'Letzte 3 Aufnahmen');
+  String get noVisitsYet        => _t('No visits yet', 'Noch keine Aufnahmen');
 
   // ── Game Summary ─────────────────────────────────────────────────────────
   String get gameOverview      => _t('Game Summary', 'Spielübersicht');
