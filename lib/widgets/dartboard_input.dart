@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/game_provider.dart';
 import '../utils/segment_color.dart';
+import 'visit_pause.dart';
 
 /// A single dart entered on the board input: which [field] was hit, the
 /// [modifier] (single/double/triple) and the resulting [score].
@@ -126,6 +127,20 @@ class _DartboardInputState extends State<DartboardInput> {
     final provider = context.read<GameProvider>();
     // Full, a bot's, or still being shown: no dart of the person's lands now.
     final dartCount = provider.inputLocked ? 3 : provider.currentVisitDarts.length;
+
+    // While a finished visit is on show the two are locked anyway, so their
+    // place goes to the one thing that can be done: moving on now.
+    if (provider.visitPending) {
+      return _ActionButton(
+        label: context.l10n.continueNow,
+        icon: Icons.skip_next_rounded,
+        color: cs.primary,
+        textColor: cs.onPrimary,
+        disabled: false,
+        verticalPadding: verticalPadding,
+        onTap: provider.flushHeldVisit,
+      );
+    }
 
     final miss = _ActionButton(
       label: context.l10n.miss,
@@ -376,6 +391,8 @@ class _DartboardInputState extends State<DartboardInput> {
                 onRedo: provider.redoLastDart,
               ),
             ),
+            const SizedBox(height: 4),
+            VisitPauseBar(pending: provider.visitPending),
             // Modifier, centred over the visit row above it. It is a switch
             // for the whole input, not for one column of it, so it stays on
             // the middle line of the pane whatever the grid does, and fills

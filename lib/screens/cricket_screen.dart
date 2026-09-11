@@ -10,6 +10,7 @@ import '../utils/cricket_stats.dart';
 import '../utils/player_label.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'cricket_summary_screen.dart';
 
@@ -169,7 +170,9 @@ class _CricketGameView extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
+                      VisitPauseBar(pending: provider.visitPending),
+                      const SizedBox(height: 6),
                       _CricketInput(
                         provider: provider,
                         scoringMode: game.scoringMode,
@@ -660,6 +663,10 @@ class _CricketInputState extends State<_CricketInput> {
   Widget build(BuildContext context) {
     final states = widget.provider.playerStates;
     final l = context.l10n;
+
+    if (widget.provider.visitPending) {
+      return ContinueButton(onPressed: widget.provider.flushHeldVisit);
+    }
 
     if (_selectedField != null && _isStandard) {
       // Show multiplier selector

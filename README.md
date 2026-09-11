@@ -150,7 +150,7 @@ Every mode can be played against the computer, in every setting the mode offers:
 
 ### Pace
 
-- A finished visit stays on the board for a moment before the turn moves on, so the thrower sees their last dart. A tap on the dart row moves on at once
+- A finished visit stays on the board for a moment before the turn moves on, so the thrower sees their last dart. A bar under the darts shows the wait, and a Continue button in place of the throw buttons moves on at once
 - The **game pace** in the settings sets that moment and how quickly a bot throws: fast, normal or slow
 
 ### After the Game

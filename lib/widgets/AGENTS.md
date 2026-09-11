@@ -10,6 +10,7 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 - `dartboard_icon.dart`, decorative dartboard SVG widget
 - `dartboard_target_painter.dart`, paints a dartboard with a target segment highlighted
 - `visit_darts_row.dart`, the darts of a visit as chips, one slot per dart the visit may hold: triple blue, double green, single plain, miss dimmed, empty an outline. What Cricket, Shanghai and Around the Clock show instead of counting dots, on the board and in the live info
+- `visit_pause.dart`, `VisitPauseBar`, the thin bar that drains over the pause a finished visit stays on the board for, and `ContinueButton`, the wide button that ends it. X01 draws its own button in the style of its action row; the three target modes put `ContinueButton` where their throw buttons sit while those are locked
 - `bot_select_section.dart`, the card under the roster that adds computer opponents by tier: a switch in the header like the handicap and team cards, then one `FilterChip` per `BotLevel` and a row per picked bot with its slot number, expected average and a remove button. A chip is not a toggle: every tap adds one more bot of that tier, numbered by the setup screen with the lowest free ordinal, and the row takes it away. Switching the card off drops every bot. Shared by all four setups; the roster above never lists a bot
 - `cricket_marks_widget.dart`, renders Cricket marks (slash / X / circle-X) for a field
 - `finish_suggestion_widget.dart`, checkout hint display

@@ -178,6 +178,7 @@ class AppLocalizations {
   String get dartsAtFinish      => _t('Darts at a Finish', 'Darts aufs Finish');
   String playerOfTotal(int i, int n) => _t('Player $i of $n', 'Spieler $i von $n');
   String get lastVisits         => _t('Last 3 Visits', 'Letzte 3 Aufnahmen');
+  String get continueNow        => _t('Continue', 'Weiter');
   String get noVisitsYet        => _t('No visits yet', 'Noch keine Aufnahmen');
   String get dartsThrown        => _t('Darts', 'Darts');
   String get marksPerRound      => _t('Marks per round', 'Marks pro Aufnahme');
@@ -425,8 +426,8 @@ class AppLocalizations {
   String get paceNormal        => _t('Normal', 'Normal');
   String get paceSlow          => _t('Slow', 'Langsam');
   String get gamePaceHint      => _t(
-      'How long a finished visit stays on the board before the turn moves on, and how quickly a computer opponent throws. A tap on the dart row moves on at once.',
-      'Wie lange eine fertige Aufnahme auf dem Board stehen bleibt, bevor der Zug weitergeht, und wie schnell ein Computergegner wirft. Ein Tipp auf die Dart-Zeile geht sofort weiter.');
+      'How long a finished visit stays on the board before the turn moves on, and how quickly a computer opponent throws. Continue moves on at once, whenever you like.',
+      'Wie lange eine fertige Aufnahme auf dem Board stehen bleibt, bevor der Zug weitergeht, und wie schnell ein Computergegner wirft. Mit Weiter geht es jederzeit sofort weiter.');
   String get whatItDoes        => _t('What it does', 'Was es bewirkt');
   String get profileSharing    => _t('Share & Import Profile', 'Profil teilen & importieren');
   String get shareHint         =>

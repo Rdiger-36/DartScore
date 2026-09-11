@@ -10,6 +10,7 @@ import '../utils/player_label.dart';
 import '../utils/shanghai_stats.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'shanghai_summary_screen.dart';
 
@@ -215,6 +216,8 @@ class _ShanghaiGameView extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 6),
+                      VisitPauseBar(pending: provider.visitPending),
                       _ShanghaiHint(provider: provider),
                       const SizedBox(height: 10),
                       _ShanghaiInput(provider: provider),
@@ -529,6 +532,10 @@ class _ShanghaiInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l10n;
     final target = provider.activeTarget;
+
+    if (provider.visitPending) {
+      return ContinueButton(onPressed: provider.flushHeldVisit);
+    }
 
     // Dimmed and deaf while a bot throws or a finished visit is still on
     // show; the provider refuses the dart either way, this only says so.

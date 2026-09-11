@@ -2,6 +2,7 @@ import 'package:dartscore_app/models/around_the_clock_game.dart';
 import 'package:dartscore_app/models/cricket_game.dart';
 import 'package:dartscore_app/models/shanghai_game.dart';
 import 'package:dartscore_app/providers/around_the_clock_provider.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/cricket_provider.dart';
 import 'package:dartscore_app/providers/shanghai_provider.dart';
 import 'package:dartscore_app/screens/around_the_clock_screen.dart';
@@ -9,6 +10,7 @@ import 'package:dartscore_app/screens/cricket_screen.dart';
 import 'package:dartscore_app/screens/mode_live_info_screen.dart';
 import 'package:dartscore_app/screens/shanghai_screen.dart';
 import 'package:dartscore_app/widgets/visit_darts_row.dart';
+import 'package:dartscore_app/widgets/visit_pause.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -39,9 +41,11 @@ void main() {
     }
 
     group('Cricket', () {
+      late CricketProvider cricket;
+
       setUp(() async {
         final players = await insertPlayers(['Ada', 'Zoe']);
-        final p = CricketProvider();
+        final p = cricket = CricketProvider();
         await p.startGame(
           CricketGame(
             variant:       CricketVariant.normal,
@@ -66,6 +70,31 @@ void main() {
         expect(find.byType(VisitDartsRow), findsOneWidget);
         expect(find.text('T20'), findsOneWidget);
         expect(find.text('Miss'), findsWidgets);
+      });
+
+      testWidgets('offers Continue while a finished visit is on show',
+          (tester) async {
+        await pumpLive(tester);
+        final p = cricket;
+        // A pause long enough never to run out on its own: what ends it here
+        // is the button. The dart is a real write, let through.
+        TurnPacing.debugVisitPause = const Duration(hours: 1);
+        await tester.runAsync(() => p.recordDart(19, 1));
+        await tester.pump();
+
+        expect(p.visitPending, isTrue);
+        expect(find.text('Continue'), findsOneWidget);
+        expect(find.byType(VisitPauseBar), findsOneWidget);
+
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Continue'));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        await tester.pumpAndSettle();
+
+        expect(p.visitPending, isFalse);
+        expect(p.currentPlayerIndex, 1);
+        expect(find.text('Continue'), findsNothing);
       });
 
       testWidgets('opens the info of a slot with its visit and its numbers',

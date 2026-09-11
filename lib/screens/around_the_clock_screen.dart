@@ -10,6 +10,7 @@ import '../utils/around_the_clock_rules.dart';
 import '../utils/player_label.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
+import '../widgets/visit_pause.dart';
 import 'mode_live_info_screen.dart';
 import 'around_the_clock_summary_screen.dart';
 
@@ -212,6 +213,8 @@ class _AroundTheClockGameView extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 6),
+                      VisitPauseBar(pending: provider.visitPending),
                       _AroundTheClockHint(provider: provider),
                       const SizedBox(height: 10),
                       _AroundTheClockInput(provider: provider),
@@ -522,6 +525,10 @@ class _AroundTheClockInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final l      = context.l10n;
     final target = provider.activeTarget;
+
+    if (provider.visitPending) {
+      return ContinueButton(onPressed: provider.flushHeldVisit);
+    }
     final showJoker  = provider.game!.variant == AroundTheClockVariant.skipRules && target != 25;
     final showTriple = target != 25;
 
