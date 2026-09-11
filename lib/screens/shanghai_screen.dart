@@ -174,6 +174,7 @@ class _ShanghaiGameView extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Column(
@@ -196,7 +197,7 @@ class _ShanghaiGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Flexible(
                             // A tap on the chips while a finished visit is
                             // on show moves the game on without the wait.
@@ -216,6 +217,7 @@ class _ShanghaiGameView extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
                       _ShanghaiHint(provider: provider),
                       const SizedBox(height: 10),
                       _ShanghaiInput(provider: provider),

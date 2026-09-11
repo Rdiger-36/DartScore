@@ -131,6 +131,7 @@ class _CricketGameView extends StatelessWidget {
                     children: [
                       // Current player/team + dart counter
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Column(
@@ -153,7 +154,7 @@ class _CricketGameView extends StatelessWidget {
                                 ),
                             ],
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 16),
                           Flexible(
                             // A tap on the chips while a finished visit is
                             // on show moves the game on without the wait.
