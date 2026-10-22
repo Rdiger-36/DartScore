@@ -96,3 +96,58 @@ int scoreOf(BoardHit hit) {
   if (hit.field == 25) return hit.multiplier == 2 ? 50 : 25;
   return hit.field * hit.multiplier;
 }
+
+/// The paint on a standard board.
+///
+/// The two single rings alternate black and white around the board, and the
+/// double and triple rings alternate red and green over the same sectors, so a
+/// sector whose singles are black has red multiples. The inner bull is red and
+/// the outer bull green. These are the four colors the Capital "Color"
+/// contract draws from; a miss has no color at all.
+enum BoardColor { black, white, red, green }
+
+/// The color [hit] landed on, or null for a miss.
+///
+/// The alternation runs with [dartboardSegmentOrder], so a field at an even
+/// index is black in the singles and red in the double and triple rings, and
+/// one at an odd index is white and green. That places the 20 at index 0 on
+/// black and red and the 19 at index 11 on white and green, which is what a
+/// real board shows.
+BoardColor? colorOf(BoardHit hit) {
+  if (hit.field == 0) return null;
+  if (hit.field == 25) {
+    return hit.multiplier == 2 ? BoardColor.red : BoardColor.green;
+  }
+  final index = dartboardSegmentOrder.indexOf(hit.field);
+  assert(index >= 0, 'not a field on the board: ${hit.field}');
+  if (hit.multiplier == 1) {
+    return index.isEven ? BoardColor.black : BoardColor.white;
+  }
+  return index.isEven ? BoardColor.red : BoardColor.green;
+}
+
+/// Whether [fields] are sectors that all touch each other on the board.
+///
+/// True when they are consecutive entries of [dartboardSegmentOrder] read as a
+/// ring, so the run may cross the top: 12, 5 and 20 touch. The order the
+/// fields are given in does not matter, but a repeat does not make an arc and
+/// neither the bull nor a miss is a sector, so either answers false.
+///
+/// This is board adjacency and has nothing to do with consecutive numbers: the
+/// 20, 19 and 18 sit far apart on the board and answer false here.
+bool areAdjacentSectors(List<int> fields) {
+  if (fields.isEmpty) return false;
+  final indices = <int>{};
+  for (final field in fields) {
+    final index = dartboardSegmentOrder.indexOf(field);
+    if (index < 0) return false;
+    indices.add(index);
+  }
+  if (indices.length != fields.length) return false;
+  final sectors = dartboardSegmentOrder.length;
+  for (final start in indices) {
+    final arc = List.generate(indices.length, (step) => (start + step) % sectors);
+    if (arc.every(indices.contains)) return true;
+  }
+  return false;
+}
