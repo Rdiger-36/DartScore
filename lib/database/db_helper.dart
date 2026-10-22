@@ -8,6 +8,7 @@ import '../models/player.dart';
 import '../models/game.dart';
 import '../models/dart_throw.dart';
 import '../models/cricket_game.dart';
+import '../models/capital_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/checkout_ladder_game.dart' show CheckoutLadderGame, CheckoutLadderThrow;
@@ -28,7 +29,7 @@ class DbHelper {
 
   /// Schema version this build knows how to open. A backup written at a higher
   /// version is refused rather than opened, see [inspectBackup].
-  static const int schemaVersion = 25;
+  static const int schemaVersion = 26;
 
   /// Where the database file lives, overriding the platform default. Only set
   /// by tests, which point it at an in-memory database so each case starts on
@@ -215,6 +216,7 @@ class DbHelper {
         'cricket_games',
         'shanghai_games',
         'around_the_clock_games',
+        'capital_games',
       ]) {
         await db.execute(
             'ALTER TABLE $table ADD COLUMN starting_order INTEGER NOT NULL DEFAULT 0');
@@ -270,6 +272,11 @@ class DbHelper {
     }
     if (oldVersion < 25) {
       await _createCheckoutLadder(db);
+    }
+    if (oldVersion < 26) {
+      await db.execute(_kCreateCapitalGames);
+      await db.execute(_kCreateCapitalThrows);
+      await db.execute(_kCreateCapitalThrowsIndex);
     }
   }
 
@@ -457,6 +464,7 @@ class DbHelper {
         'ON shanghai_throws(game_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_atc_throws_game '
         'ON around_the_clock_throws(game_id)');
+    await db.execute(_kCreateCapitalThrowsIndex);
   }
 
   /// Creates the Checkout Ladder tables and their index, for a fresh install
@@ -470,6 +478,41 @@ class DbHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ladder_throws_game '
         'ON checkout_ladder_throws(game_id)');
   }
+
+  /// The Capital tables, used both by a fresh install and by the migration to
+  /// schema 26, so there is one definition rather than two that can drift.
+  static const String _kCreateCapitalGames = '''
+    CREATE TABLE IF NOT EXISTS capital_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      variant INTEGER NOT NULL,
+      legs INTEGER NOT NULL,
+      sets INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      finished_at INTEGER,
+      player_ids TEXT NOT NULL,
+      starting_order INTEGER NOT NULL DEFAULT 0
+    )
+  ''';
+
+  /// Where each dart landed, not what it was aimed at: Capital never names a
+  /// target, the contract judges what the visit actually hit.
+  static const String _kCreateCapitalThrows = '''
+    CREATE TABLE IF NOT EXISTS capital_throws (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      player_id INTEGER NOT NULL,
+      field INTEGER NOT NULL,
+      multiplier INTEGER NOT NULL,
+      round INTEGER NOT NULL,
+      leg INTEGER NOT NULL,
+      set_ INTEGER NOT NULL,
+      thrown_at INTEGER NOT NULL
+    )
+  ''';
+
+  static const String _kCreateCapitalThrowsIndex =
+      'CREATE INDEX IF NOT EXISTS idx_capital_throws_game '
+      'ON capital_throws(game_id)';
 
   /// Generates a random RFC 4122 version-4 UUID for migrating rows that predate
   /// the uuid column.
@@ -622,6 +665,8 @@ class DbHelper {
         thrown_at INTEGER NOT NULL
       )
     ''');
+    await db.execute(_kCreateCapitalGames);
+    await db.execute(_kCreateCapitalThrows);
     await db.execute(_kCreateAppMeta);
     await _createIndexes(db);
     await _createCheckoutLadder(db);
@@ -1677,6 +1722,63 @@ class DbHelper {
     await d.delete('shanghai_games', where: 'id = ?', whereArgs: [gameId]);
   }
 
+  // ── Capital ──────────────────────────────────────────────────────────────────
+
+  /// Inserts a Capital game and returns its id.
+  Future<int> insertCapitalGame(CapitalGame g) async {
+    final d = await db;
+    final map = g.toMap()..remove('id');
+    return d.insert('capital_games', map);
+  }
+
+  /// Updates a Capital game row (e.g. to mark it finished).
+  Future<void> updateCapitalGame(CapitalGame g) async {
+    final d = await db;
+    await d.update('capital_games', g.toMap(),
+        where: 'id = ?', whereArgs: [g.id]);
+  }
+
+  /// Inserts a Capital dart and returns its id.
+  Future<int> insertCapitalThrow(CapitalThrow t) async {
+    final d = await db;
+    final map = t.toMap()..remove('id');
+    return d.insert('capital_throws', map);
+  }
+
+  /// Deletes the Capital dart with [id] (used by undo).
+  Future<void> deleteCapitalThrow(int id) async {
+    final d = await db;
+    await d.delete('capital_throws', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// All Capital darts for a game in chronological order.
+  Future<List<CapitalThrow>> getCapitalThrowsForGame(int gameId) async {
+    final d = await db;
+    final rows = await d.query(
+      'capital_throws',
+      where: 'game_id = ?',
+      whereArgs: [gameId],
+      // Ties on the millisecond are possible, so the row id decides. The
+      // replay that rebuilds every total depends on a stable order.
+      orderBy: 'thrown_at ASC, id ASC',
+    );
+    return rows.map(CapitalThrow.fromMap).toList();
+  }
+
+  /// All Capital games, newest first.
+  Future<List<CapitalGame>> getCapitalGames() async {
+    final d = await db;
+    final rows = await d.query('capital_games', orderBy: 'created_at DESC');
+    return rows.map(CapitalGame.fromMap).toList();
+  }
+
+  /// Permanently deletes a Capital game and its darts.
+  Future<void> deleteCapitalGame(int gameId) async {
+    final d = await db;
+    await d.delete('capital_throws', where: 'game_id = ?', whereArgs: [gameId]);
+    await d.delete('capital_games', where: 'id = ?', whereArgs: [gameId]);
+  }
+
   // ── Around the Clock ─────────────────────────────────────────────────────────
 
   /// Inserts an Around the Clock game and returns its id.
@@ -1867,6 +1969,7 @@ class DbHelper {
         'shanghai_games',
         'around_the_clock_games',
         'checkout_ladder_games',
+        'capital_games',
       ]) {
         if (!tables.contains(table)) continue;
         games += Sqflite.firstIntValue(
@@ -2015,6 +2118,7 @@ extension LocalBackupSummary on DbHelper {
       'shanghai_games',
       'around_the_clock_games',
       'checkout_ladder_games',
+      'capital_games',
     ]) {
       games +=
           Sqflite.firstIntValue(await d.rawQuery('SELECT COUNT(*) FROM $table')) ??
