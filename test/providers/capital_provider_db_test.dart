@@ -97,82 +97,78 @@ void main() {
       expect(provider.playerStates.first.lastRoundMet, isFalse);
     });
 
-    group('ending a visit early', () {
-      test('is refused before any dart is thrown', () async {
-        await startedGame();
-        expect(provider.canEndVisitEarly, isFalse);
-      });
-
-      test('settles the visit and moves the turn on', () async {
-        await startedGame();
-        await provider.recordDart(single(20));
-        expect(provider.canEndVisitEarly, isTrue);
-        await provider.endVisitEarly();
-
-        expect(provider.playerStates.first.total, 20);
-        expect(provider.currentPlayerIndex, 1);
-        expect(provider.dartsInVisit, 0);
-      });
-
-      test('marks the dart that closed the visit', () async {
-        final game = await startedGame();
-        await provider.recordDart(single(20));
-        await provider.endVisitEarly();
-
-        final darts =
-            await DbHelper.instance.getCapitalThrowsForGame(game.id!);
-        expect(darts, hasLength(1));
-        expect(darts.single.endsVisit, isTrue);
-      });
-
-      test('survives a resume, so the stopped dart is not handed back', () async {
-        // The whole reason the closing dart is marked: two darts followed by
-        // nothing look identical whether the player stopped or the app died.
-        final game = await startedGame();
+    group('the 57 round, which closes itself', () {
+      /// Fails rounds two through twelve for both players, which is what gets
+      /// the game to the round the 57 contract is actually played in.
+      Future<void> reachRound13() async {
         await visit([single(20), single(20), single(20)]); // A capital 60
         await visit([single(1), single(1), single(1)]);    // B capital 3
-        await provider.recordDart(single(20));             // A meets the 20
-        await provider.endVisitEarly();
+        for (var round = 2; round <= 12; round++) {
+          await missVisit();
+          await missVisit();
+        }
+      }
+
+      test('ends the visit the moment the total is exactly 57', () async {
+        await startedGame();
+        await reachRound13();
+        expect(provider.contract, CapitalContract.fiftySeven);
+
+        final before = provider.playerStates.first.total;
+        await provider.recordDart(treble(19));
+
+        // One dart, and the visit is already over: the turn has moved on and
+        // no third dart can break the total.
+        expect(provider.dartsInVisit, 0);
+        expect(provider.currentPlayerIndex, 1);
+        expect(provider.playerStates.first.total, before + 57);
+      });
+
+      test('closes on two darts as readily as on one', () async {
+        await startedGame();
+        await reachRound13();
+        final before = provider.playerStates.first.total;
+
+        await provider.recordDart(single(19));
+        expect(provider.dartsInVisit, 1);
+        await provider.recordDart(double_(19));
+        expect(provider.dartsInVisit, 0);
+        expect(provider.playerStates.first.total, before + 57);
+      });
+
+      test('keeps the visit open while the total is short of 57', () async {
+        await startedGame();
+        await reachRound13();
+        await provider.recordDart(single(20));
+        expect(provider.dartsInVisit, 1);
+        expect(provider.contractMet, isFalse);
+      });
+
+      test('replays to the same place it closed at', () async {
+        final game = await startedGame();
+        await reachRound13();
+        final before = provider.playerStates.first.total;
+        await provider.recordDart(treble(19));
 
         final resumed = CapitalProvider();
         await resumed.resumeGame(game, players);
 
         expect(resumed.currentPlayerIndex, 1);
         expect(resumed.dartsInVisit, 0);
-        expect(resumed.playerStates.first.total, 80);
+        expect(resumed.playerStates.first.total, before + 57);
       });
+    });
 
-      test('lets the 57 round stop on the dart that made it', () async {
-        await startedGame();
-        await visit([single(20), single(20), single(20)]); // A capital 60
-        await visit([single(1), single(1), single(1)]);    // B capital 3
-        // Rounds two through twelve are failed by both, which is what gets the
-        // game to the round the 57 contract is actually played in.
-        for (var round = 2; round <= 12; round++) {
-          await missVisit();
-          await missVisit();
-        }
-        expect(provider.currentRound, 13);
-        expect(provider.contract, CapitalContract.fiftySeven);
-
-        final before = provider.playerStates.first.total;
-        await provider.recordDart(treble(19));
-        expect(provider.contractMet, isTrue);
-        expect(provider.shouldStopNow, isTrue);
-
-        await provider.endVisitEarly();
-        expect(provider.playerStates.first.total, before + 57);
-      });
-
-      test('a visit cut short still fails a contract it did not meet', () async {
-        await startedGame();
-        await visit([single(20), single(20), single(20)]);
-        await visit([single(20), single(20), single(20)]);
-        // Round two wants a 20. One dart on the 19 and then stop.
-        await provider.recordDart(single(19));
-        await provider.endVisitEarly();
-        expect(provider.playerStates.first.total, 30);
-      });
+    test('never closes a visit early on any other round', () async {
+      await startedGame();
+      await visit([single(20), single(20), single(20)]);
+      await visit([single(20), single(20), single(20)]);
+      // Round two wants a 20. Meeting it does not end the visit, because two
+      // more darts can only add points.
+      await provider.recordDart(single(20));
+      expect(provider.contractMet, isTrue);
+      expect(provider.dartsInVisit, 1);
+      expect(provider.currentPlayerIndex, 0);
     });
 
     test('replays an unfinished visit back onto the board', () async {

@@ -497,12 +497,9 @@ class DbHelper {
   /// Where each dart landed, not what it was aimed at: Capital never names a
   /// target, the contract judges what the visit actually hit.
   ///
-  /// `visit_end` marks the dart that closed the visit. A player who has met
-  /// the contract may stop before three darts, and that choice is an input
-  /// like the darts themselves, not something the replay could work out: two
-  /// darts followed by nothing look the same whether the player stopped or
-  /// the app was killed mid visit. Storing it keeps the replay exact without
-  /// storing any outcome.
+  /// A visit ends on its third dart or on an exact 57, both of which the
+  /// replay works out from the darts, so nothing about the visit boundary is
+  /// stored here.
   static const String _kCreateCapitalThrows = '''
     CREATE TABLE IF NOT EXISTS capital_throws (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -513,8 +510,7 @@ class DbHelper {
       round INTEGER NOT NULL,
       leg INTEGER NOT NULL,
       set_ INTEGER NOT NULL,
-      thrown_at INTEGER NOT NULL,
-      visit_end INTEGER NOT NULL DEFAULT 0
+      thrown_at INTEGER NOT NULL
     )
   ''';
 
@@ -1751,16 +1747,6 @@ class DbHelper {
     final d = await db;
     final map = t.toMap()..remove('id');
     return d.insert('capital_throws', map);
-  }
-
-  /// Marks the dart with [id] as the one that closed its visit.
-  ///
-  /// Written when the visit ends rather than when the dart lands, because a
-  /// player may only decide to stop after seeing where the dart went.
-  Future<void> markCapitalThrowEndsVisit(int id) async {
-    final d = await db;
-    await d.update('capital_throws', {'visit_end': 1},
-        where: 'id = ?', whereArgs: [id]);
   }
 
   /// Deletes the Capital dart with [id] (used by undo).

@@ -93,14 +93,6 @@ class CapitalThrow {
   final int leg;
   final int set_;
   final DateTime thrownAt;
-  /// Whether this dart closed the visit.
-  ///
-  /// Set on the third dart, and on an earlier one when the player chose to
-  /// stop because the contract was already met. The choice to stop is an
-  /// input, not an outcome: a visit of two darts looks identical whether the
-  /// player ended it or the app was killed before the third, so the replay
-  /// cannot infer it.
-  final bool endsVisit;
 
   const CapitalThrow({
     this.id,
@@ -112,7 +104,6 @@ class CapitalThrow {
     required this.leg,
     required this.set_,
     required this.thrownAt,
-    this.endsVisit = false,
   });
 
   /// This dart as the board geometry and the contract rules express it.
@@ -132,7 +123,6 @@ class CapitalThrow {
         'leg':        leg,
         'set_':       set_,
         'thrown_at':  thrownAt.millisecondsSinceEpoch,
-        'visit_end':  endsVisit ? 1 : 0,
       };
 
   /// Reconstructs a Capital throw from a SQLite row map.
@@ -146,6 +136,5 @@ class CapitalThrow {
         leg:        map['leg'] as int,
         set_:       map['set_'] as int,
         thrownAt:   DateTime.fromMillisecondsSinceEpoch(map['thrown_at'] as int),
-        endsVisit:  (map['visit_end'] as int? ?? 0) == 1,
       );
 }

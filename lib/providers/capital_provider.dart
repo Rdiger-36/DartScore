@@ -55,9 +55,8 @@ class CapitalPlayerState implements LabelledSlot {
 /// Every dart is persisted as it lands and nothing derived is stored: the
 /// totals and whether each contract was met are rebuilt by replaying the darts
 /// through [applyCapitalVisit], which is the one implementation of the scoring
-/// rule. The dart that closed a visit carries [CapitalThrow.endsVisit], since
-/// a player who has met the contract may stop before three darts and no replay
-/// could work that choice out afterwards.
+/// rule. A visit ends on its third dart or the moment it makes exactly 57, and
+/// both are read back off the darts, so no boundary is stored either.
 class CapitalProvider extends ChangeNotifier
     with WidgetsBindingObserver, BotRunner {
   final DbHelper _db = DbHelper.instance;
@@ -103,18 +102,6 @@ class CapitalProvider extends ChangeNotifier
 
   /// Whether another dart could only cost the thrower the contract.
   bool get shouldStopNow => furtherDartsCanOnlyHurt(contract, visitHits);
-
-  /// Whether the person on turn may end their visit before three darts.
-  ///
-  /// Needs at least one dart, because an empty visit would leave the round
-  /// with nothing to judge, and is refused while a bot is on turn or a
-  /// finished visit is still on the board.
-  bool get canEndVisitEarly =>
-      _game != null &&
-      !_gameOver &&
-      !inputLocked &&
-      _visitBuffer.isNotEmpty &&
-      _visitBuffer.length < dartsPerVisit;
 
   /// Whether there is a dart to undo. Not while a bot is throwing, and not
   /// when every recorded dart is a bot's: those are never undone on their own.
@@ -228,60 +215,20 @@ class CapitalProvider extends ChangeNotifier
     notifyListeners();
   }
 
-  /// Ends the visit before three darts, at the thrower's choice.
-  ///
-  /// The play screen offers this so a visit that has already made 57 is not
-  /// forced to throw a dart that can only break it.
-  Future<void> endVisitEarly() async {
-    if (!canEndVisitEarly) return;
-    await _closeVisit();
-    notifyListeners();
-    scheduleBot();
-  }
-
   // ── Visit completion ───────────────────────────────────────────────────────
 
   /// Ends the visit if it is over, after its pause on the board.
   ///
-  /// A bot stops on its own once another dart could only cost it the contract,
-  /// which is only ever the 57 round. A person is left to decide, and has
-  /// [endVisitEarly] to do it with.
+  /// A visit ends on its third dart, or the moment it makes exactly 57 in the
+  /// round that asks for it. Closing it there rather than offering the choice
+  /// costs the thrower nothing: from an exact 57 every scoring dart breaks the
+  /// total and a missing one changes nothing, so throwing on is a gamble with
+  /// no prize. It also keeps the visit boundary something the replay can work
+  /// out, rather than a decision that would have to be stored.
   Future<void> _maybeEndVisit() async {
-    final full = _visitBuffer.length >= dartsPerVisit;
-    if (!full && !(isBotTurn && shouldStopNow)) return;
+    if (_visitBuffer.length < dartsPerVisit && !shouldStopNow) return;
     notifyListeners();
-    await _closeVisit();
-  }
-
-  /// Marks the closing dart, then settles the visit after its pause.
-  Future<void> _closeVisit() async {
-    final closing = _visitBuffer.last;
-    await _db.markCapitalThrowEndsVisit(closing.id!);
-    _replaceStoredDart(closing, _withEndsVisit(closing));
     await holdVisit(_endVisit);
-  }
-
-  /// A copy of [dart] marked as having closed its visit.
-  CapitalThrow _withEndsVisit(CapitalThrow dart) => CapitalThrow(
-        id:         dart.id,
-        gameId:     dart.gameId,
-        playerId:   dart.playerId,
-        field:      dart.field,
-        multiplier: dart.multiplier,
-        round:      dart.round,
-        leg:        dart.leg,
-        set_:       dart.set_,
-        thrownAt:   dart.thrownAt,
-        endsVisit:  true,
-      );
-
-  /// Swaps [old] for [updated] in both in-memory lists, so they agree with the
-  /// row that was just written.
-  void _replaceStoredDart(CapitalThrow old, CapitalThrow updated) {
-    final inVisit = _visitBuffer.indexWhere((d) => d.id == old.id);
-    if (inVisit >= 0) _visitBuffer[inVisit] = updated;
-    final inHistory = _throwHistory.indexWhere((d) => d.id == old.id);
-    if (inHistory >= 0) _throwHistory[inHistory] = updated;
   }
 
   /// Scores the completed visit onto the thrower's capital and moves on.
@@ -365,10 +312,8 @@ class CapitalProvider extends ChangeNotifier
 
   /// Rebuilds every total and the turn from the persisted darts.
   ///
-  /// A visit ends where its closing dart says it does, which is what lets a
-  /// visit of fewer than three darts replay as the player actually threw it.
-  /// The dart count is still honoured as a backstop, so a row whose flag never
-  /// got written cannot run two visits together.
+  /// A visit ends exactly where the live game ended it, on the third dart or
+  /// on an exact 57, because the same two conditions are checked here.
   Future<void> _replayState() async {
     if (_game == null) return;
 
@@ -391,7 +336,7 @@ class CapitalProvider extends ChangeNotifier
     for (final t in allThrows) {
       _visitBuffer.add(t);
       _throwHistory.add(t);
-      if (t.endsVisit || _visitBuffer.length >= dartsPerVisit) {
+      if (_visitBuffer.length >= dartsPerVisit || shouldStopNow) {
         _settleVisit();
         _visitBuffer.clear();
         await _advanceTurn();
