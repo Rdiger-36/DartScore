@@ -1753,6 +1753,16 @@ class DbHelper {
     return d.insert('capital_throws', map);
   }
 
+  /// Marks the dart with [id] as the one that closed its visit.
+  ///
+  /// Written when the visit ends rather than when the dart lands, because a
+  /// player may only decide to stop after seeing where the dart went.
+  Future<void> markCapitalThrowEndsVisit(int id) async {
+    final d = await db;
+    await d.update('capital_throws', {'visit_end': 1},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   /// Deletes the Capital dart with [id] (used by undo).
   Future<void> deleteCapitalThrow(int id) async {
     final d = await db;
