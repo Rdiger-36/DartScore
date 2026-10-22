@@ -96,6 +96,16 @@ int applyCapitalVisit({
       : halvedRoundingUp(total);
 }
 
+/// Whether another dart in this visit could only make things worse.
+///
+/// True for [CapitalContract.fiftySeven] once the total is exactly 57, where
+/// any further score breaks it. Every other contract either gains points from
+/// another dart or still needs one, so stopping early never helps. The play
+/// screen uses this to offer ending the visit, and the bot to stop on its own.
+bool furtherDartsCanOnlyHurt(CapitalContract contract, List<BoardHit> darts) =>
+    contract == CapitalContract.fiftySeven &&
+    capitalContractMet(contract, darts);
+
 /// Three darts in three sectors that touch each other on the board.
 ///
 /// The bull is not a sector and the rules exclude it here explicitly, which
