@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('the colors painted on the board', () {
     test('matches the example the Capital rules give', () {
-      // "20-19-treble 20 => black-white-red" is the worked example for the
+      // "20-19-triple 20 => black-white-red" is the worked example for the
       // Color contract, and it pins both halves of the alternation at once.
       expect(colorOf((field: 20, multiplier: 1)), BoardColor.black);
       expect(colorOf((field: 19, multiplier: 1)), BoardColor.white);
@@ -22,14 +22,14 @@ void main() {
       }
     });
 
-    test('alternates red and green over the doubles and the trebles', () {
+    test('alternates red and green over the doubles and the triples', () {
       for (var index = 0; index < dartboardSegmentOrder.length; index++) {
         final field = dartboardSegmentOrder[index];
         final expected = index.isEven ? BoardColor.red : BoardColor.green;
         expect(colorOf((field: field, multiplier: 2)), expected,
             reason: 'double $field at index $index');
         expect(colorOf((field: field, multiplier: 3)), expected,
-            reason: 'treble $field at index $index');
+            reason: 'triple $field at index $index');
       }
     });
 

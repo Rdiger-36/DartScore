@@ -4,7 +4,7 @@ import 'package:dartscore_app/utils/dartboard_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 BoardHit single(int field) => (field: field, multiplier: 1);
-BoardHit treble(int field) => (field: field, multiplier: 3);
+BoardHit triple(int field) => (field: field, multiplier: 3);
 const BoardHit innerBull = (field: 25, multiplier: 2);
 const BoardHit maxPoints = (field: 20, multiplier: 3);
 
@@ -13,15 +13,15 @@ BoardHit aim(CapitalContract contract, [List<BoardHit> darts = const []]) =>
 
 void main() {
   group('a bot building the capital', () {
-    test('plays the treble twenty, where the points are', () {
+    test('plays the triple twenty, where the points are', () {
       expect(aim(CapitalContract.capital), maxPoints);
     });
   });
 
   group('a bot on a sector contract', () {
-    test('aims at the treble of the sector it needs', () {
-      expect(aim(CapitalContract.seventeen), treble(17));
-      expect(aim(CapitalContract.fourteen), treble(14));
+    test('aims at the triple of the sector it needs', () {
+      expect(aim(CapitalContract.seventeen), triple(17));
+      expect(aim(CapitalContract.fourteen), triple(14));
     });
 
     test('switches to points once the sector is in the bag', () {
@@ -38,7 +38,7 @@ void main() {
     test('plays for points once either is met', () {
       expect(aim(CapitalContract.anyDouble, [(field: 3, multiplier: 2)]), maxPoints);
       expect(aim(CapitalContract.center, [innerBull]), maxPoints);
-      expect(aim(CapitalContract.anyTreble, [treble(5)]), maxPoints);
+      expect(aim(CapitalContract.anyTriple, [triple(5)]), maxPoints);
     });
   });
 
@@ -48,17 +48,17 @@ void main() {
     });
 
     test('extends the arc to a sector that touches the first', () {
-      final next = aim(CapitalContract.side, [treble(20)]);
+      final next = aim(CapitalContract.side, [triple(20)]);
       expect(areAdjacentSectors([20, next.field]), isTrue);
     });
 
     test('closes an arc of two from one of its ends', () {
-      final next = aim(CapitalContract.side, [treble(20), treble(1)]);
+      final next = aim(CapitalContract.side, [triple(20), triple(1)]);
       expect(areAdjacentSectors([20, 1, next.field]), isTrue);
     });
 
     test('plays for points when the darts can no longer make an arc', () {
-      expect(aim(CapitalContract.side, [treble(20), treble(19)]), maxPoints);
+      expect(aim(CapitalContract.side, [triple(20), triple(19)]), maxPoints);
     });
   });
 
@@ -68,34 +68,34 @@ void main() {
     });
 
     test('takes a number next to the one it already hit', () {
-      expect(aim(CapitalContract.run, [treble(20)]).field, 19);
+      expect(aim(CapitalContract.run, [triple(20)]).field, 19);
     });
 
     test('closes a run of two', () {
-      final next = aim(CapitalContract.run, [treble(20), treble(19)]);
+      final next = aim(CapitalContract.run, [triple(20), triple(19)]);
       expect(next.field, 18);
     });
 
     test('fills the gap in a broken pair', () {
-      expect(aim(CapitalContract.run, [treble(20), treble(18)]).field, 19);
+      expect(aim(CapitalContract.run, [triple(20), triple(18)]).field, 19);
     });
 
     test('does not try to wrap past the twenty', () {
-      final next = aim(CapitalContract.run, [treble(20), treble(19)]);
+      final next = aim(CapitalContract.run, [triple(20), triple(19)]);
       expect(next.field, isNot(1));
     });
   });
 
   group('a bot matching colors', () {
-    test('opens on the red treble twenty', () {
-      expect(colorOf(aim(CapitalContract.color)), BoardColor.red);
+    test('opens on the red triple twenty', () {
+      expect(colorOf(aim(CapitalContract.colors)), BoardColor.red);
     });
 
     test('picks a color it has not used yet, each dart', () {
-      final second = aim(CapitalContract.color, [treble(20)]);
+      final second = aim(CapitalContract.colors, [triple(20)]);
       expect(colorOf(second), isNot(BoardColor.red));
 
-      final third = aim(CapitalContract.color, [treble(20), second]);
+      final third = aim(CapitalContract.colors, [triple(20), second]);
       expect(colorOf(third), isNot(BoardColor.red));
       expect(colorOf(third), isNot(colorOf(second)));
     });
@@ -103,7 +103,7 @@ void main() {
 
   group('a bot chasing 57', () {
     test('takes the one dart that makes 57 outright', () {
-      expect(aim(CapitalContract.fiftySeven), treble(19));
+      expect(aim(CapitalContract.fiftySeven), triple(19));
     });
 
     test('finishes the total exactly from what it has already thrown', () {
@@ -141,7 +141,7 @@ void main() {
       for (final contract in CapitalContract.values) {
         if (contract == CapitalContract.fiftySeven) continue;
         expect(
-          furtherDartsCanOnlyHurt(contract, [treble(20), treble(20), treble(20)]),
+          furtherDartsCanOnlyHurt(contract, [triple(20), triple(20), triple(20)]),
           isFalse,
           reason: '$contract',
         );

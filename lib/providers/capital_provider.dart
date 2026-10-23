@@ -123,7 +123,7 @@ class CapitalProvider extends ChangeNotifier
     _game = game;
     _playerStates = _buildSlots(players);
     _currentPlayerIndex = 0;
-    _currentRound = 1;
+    _currentRound = 0;
     _gameOver = false;
     _winnerId = null;
     dropHeldVisit();
@@ -138,7 +138,7 @@ class CapitalProvider extends ChangeNotifier
     _game = game;
     _playerStates = _buildSlots(players);
     _currentPlayerIndex = 0;
-    _currentRound = 1;
+    _currentRound = 0;
     _gameOver = false;
     _winnerId = null;
     _visitBuffer.clear();
@@ -261,13 +261,13 @@ class CapitalProvider extends ChangeNotifier
     if (!wasLastSlot) return;
 
     _currentRound++;
-    if (_currentRound > CapitalContract.rounds) await _finishGame();
+    if (_currentRound > CapitalContract.lastRound) await _finishGame();
   }
 
   /// Closes the game on the highest capital, or on no winner when it is shared.
   Future<void> _finishGame() async {
     _gameOver = true;
-    _currentRound = CapitalContract.rounds;
+    _currentRound = CapitalContract.lastRound;
     final top = _playerStates
         .map((s) => s.total)
         .reduce((a, b) => a > b ? a : b);
@@ -329,7 +329,7 @@ class CapitalProvider extends ChangeNotifier
     _gameOver = false;
     _winnerId = null;
     _currentPlayerIndex = 0;
-    _currentRound = 1;
+    _currentRound = 0;
     _visitBuffer.clear();
     _throwHistory.clear();
 

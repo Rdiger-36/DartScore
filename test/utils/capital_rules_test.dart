@@ -2,27 +2,39 @@ import 'package:dartscore_app/utils/capital_rules.dart';
 import 'package:dartscore_app/utils/dartboard_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// A single, a double and a treble of [field], and the two bull rings.
+/// A single, a double and a triple of [field], and the two bull rings.
 BoardHit single(int field) => (field: field, multiplier: 1);
 BoardHit double_(int field) => (field: field, multiplier: 2);
-BoardHit treble(int field) => (field: field, multiplier: 3);
+BoardHit triple(int field) => (field: field, multiplier: 3);
 const BoardHit innerBull = (field: 25, multiplier: 2);
 const BoardHit outerBull = (field: 25, multiplier: 1);
 
 void main() {
   group('the fifteen rounds', () {
-    test('runs from the capital to the center', () {
+    test('opens on the capital at round zero and ends on the center', () {
       expect(CapitalContract.rounds, 15);
-      expect(CapitalContract.forRound(1), CapitalContract.capital);
-      expect(CapitalContract.forRound(7), CapitalContract.side);
-      expect(CapitalContract.forRound(13), CapitalContract.fiftySeven);
-      expect(CapitalContract.forRound(15), CapitalContract.center);
+      expect(CapitalContract.contractCount, 14);
+      expect(CapitalContract.lastRound, 14);
+      expect(CapitalContract.forRound(0), CapitalContract.capital);
+      expect(CapitalContract.forRound(6), CapitalContract.side);
+      expect(CapitalContract.forRound(12), CapitalContract.fiftySeven);
+      expect(CapitalContract.forRound(14), CapitalContract.center);
     });
 
     test('numbers each contract with the round it is played in', () {
-      for (var round = 1; round <= CapitalContract.rounds; round++) {
+      for (var round = 0; round <= CapitalContract.lastRound; round++) {
         expect(CapitalContract.forRound(round).round, round);
       }
+    });
+
+    test('leaves the capital unnumbered among the contracts', () {
+      // The capital is round 0 precisely because it is not a contract, so
+      // every contract proper carries a number from one to fourteen.
+      expect(CapitalContract.capital.round, 0);
+      final contracts = CapitalContract.values
+          .where((c) => c != CapitalContract.capital)
+          .map((c) => c.round);
+      expect(contracts, List.generate(14, (i) => i + 1));
     });
 
     test('names a sector only for the contracts that ask for one', () {
@@ -44,7 +56,7 @@ void main() {
         applyCapitalVisit(
           total: 999,
           contract: CapitalContract.capital,
-          darts: [treble(20), single(20), double_(20)],
+          darts: [triple(20), single(20), double_(20)],
         ),
         60 + 20 + 40,
       );
@@ -53,7 +65,7 @@ void main() {
 
   group('the sector contracts', () {
     test('take a dart in the sector whatever ring it landed in', () {
-      for (final hit in [single(20), double_(20), treble(20)]) {
+      for (final hit in [single(20), double_(20), triple(20)]) {
         expect(capitalContractMet(CapitalContract.twenty, [hit]), isTrue,
             reason: '$hit');
       }
@@ -89,16 +101,16 @@ void main() {
     });
   });
 
-  group('the treble contract', () {
-    test('takes any treble', () {
-      expect(capitalContractMet(CapitalContract.anyTreble, [treble(7)]), isTrue);
+  group('the triple contract', () {
+    test('takes any triple', () {
+      expect(capitalContractMet(CapitalContract.anyTriple, [triple(7)]), isTrue);
     });
 
     test('rejects singles, doubles and both bull rings', () {
-      expect(capitalContractMet(CapitalContract.anyTreble, [single(20)]), isFalse);
-      expect(capitalContractMet(CapitalContract.anyTreble, [double_(20)]), isFalse);
-      expect(capitalContractMet(CapitalContract.anyTreble, [innerBull]), isFalse);
-      expect(capitalContractMet(CapitalContract.anyTreble, [outerBull]), isFalse);
+      expect(capitalContractMet(CapitalContract.anyTriple, [single(20)]), isFalse);
+      expect(capitalContractMet(CapitalContract.anyTriple, [double_(20)]), isFalse);
+      expect(capitalContractMet(CapitalContract.anyTriple, [innerBull]), isFalse);
+      expect(capitalContractMet(CapitalContract.anyTriple, [outerBull]), isFalse);
     });
   });
 
@@ -113,10 +125,10 @@ void main() {
       expect(capitalContractMet(CapitalContract.anyDouble, [innerBull]), isTrue);
     });
 
-    test('rejects the outer bull, singles and trebles', () {
+    test('rejects the outer bull, singles and triples', () {
       expect(capitalContractMet(CapitalContract.anyDouble, [outerBull]), isFalse);
       expect(capitalContractMet(CapitalContract.anyDouble, [single(20)]), isFalse);
-      expect(capitalContractMet(CapitalContract.anyDouble, [treble(20)]), isFalse);
+      expect(capitalContractMet(CapitalContract.anyDouble, [triple(20)]), isFalse);
     });
   });
 
@@ -132,7 +144,7 @@ void main() {
     test('ignores which ring each dart landed in', () {
       expect(
         capitalContractMet(
-            CapitalContract.side, [treble(16), double_(7), single(19)]),
+            CapitalContract.side, [triple(16), double_(7), single(19)]),
         isTrue,
       );
     });
@@ -179,7 +191,7 @@ void main() {
     test('ignores the order and the rings', () {
       expect(
         capitalContractMet(
-            CapitalContract.run, [double_(18), treble(20), single(19)]),
+            CapitalContract.run, [double_(18), triple(20), single(19)]),
         isTrue,
       );
     });
@@ -242,10 +254,10 @@ void main() {
 
   group('the color contract', () {
     test('takes the example the rules give', () {
-      // 20, 19, treble 20 reads black, white, red.
+      // 20, 19, triple 20 reads black, white, red.
       expect(
         capitalContractMet(
-            CapitalContract.color, [single(20), single(19), treble(20)]),
+            CapitalContract.colors, [single(20), single(19), triple(20)]),
         isTrue,
       );
     });
@@ -253,7 +265,7 @@ void main() {
     test('takes the two bull rings as red and green', () {
       expect(
         capitalContractMet(
-            CapitalContract.color, [innerBull, outerBull, single(20)]),
+            CapitalContract.colors, [innerBull, outerBull, single(20)]),
         isTrue,
       );
     });
@@ -262,7 +274,7 @@ void main() {
       // 20 and 18 are both black singles, so this is black, black, red.
       expect(
         capitalContractMet(
-            CapitalContract.color, [single(20), single(18), treble(20)]),
+            CapitalContract.colors, [single(20), single(18), triple(20)]),
         isFalse,
       );
     });
@@ -270,14 +282,14 @@ void main() {
     test('rejects a miss, which has no color', () {
       expect(
         capitalContractMet(
-            CapitalContract.color, [single(20), single(19), boardMiss]),
+            CapitalContract.colors, [single(20), single(19), boardMiss]),
         isFalse,
       );
     });
 
     test('needs all three darts', () {
       expect(
-        capitalContractMet(CapitalContract.color, [single(20), single(19)]),
+        capitalContractMet(CapitalContract.colors, [single(20), single(19)]),
         isFalse,
       );
     });
@@ -293,7 +305,7 @@ void main() {
     });
 
     test('takes a single dart that makes 57 on its own', () {
-      expect(capitalContractMet(CapitalContract.fiftySeven, [treble(19)]), isTrue);
+      expect(capitalContractMet(CapitalContract.fiftySeven, [triple(19)]), isTrue);
     });
 
     test('takes three darts that total 57', () {
@@ -333,7 +345,7 @@ void main() {
     });
 
     test('rejects everything else', () {
-      expect(capitalContractMet(CapitalContract.center, [treble(20)]), isFalse);
+      expect(capitalContractMet(CapitalContract.center, [triple(20)]), isFalse);
       expect(capitalContractMet(CapitalContract.center, [boardMiss]), isFalse);
     });
   });
@@ -357,7 +369,7 @@ void main() {
         applyCapitalVisit(
           total: 100,
           contract: CapitalContract.twenty,
-          darts: [treble(20), single(5), boardMiss],
+          darts: [triple(20), single(5), boardMiss],
         ),
         165,
       );
@@ -386,7 +398,7 @@ void main() {
     });
 
     test('plays a whole game through to a total', () {
-      // Capital of 60, then meet the 20 for 60 more, then fail the treble.
+      // Capital of 60, then meet the 20 for 60 more, then fail the triple.
       var total = applyCapitalVisit(
         total: 0,
         contract: CapitalContract.capital,
@@ -403,7 +415,7 @@ void main() {
 
       total = applyCapitalVisit(
         total: total,
-        contract: CapitalContract.anyTreble,
+        contract: CapitalContract.anyTriple,
         darts: [single(20), single(20), single(20)],
       );
       expect(total, 60);

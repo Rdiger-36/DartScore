@@ -2,40 +2,48 @@ import 'dartboard_geometry.dart';
 
 /// The fifteen rounds of a Capital game, in the order they are played.
 ///
-/// Round 1 builds the capital and asks nothing of the darts. Every later round
-/// proposes a contract that must be fulfilled inside one visit: fulfilling it
-/// adds the visit to the total, failing it halves the total.
+/// Round 0 builds the capital and asks nothing of the darts, which is why it
+/// carries no number of its own: the fourteen contracts proper are rounds 1 to
+/// 14. Each must be fulfilled inside one visit, and fulfilling it adds the
+/// visit to the total while failing it halves the total.
 enum CapitalContract {
-  capital(1),
-  twenty(2, sector: 20),
-  anyTreble(3),
-  nineteen(4, sector: 19),
-  anyDouble(5),
-  eighteen(6, sector: 18),
-  side(7),
-  seventeen(8, sector: 17),
-  run(9),
-  sixteen(10, sector: 16),
-  color(11),
-  fifteen(12, sector: 15),
-  fiftySeven(13),
-  fourteen(14, sector: 14),
-  center(15);
+  capital(0),
+  twenty(1, sector: 20),
+  anyTriple(2),
+  nineteen(3, sector: 19),
+  anyDouble(4),
+  eighteen(5, sector: 18),
+  side(6),
+  seventeen(7, sector: 17),
+  run(8),
+  sixteen(9, sector: 16),
+  colors(10),
+  fifteen(11, sector: 15),
+  fiftySeven(12),
+  fourteen(13, sector: 14),
+  center(14);
 
   const CapitalContract(this.round, {this.sector});
 
-  /// The round this contract is played in, counted from one.
+  /// The round this contract is played in. The capital opens the game as
+  /// round 0, so a contract's own number is 1 to 14.
   final int round;
 
   /// The sector a dart has to land in, for the contracts that name one, and
   /// null for the contracts that ask for a shape, a total or a color instead.
   final int? sector;
 
-  /// The contract played in [round], counted from one.
-  static CapitalContract forRound(int round) => values[round - 1];
+  /// The contract played in [round], the capital being round 0.
+  static CapitalContract forRound(int round) => values[round];
 
-  /// How many rounds a Capital game lasts.
+  /// How many rounds a Capital game lasts, the opening capital included.
   static int get rounds => values.length;
+
+  /// The number of the last round, which [center] is played in.
+  static int get lastRound => values.length - 1;
+
+  /// How many contracts are proposed after the capital.
+  static int get contractCount => values.length - 1;
 }
 
 /// A total halved and rounded up to the next whole number.
@@ -54,27 +62,27 @@ int capitalVisitScore(List<BoardHit> darts) =>
 /// [darts] is the visit as thrown, so it holds one, two or three entries: a
 /// player who has already met the contract may stop early. The contracts that
 /// ask for a shape across the visit ([CapitalContract.side],
-/// [CapitalContract.run] and [CapitalContract.color]) need all three darts and
+/// [CapitalContract.run] and [CapitalContract.colors]) need all three darts and
 /// answer false for a shorter visit, while [CapitalContract.fiftySeven] can be
 /// met with fewer.
 ///
 /// The inner bull counts as a double, which is the convention the rest of this
 /// app already follows: `FinishCalculator` finishes a leg on it under the
-/// double out rule. No treble bull exists, so only the numbered sectors can
-/// satisfy [CapitalContract.anyTreble].
+/// double out rule. No triple bull exists, so only the numbered sectors can
+/// satisfy [CapitalContract.anyTriple].
 bool capitalContractMet(CapitalContract contract, List<BoardHit> darts) {
   if (contract.sector case final sector?) {
     return darts.any((dart) => dart.field == sector);
   }
   return switch (contract) {
     CapitalContract.capital    => true,
-    CapitalContract.anyTreble  => darts.any((dart) => dart.multiplier == 3),
+    CapitalContract.anyTriple  => darts.any((dart) => dart.multiplier == 3),
     CapitalContract.anyDouble  => darts.any((dart) => dart.multiplier == 2),
     CapitalContract.center     => darts.any((dart) => dart.field == 25),
     CapitalContract.fiftySeven => capitalVisitScore(darts) == 57,
     CapitalContract.side       => _isSide(darts),
     CapitalContract.run        => _isRun(darts),
-    CapitalContract.color      => _isColor(darts),
+    CapitalContract.colors     => _isColors(darts),
     // Every sector contract was answered above.
     _ => false,
   };
@@ -129,7 +137,7 @@ bool _isRun(List<BoardHit> darts) {
 /// Three darts in three different colors of paint.
 ///
 /// A miss has no color and fails the contract outright.
-bool _isColor(List<BoardHit> darts) {
+bool _isColors(List<BoardHit> darts) {
   if (darts.length != 3) return false;
   final colors = <BoardColor>{};
   for (final dart in darts) {

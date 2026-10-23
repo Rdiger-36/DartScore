@@ -1,7 +1,7 @@
 import 'capital_rules.dart';
 import 'dartboard_geometry.dart';
 
-/// The treble twenty, which is where a bot aims when nothing else is asked of
+/// The triple twenty, which is where a bot aims when nothing else is asked of
 /// the dart and points are all that is left to gain.
 const BoardHit _maxPoints = (field: 20, multiplier: 3);
 
@@ -9,7 +9,7 @@ const BoardHit _maxPoints = (field: 20, multiplier: 3);
 ///
 /// Unlike the other three modes, this cannot be decided from the slot state
 /// alone: on [CapitalContract.run], [CapitalContract.side] and
-/// [CapitalContract.color] the right target depends on where the earlier darts
+/// [CapitalContract.colors] the right target depends on where the earlier darts
 /// of the same visit landed, so [dartsSoFar] is part of the question.
 ///
 /// The aim is a sound target rather than an optimal one. A bot's skill is the
@@ -31,12 +31,12 @@ BoardHit capitalTarget({
 
   return switch (contract) {
     CapitalContract.capital   => _maxPoints,
-    CapitalContract.anyTreble => _maxPoints,
+    CapitalContract.anyTriple => _maxPoints,
     CapitalContract.anyDouble => (field: 20, multiplier: 2),
     CapitalContract.center    => (field: 25, multiplier: 2),
     CapitalContract.side      => _aimForSide(dartsSoFar),
     CapitalContract.run       => _aimForRun(dartsSoFar),
-    CapitalContract.color     => _aimForColor(dartsSoFar),
+    CapitalContract.colors    => _aimForColors(dartsSoFar),
     _                         => _maxPoints,
   };
 }
@@ -98,7 +98,7 @@ bool _isConsecutive(List<int> sorted) {
 ///
 /// The twenty carries black singles and red multiples, the nineteen white and
 /// green, so those two sectors between them offer all four colors.
-BoardHit _aimForColor(List<BoardHit> dartsSoFar) {
+BoardHit _aimForColors(List<BoardHit> dartsSoFar) {
   final used = dartsSoFar.map(colorOf).whereType<BoardColor>().toSet();
   const byValue = <BoardHit>[
     (field: 20, multiplier: 3), // red, 60
@@ -116,7 +116,7 @@ BoardHit _aimForColor(List<BoardHit> dartsSoFar) {
 ///
 /// A dart that lands the total exactly is taken first. Otherwise the bot looks
 /// for one that leaves a remainder it could finish with the next dart, and
-/// failing both it plays the treble twenty to cut the remainder down.
+/// failing both it plays the triple twenty to cut the remainder down.
 BoardHit _aimFor57(List<BoardHit> dartsSoFar) {
   final remaining = 57 - capitalVisitScore(dartsSoFar);
   if (remaining <= 0) return _maxPoints;
@@ -134,7 +134,7 @@ BoardHit _aimFor57(List<BoardHit> dartsSoFar) {
 
 /// A single dart worth exactly [points], or null when no ring scores it.
 ///
-/// Trebles are tried first so the bot aims at the smaller, higher scoring ring
+/// Triples are tried first so the bot aims at the smaller, higher scoring ring
 /// only when it has to.
 BoardHit? _exactHitFor(int points) {
   for (final hit in _allHits) {
