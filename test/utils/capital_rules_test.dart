@@ -421,4 +421,115 @@ void main() {
       expect(total, 60);
     });
   });
+
+  group('what a visit still needs', () {
+    group('runs', () {
+      test('is determined through the 20, because 21 does not exist', () {
+        expect(remainingRuns([single(20)]), [
+          [18, 19, 20]
+        ]);
+      });
+
+      test('is determined through the 1 as well', () {
+        expect(remainingRuns([single(1)]), [
+          [1, 2, 3]
+        ]);
+      });
+
+      test('offers two through the 19 and the 2', () {
+        expect(remainingRuns([single(19)]), hasLength(2));
+        expect(remainingRuns([single(2)]), hasLength(2));
+      });
+
+      test('offers three anywhere in the middle', () {
+        expect(remainingRuns([single(10)]), [
+          [8, 9, 10],
+          [9, 10, 11],
+          [10, 11, 12],
+        ]);
+      });
+
+      test('narrows to what the second dart allows', () {
+        expect(remainingRuns([single(10), single(11)]), [
+          [9, 10, 11],
+          [10, 11, 12],
+        ]);
+        expect(remainingRuns([single(20), single(18)]), [
+          [18, 19, 20]
+        ]);
+      });
+
+      test('gives nothing for a repeat, the bull or a miss', () {
+        expect(remainingRuns([single(20), single(20)]), isEmpty);
+        expect(remainingRuns([single(20), innerBull]), isEmpty);
+        expect(remainingRuns([single(20), boardMiss]), isEmpty);
+      });
+    });
+
+    group('arcs', () {
+      test('always offers three after one dart', () {
+        for (final field in [20, 1, 6, 11, 5]) {
+          expect(remainingArcs([single(field)]), hasLength(3),
+              reason: 'segment $field');
+        }
+      });
+
+      test('lists the three arcs through the 20, wrapping the top', () {
+        expect(remainingArcs([single(20)]), [
+          [20, 1, 18],
+          [12, 5, 20],
+          [5, 20, 1],
+        ]);
+      });
+
+      test('narrows to two when the second dart is a neighbor', () {
+        expect(remainingArcs([single(20), single(1)]), [
+          [20, 1, 18],
+          [5, 20, 1],
+        ]);
+      });
+
+      test('narrows to one when the second dart leaves a gap', () {
+        expect(remainingArcs([single(20), single(18)]), [
+          [20, 1, 18]
+        ]);
+      });
+
+      test('gives nothing for the bull, which is not a segment', () {
+        expect(remainingArcs([single(20), innerBull]), isEmpty);
+      });
+    });
+
+    group('colors', () {
+      test('names the three still open after one dart', () {
+        expect(unusedColors([single(20)]), [
+          BoardColor.white,
+          BoardColor.red,
+          BoardColor.green,
+        ]);
+      });
+
+      test('narrows to two after a second color', () {
+        expect(unusedColors([single(20), triple(20)]),
+            [BoardColor.white, BoardColor.green]);
+      });
+
+      test('gives nothing once a color repeats or a dart misses', () {
+        expect(unusedColors([single(20), single(18)]), isEmpty);
+        expect(unusedColors([single(20), boardMiss]), isEmpty);
+      });
+    });
+
+    group('57', () {
+      test('counts down what is left', () {
+        expect(pointsToFiftySeven([]), 57);
+        expect(pointsToFiftySeven([single(19)]), 38);
+        expect(pointsToFiftySeven([single(19), double_(19)]), 0);
+      });
+
+      test('gives null once the visit has gone past', () {
+        expect(pointsToFiftySeven([triple(20)]), isNull);
+      });
+    });
+  });
 }

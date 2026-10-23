@@ -114,6 +114,73 @@ bool furtherDartsCanOnlyHurt(CapitalContract contract, List<BoardHit> darts) =>
     contract == CapitalContract.fiftySeven &&
     capitalContractMet(contract, darts);
 
+// ── What a visit still needs ────────────────────────────────────────────────
+
+/// The runs of three consecutive numbers the visit could still complete.
+///
+/// Every run that holds all the numbers already thrown. How many there are is
+/// a property of the board rather than a choice: a run through the 20 or the 1
+/// is determined, because 21 and 0 do not exist, one through the 19 or the 2
+/// has two, and every other has three. Empty when no run remains, which
+/// includes a visit holding the bull, a miss or a repeated number.
+///
+/// With no darts thrown every run is still possible, so the answer is only
+/// meaningful once at least one dart has landed.
+List<List<int>> remainingRuns(List<BoardHit> darts) {
+  final fields = darts.map((dart) => dart.field).toList();
+  if (fields.toSet().length != fields.length) return const [];
+  if (fields.any((field) => field < 1 || field > 20)) return const [];
+  return [
+    for (var low = 1; low <= 18; low++)
+      if (fields.every((field) => field >= low && field <= low + 2))
+        [low, low + 1, low + 2],
+  ];
+}
+
+/// The arcs of three touching segments the visit could still complete.
+///
+/// Always three after one dart, because every segment has two neighbors and
+/// the board is a ring, so it sits in exactly three arcs. Empty when no arc
+/// remains, which includes a visit holding the bull, a miss or a repeat.
+List<List<int>> remainingArcs(List<BoardHit> darts) {
+  final fields = darts.map((dart) => dart.field).toList();
+  if (fields.toSet().length != fields.length) return const [];
+  final order = dartboardSegmentOrder;
+  final arcs = <List<int>>[];
+  for (var start = 0; start < order.length; start++) {
+    final arc = [
+      order[start],
+      order[(start + 1) % order.length],
+      order[(start + 2) % order.length],
+    ];
+    if (fields.every(arc.contains)) arcs.add(arc);
+  }
+  return arcs;
+}
+
+/// The colors the visit has not used yet.
+///
+/// Empty when the contract is already lost, which is a dart with no color at
+/// all, meaning a miss, or a color thrown twice.
+List<BoardColor> unusedColors(List<BoardHit> darts) {
+  final used = <BoardColor>{};
+  for (final dart in darts) {
+    final color = colorOf(dart);
+    if (color == null) return const [];
+    if (!used.add(color)) return const [];
+  }
+  return BoardColor.values.where((color) => !used.contains(color)).toList();
+}
+
+/// What the visit still needs to total exactly 57.
+///
+/// Zero once the contract is met, and null once the total has gone past 57
+/// and the contract can no longer be met.
+int? pointsToFiftySeven(List<BoardHit> darts) {
+  final left = 57 - capitalVisitScore(darts);
+  return left < 0 ? null : left;
+}
+
 /// Three darts in three sectors that touch each other on the board.
 ///
 /// The bull is not a sector and the rules exclude it here explicitly, which
