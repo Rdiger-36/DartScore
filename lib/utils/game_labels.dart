@@ -4,6 +4,8 @@ import '../models/checkout_ladder_game.dart' show CheckoutLadderGame, CheckoutLa
 import '../models/cricket_game.dart';
 import '../models/game.dart';
 import '../models/shanghai_game.dart';
+import 'capital_rules.dart';
+import 'dartboard_geometry.dart';
 
 /// Localized display names for the per-mode game settings, shared by the
 /// history lists, the history detail screens and the rematch dialog so the
@@ -152,3 +154,125 @@ List<(String, String)> checkoutLadderSettingRows(
       (l.ladderDartsPerAttempt, checkoutLadderDartsLabel(l, game)),
       (l.checkOut, checkOutLabel(l, game.checkOut)),
     ];
+// ── Capital ──────────────────────────────────────────────────────────────────
+
+/// The name a Capital [contract] is shown under.
+///
+/// The seven numbered contracts are named by their sector, which reads the
+/// same in every language and so carries no localization entry.
+String capitalContractName(AppLocalizations l, CapitalContract contract) {
+  if (contract.sector case final sector?) return '$sector';
+  return switch (contract) {
+    CapitalContract.capital    => l.capitalContractCapital,
+    CapitalContract.anyTriple  => l.capitalContractTriple,
+    CapitalContract.anyDouble  => l.capitalContractDouble,
+    CapitalContract.side       => l.capitalContractSideBySide,
+    CapitalContract.run        => l.capitalContractRun,
+    CapitalContract.colors     => l.capitalContractColors,
+    CapitalContract.fiftySeven => '57',
+    CapitalContract.center     => l.capitalContractCenter,
+    _                          => '',
+  };
+}
+
+/// The one line reminder shown under a contract's name before any dart lands.
+String capitalContractReminder(AppLocalizations l, CapitalContract contract) {
+  if (contract.sector != null) return l.capitalReminderAnyRing;
+  return switch (contract) {
+    CapitalContract.capital    => l.capitalReminderCapital,
+    CapitalContract.anyTriple  => l.capitalReminderTriple,
+    CapitalContract.anyDouble  => l.capitalReminderDouble,
+    CapitalContract.side       => l.capitalReminderSideBySide,
+    CapitalContract.run        => l.capitalReminderRun,
+    CapitalContract.colors     => l.capitalReminderColors,
+    CapitalContract.fiftySeven => l.capitalReminderFiftySeven,
+    CapitalContract.center     => l.capitalReminderCenter,
+    _                          => '',
+  };
+}
+
+/// The localized name of a board [color].
+String boardColorLabel(AppLocalizations l, BoardColor color) =>
+    switch (color) {
+      BoardColor.black => l.capitalColorBlack,
+      BoardColor.white => l.capitalColorWhite,
+      BoardColor.red   => l.capitalColorRed,
+      BoardColor.green => l.capitalColorGreen,
+    };
+
+/// What the band says once [darts] have landed in the current visit.
+///
+/// Falls back to the standing reminder for the eleven contracts whose answer
+/// never changes, and for a visit that has not started. The four that do
+/// change report what is still open, listing every combination rather than
+/// describing it: a dart already thrown may be the low end, the middle or the
+/// high end of its run, so no short description of the remainder is true.
+String capitalProgressLine(
+  AppLocalizations l,
+  CapitalContract contract,
+  List<BoardHit> darts,
+) {
+  if (darts.isEmpty) return capitalContractReminder(l, contract);
+
+  switch (contract) {
+    case CapitalContract.run:
+      return _shapeLine(l, remainingRuns(darts), darts, l.capitalNoRun);
+    case CapitalContract.side:
+      return _shapeLine(l, remainingArcs(darts), darts, l.capitalNoArc);
+    case CapitalContract.colors:
+      final open = unusedColors(darts);
+      if (open.isEmpty) return capitalContractReminder(l, contract);
+      final thrown = darts
+          .map((dart) => boardColorLabel(l, colorOf(dart)!))
+          .join(', ');
+      if (darts.length == 2) {
+        return '$thrown. ${l.capitalNeed(_join(l, open.map((c) => boardColorLabel(l, c)).toList(), l.capitalOr))}';
+      }
+      return '$thrown. ${l.capitalNeedOtherColors(3 - darts.length)}';
+    case CapitalContract.fiftySeven:
+      final left = pointsToFiftySeven(darts);
+      if (left == null || left == 0) return capitalContractReminder(l, contract);
+      return l.capitalNeedPoints(left);
+    default:
+      return capitalContractReminder(l, contract);
+  }
+}
+
+/// The line for the two shape contracts, which share their structure.
+///
+/// Before the last dart every surviving combination is listed whole, because
+/// which of them the player goes for is still open. Once two darts are down
+/// the combinations differ only in the one field left, so only that is named.
+String _shapeLine(
+  AppLocalizations l,
+  List<List<int>> combinations,
+  List<BoardHit> darts,
+  String impossible,
+) {
+  if (combinations.isEmpty) return impossible;
+  final thrown = darts.map((dart) => dart.field).toSet();
+  if (darts.length >= 2) {
+    final missing = combinations
+        .expand((combination) => combination)
+        .where((field) => !thrown.contains(field))
+        .toSet()
+        .toList();
+    return l.capitalNeed(_join(l, missing.map((f) => '$f').toList(), l.capitalOr));
+  }
+  if (combinations.length == 1) {
+    final missing = combinations.single.where((f) => !thrown.contains(f));
+    return l.capitalNeed(
+        _join(l, missing.map((f) => '$f').toList(), l.capitalAnd));
+  }
+  return l.capitalMake(_join(
+    l,
+    combinations.map((combination) => combination.join('-')).toList(),
+    l.capitalOr,
+  ));
+}
+
+/// Joins [parts] with commas and [conjunction] before the last.
+String _join(AppLocalizations l, List<String> parts, String conjunction) {
+  if (parts.length <= 1) return parts.join();
+  return '${parts.sublist(0, parts.length - 1).join(', ')} $conjunction ${parts.last}';
+}

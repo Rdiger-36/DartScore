@@ -4,7 +4,14 @@ import '../utils/layout.dart';
 import '../widgets/ladder_icon.dart';
 
 /// The selectable game modes, used by the mode selection and info screens.
-enum GameModeOption { x01, cricket, shanghai, aroundTheClock, checkoutLadder }
+enum GameModeOption {
+  x01,
+  cricket,
+  shanghai,
+  aroundTheClock,
+  checkoutLadder,
+  capital
+}
 
 /// The symbol of [mode] at [size] in [color]. A Material icon for every mode
 /// but the Checkout Ladder, whose ladder Material does not have.
@@ -21,6 +28,8 @@ Widget gameModeIcon(GameModeOption mode, {required double size, Color? color}) {
       data = Icons.watch_later_outlined;
     case GameModeOption.checkoutLadder:
       return LadderIcon(size: size, color: color);
+    case GameModeOption.capital:
+      data = Icons.account_balance_wallet_outlined;
   }
   return Icon(data, size: size, color: color);
 }
@@ -125,6 +134,9 @@ class GameModeInfoScreen extends StatelessWidget {
       case GameModeOption.checkoutLadder:
         return (l.modeCheckoutLadderName, l.modeCheckoutLadderTagline,
             l.modeCheckoutLadderDescription);
+      case GameModeOption.capital:
+        return (l.modeCapitalName, l.modeCapitalTagline,
+            l.modeCapitalDescription);
     }
   }
 }

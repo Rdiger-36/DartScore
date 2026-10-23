@@ -24,23 +24,19 @@ void main() {
       players = await insertPlayers(['A', 'B']);
     });
 
+    /// Starts a game through the provider, which persists it, and hands back
+    /// the stored game so a second provider can resume it.
     Future<CapitalGame> startedGame() async {
-      final game = CapitalGame(
-        legs: 1,
-        sets: 1,
-        createdAt: DateTime.now(),
-        playerIds: players.map((p) => p.id!).toList(),
+      await provider.startGame(
+        CapitalGame(
+          legs: 1,
+          sets: 1,
+          createdAt: DateTime.now(),
+          playerIds: players.map((p) => p.id!).toList(),
+        ),
+        players,
       );
-      final id = await DbHelper.instance.insertCapitalGame(game);
-      final stored = CapitalGame(
-        id: id,
-        legs: 1,
-        sets: 1,
-        createdAt: game.createdAt,
-        playerIds: game.playerIds,
-      );
-      await provider.startGame(stored, players);
-      return stored;
+      return provider.game!;
     }
 
     /// Throws a full visit of three darts for whoever is on turn.

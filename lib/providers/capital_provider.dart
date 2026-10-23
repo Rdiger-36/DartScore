@@ -133,9 +133,18 @@ class CapitalProvider extends ChangeNotifier
     scheduleBot();
   }
 
-  /// Starts a fresh Capital game.
+  /// Starts a fresh Capital game, persisting it first.
   Future<void> startGame(CapitalGame game, List<Player> players) async {
-    _game = game;
+    final gameId = await _db.insertCapitalGame(game);
+    _game = CapitalGame(
+      id:            gameId,
+      variant:       game.variant,
+      legs:          game.legs,
+      sets:          game.sets,
+      createdAt:     game.createdAt,
+      playerIds:     game.playerIds,
+      startingOrder: game.startingOrder,
+    );
     _playerStates = _buildSlots(players);
     _currentPlayerIndex = 0;
     _currentRound = 0;

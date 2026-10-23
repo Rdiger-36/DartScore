@@ -7,6 +7,7 @@ import 'cricket_setup_screen.dart';
 import 'shanghai_setup_screen.dart';
 import 'around_the_clock_setup_screen.dart';
 import 'checkout_ladder_setup_screen.dart';
+import 'capital_setup_screen.dart';
 
 /// Lets the user pick a game mode (X01, Cricket, Shanghai, Around the Clock,
 /// Checkout Ladder),
@@ -90,7 +91,21 @@ class GameModeSelectionScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => const CheckoutLadderSetupScreen()),
                     ),
-                    onInfo: () => _openInfo(context, GameModeOption.checkoutLadder),
+                    onInfo: () =>
+                        _openInfo(context, GameModeOption.checkoutLadder),
+                  ),
+                  const SizedBox(height: 14),
+                  _ModeCard(
+                    mode: GameModeOption.capital,
+                    name: l.modeCapitalName,
+                    tagline: l.modeCapitalTagline,
+                    available: true,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CapitalSetupScreen()),
+                    ),
+                    onInfo: () => _openInfo(context, GameModeOption.capital),
                   ),
                 ],
               ),
