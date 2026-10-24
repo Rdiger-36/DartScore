@@ -27,11 +27,21 @@ class CapitalPlayerState implements LabelledSlot {
   /// null before it has completed a contract round.
   final bool? lastRoundMet;
 
+  /// The capital this slot held before its last completed visit, so the
+  /// scoreboard can show the arithmetic that produced [total] rather than the
+  /// bare result.
+  final int totalBefore;
+
+  /// The darts of the last completed visit, in the order they were thrown.
+  final List<BoardHit> lastVisit;
+
   const CapitalPlayerState({
     required this.displayName,
     required this.players,
     this.total = 0,
     this.lastRoundMet,
+    this.totalBefore = 0,
+    this.lastVisit = const [],
   });
 
   @override
@@ -41,12 +51,22 @@ class CapitalPlayerState implements LabelledSlot {
   Player get player => players.first;
 
   /// Returns a copy with the given fields replaced.
-  CapitalPlayerState copyWith({int? total, bool? lastRoundMet}) =>
+  ///
+  /// [lastRoundMet] is passed straight through rather than defaulted, because
+  /// the capital round has no contract and has to be able to clear it.
+  CapitalPlayerState copyWith({
+    int? total,
+    required bool? lastRoundMet,
+    int? totalBefore,
+    List<BoardHit>? lastVisit,
+  }) =>
       CapitalPlayerState(
         displayName:  displayName,
         players:      players,
         total:        total ?? this.total,
-        lastRoundMet: lastRoundMet ?? this.lastRoundMet,
+        lastRoundMet: lastRoundMet,
+        totalBefore:  totalBefore ?? this.totalBefore,
+        lastVisit:    lastVisit ?? this.lastVisit,
       );
 }
 
@@ -92,6 +112,18 @@ class CapitalProvider extends ChangeNotifier
 
   /// The contract the current round proposes.
   CapitalContract get contract => CapitalContract.forRound(_currentRound);
+
+  /// The slot that completed the most recent visit, or null before any has.
+  ///
+  /// The turn has already moved on by the time a visit settles, so this is the
+  /// slot behind the one on turn. The scoreboard follows it, because the sum
+  /// worth reading is the one that just changed.
+  int? get lastSettledIndex {
+    if (_playerStates.isEmpty) return null;
+    final previous =
+        (_currentPlayerIndex - 1 + _playerStates.length) % _playerStates.length;
+    return _playerStates[previous].lastVisit.isEmpty ? null : previous;
+  }
 
   /// The visit so far, as the board geometry and the contract rules read it.
   List<BoardHit> get visitHits =>
@@ -260,6 +292,8 @@ class CapitalProvider extends ChangeNotifier
         darts:    hits,
       ),
       lastRoundMet: contract == CapitalContract.capital ? null : met,
+      totalBefore:  state.total,
+      lastVisit:    hits,
     );
   }
 

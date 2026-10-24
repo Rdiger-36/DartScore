@@ -82,43 +82,135 @@ class CapitalScreen extends StatelessWidget {
   }
 }
 
-/// One row per player: who they are, the capital they hold, and whether the
-/// round they last finished halved them.
-class _Scoreboard extends StatelessWidget {
+/// The capitals, one compact row per player.
+///
+/// Only one row shows its arithmetic at a time, because eight rows each
+/// carrying a second line do not fit beside a keypad. By default it is the
+/// slot that just threw, which is the sum worth reading; tapping any other
+/// player shows theirs instead, and tapping it again hands the scoreboard
+/// back to whoever throws next.
+class _Scoreboard extends StatefulWidget {
   final CapitalProvider provider;
   const _Scoreboard({required this.provider});
+
+  @override
+  State<_Scoreboard> createState() => _ScoreboardState();
+}
+
+class _ScoreboardState extends State<_Scoreboard> {
+  /// The slot the reader pinned, or null to follow whoever threw last.
+  int? _pinned;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = widget.provider;
+    final shown = _pinned ?? provider.lastSettledIndex;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            for (final (index, slot) in provider.playerStates.indexed)
+              _SlotRow(
+                slot: slot,
+                onTurn: index == provider.currentPlayerIndex,
+                showExpression: index == shown,
+                pinned: index == _pinned,
+                onTap: () => setState(
+                    () => _pinned = _pinned == index ? null : index),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One scoreboard row: who, what they hold, and the sum when it is their turn
+/// to be read.
+class _SlotRow extends StatelessWidget {
+  final CapitalPlayerState slot;
+  final bool onTurn;
+  final bool showExpression;
+  final bool pinned;
+  final VoidCallback onTap;
+
+  const _SlotRow({
+    required this.slot,
+    required this.onTurn,
+    required this.showExpression,
+    required this.pinned,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final expression = capitalScoreExpression(
+      totalBefore: slot.totalBefore,
+      total:       slot.total,
+      met:         slot.lastRoundMet,
+      darts:       slot.lastVisit,
+    );
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (final (index, slot) in provider.playerStates.indexed)
-            ListTile(
-              dense: true,
-              selected: index == provider.currentPlayerIndex,
-              leading: index == provider.currentPlayerIndex
-                  ? const Icon(Icons.play_arrow, size: 18)
-                  : const SizedBox(width: 18),
-              title: Text(slot.label(l)),
-              subtitle: slot.lastRoundMet == false
-                  ? Text(
-                      l.capitalHalved,
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    )
-                  : null,
-              trailing: Text(
-                '${slot.total}',
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+        color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  child: onTurn
+                      ? Icon(Icons.play_arrow, size: 14, color: cs.primary)
+                      : null,
+                ),
+                Expanded(
+                  child: Text(
+                    slot.label(l),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: onTurn ? cs.primary : null,
+                      fontWeight: onTurn ? FontWeight.bold : null,
+                    ),
+                  ),
+                ),
+                if (pinned)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Icon(Icons.push_pin, size: 12,
+                        color: cs.onSurfaceVariant),
+                  ),
+                Text(
+                  '${slot.total}',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-        ],
+            if (showExpression && expression != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 18, bottom: 2),
+                child: Text(
+                  expression,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: slot.lastRoundMet == false
+                        ? cs.error
+                        : cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -141,9 +233,7 @@ class _ContractBand extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: met
-            ? doubleContainerColor(context)
-            : theme.colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -151,23 +241,21 @@ class _ContractBand extends StatelessWidget {
         children: [
           Text(
             l.capitalRoundLabel(provider.currentRound),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: met
-                  ? onDoubleContainerColor(context)
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.labelSmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           Row(
             children: [
               Expanded(
                 child: Text(
                   capitalContractName(l, contract),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: met ? onDoubleContainerColor(context) : null,
-                  ),
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
+              // The keypad is already green, so a met contract is marked by
+              // the check alone rather than by tinting the whole band. Green
+              // rather than the brand red, which reads as a failure.
               if (met)
                 Icon(Icons.check_circle,
                     size: 20, color: onDoubleContainerColor(context)),
@@ -175,11 +263,8 @@ class _ContractBand extends StatelessWidget {
           ),
           Text(
             capitalProgressLine(l, contract, provider.visitHits),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: met
-                  ? onDoubleContainerColor(context)
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -226,40 +311,65 @@ class _CapitalInputState extends State<_CapitalInput> {
           ],
         ),
         const SizedBox(height: 6),
+        // The grid is sized to the space it is given rather than to a fixed
+        // aspect ratio, so four rows of five fill the pane exactly and leave
+        // no slack between the numbers and the row below them.
         Expanded(
-          child: GridView.count(
-            crossAxisCount: 5,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-            childAspectRatio: 1.4,
-            children: [
-              for (var field = 1; field <= 20; field++)
-                _button(
-                  context,
-                  '$field',
-                  locked
-                      ? null
-                      : () => _record((field: field, multiplier: _multiplier)),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const columns = 5;
+              const rows = 4;
+              const spacing = 6.0;
+              final cellWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              final cellHeight =
+                  (constraints.maxHeight - spacing * (rows - 1)) / rows;
+              // Keys stay close to round. Letting them fill the pane exactly
+              // stretched them into lozenges, but clamping them square left a
+              // gap above and below, and two gaps read worse than one. A cell
+              // slightly taller than wide absorbs nearly all the slack.
+              final ratio = (cellWidth / cellHeight).clamp(0.95, 2.2);
+              return Center(
+                child: GridView.count(
+                  shrinkWrap: true,
+                  crossAxisCount: columns,
+                  mainAxisSpacing: spacing,
+                  crossAxisSpacing: spacing,
+                  childAspectRatio: ratio.toDouble(),
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    for (var field = 1; field <= 20; field++)
+                      _button(
+                        context,
+                        '$field',
+                        (field: field, multiplier: _multiplier),
+                        locked
+                            ? null
+                            : () => _record(
+                                (field: field, multiplier: _multiplier)),
+                      ),
+                  ],
                 ),
-            ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
-              child: _button(context, '25',
+              child: _button(context, '25', (field: 25, multiplier: 1),
                   locked ? null : () => _record((field: 25, multiplier: 1))),
             ),
             const SizedBox(width: 6),
             Expanded(
-              child: _button(context, 'Bull',
+              child: _button(context, 'Bull', (field: 25, multiplier: 2),
                   locked ? null : () => _record((field: 25, multiplier: 2))),
             ),
             const SizedBox(width: 6),
             Expanded(
-              child: _button(
-                  context, l.miss, locked ? null : () => _record(boardMiss)),
+              child: _button(context, l.miss, boardMiss,
+                  locked ? null : () => _record(boardMiss)),
             ),
           ],
         ),
@@ -268,37 +378,70 @@ class _CapitalInputState extends State<_CapitalInput> {
   }
 
   /// One ring selector, tinted the way a multiplied field is tinted elsewhere.
+  ///
+  /// The chosen ring is filled and outlined; the others stay on the plain
+  /// surface with full strength text, because a faded label reads as disabled
+  /// rather than as unselected.
   Widget _ring(BuildContext context, String label, int multiplier) {
+    final cs = Theme.of(context).colorScheme;
     final selected = _multiplier == multiplier;
-    final background = switch (multiplier) {
-      3 => tripleContainerColor(context),
-      2 => doubleContainerColor(context),
-      _ => Theme.of(context).colorScheme.surfaceContainerHighest,
+    final (background, foreground) = switch (multiplier) {
+      3 => (tripleContainerColor(context), onTripleContainerColor(context)),
+      2 => (doubleContainerColor(context), onDoubleContainerColor(context)),
+      _ => (cs.secondaryContainer, cs.onSecondaryContainer),
     };
     return Expanded(
       child: FilledButton(
         onPressed: () => setState(() => _multiplier = multiplier),
         style: FilledButton.styleFrom(
-          backgroundColor: selected
-              ? background
-              : Theme.of(context).colorScheme.surfaceContainerLow,
-          foregroundColor: selected && multiplier == 3
-              ? onTripleContainerColor(context)
-              : selected && multiplier == 2
-                  ? onDoubleContainerColor(context)
-                  : null,
+          backgroundColor: selected ? background : cs.surface,
+          foregroundColor: selected ? foreground : cs.onSurface,
+          side: BorderSide(
+            color: selected ? foreground : cs.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
           padding: const EdgeInsets.symmetric(vertical: 12),
+          textStyle: TextStyle(
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
         child: Text(label),
       ),
     );
   }
 
-  /// One board button.
-  Widget _button(BuildContext context, String label, VoidCallback? onTap) =>
-      FilledButton.tonal(
-        onPressed: onTap,
-        style: FilledButton.styleFrom(padding: EdgeInsets.zero),
-        child: FittedBox(child: Text(label)),
-      );
+  /// One board button, painted the way that field is painted on the board.
+  ///
+  /// The twenty numbers follow the ring the selector is on, so switching to
+  /// Double or Triple repaints them red and green. The two bulls keep their
+  /// own colors, and a miss is not a field at all so it stays on the surface.
+  Widget _button(
+    BuildContext context,
+    String label,
+    BoardHit hit,
+    VoidCallback? onTap,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    final color = colorOf(hit);
+    final (background, foreground) = color == null
+        ? (cs.surfaceContainerHighest, cs.onSurfaceVariant)
+        : boardPaintFor(color);
+
+    return FilledButton(
+      onPressed: onTap,
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        disabledBackgroundColor: background.withValues(alpha: 0.35),
+        disabledForegroundColor: foreground.withValues(alpha: 0.5),
+        padding: EdgeInsets.zero,
+        // The outline keeps a cream key off a light background and a black
+        // key off a dark one, so it earns its place in both themes. A hair
+        // under one logical pixel rendered with visible breaks around the
+        // curve, so it is a full one.
+        side: const BorderSide(color: BoardPaint.wire, width: 1),
+      ),
+      child: FittedBox(child: Text(label)),
+    );
+  }
 }

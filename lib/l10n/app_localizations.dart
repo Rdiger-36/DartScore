@@ -1236,7 +1236,7 @@ class AppLocalizations {
   String get gameModeCapital    => 'Capital';
   String get modeCapitalName    => 'Capital';
   String get modeCapitalTagline =>
-      _t('Build a capital, then keep it', 'Kapital aufbauen und halten');
+      _t('Earn capital and try to grow it', 'Kapital verdienen und vermehren');
   String get modeCapitalDescription => _t(
     'Capital is played over fifteen rounds: one to build a capital, then fourteen contracts.\n\n'
     'THE OPENING ROUND\n'

@@ -155,6 +155,34 @@ void main() {
       });
     });
 
+    group('who the scoreboard follows', () {
+      test('follows nobody before a visit has been completed', () async {
+        await startedGame();
+        expect(provider.lastSettledIndex, isNull);
+        await provider.recordDart(single(20));
+        // A visit in progress has not settled, so there is still nothing to
+        // read.
+        expect(provider.lastSettledIndex, isNull);
+      });
+
+      test('follows the slot behind the one on turn', () async {
+        await startedGame();
+        await visit([single(20), single(20), single(20)]);
+        expect(provider.currentPlayerIndex, 1);
+        expect(provider.lastSettledIndex, 0);
+      });
+
+      test('wraps back to the last slot when the round turns over', () async {
+        await startedGame();
+        await visit([single(20), single(20), single(20)]);
+        await visit([single(1), single(1), single(1)]);
+        // The turn has come round to the first slot again, so the sum worth
+        // reading belongs to the last one.
+        expect(provider.currentPlayerIndex, 0);
+        expect(provider.lastSettledIndex, 1);
+      });
+    });
+
     test('never closes a visit early on any other round', () async {
       await startedGame();
       await visit([single(20), single(20), single(20)]);
