@@ -6,12 +6,14 @@ import '../l10n/app_localizations.dart';
 import '../models/cricket_game.dart';
 import '../models/game.dart';
 import '../models/player.dart';
+import '../models/capital_game.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/checkout_ladder_game.dart' show CheckoutLadderGame;
 import '../providers/cricket_provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/tablet_layout_provider.dart';
+import '../providers/capital_provider.dart';
 import '../providers/shanghai_provider.dart';
 import '../providers/around_the_clock_provider.dart';
 import '../providers/checkout_ladder_provider.dart';
@@ -20,6 +22,8 @@ import 'cricket_history_summary_screen.dart';
 import 'cricket_screen.dart';
 import 'game_screen.dart';
 import 'history_game_summary_screen.dart';
+import 'capital_history_summary_screen.dart';
+import 'capital_screen.dart';
 import 'shanghai_history_summary_screen.dart';
 import 'shanghai_screen.dart';
 import 'around_the_clock_history_summary_screen.dart';
@@ -30,7 +34,15 @@ import '../utils/layout.dart';
 import '../utils/player_label.dart';
 import '../widgets/ladder_icon.dart';
 
-enum _ModeFilter { all, x01, cricket, shanghai, aroundTheClock, checkoutLadder }
+enum _ModeFilter {
+  all,
+  x01,
+  cricket,
+  shanghai,
+  aroundTheClock,
+  checkoutLadder,
+  capital
+}
 
 /// Lists all past games across every mode, split into Open and Finished tabs
 /// with per-mode filters. Supports resuming, opening details, and deleting.
@@ -71,6 +83,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       case _ModeFilter.x01:           return e.isX01;
       case _ModeFilter.cricket:       return e.isCricket;
       case _ModeFilter.shanghai:      return e.isShanghai;
+      case _ModeFilter.capital:       return e.isCapital;
       case _ModeFilter.aroundTheClock: return e.isAroundTheClock;
       case _ModeFilter.checkoutLadder: return e.isCheckoutLadder;
     }
@@ -116,6 +129,9 @@ class _HistoryScreenState extends State<HistoryScreen>
     for (final g in await db.getCricketGames()) {
       entries.add(_HistoryEntry.cricket(g, resolve(g.playerIds)));
     }
+    for (final g in await db.getCapitalGames()) {
+      entries.add(_HistoryEntry.capital(g, resolve(g.playerIds)));
+    }
     for (final g in await db.getShanghaiGames()) {
       entries.add(_HistoryEntry.shanghai(g, resolve(g.playerIds)));
     }
@@ -145,6 +161,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     final db = DbHelper.instance;
     if (entry.isCricket) {
       await db.deleteCricketGame(entry.cricketGame!.id!);
+    } else if (entry.isCapital) {
+      await db.deleteCapitalGame(entry.capitalGame!.id!);
     } else if (entry.isShanghai) {
       await db.deleteShanghaiGame(entry.shanghaiGame!.id!);
     } else if (entry.isAroundTheClock) {
@@ -176,7 +194,9 @@ class _HistoryScreenState extends State<HistoryScreen>
                     ? l.gameModeShanghai
                     : _currentFilter == _ModeFilter.aroundTheClock
                         ? l.gameModeAroundTheClock
-                        : l.gameModeCheckoutLadder;
+                        : _currentFilter == _ModeFilter.capital
+                            ? l.gameModeCapital
+                            : l.gameModeCheckoutLadder;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -218,6 +238,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     for (final e in toDelete) {
       if (e.isCricket) {
         await db.deleteCricketGame(e.cricketGame!.id!);
+      } else if (e.isCapital) {
+        await db.deleteCapitalGame(e.capitalGame!.id!);
       } else if (e.isShanghai) {
         await db.deleteShanghaiGame(e.shanghaiGame!.id!);
       } else if (e.isAroundTheClock) {
@@ -259,6 +281,18 @@ class _HistoryScreenState extends State<HistoryScreen>
     if (context.mounted) {
       Navigator.push(context,
               MaterialPageRoute(builder: (_) => const CricketScreen()))
+          .then((_) => _reload());
+    }
+  }
+
+  /// Resumes a Capital game and opens its play screen, reloading on return.
+  Future<void> _resumeCapital(BuildContext context, _HistoryEntry entry) async {
+    if (entry.players.isEmpty) return;
+    final provider = context.read<CapitalProvider>();
+    await provider.resumeGame(entry.capitalGame!, entry.players);
+    if (context.mounted) {
+      Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const CapitalScreen()))
           .then((_) => _reload());
     }
   }
@@ -318,6 +352,10 @@ class _HistoryScreenState extends State<HistoryScreen>
     if (e.isCheckoutLadder) {
       return CheckoutLadderHistorySummaryScreen(
           game: e.checkoutLadderGame!, players: e.players, embedded: embedded);
+    }
+    if (e.isCapital) {
+      return CapitalHistorySummaryScreen(
+          game: e.capitalGame!, players: e.players, embedded: embedded);
     }
     return HistoryGameSummaryScreen(
         game: e.x01Game!, players: e.players, embedded: embedded);
@@ -428,6 +466,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                             ? _resumeAroundTheClock(context, e)
                             : e.isCheckoutLadder
                                 ? _resumeCheckoutLadder(context, e)
+                            : e.isCapital
+                                ? _resumeCapital(context, e)
                                 : _resumeX01(context, e),
                 onShowSummary: (_) {},
               ),
@@ -598,6 +638,7 @@ class _TabContentState extends State<_TabContent>
       case _ModeFilter.shanghai:       return l.gameModeShanghai;
       case _ModeFilter.aroundTheClock: return l.gameModeAroundTheClock;
       case _ModeFilter.checkoutLadder: return l.gameModeCheckoutLadder;
+      case _ModeFilter.capital:        return l.gameModeCapital;
     }
   }
 
@@ -717,6 +758,7 @@ class _HistoryEntry {
   final ShanghaiGame?        shanghaiGame;
   final AroundTheClockGame?  aroundTheClockGame;
   final CheckoutLadderGame?  checkoutLadderGame;
+  final CapitalGame?         capitalGame;
   final List<Player>         players;
 
   const _HistoryEntry._({
@@ -725,6 +767,7 @@ class _HistoryEntry {
     this.shanghaiGame,
     this.aroundTheClockGame,
     this.checkoutLadderGame,
+    this.capitalGame,
     required this.players,
   });
 
@@ -743,6 +786,10 @@ class _HistoryEntry {
   factory _HistoryEntry.checkoutLadder(CheckoutLadderGame g, List<Player> players) =>
       _HistoryEntry._(checkoutLadderGame: g, players: players);
 
+  factory _HistoryEntry.capital(CapitalGame g, List<Player> players) =>
+      _HistoryEntry._(capitalGame: g, players: players);
+
+  bool get isCapital        => capitalGame != null;
   bool get isCricket        => cricketGame != null;
   bool get isShanghai       => shanghaiGame != null;
   bool get isAroundTheClock => aroundTheClockGame != null;
@@ -755,6 +802,7 @@ class _HistoryEntry {
     if (isShanghai) return shanghaiGame!.createdAt;
     if (isAroundTheClock) return aroundTheClockGame!.createdAt;
     if (isCheckoutLadder) return checkoutLadderGame!.createdAt;
+    if (isCapital) return capitalGame!.createdAt;
     return x01Game!.createdAt;
   }
 
@@ -764,6 +812,7 @@ class _HistoryEntry {
     if (isShanghai) return shanghaiGame!.finishedAt;
     if (isAroundTheClock) return aroundTheClockGame!.finishedAt;
     if (isCheckoutLadder) return checkoutLadderGame!.finishedAt;
+    if (isCapital) return capitalGame!.finishedAt;
     return x01Game!.finishedAt;
   }
 }
@@ -826,6 +875,7 @@ class _GameTile extends StatelessWidget {
         entry.shanghaiGame?.id ??
         entry.aroundTheClockGame?.id ??
         entry.checkoutLadderGame?.id;
+        entry.capitalGame?.id;
     final entryPrefix = entry.isCricket
         ? 'c'
         : entry.isShanghai
@@ -834,6 +884,8 @@ class _GameTile extends StatelessWidget {
                 ? 'a'
                 : entry.isCheckoutLadder
                     ? 'l'
+                : entry.isCapital
+                    ? 'k'
                     : 'x';
 
     return Dismissible(
@@ -884,9 +936,11 @@ class _GameTile extends StatelessWidget {
                                 ? Icons.layers_rounded
                                 : entry.isAroundTheClock
                                     ? Icons.watch_later_outlined
-                                    : (finished
-                                        ? Icons.check
-                                        : Icons.play_arrow_rounded),
+                                    : entry.isCapital
+                                        ? Icons.account_balance_wallet_outlined
+                                        : (finished
+                                            ? Icons.check
+                                            : Icons.play_arrow_rounded),
                         size: 18,
                         color: finished
                             ? cs.onPrimaryContainer

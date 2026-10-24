@@ -35,6 +35,12 @@ class CapitalPlayerState implements LabelledSlot {
   /// The darts of the last completed visit, in the order they were thrown.
   final List<BoardHit> lastVisit;
 
+  /// How many of the fourteen contracts this slot has met.
+  ///
+  /// Derived like everything else: the replay counts it again from the darts
+  /// rather than reading it back from anywhere.
+  final int contractsMet;
+
   const CapitalPlayerState({
     required this.displayName,
     required this.players,
@@ -42,6 +48,7 @@ class CapitalPlayerState implements LabelledSlot {
     this.lastRoundMet,
     this.totalBefore = 0,
     this.lastVisit = const [],
+    this.contractsMet = 0,
   });
 
   @override
@@ -59,6 +66,7 @@ class CapitalPlayerState implements LabelledSlot {
     required bool? lastRoundMet,
     int? totalBefore,
     List<BoardHit>? lastVisit,
+    int? contractsMet,
   }) =>
       CapitalPlayerState(
         displayName:  displayName,
@@ -67,6 +75,7 @@ class CapitalPlayerState implements LabelledSlot {
         lastRoundMet: lastRoundMet,
         totalBefore:  totalBefore ?? this.totalBefore,
         lastVisit:    lastVisit ?? this.lastVisit,
+        contractsMet: contractsMet ?? this.contractsMet,
       );
 }
 
@@ -190,6 +199,28 @@ class CapitalProvider extends ChangeNotifier
     scheduleBot();
   }
 
+  /// Starts a fresh game on [template]'s settings with the given [players].
+  ///
+  /// The template's id and timestamps are not carried over, so a new row is
+  /// written and the finished game stays as it was. A random throwing order is
+  /// drawn again; a fixed one is kept.
+  Future<void> startRematch(CapitalGame template, List<Player> players) async {
+    final ordered = template.startingOrder == StartingOrder.random
+        ? (List.of(players)..shuffle())
+        : List.of(players);
+    await startGame(
+      CapitalGame(
+        variant:       template.variant,
+        legs:          template.legs,
+        sets:          template.sets,
+        createdAt:     DateTime.now(),
+        playerIds:     ordered.map((p) => p.id!).toList(),
+        startingOrder: template.startingOrder,
+      ),
+      ordered,
+    );
+  }
+
   // ── Bot ────────────────────────────────────────────────────────────────────
 
   @override
@@ -294,6 +325,9 @@ class CapitalProvider extends ChangeNotifier
       lastRoundMet: contract == CapitalContract.capital ? null : met,
       totalBefore:  state.total,
       lastVisit:    hits,
+      contractsMet: contract == CapitalContract.capital || !met
+          ? state.contractsMet
+          : state.contractsMet + 1,
     );
   }
 

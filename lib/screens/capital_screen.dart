@@ -11,6 +11,7 @@ import '../utils/segment_color.dart';
 import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
 import '../widgets/visit_pause.dart';
+import 'capital_summary_screen.dart';
 
 /// The live Capital screen: the capitals, the contract band, the visit and the
 /// board input.
@@ -23,22 +24,29 @@ class CapitalScreen extends StatelessWidget {
     final provider = context.watch<CapitalProvider>();
     if (provider.game == null) return const Scaffold(body: SizedBox.shrink());
 
+    // A finished game goes straight to its summary, the way every other mode
+    // does, rather than leaving the board on screen with nothing left to do.
+    if (provider.gameOver) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const CapitalSummaryScreen()),
+        );
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        await provider.leaveGame();
-        if (context.mounted) Navigator.of(context).pop();
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmQuit(context);
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(l.modeCapitalName),
           leading: IconButton(
             icon: const Icon(Icons.close),
-            onPressed: () async {
-              await provider.leaveGame();
-              if (context.mounted) Navigator.of(context).pop();
-            },
+            onPressed: () => _confirmQuit(context),
           ),
           actions: [
             IconButton(
@@ -75,6 +83,36 @@ class CapitalScreen extends StatelessWidget {
                 Expanded(child: _CapitalInput(provider: provider)),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Asks before abandoning a game in progress, as every other mode does.
+  void _confirmQuit(BuildContext context) {
+    final l = context.l10n;
+    showDialog(
+      context: context,
+      builder: (_) => Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: AlertDialog(
+            title: Text(l.quitTitle),
+            content: Text(l.quitBody),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l.cancel)),
+              FilledButton(
+                onPressed: () {
+                  context.read<CapitalProvider>().leaveGame();
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: Text(l.leave),
+              ),
+            ],
           ),
         ),
       ),

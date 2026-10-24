@@ -1232,6 +1232,16 @@ class AppLocalizations {
 
   String get capitalHalved => _t('Halved', 'Halbiert');
 
+  // ── Capital Summary ──────────────────────────────────────────────────────────
+  String get capitalSummaryTitle => _t('Final capitals', 'Endkapital');
+  String get capitalFinalCapital => _t('Capital', 'Kapital');
+  String get capitalWins         => _t('wins!', 'hat gewonnen!');
+  String capitalWinner(String name) => '🎯 $name $capitalWins';
+  String get capitalDraw         =>
+      _t('The top capital is shared', 'Das höchste Kapital wird geteilt');
+  String capitalContractsMet(int met) =>
+      _t('$met of 14 contracts met', '$met von 14 Verträgen erfüllt');
+
   // ── Capital mode info ────────────────────────────────────────────────────────
   String get gameModeCapital    => 'Capital';
   String get modeCapitalName    => 'Capital';
