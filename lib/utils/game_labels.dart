@@ -276,3 +276,42 @@ String _join(AppLocalizations l, List<String> parts, String conjunction) {
   if (parts.length <= 1) return parts.join();
   return '${parts.sublist(0, parts.length - 1).join(', ')} $conjunction ${parts.last}';
 }
+
+/// The arithmetic that produced a slot's capital, shown after its visit.
+///
+/// A met contract reads as the capital it started from plus the visit in
+/// brackets, so the three darts stay visibly one group and cannot be mistaken
+/// for a fourth term: `11 + (3*20 + 20 + 2*5) = 136`. A failed one reads as
+/// the halving that was applied, in ceiling brackets because the rounding is
+/// up: `⌈57/2⌉ = 29`. The opening round has no capital to add to, so it shows
+/// the darts alone.
+///
+/// Every operator is spaced the same way, so each throw is its own block at a
+/// glance. Returns null before the slot has completed a visit.
+String? capitalScoreExpression({
+  required int totalBefore,
+  required int total,
+  required bool? met,
+  required List<BoardHit> darts,
+}) {
+  if (darts.isEmpty) return null;
+  if (met == false) return '\u2308$totalBefore/2\u2309 = $total';
+
+  final scored = darts.where((dart) => scoreOf(dart) > 0).map(_dartTerm);
+  final terms = scored.isEmpty ? '0' : scored.join(' + ');
+  if (met == null) return '$terms = $total';
+  return '$totalBefore + ($terms) = $total';
+}
+
+/// One dart as the expression writes it.
+///
+/// A single is the bare number, and a double or triple shows the ring it
+/// landed in multiplied by the number, so the sum can be followed without
+/// knowing which ring each dart found. Both bulls are written as the points
+/// they score, because a player reads the bull as fifty rather than as twice
+/// twenty five.
+String _dartTerm(BoardHit dart) {
+  if (dart.field == 25) return '${scoreOf(dart)}';
+  if (dart.multiplier == 1) return '${dart.field}';
+  return '${dart.multiplier}*${dart.field}';
+}

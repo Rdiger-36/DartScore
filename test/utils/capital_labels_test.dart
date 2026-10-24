@@ -111,4 +111,90 @@ void main() {
       expect(line(CapitalContract.fiftySeven, [triple(20)]), 'Exactly 57');
     });
   });
+
+  group('the score expression', () {
+    test('shows the opening round as the darts alone', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 0,
+          total: 60,
+          met: null,
+          darts: [single(20), single(20), single(20)],
+        ),
+        '20 + 20 + 20 = 60',
+      );
+    });
+
+    test('brackets the visit so it cannot read as a fourth term', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 11,
+          total: 96,
+          met: true,
+          darts: [triple(20), single(20), single(5)],
+        ),
+        '11 + (3*20 + 20 + 5) = 96',
+      );
+    });
+
+    test('shows the ring for a double or triple, bare for a single', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 0,
+          total: 14,
+          met: null,
+          darts: [
+            (field: 2, multiplier: 1),
+            (field: 2, multiplier: 2),
+            (field: 2, multiplier: 3),
+          ],
+        ),
+        '2 + 2*2 + 3*2 = 14',
+      );
+    });
+
+    test('writes both bulls as the points they score', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 0,
+          total: 75,
+          met: null,
+          darts: [innerBull, (field: 25, multiplier: 1)],
+        ),
+        '50 + 25 = 75',
+      );
+    });
+
+    test('leaves misses out of the sum', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 0,
+          total: 20,
+          met: null,
+          darts: [single(20), boardMiss, boardMiss],
+        ),
+        '20 = 20',
+      );
+    });
+
+    test('shows a halving in ceiling brackets, with nothing added', () {
+      expect(
+        capitalScoreExpression(
+          totalBefore: 57,
+          total: 29,
+          met: false,
+          darts: [boardMiss, boardMiss, boardMiss],
+        ),
+        '\u230857/2\u2309 = 29',
+      );
+    });
+
+    test('shows nothing before a visit has been completed', () {
+      expect(
+        capitalScoreExpression(
+            totalBefore: 0, total: 0, met: null, darts: const []),
+        isNull,
+      );
+    });
+  });
 }
