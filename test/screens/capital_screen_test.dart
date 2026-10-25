@@ -2,7 +2,6 @@ import 'package:dartscore_app/models/capital_game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/capital_provider.dart';
 import 'package:dartscore_app/screens/capital_screen.dart';
-import 'package:dartscore_app/utils/dartboard_geometry.dart';
 import 'package:dartscore_app/utils/segment_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
