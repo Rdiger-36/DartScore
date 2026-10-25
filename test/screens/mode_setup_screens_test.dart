@@ -1,5 +1,6 @@
 import 'package:dartscore_app/providers/players_provider.dart';
 import 'package:dartscore_app/screens/around_the_clock_setup_screen.dart';
+import 'package:dartscore_app/screens/capital_setup_screen.dart';
 import 'package:dartscore_app/screens/cricket_setup_screen.dart';
 import 'package:dartscore_app/screens/shanghai_setup_screen.dart';
 import 'package:flutter/material.dart';
@@ -76,6 +77,7 @@ void main() {
         ('Cricket', const CricketSetupScreen() as Widget),
         ('Shanghai', const ShanghaiSetupScreen()),
         ('Around the Clock', const AroundTheClockSetupScreen()),
+        ('Capital', const CapitalSetupScreen()),
       ]) {
         testWidgets('makes a game of one person in $name', (tester) async {
           await pumpSetup(tester, screen);
@@ -96,6 +98,51 @@ void main() {
           expect(canStart(tester), isFalse);
         });
       }
+    });
+
+    // ── Capital ───────────────────────────────────────────────────────────────
+
+    group('Capital', () {
+      testWidgets('will not start below two players', (tester) async {
+        await pumpSetup(tester, const CapitalSetupScreen());
+
+        expect(find.text('Select at least 2 players'), findsOneWidget);
+        expect(canStart(tester), isFalse);
+
+        await tapPlayer(tester, 0);
+        expect(canStart(tester), isFalse);
+
+        await tapPlayer(tester, 1);
+        expect(find.text('Select at least 2 players'), findsNothing);
+        expect(canStart(tester), isTrue);
+      });
+
+      testWidgets('offers no team block, because Capital has no teams',
+          (tester) async {
+        await pumpSetup(tester, const CapitalSetupScreen());
+        await tapPlayer(tester, 0);
+        await tapPlayer(tester, 1);
+
+        // Every other mode shows one from two players up. A player named for a
+        // team covers the case instead, so there is nothing to configure.
+        expect(find.text('Team Game'), findsNothing);
+      });
+
+      testWidgets('offers the throwing order once there are two players',
+          (tester) async {
+        await pumpSetup(tester, const CapitalSetupScreen());
+        expect(find.text('Starting order'), findsNothing);
+
+        await tapPlayer(tester, 0);
+        await tapPlayer(tester, 1);
+        expect(find.text('Starting order'), findsOneWidget);
+      });
+
+      testWidgets('offers no variant, because only one exists so far',
+          (tester) async {
+        await pumpSetup(tester, const CapitalSetupScreen());
+        expect(find.byType(ChoiceChip), findsNothing);
+      });
     });
 
     // ── Cricket ───────────────────────────────────────────────────────────────
