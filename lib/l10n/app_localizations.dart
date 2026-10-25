@@ -1231,6 +1231,9 @@ class AppLocalizations {
   String get capitalColorGreen => _t('Green', 'Grün');
 
   String get capitalHalved => _t('Halved', 'Halbiert');
+  String get capitalTimesHalved  => _t('Times halved', 'Mal halbiert');
+  String get capitalPerVisit     => _t('Per visit', 'Pro Aufnahme');
+  String get capitalContractsLabel => _t('Contracts', 'Verträge');
 
   // ── Capital Summary ──────────────────────────────────────────────────────────
   String get capitalSummaryTitle => _t('Final capitals', 'Endkapital');

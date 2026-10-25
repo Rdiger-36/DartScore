@@ -2,6 +2,7 @@ import 'package:dartscore_app/models/capital_game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/capital_provider.dart';
 import 'package:dartscore_app/screens/capital_screen.dart';
+import 'package:dartscore_app/utils/layout.dart';
 import 'package:dartscore_app/utils/segment_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,8 +34,9 @@ void main() {
 
     /// Pumps the screen with the game's own provider, which `testApp` does not
     /// supply: a screen whose provider is missing should fail loudly.
-    Future<void> pumpScreen(WidgetTester tester) async {
-      usePhoneSurface(tester, size: const Size(400, 900));
+    Future<void> pumpScreen(WidgetTester tester,
+        {Size size = const Size(400, 900)}) async {
+      usePhoneSurface(tester, size: size);
       await tester.pumpWidget(
         testApp(
           ChangeNotifierProvider<CapitalProvider>.value(
@@ -193,6 +195,47 @@ void main() {
           await tapKey(tester, 'Miss');
         }
         expect(find.text('⌈60/2⌉ = 30'), findsOneWidget);
+      });
+    });
+
+    group('the window it is given', () {
+      testWidgets('keeps one column on a phone', (tester) async {
+        await pumpScreen(tester);
+        expect(find.byType(SidePaneLayout), findsNothing);
+      });
+
+      testWidgets('divides on a landscape tablet', (tester) async {
+        await pumpScreen(tester, size: const Size(1180, 820));
+        // The keypad is the tall thing, so it takes a pane of its own and
+        // leaves the capitals the full height beside it.
+        expect(find.byType(SidePaneLayout), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+        expect(find.text('Opening round'), findsOneWidget);
+      });
+
+      testWidgets('keeps one column on an upright tablet', (tester) async {
+        // Upright there is height to spare and width to lose, so dividing
+        // would leave both halves too narrow.
+        await pumpScreen(tester, size: const Size(820, 1180));
+        expect(find.byType(SidePaneLayout), findsNothing);
+      });
+    });
+
+    group('the live numbers', () {
+      testWidgets('open on a long press, since a tap already pins the sum',
+          (tester) async {
+        await pumpScreen(tester);
+        for (var dart = 0; dart < 3; dart++) {
+          await tapKey(tester, '20');
+        }
+
+        await tester.longPress(find.text('Ada'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Contracts'), findsOneWidget);
+        expect(find.text('Times halved'), findsOneWidget);
+        // The opening round is not a contract, so none has been met yet.
+        expect(find.text('0/14'), findsOneWidget);
       });
     });
 

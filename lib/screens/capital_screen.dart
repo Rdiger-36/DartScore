@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/capital_provider.dart';
 import '../utils/capital_rules.dart';
+import '../utils/capital_stats.dart';
 import '../utils/dartboard_geometry.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
@@ -12,6 +13,7 @@ import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
 import '../widgets/visit_pause.dart';
 import 'capital_summary_screen.dart';
+import 'mode_live_info_screen.dart';
 
 /// The live Capital screen: the capitals, the contract band, the visit and the
 /// board input.
@@ -55,36 +57,74 @@ class CapitalScreen extends StatelessWidget {
             ),
           ],
         ),
-        body: SafeArea(
-          child: Padding(
-            padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
-            child: Column(
-              children: [
-                _Scoreboard(provider: provider),
-                const SizedBox(height: 8),
-                _ContractBand(provider: provider),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: provider.visitPending ? provider.flushHeldVisit : null,
-                  child: Column(
-                    children: [
-                      VisitDartsRow(
-                        darts: [
-                          for (final dart in provider.visitBuffer)
-                            visitDartFrom(dart.field, dart.multiplier, l),
-                        ],
-                      ),
-                      VisitPauseBar(pending: provider.visitPending),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(child: _CapitalInput(provider: provider)),
-              ],
-            ),
+        body: SafeArea(child: _body(context, provider, l)),
+      ),
+    );
+  }
+
+  /// The board, the contract and the keypad, arranged for the window.
+  ///
+  /// A landscape tablet divides: the keypad is the tall thing and gets a pane
+  /// of its own, which leaves the capitals and the contract the full height
+  /// beside it rather than squeezed above it. Everything narrower keeps the
+  /// single column, where the keypad still has to reach the bottom of the
+  /// screen.
+  Widget _body(
+      BuildContext context, CapitalProvider provider, AppLocalizations l) {
+    final tablet = isTabletLayout(context);
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width >= size.height;
+
+    final visit = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: provider.visitPending ? provider.flushHeldVisit : null,
+      child: Column(
+        children: [
+          VisitDartsRow(
+            darts: [
+              for (final dart in provider.visitBuffer)
+                visitDartFrom(dart.field, dart.multiplier, l),
+            ],
+          ),
+          VisitPauseBar(pending: provider.visitPending),
+        ],
+      ),
+    );
+
+    if (tablet && landscape) {
+      return SidePaneLayout(
+        side: InputSide.left,
+        primary: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: _CapitalInput(provider: provider),
+        ),
+        secondary: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Column(
+            children: [
+              _Scoreboard(provider: provider),
+              const SizedBox(height: 8),
+              _ContractBand(provider: provider),
+              const SizedBox(height: 8),
+              visit,
+            ],
           ),
         ),
+      );
+    }
+
+    return Padding(
+      padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
+      child: Column(
+        children: [
+          _Scoreboard(provider: provider),
+          const SizedBox(height: 8),
+          _ContractBand(provider: provider),
+          const SizedBox(height: 8),
+          visit,
+          const SizedBox(height: 8),
+          Expanded(child: _CapitalInput(provider: provider)),
+        ],
       ),
     );
   }
@@ -158,6 +198,7 @@ class _ScoreboardState extends State<_Scoreboard> {
                 pinned: index == _pinned,
                 onTap: () => setState(
                     () => _pinned = _pinned == index ? null : index),
+                onLongPress: () => openCapitalSlotInfo(context, index),
               ),
           ],
         ),
@@ -175,12 +216,19 @@ class _SlotRow extends StatelessWidget {
   final bool pinned;
   final VoidCallback onTap;
 
+  /// Opens the slot's live numbers.
+  ///
+  /// A long press rather than a tap, because the tap already pins the sum.
+  /// The other modes open this screen on a tap, having nothing else for one.
+  final VoidCallback onLongPress;
+
   const _SlotRow({
     required this.slot,
     required this.onTurn,
     required this.showExpression,
     required this.pinned,
     required this.onTap,
+    required this.onLongPress,
   });
 
   @override
@@ -197,6 +245,7 @@ class _SlotRow extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
         color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
@@ -482,4 +531,51 @@ class _CapitalInputState extends State<_CapitalInput> {
       child: FittedBox(child: Text(label)),
     );
   }
+}
+
+/// Opens the live numbers of the Capital slot at [slotIndex]: its last three
+/// visits and what the game has come to for it so far.
+void openCapitalSlotInfo(BuildContext context, int slotIndex) {
+  final provider = context.read<CapitalProvider>();
+  Navigator.of(context).push(MaterialPageRoute<void>(
+    builder: (_) => ModeLiveInfoScreen(
+      listenable: provider,
+      data: (context) {
+        final l      = context.l10n;
+        final slot   = provider.playerStates[slotIndex];
+        final id     = slot.player.id;
+        final throws = provider.throwHistory
+            .where((t) => t.playerId == id)
+            .toList();
+        final stats  = CapitalStats.of(throws);
+        final visits = capitalVisits(throws);
+        final recent =
+            visits.length <= 3 ? visits : visits.sublist(visits.length - 3);
+        return (
+          title:    slot.label(l),
+          subtitle: null,
+          visitSlots: CapitalProvider.dartsPerVisit,
+          recentVisits: [
+            for (final visit in recent.reversed)
+              (
+                darts: [
+                  for (final dart in visit)
+                    visitDartFrom(dart.field, dart.multiplier, l),
+                ],
+                yield: l.pointsN(capitalPointsOfVisit(visit)),
+              ),
+          ],
+          stats: [
+            (l.capitalFinalCapital, '${slot.total}'),
+            (l.capitalContractsLabel,
+                '${stats.contractsMet}/${CapitalContract.contractCount}'),
+            (l.capitalTimesHalved, '${stats.timesHalved}'),
+            (l.capitalPerVisit, stats.pointsPerVisit.toStringAsFixed(1)),
+            (l.bestVisit, l.pointsN(stats.bestVisitPoints)),
+            (l.dartsThrown, '${stats.darts}'),
+          ],
+        );
+      },
+    ),
+  ));
 }
