@@ -63,13 +63,13 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Kamera wird zum Scannen von QR-Codes benötigt</string>
+	<string>The camera is needed to scan QR codes</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Wird für die direkte Synchronisation mit anderen Geräten im WLAN benötigt</string>
+	<string>Needed to sync directly with other devices on the same Wi-Fi</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Zum Speichern von QR-Code Bildern</string>
+	<string>To save QR code images</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Zum Importieren von QR-Code Bildern</string>
+	<string>To import QR code images</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
