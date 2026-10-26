@@ -1,7 +1,7 @@
-Play against the computer
+New mode: the Checkout Ladder
 
-Every mode can now be played against a bot, in five tiers from rookie to legend, and against several at once. The bot throws by itself, and its darts show on the board as they land.
+A training game for checkout routes. You start on 81 and check your way up, one number at a time, with 6 darts for each. Miss and you fall back, and a check with the first three darts builds you a safehouse. Alone, as a team or as a race against each other, against the bot as well.
 
-Also: a finished visit stays on the board for a moment. Cricket, Shanghai and Around the Clock show the darts of the visit as chips and, per player, the last three visits. The game pace is yours to pick in the settings.
+Also: a few checkout routes were wrong and are fixed. The two bulls now read D-Bull and S-Bull in the routes.
 
-Worth a look: switch the computer opponent on in the setup, add and remove several bots of one tier with plus and minus, play a 501 against the Pro bot, and change the game pace in the settings.
+Worth a look: a training from 81 alone and as a team of two, a race against the bot, a bust in the first visit, leaving with "Continue later" and resuming from the history, and the live info from a tap on a player card.

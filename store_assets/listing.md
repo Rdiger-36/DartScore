@@ -225,7 +225,7 @@ TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
 
-### Next release (version and build not set yet)
+### 1.2.0 (build 202600021)
 
 German:
 
@@ -233,6 +233,8 @@ German:
 Neuer Modus: die Checkout-Leiter
 
 Ein Trainingsspiel für Checkout-Wege. Du startest bei 81 und checkst dich Zahl für Zahl nach oben, mit 6 Darts pro Zahl. Verfehlst du, fällst du zurück, und wer schon mit den ersten drei Darts checkt, baut sich ein Safehouse. Allein, als Team oder als Rennen gegeneinander, auch gegen den Bot.
+
+Außerdem: Einige Finish-Wege waren falsch berechnet und sind korrigiert. Die beiden Bulls heißen in den Wegen jetzt D-Bull und S-Bull.
 ```
 
 English:
@@ -241,6 +243,8 @@ English:
 New mode: the Checkout Ladder
 
 A training game for checkout routes. You start on 81 and check your way up, one number at a time, with 6 darts for each. Miss and you fall back, and a check with the first three darts builds you a safehouse. Alone, as a team or as a race against each other, against the bot as well.
+
+Also: a few checkout routes were wrong and are fixed. The two bulls now read D-Bull and S-Bull in the routes.
 ```
 
 ### 1.1.0 (build 202600020)
