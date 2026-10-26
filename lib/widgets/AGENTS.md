@@ -21,6 +21,7 @@ The building blocks the screens are assembled from. Owns rendering and local UI 
 - `team_section.dart`, team naming, add/remove and assignment
 - `starting_order_section.dart`, random vs. fixed plus the drag-to-sort list
 - `player_select_section.dart`, the roster with a checkbox each, the add button and the star on the main profile
+- `card_switch_header.dart`, `CardSwitchHeader`, the icon, title and switch heading the handicap, team and bot cards. The whole row toggles, like a `SwitchListTile`; a card switched on and off gets its header here rather than a `Row` of its own
 
 ### Shared result rendering
 

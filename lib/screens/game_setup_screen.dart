@@ -8,6 +8,7 @@ import '../providers/players_provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/bot_select_section.dart';
 import '../widgets/player_dialog.dart';
+import '../widgets/card_switch_header.dart';
 import '../widgets/player_select_section.dart';
 import '../widgets/starting_order_section.dart';
 import '../widgets/team_section.dart';
@@ -1005,21 +1006,11 @@ class _HandicapSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Toggle row
-            Row(
-              children: [
-                Icon(Icons.tune_rounded,
-                    size: 20, color: cs.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    context.l10n.handicap,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Switch(value: enabled, onChanged: onToggle),
-              ],
+            CardSwitchHeader(
+              icon: Icons.tune_rounded,
+              title: context.l10n.handicap,
+              value: enabled,
+              onChanged: onToggle,
             ),
             if (enabled) ...[
               Text(

@@ -3,6 +3,7 @@ import '../l10n/app_localizations.dart';
 import '../models/player.dart';
 import '../utils/team_color.dart';
 import '../utils/player_label.dart';
+import 'card_switch_header.dart';
 
 /// Optional section to enable team play, name teams, add/remove them, and assign
 /// each selected player to a team. Shared by every game mode's setup screen.
@@ -43,17 +44,11 @@ class TeamSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.groups_rounded, size: 20, color: cs.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(context.l10n.teamGame,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ),
-                Switch(value: enabled, onChanged: onToggle),
-              ],
+            CardSwitchHeader(
+              icon: Icons.groups_rounded,
+              title: context.l10n.teamGame,
+              value: enabled,
+              onChanged: onToggle,
             ),
             if (enabled) ...[
               Text(
