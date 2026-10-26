@@ -18,7 +18,7 @@ set -e
 # Keep this in step with the SDK the app is developed against. Xcode Cloud has
 # no Flutter of its own, so an unpinned clone would silently move the build to
 # whatever stable happens to be current that day.
-FLUTTER_VERSION="3.47.0"
+FLUTTER_VERSION="3.47.8"
 FLUTTER_HOME="$HOME/flutter"
 
 echo "Installing Flutter $FLUTTER_VERSION"
