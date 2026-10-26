@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "The camera is needed to scan QR codes";
+"NSLocalNetworkUsageDescription" = "Needed to sync directly with other devices on the same Wi-Fi";
+"NSPhotoLibraryAddUsageDescription" = "To save QR code images";
+"NSPhotoLibraryUsageDescription" = "To import QR code images";

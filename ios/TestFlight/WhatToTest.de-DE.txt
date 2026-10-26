@@ -1,7 +1,7 @@
-Gegen den Computer spielen
+Neuer Modus: die Checkout-Leiter
 
-Jeder Modus lässt sich jetzt gegen einen Bot spielen, in fünf Stufen vom Anfänger bis zur Legende, auch gegen mehrere auf einmal. Der Bot wirft von allein, seine Darts erscheinen auf dem Board.
+Ein Trainingsspiel für Checkout-Wege. Du startest bei 81 und checkst dich Zahl für Zahl nach oben, mit 6 Darts pro Zahl. Verfehlst du, fällst du zurück, und wer schon mit den ersten drei Darts checkt, baut sich ein Safehouse. Allein, als Team oder als Rennen gegeneinander, auch gegen den Bot.
 
-Außerdem: Jede fertige Aufnahme bleibt kurz stehen. Cricket, Shanghai und Around the Clock zeigen die Darts der Aufnahme als Chips und je Spieler die letzten drei Aufnahmen. Das Spieltempo wählst du in den Einstellungen.
+Außerdem: Einige Finish-Wege waren falsch berechnet und sind korrigiert. Die beiden Bulls heißen in den Wegen jetzt D-Bull und S-Bull.
 
-Einen Blick wert: im Setup den Computergegner einschalten, mit Plus und Minus mehrere Bots einer Stufe holen und wieder entfernen, ein 501 gegen den Profi-Bot spielen, und in den Einstellungen das Spieltempo umstellen.
+Einen Blick wert: ein Training ab 81 allein und als Team zu zweit, ein Rennen gegen den Bot, ein Bust in der ersten Aufnahme, das Verlassen mit „Später weiter“ und Fortsetzen aus dem Verlauf, und die Live-Info mit einem Tipp auf eine Spielerkarte.

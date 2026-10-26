@@ -451,14 +451,35 @@ class CheckoutLadderEngine {
       slot.suddenDeathPlayed  = true;
       slot.suddenDeathChecked = step.checked;
       slot.suddenDeathDarts   = dartsThisAttempt;
+      if (step.checked) slot.position = _parked(slot.position, step.number);
       return;
     }
 
     if (step.checked && step.number == game.targetNumber) {
       slot.reachedTargetAt    = slot.attemptsCompleted;
       slot.reachedTargetDarts = slot.darts;
+      slot.position           = _parked(slot.position, step.number);
     }
   }
+
+  /// Where a slot stands once it has checked [number] in a race and has
+  /// nothing more to play there: on [number] with nothing left, its floor no
+  /// higher than it, the way a completed ladder stays on the top number.
+  ///
+  /// The rule moves every check up a number, which on the target would show
+  /// the number above it, and a safehouse floor above it, as if another
+  /// attempt followed. Only the position is set back; the counters the
+  /// attempt booked stay, so the member rotation of a team and every
+  /// statistic replay exactly as before.
+  LadderPosition _parked(LadderPosition position, int number) =>
+      position.completed
+          ? position
+          : LadderPosition(
+              number:           number,
+              floor:            min(position.floor, number),
+              rest:             0,
+              restAtVisitStart: 0,
+            );
 
   /// The fewest attempts any slot has checked the race target in, null while
   /// nobody has.

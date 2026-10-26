@@ -331,6 +331,23 @@ void main() {
       expect(engine.winner, 0);
     });
 
+    test('a slot that checked the target stays on it, its floor no higher', () {
+      final engine = race();
+      _play(engine, 'T15 S16 D10');          // A: 81, safehouse
+      _play(engine, 'M M M');                // B: 81, first visit
+      _play(engine, 'T14 D20');              // A: 82, safehouse on the target
+
+      final a = engine.slots[0];
+      expect(a.reachedTargetAt, 2);
+      expect(a.position.number, 82,
+          reason: 'nothing follows the target, so no number above it shows');
+      expect(a.position.rest, 0);
+      expect(a.position.floor, 82);
+      expect(a.position.completed, isFalse);
+      expect(a.highestChecked, 82);
+      expect(a.safehouses, 2, reason: 'the counters keep what was played');
+    });
+
     test('a level race on attempts goes to the fewer darts', () {
       final engine = race();
       _play(engine, 'T15 S16 D10');          // A: 81 in three
@@ -355,6 +372,8 @@ void main() {
       expect(engine.slots[0].position.number, 83);
 
       _play(engine, 'T17 D16');              // A: 83 in two
+      expect(engine.slots[0].position.number, 83,
+          reason: 'a check in sudden death stays on its number as well');
       _play(engine, _misses(6));             // B: missed
       expect(engine.gameOver, isTrue);
       expect(engine.winner, 0);

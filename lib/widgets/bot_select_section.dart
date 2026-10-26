@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../models/player.dart';
 import '../utils/bot_thrower.dart';
+import 'card_switch_header.dart';
 
 /// How many bots of one tier a game can hold; the plus of a row that has
 /// reached it goes off. Five keeps the counter to one digit and is more of
@@ -60,18 +61,11 @@ class BotSelectSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.smart_toy_outlined,
-                    size: 20, color: cs.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(l.botOpponent,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                ),
-                Switch(value: enabled, onChanged: onEnabledChanged),
-              ],
+            CardSwitchHeader(
+              icon: Icons.smart_toy_outlined,
+              title: l.botOpponent,
+              value: enabled,
+              onChanged: onEnabledChanged,
             ),
             if (enabled) ...[
             for (final level in BotLevel.values)
