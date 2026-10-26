@@ -7,6 +7,7 @@ import 'package:dartscore_app/l10n/app_localizations.dart';
 import 'package:dartscore_app/main.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
 import 'package:dartscore_app/screens/game_screen.dart';
@@ -99,6 +100,10 @@ void main() {
       // same picture, and a store image is framed anyway.
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
+
+    // The season is played through the providers, and a held visit would only
+    // be recorded once its pause ran out, long after the next dart arrived.
+    TurnPacing.debugVisitPause = Duration.zero;
 
     await _useCleanDatabase();
     await _applyPreferences();
