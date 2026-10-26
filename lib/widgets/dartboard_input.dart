@@ -98,6 +98,12 @@ class DartboardInput<T extends DartboardInputSource> extends StatefulWidget {
   /// to take the checkout hint on top of it.
   static bool usesSideActions(double width) => width >= _sideActionsMinWidth;
 
+  /// The widest the input grows with [fillHeight]; a wider pane centres it.
+  ///
+  /// Public so that what stands right above the input on such a pane can keep
+  /// to the same width instead of running past its edges.
+  static const double maxFilledWidth = 760;
+
   @override
   State<DartboardInput<T>> createState() => _DartboardInputState<T>();
 }
@@ -560,7 +566,8 @@ class _DartboardInputState<T extends DartboardInputSource>
 
         final sized = Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: widget.fillHeight ? 760 : 500),
+            constraints: BoxConstraints(
+                maxWidth: widget.fillHeight ? DartboardInput.maxFilledWidth : 500),
             child: column,
           ),
         );

@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
@@ -11,6 +13,10 @@ import '../widgets/dartboard_input.dart';
 import '../widgets/finish_suggestion_widget.dart';
 import 'checkout_ladder_summary_screen.dart';
 import 'mode_live_info_screen.dart';
+
+/// Share of the screen height the input may take on a tablet in portrait,
+/// where the ladders above it get the rest.
+const double _kStackedInputMaxShare = 0.7;
 
 /// Live Checkout Ladder screen. Watches the provider and routes to the summary
 /// when the game ends, otherwise shows the play view.
@@ -57,7 +63,14 @@ class _GameView extends StatelessWidget {
     final l      = context.l10n;
     final game   = provider.game!;
     final tablet = isTabletLayout(context);
-    final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
+    final size   = MediaQuery.sizeOf(context);
+    // Side by side only in landscape. Unlike X01, nothing else shares the
+    // input's pane, so in portrait the split would leave the ladders a mostly
+    // empty column and squeeze the input into the other half; stacked, the
+    // ladders take the full width above an input as wide as the screen.
+    final layout = tablet && size.width >= size.height
+        ? context.watch<TabletLayoutProvider>()
+        : null;
 
     final scoreboard = _Scoreboard(provider: provider);
     final restBlock  = _RestBlock(provider: provider);
@@ -126,35 +139,69 @@ class _GameView extends StatelessWidget {
                     child: scoreboard,
                   ),
                 )
-              : Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: contentMaxWidth(context,
-                          fraction: kGameWidthFraction,
-                          maxWidth: kMaxGameWidth),
-                    ),
-                    child: LayoutBuilder(
+              : tablet
+                  ? LayoutBuilder(
                       builder: (context, box) => Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // The ladders scroll inside a share of the screen,
-                          // so a game of five never pushes the input off it.
-                          ConstrainedBox(
-                            constraints:
-                                BoxConstraints(maxHeight: box.maxHeight * 0.36),
+                          // The ladders take what the input leaves and scroll
+                          // in it, two to a row.
+                          Expanded(
                             child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                              child: scoreboard,
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                              child:
+                                  _Scoreboard(provider: provider, columns: 2),
                             ),
                           ),
-                          restBlock,
-                          const Expanded(
-                              child: DartboardInput<CheckoutLadderProvider>()),
+                          // As wide as the input under it, which stops
+                          // growing before the screen does.
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                  maxWidth: DartboardInput.maxFilledWidth),
+                              child: restBlock,
+                            ),
+                          ),
+                          // No taller than the screen is wide: past that the
+                          // input only spreads its rows apart.
+                          SizedBox(
+                            height: min(box.maxHeight * _kStackedInputMaxShare,
+                                box.maxWidth),
+                            child: const DartboardInput<CheckoutLadderProvider>(
+                                fillHeight: true),
+                          ),
                         ],
                       ),
+                    )
+                  : Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: contentMaxWidth(context,
+                              fraction: kGameWidthFraction,
+                              maxWidth: kMaxGameWidth),
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, box) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // The ladders scroll inside a share of the screen,
+                              // so a game of five never pushes the input off it.
+                              ConstrainedBox(
+                                constraints:
+                                    BoxConstraints(maxHeight: box.maxHeight * 0.36),
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                                  child: scoreboard,
+                                ),
+                              ),
+                              restBlock,
+                              const Expanded(
+                                  child: DartboardInput<CheckoutLadderProvider>()),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
         ),
       ),
     );
@@ -293,26 +340,49 @@ class _RestBlock extends StatelessWidget {
 
 /// One card per slot: the number its attempt is on, where it is heading,
 /// its floor, and the darts of the attempt it has used.
+///
+/// [columns] cards stand beside each other in a row, as wide as the board
+/// allows; the cards of one row share the height of the tallest.
 class _Scoreboard extends StatelessWidget {
   final CheckoutLadderProvider provider;
-  const _Scoreboard({required this.provider});
+  final int columns;
+  const _Scoreboard({required this.provider, this.columns = 1});
 
   @override
   Widget build(BuildContext context) {
     final slots = provider.slots;
+
+    Widget card(int i) => _SlotCard(
+          slot:   slots[i],
+          game:   provider.game!,
+          active: i == provider.currentSlotIndex,
+          suddenDeath: provider.suddenDeathNumber != null,
+          onTap: () => openCheckoutLadderSlotInfo(context, i),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < slots.length; i++)
+        for (var row = 0; row < slots.length; row += columns)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: _SlotCard(
-              slot:   slots[i],
-              game:   provider.game!,
-              active: i == provider.currentSlotIndex,
-              suddenDeath: provider.suddenDeathNumber != null,
-              onTap: () => openCheckoutLadderSlotInfo(context, i),
-            ),
+            child: columns == 1
+                ? card(row)
+                : IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var c = 0; c < columns; c++) ...[
+                          if (c > 0) const SizedBox(width: 6),
+                          Expanded(
+                            child: row + c < slots.length
+                                ? card(row + c)
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
           ),
       ],
     );
