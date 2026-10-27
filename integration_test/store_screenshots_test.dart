@@ -7,6 +7,7 @@ import 'package:dartscore_app/l10n/app_localizations.dart';
 import 'package:dartscore_app/main.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/game_provider.dart';
 import 'package:dartscore_app/providers/theme_provider.dart';
 import 'package:dartscore_app/screens/game_screen.dart';
@@ -40,8 +41,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///       --dart-define=device=iphone --dart-define=lang=de
 ///
 /// One run covers one device in one language and shoots every screen in both
-/// themes. `tool/store_screenshots.sh` runs the eight combinations and composes
-/// the store images from what lands in
+/// themes. `tool/store_screenshots.sh` runs the twelve combinations, and
+/// `tool/compose_store_screenshots.dart` frames what lands in
 /// `store_assets/screenshots/raw/<device>/<screen>_<theme>_<language>.png`.
 ///
 /// The screens are reached by driving the app's own providers and pushing the
@@ -99,6 +100,10 @@ void main() {
       // same picture, and a store image is framed anyway.
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
+
+    // The season is played through the providers, and a held visit would only
+    // be recorded once its pause ran out, long after the next dart arrived.
+    TurnPacing.debugVisitPause = Duration.zero;
 
     await _useCleanDatabase();
     await _applyPreferences();
@@ -336,7 +341,7 @@ const _kBoardRing = [
 /// back would carry a `checkout_darts` somebody had to guess.
 Future<void> _seedHistory(WidgetTester tester, List<Player> players) async {
   final provider = _providerOf<GameProvider>(tester);
-  // Fixed, so both languages and all four devices show the same numbers.
+  // Fixed, so both languages and every device shows the same numbers.
   final rng = Random(20260819);
 
   for (var index = 0; index < _kSeasonDaysAgo.length; index++) {

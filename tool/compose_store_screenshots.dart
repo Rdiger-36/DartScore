@@ -23,18 +23,42 @@ import 'dart:io';
 ///
 /// These are the sizes the stores ask for, not the sizes the devices shoot at.
 ///
-/// The iPhone shoots 1320x2868 and is laid out on 1284x2778, which is what the
-/// App Store's iPhone slot takes: it accepts 1242x2688 or 1284x2778 and rejects
-/// anything else, the shot's own size included.
+/// The iPhone is laid out twice from the same shots. App Store Connect has a
+/// 6.9" slot that takes the 1320x2868 the simulator shoots, and a 6.3" slot of
+/// its own that takes 1206x2622 or 1179x2556 and nothing else.
+///
+/// The iPhone Duo is laid out at the size it shoots, once per display: the
+/// inner one unfolded and lying on its side, the outer one folded and upright.
+/// Those are the two sizes its App Store slots take.
 ///
 /// The Android phone differs for its own reason: it renders 1080x2400, and
 /// Google Play rejects a picture whose long side is more than twice its short
 /// one, so its canvas is 1080x2160 and the screen is scaled to fit.
 const _kCanvases = <String, ({int width, int height, String slot})>{
-  'iphone':         (width: 1284, height: 2778, slot: 'App Store, iPhone 6.7"'),
-  'ipad':           (width: 2064, height: 2752, slot: 'App Store, iPad 13"'),
-  'android_phone':  (width: 1080, height: 2160, slot: 'Google Play, phone'),
-  'android_tablet': (width: 2560, height: 1600, slot: 'Google Play, 10" tablet'),
+  'iphone':           (width: 1320, height: 2868, slot: 'App Store, iPhone 6.9"'),
+  'iphone_63':        (width: 1206, height: 2622, slot: 'App Store, iPhone 6.3"'),
+  'iphone_duo':       (width: 2853, height: 2007, slot: 'App Store, iPhone Duo inner'),
+  'iphone_duo_cover': (width: 1398, height: 2034, slot: 'App Store, iPhone Duo outer'),
+  'ipad':             (width: 2064, height: 2752, slot: 'App Store, iPad 13"'),
+  'android_phone':    (width: 1080, height: 2160, slot: 'Google Play, phone'),
+  'android_tablet':   (width: 2560, height: 1600, slot: 'Google Play, 10" tablet'),
+};
+
+/// The canvases laid out from another device's raw screenshots.
+///
+/// App Store Connect asks for the 6.3" iPhone on its own, and a screenshot
+/// shot on the 6.9" one and laid out on the smaller canvas looks the same as
+/// one shot there, without a sixth simulator in the run.
+const _kShotFrom = <String, String>{
+  'iphone_63': 'iphone',
+};
+
+/// The pages a device gets when it does not get all six.
+///
+/// The Duo's outer display is a small phone next to the unfolded one, and two
+/// pages are enough to show that the app fits it too.
+const _kPagesFor = <String, Set<String>>{
+  'iphone_duo_cover': {'intro', 'modes'},
 };
 
 /// The devices whose frames carry a drawn on island, because their screenshots
@@ -47,6 +71,43 @@ const _kCanvases = <String, ({int width, int height, String slot})>{
 /// frame with an island reads as a phone that grew.
 const _kNotched = {'iphone'};
 
+/// The devices whose frames get the system status laid over the screenshot.
+///
+/// The iPhone Duo shows the time, the battery and the network in a column on
+/// the right of either display, over the app. A screenshot the app takes of
+/// itself leaves that column out, so the strip the app keeps free for it reads
+/// as a thick bezel. The overlay is a transparent picture of the column cut
+/// out of a simulator screenshot, one per display and theme, kept in
+/// [_kStatusRoot] at the size of the shot it goes over.
+const _kStatusOverlay = {'iphone_duo', 'iphone_duo_cover'};
+
+/// Where the status overlays are read from.
+const _kStatusRoot = 'store_assets/screenshots/status';
+
+/// The shape of each device's frame, read off the framebuffer masks and the
+/// device chrome Xcode ships for the simulators.
+///
+/// [bezel] is the black border around the screen as a share of the frame
+/// width, [rim] the metal edge around that as a share of the bezel. The screen
+/// corners are given as a share of the screen width, [left] for the two on the
+/// left and [right] for the two on the right: the Duo's outer display has its
+/// hinge on the left and is only round on the other side. The Android frames
+/// are drawn, not taken from a device, and keep the shape they always had.
+const _kShapes = {
+  'iphone':           (bezel: 0.036, rim: 0.42, left: 0.125,  right: 0.125),
+  'ipad':             (bezel: 0.039, rim: 0.15, left: 0.030,  right: 0.030),
+  'iphone_duo':       (bezel: 0.022, rim: 0.30, left: 0.0598, right: 0.0598),
+  'iphone_duo_cover': (bezel: 0.022, rim: 0.30, left: 0.007,  right: 0.129),
+};
+
+/// The frame of a device that [_kShapes] does not list.
+const _kDefaultShape = (bezel: 0.022, rim: 0.30, left: 0.0487, right: 0.0487);
+
+/// The front camera of the iPhone Duo's outer display: a hole near the top
+/// right corner, above the status column, given by its centre and diameter as
+/// shares of the screen width.
+const _kDuoCamera = (x: 0.898, y: 0.100, size: 0.080);
+
 /// One device frame on a page.
 ///
 /// The geometry is given as fractions of the canvas, so the same numbers lay
@@ -57,6 +118,10 @@ class _Frame {
   /// Which raw screenshot this frame shows, and in which theme.
   final String screen;
   final String theme;
+
+  /// Which device's raw screenshot it is, when it is not the page's own. Only
+  /// the App Store artwork mixes devices on one picture.
+  final String? device;
 
   /// Frame width as a fraction of the canvas width. Ignored when [fit] is set.
   final double width;
@@ -86,6 +151,7 @@ class _Frame {
     required this.screen,
     required this.theme,
     required this.cx,
+    this.device,
     required this.top,
     this.width = 0,
     this.fit,
@@ -233,7 +299,7 @@ const _kPages = <_Page>[
       footnote: 'See your accuracy at a glance and sharpen your aim',
     ),
   ),
-  // ── 5. The other three modes ──────────────────────────────────────────────
+  // ── 5. The other four modes ───────────────────────────────────────────────
   _Page(
     name: 'modes',
     blue: false,
@@ -247,11 +313,11 @@ const _kPages = <_Page>[
     ],
     de: _Copy(
       headline: ['Noch mehr', 'Spielmodi'],
-      footnote: 'Cricket, Shanghai und Around the Clock sind dabei',
+      footnote: 'Cricket, Shanghai, Around the Clock und die Checkout-Leiter',
     ),
     en: _Copy(
       headline: ['Explore other', 'Game Modes'],
-      footnote: 'There are many more ways to play Darts!',
+      footnote: 'Cricket, Shanghai, Around the Clock and the Checkout Ladder',
     ),
   ),
   // ── 6. Both themes ────────────────────────────────────────────────────────
@@ -272,6 +338,64 @@ const _kPages = <_Page>[
     ],
     de: _Copy(headline: ['Hell oder dunkel,', 'ganz wie du magst']),
     en: _Copy(headline: ['Switch between light', 'and dark mode']),
+  ),
+];
+
+/// The two pictures App Store Connect takes beside the screenshots since iOS
+/// 27: the header across the top of the product page and the picture a search
+/// result shows. They are uploaded to the Asset Library, which reviews them
+/// without a new version of the app.
+///
+/// Both show every Apple device the app runs on: the iPhone, the iPad and the
+/// iPhone Duo folded and unfolded. The header is a fan with the unfolded Duo's
+/// live game in the middle, two iPhones beside it and the iPad and the folded
+/// Duo at the edges. Apple puts the icon, the name and the Get button over it
+/// and asks for the point of the picture to sit in the middle, so it carries no
+/// words and the devices at its sides are the part that may be covered. The
+/// search result is read at a glance in a list, so it carries the same headline
+/// as the first screenshot over the iPad, an iPhone and both Duo displays.
+const _kArtwork = <({({int width, int height, String slot}) canvas, _Page page})>[
+  (
+    canvas: (width: 3840, height: 1646, slot: 'App Store, product page header 21:9'),
+    page: _Page(
+      name: 'header',
+      blue: false,
+      portrait: [],
+      landscape: [
+        _Frame(device: 'ipad', screen: 'stats_heatmap', theme: 'dark',
+            fit: 0.90, cx: 0.13, top: 0.10, rotate: -9, behind: true),
+        _Frame(device: 'iphone_duo_cover', screen: 'modes', theme: 'light',
+            fit: 0.84, cx: 0.87, top: 0.12, rotate: 9, behind: true),
+        _Frame(device: 'iphone', screen: 'live_solo', theme: 'light',
+            fit: 0.94, cx: 0.29, top: 0.04, rotate: -5),
+        _Frame(device: 'iphone', screen: 'stats_header', theme: 'dark',
+            fit: 0.94, cx: 0.73, top: 0.04, rotate: 5),
+        _Frame(device: 'iphone_duo', screen: 'live_duo', theme: 'dark',
+            fit: 0.80, cx: 0.5, top: 0.10),
+      ],
+      de: _Copy(),
+      en: _Copy(),
+    ),
+  ),
+  (
+    canvas: (width: 3840, height: 2560, slot: 'App Store, search result 3:2'),
+    page: _Page(
+      name: 'search',
+      blue: true,
+      portrait: [],
+      landscape: [
+        _Frame(device: 'ipad', screen: 'live_duo', theme: 'dark',
+            fit: 0.98, cx: 0.22, top: 0.02),
+        _Frame(device: 'iphone_duo_cover', screen: 'modes', theme: 'light',
+            fit: 0.66, cx: 0.83, top: 0.0, rotate: 6, behind: true),
+        _Frame(device: 'iphone', screen: 'live_solo', theme: 'light',
+            fit: 0.90, cx: 0.50, top: 0.03, rotate: -4),
+        _Frame(device: 'iphone_duo', screen: 'stats_header', theme: 'dark',
+            fit: 0.50, cx: 0.77, top: 0.52, rotate: 3),
+      ],
+      de: _Copy(headline: ['Der smarte Weg, Darts zu spielen']),
+      en: _Copy(headline: ['The Smarter Way to Play Darts']),
+    ),
   ),
 ];
 
@@ -296,30 +420,19 @@ Future<void> main(List<String> args) async {
       for (var i = 0; i < _kPages.length; i++) {
         final page   = _kPages[i];
         final frames = landscape ? page.landscape : page.portrait;
+        if (!(_kPagesFor[device]?.contains(page.name) ?? true)) continue;
 
-        final shots = <String, ({({int width, int height}) size, String data})>{};
-        var missing = false;
-        for (final frame in frames) {
-          final key = '${frame.screen}_${frame.theme}';
-          if (shots.containsKey(key)) continue;
-          final raw = File('$_kRawRoot/$device/${key}_$language.png');
-          if (!raw.existsSync()) {
-            stderr.writeln('missing, skipped: ${raw.path}');
-            missing = true;
-            break;
-          }
-          final bytes = await raw.readAsBytes();
-          shots[key] = (size: _pngSize(bytes), data: base64Encode(bytes));
-        }
-        if (missing) continue;
+        final source = _kShotFrom[device] ?? device;
+        final shots  = await _loadShots(source, frames, language);
+        if (shots == null) continue;
 
         final out = File('$_kStoreRoot/$device/$language/'
-            '${i + 1}_${page.name}.png');
+            '${i + 1}_${page.name}_${device}_$language.png');
         await out.parent.create(recursive: true);
         await _render(
           out:     out,
           canvas:  canvas,
-          device:  device,
+          device:  source,
           page:    page,
           frames:  frames,
           shots:   shots,
@@ -331,8 +444,67 @@ Future<void> main(List<String> args) async {
     }
   }
 
+  for (final art in _kArtwork) {
+    for (final language in const ['de', 'en']) {
+      final shots = await _loadShots('', art.page.landscape, language);
+      if (shots == null) continue;
+
+      final out = File('$_kStoreRoot/app_store_artwork/$language/'
+          '${art.page.name}_$language.png');
+      await out.parent.create(recursive: true);
+      await _render(
+        out:     out,
+        canvas:  art.canvas,
+        device:  '',
+        page:    art.page,
+        frames:  art.page.landscape,
+        shots:   shots,
+        copy:    language == 'de' ? art.page.de : art.page.en,
+      );
+      written++;
+      stdout.writeln('${out.path}  (${art.canvas.slot})');
+    }
+  }
+
   stdout.writeln('\n$written pages written to $_kStoreRoot/.');
 }
+
+/// Reads the raw screenshots [frames] show, keyed by [_shotKey].
+///
+/// Returns null when one of them has not been shot yet, so a page is skipped
+/// rather than rendered with a hole in it.
+Future<Map<String, ({({int width, int height}) size, String data})>?>
+    _loadShots(String device, List<_Frame> frames, String language) async {
+  final shots = <String, ({({int width, int height}) size, String data})>{};
+  for (final frame in frames) {
+    final key = _shotKey(frame, device);
+    if (shots.containsKey(key)) continue;
+    final raw = File('$_kRawRoot/${key}_$language.png');
+    if (!raw.existsSync()) {
+      stderr.writeln('missing, skipped: ${raw.path}');
+      return null;
+    }
+    final bytes = await raw.readAsBytes();
+    shots[key] = (size: _pngSize(bytes), data: base64Encode(bytes));
+
+    final shotDevice = frame.device ?? device;
+    if (_kStatusOverlay.contains(shotDevice)) {
+      final status = File('$_kStatusRoot/${shotDevice}_${frame.theme}.png');
+      if (!status.existsSync()) {
+        stderr.writeln('missing, skipped: ${status.path}');
+        return null;
+      }
+      final overlay = await status.readAsBytes();
+      shots['$key:status'] = (size: _pngSize(overlay), data: base64Encode(overlay));
+    }
+  }
+  return shots;
+}
+
+/// The raw screenshot a frame shows, as its path under [_kRawRoot] without the
+/// language: the frame's own device if it names one, the page's otherwise.
+String _shotKey(_Frame frame, String device) =>
+    '${frame.device ?? device}/${frame.screen}_${frame.theme}';
 
 /// Renders one page.
 Future<void> _render({
@@ -465,49 +637,83 @@ String _svg({
 
   for (var i = 0; i < frames.length; i++) {
     final frame = frames[i];
-    final shot  = shots['${frame.screen}_${frame.theme}']!;
+    final shot  = shots[_shotKey(frame, device)]!;
+
+    final shown = frame.device ?? device;
+    final shape = _kShapes[shown] ?? _kDefaultShape;
 
     // A fitted frame is given as the share of the band its height may take, and
     // its width follows from the shot it shows: the bezel is a share of the
-    // width, so height is width times (0.956 * aspect + 0.044), and the width
-    // is that read backwards.
+    // width, so height is width times ((1 - 2 * bezel) * aspect + 2 * bezel),
+    // and the width is that read backwards.
     final aspect = shot.size.height / shot.size.width;
     final frameW = frame.fit == null
         ? w * frame.width
-        : band * frame.fit! / (0.956 * aspect + 0.044);
+        : band * frame.fit! / ((1 - 2 * shape.bezel) * aspect + 2 * shape.bezel);
     final frameX = w * frame.cx - frameW / 2;
     final frameY = bandTop + band * frame.top;
 
     // The bezel is a share of the frame, so it stays a bezel rather than
     // becoming a hairline on a small canvas and a slab on a large one.
-    final bezel   = frameW * 0.022;
+    final bezel   = frameW * shape.bezel;
+    final rim     = bezel * shape.rim;
     final screenW = frameW - bezel * 2;
     final screenH = screenW * aspect;
     final frameH  = screenH + bezel * 2;
     final screenX = frameX + bezel;
     final screenY = frameY + bezel;
 
-    final frameRadius  = frameW * 0.062;
-    final screenRadius = frameRadius - bezel * 0.7;
+    // The frame's corners run parallel to the screen's, the way a real
+    // device's do, so each is the screen corner grown by the bezel.
+    final screenLeft  = screenW * shape.left;
+    final screenRight = screenW * shape.right;
+    final framePath   = _roundedRect(frameX, frameY, frameW, frameH,
+        screenLeft + bezel, screenRight + bezel);
+    final blackPath   = _roundedRect(frameX + rim, frameY + rim,
+        frameW - rim * 2, frameH - rim * 2,
+        screenLeft + bezel - rim, screenRight + bezel - rim);
 
     clips.writeln('''
     <clipPath id="screen$i" clipPathUnits="userSpaceOnUse">
-      <rect x="${_n(screenX)}" y="${_n(screenY)}"
-            width="${_n(screenW)}" height="${_n(screenH)}"
-            rx="${_n(screenRadius)}" ry="${_n(screenRadius)}"/>
+      <path d="${_roundedRect(screenX, screenY, screenW, screenH, screenLeft, screenRight)}"/>
     </clipPath>''');
 
+    // The other half of the folded Duo shows past the hinge as a slab behind
+    // the frame, a little shorter than it, the way the simulator draws it.
+    final hinge = shown == 'iphone_duo_cover'
+        ? '''
+    <rect x="${_n(frameX - bezel * 1.2)}" y="${_n(frameY + bezel * 0.6)}"
+          width="${_n(frameW * 0.5)}" height="${_n(frameH - bezel * 1.2)}"
+          rx="${_n(bezel * 0.6)}" ry="${_n(bezel * 0.6)}"
+          fill="#2C2C30" stroke="#3A3A3E" stroke-width="${_n(bezel * 0.30)}"/>'''
+        : '';
+
     // The notch is drawn on rather than shot: a simulator screenshot is the
-    // whole screen, so a frame without one shows a phone nobody owns.
+    // whole screen, so a frame without one shows a phone nobody owns. The
+    // Duo's outer display has a camera hole instead.
     final notch = StringBuffer();
-    if (_kNotched.contains(device)) {
-      final notchW = screenW * 0.26;
-      final notchH = screenW * 0.072;
+    if (shown == 'iphone_duo_cover') {
       notch.writeln('''
-    <rect x="${_n(screenX + (screenW - notchW) / 2)}" y="${_n(screenY + notchH * 0.42)}"
+    <circle cx="${_n(screenX + screenW * _kDuoCamera.x)}" cy="${_n(screenY + screenW * _kDuoCamera.y)}"
+            r="${_n(screenW * _kDuoCamera.size / 2)}" fill="#0A0A0C"/>''');
+    }
+    if (_kNotched.contains(shown)) {
+      final notchW = screenW * 0.284;
+      final notchH = screenW * 0.083;
+      notch.writeln('''
+    <rect x="${_n(screenX + (screenW - notchW) / 2)}" y="${_n(screenY + screenW * 0.031)}"
           width="${_n(notchW)}" height="${_n(notchH)}"
           rx="${_n(notchH / 2)}" ry="${_n(notchH / 2)}" fill="#0A0A0C"/>''');
     }
+
+    final overlay = shots['${_shotKey(frame, device)}:status'];
+    final status = overlay == null
+        ? ''
+        : '''
+    <image x="${_n(screenX)}" y="${_n(screenY)}"
+           width="${_n(screenW)}" height="${_n(screenH)}"
+           clip-path="url(#screen$i)"
+           xlink:href="data:image/png;base64,${overlay.data}"/>''';
 
     // A frame standing behind another one is pushed back with a scrim rather
     // than with a blur: it stays readable as the same app in the other theme,
@@ -515,10 +721,7 @@ String _svg({
     // frame in front.
     final scrim = frame.behind
         ? '''
-    <rect x="${_n(frameX)}" y="${_n(frameY)}"
-          width="${_n(frameW)}" height="${_n(frameH)}"
-          rx="${_n(frameRadius)}" ry="${_n(frameRadius)}"
-          fill="#05050A" fill-opacity="0.14"/>'''
+    <path d="$framePath" fill="#05050A" fill-opacity="0.14"/>'''
         : '';
 
     final turn = frame.rotate == 0
@@ -528,15 +731,15 @@ String _svg({
 
     bodies.writeln('''
   <g$turn filter="url(#drop)">
-    <rect x="${_n(frameX)}" y="${_n(frameY)}"
-          width="${_n(frameW)}" height="${_n(frameH)}"
-          rx="${_n(frameRadius)}" ry="${_n(frameRadius)}"
-          fill="#0A0A0C" stroke="#3A3A3E" stroke-width="${_n(bezel * 0.30)}"/>
+${hinge.trimRight()}
+    <path d="$framePath" fill="#2E2E32" stroke="#4A4A50" stroke-width="${_n(rim * 0.25)}"/>
+    <path d="$blackPath" fill="#0A0A0C"/>
     <image x="${_n(screenX)}" y="${_n(screenY)}"
            width="${_n(screenW)}" height="${_n(screenH)}"
            clip-path="url(#screen$i)"
            xlink:href="data:image/png;base64,${shot.data}"/>
 ${notch.toString().trimRight()}
+${status.trimRight()}
 ${scrim.trimRight()}
   </g>''');
   }
@@ -612,6 +815,18 @@ Future<bool> _hasRsvg() async {
 
 /// Formats [value] for SVG, without a trailing string of decimals.
 String _n(double value) => value.toStringAsFixed(2);
+
+/// The SVG path of a rectangle whose two left corners are rounded by [left]
+/// and whose two right corners are rounded by [right].
+String _roundedRect(double x, double y, double w, double h, double left, double right) {
+  final r = x + w;
+  final b = y + h;
+  return 'M${_n(x + left)},${_n(y)} '
+      'H${_n(r - right)} A${_n(right)},${_n(right)} 0 0 1 ${_n(r)},${_n(y + right)} '
+      'V${_n(b - right)} A${_n(right)},${_n(right)} 0 0 1 ${_n(r - right)},${_n(b)} '
+      'H${_n(x + left)} A${_n(left)},${_n(left)} 0 0 1 ${_n(x)},${_n(b - left)} '
+      'V${_n(y + left)} A${_n(left)},${_n(left)} 0 0 1 ${_n(x + left)},${_n(y)} Z';
+}
 
 /// Escapes the characters that would end an SVG text node early.
 String _escape(String text) => text

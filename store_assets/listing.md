@@ -40,10 +40,10 @@ English (167):
 The German text is the original and the English one follows it section by
 section, so a change to one belongs in the other.
 
-### German (3521)
+### German (3591)
 
 ```
-DartScore begleitet dein Spiel während des Wurfs. Du kannst allein, gegen Freunde oder im Team spielen, auf dem Handy wie auf dem Tablet. Jeder Wurf wird erfasst, jede Zahl wird als Statistik zurückgegeben, und nichts verlässt dein Gerät. Es gibt kein Konto, kein Internet und keine Werbung.
+DartScore begleitet dein Spiel während des Wurfs. Du kannst allein, gegen Freunde oder im Team spielen, auf dem Handy, dem Foldable oder dem Tablet. Jeder Wurf wird erfasst, jede Zahl wird als Statistik zurückgegeben, und nichts verlässt dein Gerät. Es gibt kein Konto, kein Internet und keine Werbung.
 
 FÜNF SPIELMODI
 
@@ -71,7 +71,7 @@ Around the Clock
 • Von 1 bis 20 und zum Bull, in Board-Reihenfolge
 
 Checkout-Leiter
-• Von 81 aufwärts jede Zahl mit 6, 9 oder 12 Darts checken
+• Ab 81 oder einer selbst gewählten Zahl aufwärts jede Zahl mit 6, 9 oder 12 Darts checken
 • Steigen, fallen, Safehouses bauen, als Training oder als Rennen
 
 Jeder Modus speichert ein unterbrochenes Spiel und setzt dort fort, wo du aufgehört hast. Die Wurfreihenfolge ist zufällig oder fest, der Platzierungsmodus wird bei mehr als zwei Spielern aktiviert.
@@ -119,16 +119,16 @@ AUSSERDEM
 • Setze und spiele auf dein persönliches Lieblingsdoppel
 • Modus: Hell oder dunkel
 • Sprache: Englisch und Deutsch
-• Eigenes Layout für Tablets
+• Eigenes Layout für Tablets und aufgeklappte Foldables
 
 DartScore läuft vollständig auf deinem Gerät. Es gibt keine Werbung, kein Tracking, kein Kontozwang.
 Wer die Arbeit unterstützen möchte, kann dies freiwillig in Form einer kleinen Spende innerhalb der App tun.
 ```
 
-### English (3291)
+### English (3341)
 
 ```
-DartScore follows your game throw by throw. Play solo, against friends or in teams, on a phone as well as on a tablet. Every dart is recorded, every number comes back as a statistic, and nothing leaves your device. There is no account, no internet and no advertising.
+DartScore follows your game throw by throw. Play solo, against friends or in teams, on a phone, a foldable or a tablet. Every dart is recorded, every number comes back as a statistic, and nothing leaves your device. There is no account, no internet and no advertising.
 
 FIVE GAME MODES
 
@@ -156,7 +156,7 @@ Around the Clock
 • From 1 to 20 and on to the bull, in board order
 
 Checkout Ladder
-• Up from 81, check every number in 6, 9 or 12 darts
+• Up from 81 or a start of your choice, check every number in 6, 9 or 12 darts
 • Climb, fall and build safehouses, in training or as a race
 
 Every mode stores a game you interrupt and carries on where you left off. The throwing order is random or fixed, and placement scoring comes in once more than two are playing.
@@ -204,7 +204,7 @@ AND ALSO
 • Set your personal favourite double and play towards it
 • Mode: light or dark
 • Language: English and German
-• A layout of its own for tablets
+• A layout of its own for tablets and unfolded foldables
 
 DartScore runs entirely on your device. There is no advertising, no tracking and no account you have to create.
 Anyone who would like to support the work can do so voluntarily, with a small tip inside the app.
