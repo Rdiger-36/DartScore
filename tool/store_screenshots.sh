@@ -3,19 +3,25 @@
 # Renders every raw store screenshot, one run per device and language.
 #
 # Each run drives integration_test/store_screenshots_test.dart on a booted
-# simulator or emulator and shoots three screens in both themes, so the eight
-# runs fill store_assets/screenshots/raw/<device>/<theme>/<language>/.
+# simulator or emulator and shoots five screens in both themes, so the twelve
+# runs fill store_assets/screenshots/raw/<device>/.
 #
 # Usage:
 #   tool/store_screenshots.sh                  # every device
 #   tool/store_screenshots.sh iphone ipad      # only the named ones
 #
 # The devices are picked to match what the two stores ask for:
-#   iphone         iPhone 17 Pro Max, 1320x2868, the App Store 6.9" slot
-#   ipad           iPad Pro 13", 2064x2752, the App Store 13" slot
+#   iphone           iPhone 17 Pro Max, 1320x2868, the App Store 6.9" slot
+#   iphone_duo       iPhone Duo unfolded, 2853x2007, the Duo inner display slot
+#   iphone_duo_cover iPhone Duo folded, 1398x2034, the Duo outer display slot
+#   ipad             iPad Pro 13", 2064x2752, the App Store 13" slot
 #   android_phone  1080x2400, cropped to 1080x2160 by the composer, because
 #                  Google Play rejects a side more than twice the other
 #   android_tablet Pixel Tablet, 2560x1600, the Play 10" slot
+#
+# Both Duo entries run on the same simulator. simctl cannot fold it, so the run
+# stops before each of them and asks for the Duo to be folded or unfolded in
+# Device Hub first. The app always draws on whichever display is in use.
 #
 # Composing the store images from what this writes is a second step:
 #   dart run tool/compose_store_screenshots.dart
@@ -29,6 +35,8 @@ LANGUAGES=(de en)
 # name:kind:target, where the target is a simulator name or an AVD name.
 DEVICES=(
   "iphone:ios:iPhone 17 Pro Max"
+  "iphone_duo:ios:iPhone Duo"
+  "iphone_duo_cover:ios:iPhone Duo"
   "ipad:ios:iPad Pro 13-inch (M5)"
   "android_phone:android:Test_Android"
   "android_tablet:android:Test_Android_Tablet"
@@ -62,6 +70,11 @@ boot_simulator() {
     --batteryState charged --batteryLevel 100
 }
 
+# Waits until the iPhone Duo has been put into the posture $1 by hand.
+ask_posture() {
+  read -r -p "Please $1 the iPhone Duo in Device Hub, then press Return. " _
+}
+
 # ── Android ──────────────────────────────────────────────────────────────────
 
 # Boots the AVD $1 and waits until it is usable, then prints its adb id.
@@ -70,7 +83,9 @@ boot_emulator() {
   local id
   id=$("$ADB" devices | awk '/^emulator-/ { print $1; exit }')
   if [ -z "$id" ]; then
-    "$EMULATOR" -avd "$avd" -no-snapshot-save -no-boot-anim >/dev/null 2>&1 &
+    # Cold, because an emulator that was killed mid run leaves a quick boot
+    # snapshot behind that comes up as a black screen adb never reaches.
+    "$EMULATOR" -avd "$avd" -no-snapshot-load -no-snapshot-save -no-boot-anim >/dev/null 2>&1 &
     "$ADB" wait-for-device
     id=$("$ADB" devices | awk '/^emulator-/ { print $1; exit }')
   fi
@@ -84,11 +99,16 @@ boot_emulator() {
 }
 
 # Shuts every running emulator down, so the next AVD is the only one attached.
+#
+# It waits until adb has let go of them. An AVD booted while the last one is
+# still shutting down takes over its port and stays offline for good.
 stop_emulators() {
   for id in $("$ADB" devices | awk '/^emulator-/ { print $1 }'); do
     "$ADB" -s "$id" emu kill >/dev/null 2>&1 || true
   done
-  sleep 3
+  while "$ADB" devices | grep -q '^emulator-'; do
+    sleep 2
+  done
 }
 
 # ── Runs ─────────────────────────────────────────────────────────────────────
@@ -113,6 +133,10 @@ for entry in "${DEVICES[@]}"; do
     fi
     boot_simulator "$udid"
     device_id=$udid
+    case $name in
+      iphone_duo)       ask_posture unfold ;;
+      iphone_duo_cover) ask_posture fold ;;
+    esac
   else
     stop_emulators
     device_id=$(boot_emulator "$target")
@@ -127,6 +151,14 @@ for entry in "${DEVICES[@]}"; do
       --dart-define=device="$name" \
       --dart-define=lang="$lang"
   done
+
+  # One device at a time: a laptop that runs the next simulator or emulator
+  # beside the last one slows both down until a run times out.
+  if [ "$kind" = "ios" ]; then
+    xcrun simctl shutdown "$device_id" 2>/dev/null || true
+  else
+    stop_emulators
+  fi
 done
 
 echo
