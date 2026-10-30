@@ -1181,8 +1181,6 @@ class AppLocalizations {
   String get ladderBusts           => _t('Busts', 'Busts');
   // ── Capital Setup ────────────────────────────────────────────────────────────
   String get capitalSetup       => _t('Capital Setup', 'Capital einrichten');
-  String get capitalMinPlayers  =>
-      _t('Select at least 2 players', 'Mindestens 2 Spieler auswählen');
 
   // ── Capital Game ─────────────────────────────────────────────────────────────
   /// The band's heading. Round 0 builds the capital and is not a contract, so

@@ -279,5 +279,71 @@ void main() {
       await provider.recordDart(triple(20));
       expect(provider.playerStates.first.total, 0);
     });
+
+    group('played alone', () {
+      /// A game of one, which Capital allows because a round is scored on
+      /// nothing but the thrower's own darts.
+      Future<CapitalGame> soloGame() async {
+        final solo = [players.first];
+        await provider.startGame(
+          CapitalGame(
+            legs: 1,
+            sets: 1,
+            createdAt: DateTime.now(),
+            playerIds: [players.first.id!],
+          ),
+          solo,
+        );
+        return provider.game!;
+      }
+
+      test('turns the round over on the single slot', () async {
+        await soloGame();
+        expect(provider.currentRound, 0);
+
+        await visit([triple(20), single(20), single(20)]);
+
+        // With one slot its visit is the whole round, so the round moves on
+        // and the same player is on turn again.
+        expect(provider.currentRound, 1);
+        expect(provider.currentPlayerIndex, 0);
+        expect(provider.playerStates.single.total, 100);
+      });
+
+      test('follows its one slot on the scoreboard', () async {
+        await soloGame();
+        expect(provider.lastSettledIndex, isNull);
+
+        await visit([single(20), single(20), single(20)]);
+
+        // The slot behind the one on turn is the slot itself, which is the
+        // only arithmetic there is to show.
+        expect(provider.lastSettledIndex, 0);
+      });
+
+      test('ends after the fifteenth round and wins itself', () async {
+        await soloGame();
+        for (var round = 0; round <= CapitalContract.lastRound; round++) {
+          await missVisit();
+        }
+
+        expect(provider.gameOver, isTrue);
+        expect(provider.winnerId, players.first.id);
+        final stored = await DbHelper.instance.getCapitalGames();
+        expect(stored.single.finishedAt, isNotNull,
+            reason: 'a finished solo game belongs in the history like any other');
+      });
+
+      test('halves a solo capital on a failed contract like any other',
+          () async {
+        await soloGame();
+        await visit([triple(20), single(20), single(20)]);
+        expect(provider.playerStates.single.total, 100);
+
+        // Round one wants a 20 and three misses do not give one.
+        await missVisit();
+        expect(provider.playerStates.single.total, 50);
+      });
+    });
   });
 }

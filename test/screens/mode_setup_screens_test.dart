@@ -103,18 +103,28 @@ void main() {
     // ── Capital ───────────────────────────────────────────────────────────────
 
     group('Capital', () {
-      testWidgets('will not start below two players', (tester) async {
+      testWidgets('starts on one player, since a solo game is a practice round',
+          (tester) async {
         await pumpSetup(tester, const CapitalSetupScreen());
 
-        expect(find.text('Select at least 2 players'), findsOneWidget);
+        expect(find.text('Select at least 1 player'), findsOneWidget);
         expect(canStart(tester), isFalse);
 
         await tapPlayer(tester, 0);
-        expect(canStart(tester), isFalse);
+        expect(find.text('Select at least 1 player'), findsNothing);
+        expect(canStart(tester), isTrue);
+      });
+
+      testWidgets('offers no starting order for a solo game', (tester) async {
+        await pumpSetup(tester, const CapitalSetupScreen());
+        await tapPlayer(tester, 0);
+
+        // There is no order to pick with one slot, so the block stays away
+        // until a second player makes one.
+        expect(find.text('Starting order'), findsNothing);
 
         await tapPlayer(tester, 1);
-        expect(find.text('Select at least 2 players'), findsNothing);
-        expect(canStart(tester), isTrue);
+        expect(find.text('Starting order'), findsOneWidget);
       });
 
       testWidgets('offers no team block, because Capital has no teams',

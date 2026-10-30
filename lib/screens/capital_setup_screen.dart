@@ -34,9 +34,12 @@ class _CapitalSetupScreenState extends State<CapitalSetupScreen> {
 
   StartingOrder _startingOrder = StartingOrder.random;
 
-  /// Whether a game can start: at least two in it, one of them a person.
-  bool get _canStart =>
-      _selectedPlayers.length >= 2 && _selectedPlayers.any((p) => !p.isBot);
+  /// Whether a game can start: one person in it is enough.
+  ///
+  /// Capital is scored on nothing but your own fifteen rounds, so a solo game
+  /// is a practice round against your own last capital rather than a game
+  /// missing an opponent.
+  bool get _canStart => _selectedPlayers.any((p) => !p.isBot);
 
   /// The slots the starting order section reorders, one per player.
   ///
@@ -100,7 +103,7 @@ class _CapitalSetupScreenState extends State<CapitalSetupScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                l.capitalMinPlayers,
+                l.minOnePlayer,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.error),
