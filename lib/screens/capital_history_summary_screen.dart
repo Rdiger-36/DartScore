@@ -126,7 +126,7 @@ class _Body extends StatelessWidget {
       top: 8,
       bottom: 16,
       result: [
-        GameInfoCard(rows: [
+        GameInfoCard(dense: true, rows: [
           (l.gameLabel, l.modeCapitalName),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
