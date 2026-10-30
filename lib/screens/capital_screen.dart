@@ -196,9 +196,9 @@ class _ScoreboardState extends State<_Scoreboard> {
                 onTurn: index == provider.currentPlayerIndex,
                 showExpression: index == shown,
                 pinned: index == _pinned,
-                onTap: () => setState(
+                onOpenInfo:  () => openCapitalSlotInfo(context, index),
+                onTogglePin: () => setState(
                     () => _pinned = _pinned == index ? null : index),
-                onLongPress: () => openCapitalSlotInfo(context, index),
               ),
           ],
         ),
@@ -214,21 +214,22 @@ class _SlotRow extends StatelessWidget {
   final bool onTurn;
   final bool showExpression;
   final bool pinned;
-  final VoidCallback onTap;
 
-  /// Opens the slot's live numbers.
-  ///
-  /// A long press rather than a tap, because the tap already pins the sum.
-  /// The other modes open this screen on a tap, having nothing else for one.
-  final VoidCallback onLongPress;
+  /// Opens the slot's live numbers, from a tap on the name as every other mode
+  /// opens its own.
+  final VoidCallback onOpenInfo;
+
+  /// Shows this slot's arithmetic in place of the last thrower's, from a tap on
+  /// the score that arithmetic produced.
+  final VoidCallback onTogglePin;
 
   const _SlotRow({
     required this.slot,
     required this.onTurn,
     required this.showExpression,
     required this.pinned,
-    required this.onTap,
-    required this.onLongPress,
+    required this.onOpenInfo,
+    required this.onTogglePin,
   });
 
   @override
@@ -243,24 +244,23 @@ class _SlotRow extends StatelessWidget {
       darts:       slot.lastVisit,
     );
 
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-        color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                SizedBox(
-                  width: 18,
-                  child: onTurn
-                      ? Icon(Icons.play_arrow, size: 14, color: cs.primary)
-                      : null,
-                ),
-                Expanded(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 18,
+                child: onTurn
+                    ? Icon(Icons.play_arrow, size: 14, color: cs.primary)
+                    : null,
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: onOpenInfo,
                   child: Text(
                     slot.label(l),
                     maxLines: 1,
@@ -271,33 +271,46 @@ class _SlotRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (pinned)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Icon(Icons.push_pin, size: 12,
-                        color: cs.onSurfaceVariant),
-                  ),
-                Text(
-                  '${slot.total}',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            if (showExpression && expression != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 18, bottom: 2),
-                child: Text(
-                  expression,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: slot.lastRoundMet == false
-                        ? cs.error
-                        : cs.onSurfaceVariant,
+              ),
+              InkWell(
+                onTap: onTogglePin,
+                child: Padding(
+                  // Slop around the number, which is a far smaller target than
+                  // the name beside it. No vertical padding: the scoreboard has
+                  // to hold eight rows.
+                  padding: const EdgeInsets.only(left: 10, right: 2),
+                  child: Row(
+                    children: [
+                      if (pinned)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(Icons.push_pin, size: 12,
+                              color: cs.onSurfaceVariant),
+                        ),
+                      Text(
+                        '${slot.total}',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
-        ),
+            ],
+          ),
+          if (showExpression && expression != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 18, bottom: 2),
+              child: Text(
+                expression,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: slot.lastRoundMet == false
+                      ? cs.error
+                      : cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

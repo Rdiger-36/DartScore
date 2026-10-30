@@ -58,6 +58,16 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// Taps the score of the slot named [name], the half of the row that pins
+    /// the arithmetic. The name half opens the live numbers instead.
+    Future<void> tapScore(
+        WidgetTester tester, String name, String total) async {
+      final row =
+          find.ancestor(of: find.text(name), matching: find.byType(Row)).first;
+      await tester.tap(find.descendant(of: row, matching: find.text(total)));
+      await tester.pumpAndSettle();
+    }
+
     /// The fill of the key labelled [label].
     Color keyColor(WidgetTester tester, String label) {
       final button =
@@ -162,7 +172,7 @@ void main() {
         expect(find.text('20 + 20 + 20 = 60'), findsOneWidget);
       });
 
-      testWidgets('pins another player when their row is tapped',
+      testWidgets('pins another player when their score is tapped',
           (tester) async {
         await pumpScreen(tester);
         for (var dart = 0; dart < 3; dart++) {
@@ -170,14 +180,12 @@ void main() {
         }
         expect(find.byIcon(Icons.push_pin), findsNothing);
 
-        await tester.tap(find.text('Zoe'));
-        await tester.pumpAndSettle();
+        await tapScore(tester, 'Zoe', '0');
         expect(find.byIcon(Icons.push_pin), findsOneWidget);
         // Zoe has thrown nothing, so pinning her clears the sum from view.
         expect(find.text('20 + 20 + 20 = 60'), findsNothing);
 
-        await tester.tap(find.text('Zoe'));
-        await tester.pumpAndSettle();
+        await tapScore(tester, 'Zoe', '0');
         expect(find.byIcon(Icons.push_pin), findsNothing);
         expect(find.text('20 + 20 + 20 = 60'), findsOneWidget);
       });
@@ -222,14 +230,14 @@ void main() {
     });
 
     group('the live numbers', () {
-      testWidgets('open on a long press, since a tap already pins the sum',
+      testWidgets('open on a tap on the name, as in every other mode',
           (tester) async {
         await pumpScreen(tester);
         for (var dart = 0; dart < 3; dart++) {
           await tapKey(tester, '20');
         }
 
-        await tester.longPress(find.text('Ada'));
+        await tester.tap(find.text('Ada'));
         await tester.pumpAndSettle();
 
         expect(find.text('Contracts'), findsOneWidget);
