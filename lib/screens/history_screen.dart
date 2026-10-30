@@ -7,6 +7,7 @@ import '../models/cricket_game.dart';
 import '../models/game.dart';
 import '../models/player.dart';
 import '../models/capital_game.dart';
+import '../utils/capital_rules.dart';
 import '../models/shanghai_game.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/checkout_ladder_game.dart' show CheckoutLadderGame;
@@ -466,9 +467,9 @@ class _HistoryScreenState extends State<HistoryScreen>
                             ? _resumeAroundTheClock(context, e)
                             : e.isCheckoutLadder
                                 ? _resumeCheckoutLadder(context, e)
-                            : e.isCapital
-                                ? _resumeCapital(context, e)
-                                : _resumeX01(context, e),
+                                : e.isCapital
+                                    ? _resumeCapital(context, e)
+                                    : _resumeX01(context, e),
                 onShowSummary: (_) {},
               ),
               // The pane belongs to this tab rather than to the screen. Around
@@ -622,6 +623,8 @@ class _TabContentState extends State<_TabContent>
         modes.add(_ModeFilter.aroundTheClock);
       } else if (e.isCheckoutLadder) {
         modes.add(_ModeFilter.checkoutLadder);
+      } else if (e.isCapital) {
+        modes.add(_ModeFilter.capital);
       } else {
         modes.add(_ModeFilter.x01);
       }
@@ -666,7 +669,7 @@ class _TabContentState extends State<_TabContent>
     final chips = [
       _ModeFilter.all, _ModeFilter.x01, _ModeFilter.cricket,
       _ModeFilter.shanghai, _ModeFilter.aroundTheClock,
-      _ModeFilter.checkoutLadder,
+      _ModeFilter.checkoutLadder, _ModeFilter.capital,
     ].where((f) => f == _ModeFilter.all || present.contains(f)).toList();
 
     return Center(
@@ -863,18 +866,20 @@ class _GameTile extends StatelessWidget {
                             entry.checkoutLadderGame!.targetNumber!)
                         : l.checkoutLadderTrainingInfo(
                             entry.checkoutLadderGame!.startNumber))
-                    : l.gameSummaryInfo(
-                    entry.x01Game!.startScore,
-                    entry.x01Game!.legs,
-                    entry.x01Game!.sets,
-                    placementMode: entry.x01Game!.placementMode,
-                  );
+                    : entry.isCapital
+                        ? l.capitalGameInfo(CapitalContract.rounds)
+                        : l.gameSummaryInfo(
+                            entry.x01Game!.startScore,
+                            entry.x01Game!.legs,
+                            entry.x01Game!.sets,
+                            placementMode: entry.x01Game!.placementMode,
+                          );
 
     final entryId = entry.x01Game?.id ??
         entry.cricketGame?.id ??
         entry.shanghaiGame?.id ??
         entry.aroundTheClockGame?.id ??
-        entry.checkoutLadderGame?.id;
+        entry.checkoutLadderGame?.id ??
         entry.capitalGame?.id;
     final entryPrefix = entry.isCricket
         ? 'c'
@@ -884,9 +889,9 @@ class _GameTile extends StatelessWidget {
                 ? 'a'
                 : entry.isCheckoutLadder
                     ? 'l'
-                : entry.isCapital
-                    ? 'k'
-                    : 'x';
+                    : entry.isCapital
+                        ? 'k'
+                        : 'x';
 
     return Dismissible(
       key: ValueKey('$entryPrefix$entryId'),

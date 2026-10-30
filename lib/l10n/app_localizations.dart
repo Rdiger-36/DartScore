@@ -1243,6 +1243,10 @@ class AppLocalizations {
   String capitalContractsMet(int met) =>
       _t('$met of 14 contracts met', '$met von 14 Verträgen erfüllt');
 
+  // ── Capital History ──────────────────────────────────────────────────────────
+  String capitalGameInfo(int rounds) =>
+      _t('Capital · $rounds rounds', 'Capital · $rounds Runden');
+
   // ── Capital mode info ────────────────────────────────────────────────────────
   String get gameModeCapital    => 'Capital';
   String get modeCapitalName    => 'Capital';
