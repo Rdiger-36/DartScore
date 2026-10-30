@@ -1,5 +1,6 @@
 import 'package:dartscore_app/models/capital_game.dart';
 import 'package:dartscore_app/models/player.dart';
+import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/capital_provider.dart';
 import 'package:dartscore_app/screens/capital_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
@@ -56,6 +57,16 @@ void main() {
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)));
       await tester.pumpAndSettle();
+    }
+
+    /// Taps the board key labelled [label] without waiting for the frames to
+    /// stop, for the tests that hold a visit pending: the pause bar animates
+    /// for as long as the pause lasts, so `pumpAndSettle` would never return.
+    Future<void> tapKeyPending(WidgetTester tester, String label) async {
+      await tester.tap(find.widgetWithText(FilledButton, label).first);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump();
     }
 
     /// Taps the score of the slot named [name], the half of the row that pins
@@ -203,6 +214,37 @@ void main() {
           await tapKey(tester, 'Miss');
         }
         expect(find.text('⌈60/2⌉ = 30'), findsOneWidget);
+      });
+    });
+
+    group('the visit pause', () {
+      testWidgets('hands the bottom row of keys over to Continue',
+          (tester) async {
+        TurnPacing.debugVisitPause = const Duration(hours: 1);
+        await pumpScreen(tester);
+
+        for (var dart = 0; dart < 3; dart++) {
+          await tapKeyPending(tester, '20');
+        }
+
+        expect(provider.visitPending, isTrue);
+        expect(find.text('Continue'), findsOneWidget);
+        expect(find.text('Miss'), findsNothing, reason: 'its place is taken');
+        expect(find.text('Bull'), findsNothing);
+        // Only the three at the bottom make way. The board itself stays put,
+        // dimmed and deaf, so the reader can still read it.
+        expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+
+        // Ending the visit is a real write, let through.
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Continue'));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        await tester.pumpAndSettle();
+
+        expect(provider.visitPending, isFalse);
+        expect(find.text('Continue'), findsNothing);
+        expect(find.text('Miss'), findsOneWidget);
       });
     });
 

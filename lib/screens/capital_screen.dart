@@ -78,15 +78,10 @@ class CapitalScreen extends StatelessWidget {
     final visit = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: provider.visitPending ? provider.flushHeldVisit : null,
-      child: Column(
-        children: [
-          VisitDartsRow(
-            darts: [
-              for (final dart in provider.visitBuffer)
-                visitDartFrom(dart.field, dart.multiplier, l),
-            ],
-          ),
-          VisitPauseBar(pending: provider.visitPending),
+      child: VisitDartsRow(
+        darts: [
+          for (final dart in provider.visitBuffer)
+            visitDartFrom(dart.field, dart.multiplier, l),
         ],
       ),
     );
@@ -377,6 +372,11 @@ class _ContractBand extends StatelessWidget {
 /// Capital judges where a dart actually landed rather than whether it hit a
 /// named target, so unlike Shanghai it needs the whole board rather than a
 /// multiplier alone.
+/// The height of the keypad's bottom row, stated rather than left to the
+/// button's own defaults, because the Continue button that takes its place has
+/// to stand exactly as tall.
+const double _keyRowHeight = 48;
+
 class _CapitalInput extends StatefulWidget {
   final CapitalProvider provider;
   const _CapitalInput({required this.provider});
@@ -455,24 +455,45 @@ class _CapitalInputState extends State<_CapitalInput> {
           ),
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: _button(context, '25', (field: 25, multiplier: 1),
-                  locked ? null : () => _record((field: 25, multiplier: 1))),
+        // The bulls and the miss are the one row here shaped like the throw
+        // buttons the other modes hand over to Continue, and they are locked
+        // meanwhile anyway, so the hand finds it where it already was. The
+        // button stands as tall as the keys and carries the pause bar under
+        // itself, the nine pixels of which the grid above gives up.
+        if (widget.provider.visitPending)
+          LayoutBuilder(
+            builder: (context, constraints) => ContinueButton(
+              onPressed: widget.provider.flushHeldVisit,
+              width: constraints.maxWidth,
+              height: _keyRowHeight,
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _button(context, 'Bull', (field: 25, multiplier: 2),
-                  locked ? null : () => _record((field: 25, multiplier: 2))),
+          )
+        else
+          SizedBox(
+            height: _keyRowHeight,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _button(context, '25', (field: 25, multiplier: 1),
+                      locked
+                          ? null
+                          : () => _record((field: 25, multiplier: 1))),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _button(context, 'Bull', (field: 25, multiplier: 2),
+                      locked
+                          ? null
+                          : () => _record((field: 25, multiplier: 2))),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _button(context, l.miss, boardMiss,
+                      locked ? null : () => _record(boardMiss)),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: _button(context, l.miss, boardMiss,
-                  locked ? null : () => _record(boardMiss)),
-            ),
-          ],
-        ),
+          ),
       ],
     );
   }
