@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/capital_provider.dart';
 import '../utils/capital_rules.dart';
-import '../utils/capital_stats.dart';
 import '../utils/dartboard_geometry.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
@@ -13,7 +12,7 @@ import '../utils/visit_darts.dart';
 import '../widgets/visit_darts_row.dart';
 import '../widgets/visit_pause.dart';
 import 'capital_summary_screen.dart';
-import 'mode_live_info_screen.dart';
+import 'capital_live_info_screen.dart';
 
 /// The live Capital screen: the capitals, the contract band, the visit and the
 /// board input.
@@ -401,14 +400,28 @@ class _CapitalInputState extends State<_CapitalInput> {
 
     return Column(
       children: [
-        Row(
-          children: [
-            _ring(context, l.single, 1),
-            const SizedBox(width: 6),
-            _ring(context, l.double_, 2),
-            const SizedBox(width: 6),
-            _ring(context, l.triple, 3),
+        SegmentedButton<int>(
+          segments: [
+            ButtonSegment(value: 1, label: Text(l.single)),
+            ButtonSegment(value: 2, label: Text(l.double_)),
+            ButtonSegment(value: 3, label: Text(l.triple)),
           ],
+          selected: {_multiplier},
+          onSelectionChanged: (s) => setState(() => _multiplier = s.first),
+          style: ButtonStyle(
+            padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(vertical: 10)),
+            // The chosen segment wears the color the app marks that ring by,
+            // as the X01 switch does.
+            backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                states.contains(WidgetState.selected)
+                    ? _ringColor(context)
+                    : null),
+            foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                states.contains(WidgetState.selected)
+                    ? _onRingColor(context)
+                    : null),
+          ),
         ),
         const SizedBox(height: 6),
         // The grid is sized to the space it is given rather than to a fixed
@@ -498,44 +511,31 @@ class _CapitalInputState extends State<_CapitalInput> {
     );
   }
 
-  /// One ring selector, tinted the way a multiplied field is tinted elsewhere.
+  /// The tint the chosen ring segment wears.
   ///
-  /// The chosen ring is filled and outlined; the others stay on the plain
-  /// surface with full strength text, because a faded label reads as disabled
-  /// rather than as unselected.
-  Widget _ring(BuildContext context, String label, int multiplier) {
-    final cs = Theme.of(context).colorScheme;
-    final selected = _multiplier == multiplier;
-    final (background, foreground) = switch (multiplier) {
-      3 => (tripleContainerColor(context), onTripleContainerColor(context)),
-      2 => (doubleContainerColor(context), onDoubleContainerColor(context)),
-      _ => (cs.secondaryContainer, cs.onSecondaryContainer),
-    };
-    return Expanded(
-      child: FilledButton(
-        onPressed: () => setState(() => _multiplier = multiplier),
-        style: FilledButton.styleFrom(
-          backgroundColor: selected ? background : cs.surface,
-          foregroundColor: selected ? foreground : cs.onSurface,
-          side: BorderSide(
-            color: selected ? foreground : cs.outlineVariant,
-            width: selected ? 2 : 1,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          textStyle: TextStyle(
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        child: Text(label),
-      ),
-    );
-  }
+  /// The app's own marks for a multiplied field, green for a double and blue
+  /// for a triple, not the board's red and green: the board paints a double
+  /// and a triple alike, so those two could not tell the segments apart.
+  Color _ringColor(BuildContext context) => switch (_multiplier) {
+        2 => doubleContainerColor(context),
+        3 => tripleContainerColor(context),
+        _ => Theme.of(context).colorScheme.surfaceContainerHigh,
+      };
+
+  /// Foreground for [_ringColor].
+  Color _onRingColor(BuildContext context) => switch (_multiplier) {
+        2 => onDoubleContainerColor(context),
+        3 => onTripleContainerColor(context),
+        _ => Theme.of(context).colorScheme.onSurface,
+      };
 
   /// One board button, painted the way that field is painted on the board.
   ///
   /// The twenty numbers follow the ring the selector is on, so switching to
   /// Double or Triple repaints them red and green. The two bulls keep their
   /// own colors, and a miss is not a field at all so it stays on the surface.
+  /// A rounded rectangle rather than a pill, and the number over what the dart
+  /// would be worth, both as the X01 input draws a field.
   Widget _button(
     BuildContext context,
     String label,
@@ -543,26 +543,52 @@ class _CapitalInputState extends State<_CapitalInput> {
     VoidCallback? onTap,
   ) {
     final cs = Theme.of(context).colorScheme;
+    final t  = Theme.of(context).textTheme;
     final color = colorOf(hit);
     final (background, foreground) = color == null
         ? (cs.surfaceContainerHighest, cs.onSurfaceVariant)
         : boardPaintFor(color);
+    final disabled = onTap == null;
+    final bg = disabled ? background.withValues(alpha: 0.35) : background;
+    final fg = disabled ? foreground.withValues(alpha: 0.5) : foreground;
 
-    return FilledButton(
-      onPressed: onTap,
-      style: FilledButton.styleFrom(
-        backgroundColor: background,
-        foregroundColor: foreground,
-        disabledBackgroundColor: background.withValues(alpha: 0.35),
-        disabledForegroundColor: foreground.withValues(alpha: 0.5),
-        padding: EdgeInsets.zero,
-        // The outline keeps a cream key off a light background and a black
-        // key off a dark one, so it earns its place in both themes. A hair
-        // under one logical pixel rendered with visible breaks around the
-        // curve, so it is a full one.
+    return Material(
+      color: bg,
+      // The outline keeps a cream key off a light background and a black key
+      // off a dark one, so it earns its place in both themes. A hair under one
+      // logical pixel rendered with visible breaks around the curve, so it is
+      // a full one.
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
         side: const BorderSide(color: BoardPaint.wire, width: 1),
       ),
-      child: FittedBox(child: Text(label)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FittedBox(
+              child: Text(
+                label,
+                style: t.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold, color: fg),
+              ),
+            ),
+            // What the dart is worth, for the twenty numbers under a
+            // multiplied ring. The bulls and the miss carry one value each, so
+            // naming it under the label would only repeat the label.
+            if (hit.multiplier > 1 && hit.field != 25)
+              Text(
+                '${scoreOf(hit)}',
+                style: t.labelSmall?.copyWith(
+                  color: fg.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -570,46 +596,10 @@ class _CapitalInputState extends State<_CapitalInput> {
 /// Opens the live numbers of the Capital slot at [slotIndex]: its last three
 /// visits and what the game has come to for it so far.
 void openCapitalSlotInfo(BuildContext context, int slotIndex) {
-  final provider = context.read<CapitalProvider>();
   Navigator.of(context).push(MaterialPageRoute<void>(
-    builder: (_) => ModeLiveInfoScreen(
-      listenable: provider,
-      data: (context) {
-        final l      = context.l10n;
-        final slot   = provider.playerStates[slotIndex];
-        final id     = slot.player.id;
-        final throws = provider.throwHistory
-            .where((t) => t.playerId == id)
-            .toList();
-        final stats  = CapitalStats.of(throws);
-        final visits = capitalVisits(throws);
-        final recent =
-            visits.length <= 3 ? visits : visits.sublist(visits.length - 3);
-        return (
-          title:    slot.label(l),
-          subtitle: null,
-          visitSlots: CapitalProvider.dartsPerVisit,
-          recentVisits: [
-            for (final visit in recent.reversed)
-              (
-                darts: [
-                  for (final dart in visit)
-                    visitDartFrom(dart.field, dart.multiplier, l),
-                ],
-                yield: l.pointsN(capitalPointsOfVisit(visit)),
-              ),
-          ],
-          stats: [
-            (l.capitalFinalCapital, '${slot.total}'),
-            (l.capitalContractsLabel,
-                '${stats.contractsMet}/${CapitalContract.contractCount}'),
-            (l.capitalTimesHalved, '${stats.timesHalved}'),
-            (l.capitalPerVisit, stats.pointsPerVisit.toStringAsFixed(1)),
-            (l.bestVisit, l.pointsN(stats.bestVisitPoints)),
-            (l.dartsThrown, '${stats.darts}'),
-          ],
-        );
-      },
+    builder: (_) => CapitalLiveInfoScreen(
+      provider:  context.read<CapitalProvider>(),
+      slotIndex: slotIndex,
     ),
   ));
 }

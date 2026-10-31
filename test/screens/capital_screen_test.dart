@@ -53,7 +53,7 @@ void main() {
     /// through: a widget test runs in fake async, where a real write never
     /// returns and the visit would never settle.
     Future<void> tapKey(WidgetTester tester, String label) async {
-      await tester.tap(find.widgetWithText(FilledButton, label).first);
+      await tester.tap(find.widgetWithText(InkWell, label).first);
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)));
       await tester.pumpAndSettle();
@@ -63,7 +63,7 @@ void main() {
     /// stop, for the tests that hold a visit pending: the pause bar animates
     /// for as long as the pause lasts, so `pumpAndSettle` would never return.
     Future<void> tapKeyPending(WidgetTester tester, String label) async {
-      await tester.tap(find.widgetWithText(FilledButton, label).first);
+      await tester.tap(find.widgetWithText(InkWell, label).first);
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)));
       await tester.pump();
@@ -81,10 +81,9 @@ void main() {
 
     /// The fill of the key labelled [label].
     Color keyColor(WidgetTester tester, String label) {
-      final button =
-          tester.widget<FilledButton>(find.widgetWithText(FilledButton, label).first);
-      return button.style!.backgroundColor!
-          .resolve(<WidgetState>{}) as Color;
+      final material = tester.widget<Material>(
+          find.widgetWithText(Material, label).first);
+      return material.color!;
     }
 
     group('the contract band', () {
@@ -142,17 +141,39 @@ void main() {
       testWidgets('repaints red and green when the ring changes',
           (tester) async {
         await pumpScreen(tester);
-        await tester.tap(find.widgetWithText(FilledButton, 'Double'));
+        await tester.tap(find.text('Double'));
         await tester.pumpAndSettle();
 
         expect(keyColor(tester, '20'), BoardPaint.red);
         expect(keyColor(tester, '1'), BoardPaint.green);
       });
 
+      testWidgets('picks the ring from one bar, as the X01 input does',
+          (tester) async {
+        await pumpScreen(tester);
+
+        expect(find.byType(SegmentedButton<int>), findsOneWidget);
+      });
+
+      testWidgets('names what a multiplied key is worth, as X01 does',
+          (tester) async {
+        await pumpScreen(tester);
+        expect(find.text('60'), findsNothing);
+
+        await tester.tap(find.text('Triple'));
+        await tester.pumpAndSettle();
+
+        // The 20 reads 20 over 60. No other field triples to 60.
+        expect(find.text('60'), findsOneWidget);
+        // The bull is one value whatever the ring, so it gains no second line
+        // that would only repeat its label.
+        expect(find.text('50'), findsNothing);
+      });
+
       testWidgets('returns to singles after a dart, so a ring is never sticky',
           (tester) async {
         await pumpScreen(tester);
-        await tester.tap(find.widgetWithText(FilledButton, 'Triple'));
+        await tester.tap(find.text('Triple'));
         await tester.pumpAndSettle();
         await tapKey(tester, '20');
 
@@ -233,7 +254,7 @@ void main() {
         expect(find.text('Bull'), findsNothing);
         // Only the three at the bottom make way. The board itself stays put,
         // dimmed and deaf, so the reader can still read it.
-        expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+        expect(find.widgetWithText(InkWell, '20'), findsOneWidget);
 
         // Ending the visit is a real write, let through.
         await tester.runAsync(() async {
@@ -259,7 +280,7 @@ void main() {
         // The keypad is the tall thing, so it takes a pane of its own and
         // leaves the capitals the full height beside it.
         expect(find.byType(SidePaneLayout), findsOneWidget);
-        expect(find.widgetWithText(FilledButton, '20'), findsOneWidget);
+        expect(find.widgetWithText(InkWell, '20'), findsOneWidget);
         expect(find.text('Opening round'), findsOneWidget);
       });
 
@@ -286,6 +307,23 @@ void main() {
         expect(find.text('Times halved'), findsOneWidget);
         // The opening round is not a contract, so none has been met yet.
         expect(find.text('0/14'), findsOneWidget);
+      });
+
+      testWidgets('list every round so far with its arithmetic',
+          (tester) async {
+        await pumpScreen(tester);
+        for (var dart = 0; dart < 3; dart++) {
+          await tapKey(tester, '20');
+        }
+
+        await tester.tap(find.text('Ada'));
+        await tester.pumpAndSettle();
+
+        // The round log rather than the last three visits as chips: a Capital
+        // round only means anything against the capital it was thrown at.
+        expect(find.text('Rounds so far'), findsOneWidget);
+        expect(find.text('20 + 20 + 20 = 60'), findsOneWidget);
+        expect(find.text('Last visits'), findsNothing);
       });
     });
 
