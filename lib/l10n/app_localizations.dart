@@ -1243,6 +1243,12 @@ class AppLocalizations {
   String capitalContractsMet(int met) =>
       _t('$met of 14 contracts met', '$met von 14 Verträgen erfüllt');
 
+  String get capitalRoundsSoFar =>
+      _t('Rounds so far', 'Bisherige Runden');
+  String get capitalTapForRounds =>
+      _t('Tap a player to see their fifteen rounds',
+         'Tippe auf einen Spieler, um seine fünfzehn Runden zu sehen');
+
   // ── Capital History ──────────────────────────────────────────────────────────
   String capitalGameInfo(int rounds) =>
       _t('Capital · $rounds rounds', 'Capital · $rounds Runden');

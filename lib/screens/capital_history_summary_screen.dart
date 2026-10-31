@@ -8,6 +8,7 @@ import '../providers/capital_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/player_label.dart';
+import '../widgets/capital_result.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
@@ -113,14 +114,8 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final l = context.l10n;
     final states = provider.playerStates;
-    final winnerId = provider.winnerId;
-
-    final sorted = List.of(states)
-      ..sort((a, b) => b.total.compareTo(a.total));
 
     return SummaryBody(
       top: 8,
@@ -132,56 +127,10 @@ class _Body extends StatelessWidget {
         ]),
       ],
       details: [
-        Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l.capitalSummaryTitle,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-                for (final slot in sorted)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        if (winnerId != null && slot.player.id == winnerId)
-                          const Padding(
-                            padding: EdgeInsets.only(right: 6),
-                            child: Icon(Icons.emoji_events_rounded, size: 18),
-                          )
-                        else
-                          const SizedBox(width: 24),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(slot.label(l),
-                                  style: theme.textTheme.titleSmall),
-                              Text(
-                                l.capitalContractsMet(slot.contractsMet),
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: cs.onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '${slot.total}',
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        CapitalResultCard(
+          slots:    states,
+          winnerId: provider.winnerId,
+          throws:   provider.throwHistory,
         ),
       ],
       actions: [

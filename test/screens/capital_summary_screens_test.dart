@@ -131,6 +131,87 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    group('the rounds behind a result', () {
+      /// Pumps the post-game summary over the finished game.
+      Future<void> pumpSummary(WidgetTester tester) async {
+        usePhoneSurface(tester, size: const Size(400, 1400));
+        await tester.pumpWidget(testApp(
+          ChangeNotifierProvider<CapitalProvider>.value(
+            value: provider,
+            child: const CapitalSummaryScreen(),
+          ),
+        ));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('keeps every round folded away until a player is tapped',
+          (tester) async {
+        await playToTheEnd(tester);
+        await pumpSummary(tester);
+
+        expect(find.text('Tap a player to see their fifteen rounds'),
+            findsOneWidget);
+        // A round's arithmetic, which only the round log prints.
+        expect(find.text('20 + 20 + 20 = 60'), findsNothing);
+      });
+
+      testWidgets('unfolds the tapped player\'s fifteen rounds',
+          (tester) async {
+        await playToTheEnd(tester);
+        await pumpSummary(tester);
+
+        await tester.tap(find.text('Ada'));
+        await tester.pumpAndSettle();
+
+        // The opening round simply becomes the capital, so it is written
+        // without a total in front of it.
+        expect(find.text('20 + 20 + 20 = 60'), findsOneWidget);
+        // Round one asks for a 20 and gets three, so the capital climbs, and
+        // the log shows the arithmetic rather than only its answer.
+        expect(find.text('60 + (20 + 20 + 20) = 120'), findsOneWidget);
+        // Round two asks for any triple, which three singles are not, so the
+        // capital is halved and the log says so in the same brackets the live
+        // board uses.
+        expect(find.text('\u2308120/2\u2309 = 60'), findsOneWidget);
+        // The darts show on the rounds that failed and nowhere else: the
+        // opening round and the twenty both carry theirs in the sum already.
+        // Thirteen of the fifteen contracts are beyond three single twenties.
+        expect(find.text('S20  S20  S20'), findsNWidgets(13));
+      });
+
+      testWidgets('folds the rounds away again on a second tap',
+          (tester) async {
+        await playToTheEnd(tester);
+        await pumpSummary(tester);
+
+        await tester.tap(find.text('Ada'));
+        await tester.pumpAndSettle();
+        expect(find.text('20 + 20 + 20 = 60'), findsOneWidget);
+
+        await tester.tap(find.text('Ada'));
+        await tester.pumpAndSettle();
+        expect(find.text('20 + 20 + 20 = 60'), findsNothing);
+      });
+
+      testWidgets('shows one player at a time', (tester) async {
+        await playToTheEnd(tester);
+        await pumpSummary(tester);
+
+        await tester.tap(find.text('Ada'));
+        await tester.pumpAndSettle();
+        expect(find.text('60 + (20 + 20 + 20) = 120'), findsOneWidget);
+
+        await tester.tap(find.text('Zoe'));
+        await tester.pumpAndSettle();
+
+        // Zoe missed every dart, so Ada's rounds are gone rather than left
+        // open beside Zoe's, and Zoe's opening round scored nothing. Her
+        // fourteen contracts all failed, so each one lists its misses.
+        expect(find.text('60 + (20 + 20 + 20) = 120'), findsNothing);
+        expect(find.text('0 = 0'), findsOneWidget);
+        expect(find.text('Miss  Miss  Miss'), findsNWidgets(14));
+      });
+    });
   });
 }
 

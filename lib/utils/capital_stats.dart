@@ -92,3 +92,64 @@ class CapitalStats {
 /// One dart as the Capital screens label it, which is how every other target
 /// mode labels one.
 BoardHit capitalHitOf(CapitalThrow dart) => dart.hit;
+
+/// One completed round as a round log reads it: what the round asked for, what
+/// was thrown at it, and what that did to the capital.
+class CapitalRound {
+  /// The contract the round was played under.
+  final CapitalContract contract;
+
+  /// The darts of the visit, in the order they were thrown.
+  final List<BoardHit> darts;
+
+  /// What those darts were worth on their own, before the contract decided
+  /// whether they counted.
+  final int points;
+
+  /// Whether the contract was met, null on the opening round, which asks for
+  /// nothing and simply becomes the capital.
+  final bool? met;
+
+  /// The capital the slot held going into the round.
+  final int totalBefore;
+
+  /// The capital it held coming out.
+  final int total;
+
+  const CapitalRound({
+    required this.contract,
+    required this.darts,
+    required this.points,
+    required this.met,
+    required this.totalBefore,
+    required this.total,
+  });
+}
+
+/// Replays [throws], one slot's darts in the order they were thrown, into one
+/// row per completed round.
+///
+/// Every capital here comes from [applyCapitalVisit] and every outcome from
+/// [capitalContractMet], the two the provider scores by, so a log can never
+/// tell a different story than the game it describes.
+List<CapitalRound> capitalRounds(List<CapitalThrow> throws) {
+  final rows = <CapitalRound>[];
+  var total = 0;
+  for (final visit in capitalVisits(throws)) {
+    final contract = CapitalContract.forRound(visit.first.round);
+    final darts    = visit.map((dart) => dart.hit).toList();
+    final before   = total;
+    total = applyCapitalVisit(total: total, contract: contract, darts: darts);
+    rows.add(CapitalRound(
+      contract:    contract,
+      darts:       darts,
+      points:      capitalVisitScore(darts),
+      met:         contract == CapitalContract.capital
+          ? null
+          : capitalContractMet(contract, darts),
+      totalBefore: before,
+      total:       total,
+    ));
+  }
+  return rows;
+}

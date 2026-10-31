@@ -4,6 +4,7 @@ import '../l10n/app_localizations.dart';
 import '../providers/capital_provider.dart';
 import '../utils/game_labels.dart';
 import '../utils/player_label.dart';
+import '../widgets/capital_result.dart';
 import '../widgets/game_info_card.dart';
 import '../widgets/rematch_button.dart';
 import '../widgets/summary_body.dart';
@@ -23,12 +24,6 @@ class CapitalSummaryScreen extends StatelessWidget {
     final l        = context.l10n;
     final theme    = Theme.of(context);
     final cs       = theme.colorScheme;
-
-    // Capital ranks on the capital alone, so a plain sort is the whole of it.
-    // `utils/placement.dart` solves a different problem, the per leg placement
-    // points of an X01 game, and does not apply here.
-    final sorted = List.of(states)
-      ..sort((a, b) => b.total.compareTo(a.total));
 
     final winnerSlot =
         states.where((s) => s.player.id == winnerId).firstOrNull;
@@ -70,27 +65,10 @@ class CapitalSummaryScreen extends StatelessWidget {
           ]),
         ],
         details: [
-          Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.capitalSummaryTitle,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 8),
-                  for (final slot in sorted)
-                    _SummaryRow(
-                      slot: slot,
-                      isWinner: winnerId != null && slot.player.id == winnerId,
-                    ),
-                ],
-              ),
-            ),
+          CapitalResultCard(
+            slots:    states,
+            winnerId: winnerId,
+            throws:   provider.throwHistory,
           ),
         ],
         actions: [
@@ -114,72 +92,6 @@ class CapitalSummaryScreen extends StatelessWidget {
               states.map((s) => s.player).toList(),
             ),
             destination: (_) => const CapitalScreen(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One player's line in the final table.
-class _SummaryRow extends StatelessWidget {
-  final CapitalPlayerState slot;
-  final bool isWinner;
-
-  const _SummaryRow({required this.slot, required this.isWinner});
-
-  @override
-  Widget build(BuildContext context) {
-    final l = context.l10n;
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          if (isWinner)
-            const Padding(
-              padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.emoji_events_rounded, size: 18),
-            )
-          else
-            const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  slot.label(l),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: isWinner ? FontWeight.bold : FontWeight.normal,
-                    color: isWinner ? cs.primary : null,
-                  ),
-                ),
-                Text(
-                  l.capitalContractsMet(slot.contractsMet),
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${slot.total}',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: isWinner ? cs.primary : null,
-                ),
-              ),
-              Text(
-                l.capitalFinalCapital,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
           ),
         ],
       ),
