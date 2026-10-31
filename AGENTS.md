@@ -88,7 +88,7 @@ lib/
 │   ├── bot_strategy_cricket.dart, bot_strategy_shanghai.dart, bot_strategy_around_the_clock.dart, bot_strategy_capital.dart  # the same for the other modes, pure functions over the slot states. Capital's takes the darts already thrown, because it is the one mode where three darts have to make one arc, run or set of colors between them
 │   ├── player_label.dart       # label(l): the name a player or a scoreboard slot is shown under; a bot's is localized, its stored name never shows
 │   ├── visit_darts.dart        # VisitDart: one dart as the target modes label it (S20, D20, T20, 25, Bull, Miss), shared by chips and live info
-│   ├── cricket_stats.dart, shanghai_stats.dart, capital_stats.dart  # The live numbers of those modes over one slot's darts, and the visit grouping
+│   ├── cricket_stats.dart, shanghai_stats.dart, capital_stats.dart  # The live numbers of those modes over one slot's darts, and the visit grouping. capitalRounds replays one slot into the row per round the result table unfolds
 │   ├── around_the_clock_rules.dart  # applyAroundTheClockDart, the one implementation of the variant rules, used live, on replay and by the live numbers
 │   ├── checkout_ladder_rules.dart   # applyLadderDart and CheckoutLadderEngine: the ladder, the turn and the race, replayed from the stored darts
 │   ├── capital_rules.dart      # The CapitalContract round order, capitalContractMet, and applyCapitalVisit: the one place a visit either adds to the capital or halves it
