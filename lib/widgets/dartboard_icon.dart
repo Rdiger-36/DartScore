@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/segment_color.dart';
 
 /// A classic dartboard drawn with CustomPainter.
 /// Use [size] to control the diameter.
@@ -25,11 +26,13 @@ class DartboardIcon extends StatelessWidget {
 /// survives being scaled down to an icon.
 class DartboardPainter extends CustomPainter {
   // Segment colours: alternating black / cream, red / green for scoring rings
-  static const _black  = Color(0xFF1A1A1A);
-  static const _cream  = Color(0xFFF5E6C8);
-  static const _red    = Color(0xFFC0392B);
-  static const _green  = Color(0xFF1E7A3C);
-  static const _wire   = Color(0xFFC2C9D1);
+  // Declared in utils/segment_color.dart, so the keys that stand for a field
+  // of the board are painted from the same values the board itself is.
+  static const _black  = BoardPaint.black;
+  static const _cream  = BoardPaint.cream;
+  static const _red    = BoardPaint.red;
+  static const _green  = BoardPaint.green;
+  static const _wire   = BoardPaint.wire;
 
   @override
   void paint(Canvas canvas, Size size) {

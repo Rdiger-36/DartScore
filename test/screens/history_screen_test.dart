@@ -1,4 +1,5 @@
 import 'package:dartscore_app/database/db_helper.dart';
+import 'package:dartscore_app/models/capital_game.dart';
 import 'package:dartscore_app/models/cricket_game.dart';
 import 'package:dartscore_app/models/game.dart';
 import 'package:dartscore_app/models/player.dart';
@@ -205,6 +206,80 @@ void main() {
 
       expect(layout.splitFraction(SplitPane.history, landscape: true),
           lessThan(0.62));
+    });
+  });
+
+  group('the history list with Capital games in it', () {
+    useInMemoryDatabase();
+
+    late TabletLayoutProvider layout;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      layout = TabletLayoutProvider();
+      final players = await insertPlayers(['Ada', 'Zoe']);
+      final ids = players.map((p) => p.id!).toList();
+      final db = DbHelper.instance;
+
+      await db.insertCapitalGame(CapitalGame(
+        legs:      1,
+        sets:      1,
+        createdAt: DateTime(2026, 4, 1),
+        playerIds: ids,
+      ));
+      // Two finished ones, because a tile keyed by something every Capital
+      // game shares would collide here rather than in the list of one.
+      for (final day in [2, 3]) {
+        await db.insertCapitalGame(CapitalGame(
+          legs:       1,
+          sets:       1,
+          createdAt:  DateTime(2026, 4, day),
+          finishedAt: DateTime(2026, 4, day, 1),
+          playerIds:  ids,
+        ));
+      }
+    });
+
+    Future<void> pumpHistory(WidgetTester tester) async {
+      usePhoneSurface(tester, size: const Size(400, 1200));
+      await tester.pumpWidget(
+        ChangeNotifierProvider<TabletLayoutProvider>.value(
+          value: layout,
+          child: testApp(const HistoryScreen()),
+        ),
+      );
+      await pumpUntilLoaded(tester);
+    }
+
+    testWidgets('shows an open Capital game with its own subtitle',
+        (tester) async {
+      await pumpHistory(tester);
+
+      // Not the X01 subtitle: reaching that arm would dereference a game this
+      // entry does not carry.
+      expect(find.text('Capital · 15 rounds'), findsOneWidget);
+    });
+
+    testWidgets('shows every finished Capital game on the Finished tab',
+        (tester) async {
+      await pumpHistory(tester);
+      await tester.tap(find.text('Finished'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Capital · 15 rounds'), findsNWidgets(2));
+      expect(find.text('Ada vs Zoe'), findsNWidgets(2));
+    });
+
+    testWidgets('offers Capital as a filter where Capital games are',
+        (tester) async {
+      await pumpHistory(tester);
+
+      expect(find.widgetWithText(FilterChip, 'Capital'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Capital'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Capital · 15 rounds'), findsOneWidget);
     });
   });
 }

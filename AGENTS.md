@@ -57,7 +57,7 @@ dart run tool/compose_store_screenshots.dart
 
 ## Architecture
 
-The app supports five game modes: **X01** (the original "Game"), **Cricket**, **Shanghai**, **Around the Clock** and the **Checkout Ladder**. Each non-X01 mode has its own model, provider, and set of setup/play/summary/history screens, mirroring the X01 structure.
+The app supports six game modes: **X01** (the original "Game"), **Cricket**, **Shanghai**, **Around the Clock**, the **Checkout Ladder** and **Capital**. Each non-X01 mode has its own model, provider, and set of setup/play/summary/history screens, mirroring the X01 structure.
 
 ```
 lib/
@@ -72,6 +72,7 @@ lib/
 │   ├── shanghai_game.dart           # Shanghai entity; ShanghaiVariant enum
 │   ├── around_the_clock_game.dart   # Around the Clock entity; AroundTheClockVariant enum, target order
 │   ├── checkout_ladder_game.dart    # Checkout Ladder entity; CheckoutLadderVariant enum (training, race), darts per attempt
+│   ├── capital_game.dart            # Capital entity; CapitalVariant enum, one visit per round, stores the field a dart hit and no team config
 │   ├── team_config.dart             # Shared TeamConfig + JSON encode/decode for the team_config_json columns
 │   ├── starting_order.dart          # Shared StartingOrder enum for the starting_order columns (random/fixed)
 │   └── dart_throw.dart              # Single throw record (value, multiplier, bust flag)
@@ -81,21 +82,22 @@ lib/
 ├── widgets/                   # Shared UI building blocks. See widgets/AGENTS.md
 ├── utils/
 │   ├── finish_calculator.dart  # Static checkout table up to 170, respects player's favorite doubles; canFinishWithOneDart is the one-dart rule per check-out mode
-│   ├── dartboard_geometry.dart # The segment order and the board in millimetres: aimPointFor a target, hitAt a point, scoreOf a hit
+│   ├── dartboard_geometry.dart # The segment order and the board in millimetres: aimPointFor a target, hitAt a point, scoreOf a hit, colorOf a hit, areAdjacentSectors over an arc
 │   ├── bot_thrower.dart        # BotThrower: lands a bot's dart around its aim with the tier's scatter; scatterOf is the one number per BotLevel
 │   ├── bot_strategy_x01.dart   # x01Target: where a bot aims in X01, driven by FinishCalculator under the player's own check-out rule
-│   ├── bot_strategy_cricket.dart, bot_strategy_shanghai.dart, bot_strategy_around_the_clock.dart  # the same for the other three modes, pure functions over the slot states
+│   ├── bot_strategy_cricket.dart, bot_strategy_shanghai.dart, bot_strategy_around_the_clock.dart, bot_strategy_capital.dart  # the same for the other modes, pure functions over the slot states. Capital's takes the darts already thrown, because it is the one mode where three darts have to make one arc, run or set of colors between them
 │   ├── player_label.dart       # label(l): the name a player or a scoreboard slot is shown under; a bot's is localized, its stored name never shows
 │   ├── visit_darts.dart        # VisitDart: one dart as the target modes label it (S20, D20, T20, 25, Bull, Miss), shared by chips and live info
-│   ├── cricket_stats.dart, shanghai_stats.dart  # The live numbers of the two modes over one slot's darts, and the visit grouping
+│   ├── cricket_stats.dart, shanghai_stats.dart, capital_stats.dart  # The live numbers of those modes over one slot's darts, and the visit grouping. capitalRounds replays one slot into the row per round the result table unfolds
 │   ├── around_the_clock_rules.dart  # applyAroundTheClockDart, the one implementation of the variant rules, used live, on replay and by the live numbers
 │   ├── checkout_ladder_rules.dart   # applyLadderDart and CheckoutLadderEngine: the ladder, the turn and the race, replayed from the stored darts
+│   ├── capital_rules.dart      # The CapitalContract round order, capitalContractMet, and applyCapitalVisit: the one place a visit either adds to the capital or halves it
 │   ├── game_labels.dart        # Localized names for per-mode settings (variants, check-in/out, handicaps)
 │   ├── throw_stats.dart        # ThrowStats: the one aggregation over recorded throws, used live, in the summaries and by the DB snapshot; checkoutDartsInVisit classifies a visit as it is recorded
 │   ├── match_format.dart       # Match format presets (best of N, PDC sets, ...)
 │   ├── placement.dart          # Placement-mode ranking and points helpers
 │   ├── team_color.dart         # Shared team accent palette
-│   ├── segment_color.dart      # Shared tones for multiplied fields: blue for triples, green for doubles
+│   ├── segment_color.dart      # Shared tones for multiplied fields: blue for triples, green for doubles. BoardPaint holds the board's own black, cream, red, green and wire
 │   ├── platform_notices.dart   # Licenses of the Android libraries the plugins pull in through Gradle, registered into the LicenseRegistry at startup
 │   └── layout.dart             # Tablet breakpoint, max widths, SidePaneLayout, input side, text scale
 └── l10n/
@@ -136,9 +138,10 @@ These hold in every directory, whatever the local node says.
 - State goes through a Provider, database access goes through `db_helper.dart`, and no screen or widget touches SQLite
 - Statistics derived from X01 visits go through `ThrowStats` in `throw_stats.dart`, the single implementation for the live info screen, the summary and history screens and the snapshot `db_helper.dart` writes before a game is deleted. Never recompute an average, a high, a bust count or a checkout rate inline; a second formula is how the live numbers and the lifetime numbers start disagreeing
 - Finish/checkout logic is isolated in `FinishCalculator`, do not inline checkout logic elsewhere
-- Where a dart moves a slot in Around the Clock is decided by `applyAroundTheClockDart` in `utils/around_the_clock_rules.dart` and nowhere else: the provider applies it live and on replay, and the live statistics replay it to tell a hit from a miss. Cricket marks and Shanghai points have the same single home in `cricket_stats.dart` and `shanghai_stats.dart`, and the Checkout Ladder's ladder, turn and race in `CheckoutLadderEngine` in `checkout_ladder_rules.dart`
+- Where a dart moves a slot in Around the Clock is decided by `applyAroundTheClockDart` in `utils/around_the_clock_rules.dart` and nowhere else: the provider applies it live and on replay, and the live statistics replay it to tell a hit from a miss. Cricket marks and Shanghai points have the same single home in `cricket_stats.dart` and `shanghai_stats.dart`, and the Checkout Ladder's ladder, turn and race in `CheckoutLadderEngine` in `checkout_ladder_rules.dart`. Whether a Capital round's contract was met is `capitalContractMet` and what the round does to the capital is `applyCapitalVisit`, both in `utils/capital_rules.dart`: the provider scores by them live, the replay scores by them again on resume and in the history, and `capital_stats.dart` counts the contracts met by them a third time. Halving rounds up, in one function, `halvedRoundingUp`
 - A bot's dart is a target from a strategy in `utils/bot_strategy_*.dart` landed by `BotThrower`, and the tier's skill is nothing but `scatterOf` in `bot_thrower.dart`. The calibration test pins the three-dart average each tier plays, so a change to a scatter value or to the X01 strategy is a change to what the tier names promise: move the test's numbers with it, on purpose
 - The segment order of the board lives in `utils/dartboard_geometry.dart`; the painter re-exports it, nothing declares it twice
+- Which color a field wears is `colorOf` in the same file, derived from that one segment order rather than from a second table: the 20 opens the ring black, and single and double alternate along the list from there. The five tones themselves are `BoardPaint` in `utils/segment_color.dart`, read by the decorative dartboard icon and by Capital's keypad, so a key and the board cannot drift apart
 - A player's name reaches the screen through `label(l)` from `utils/player_label.dart`, never through `name` directly, and a slot's through the same `label(l)` on the state class. A person's label is their name; a bot's is the localized tier name, so the neutral name its row stores is only ever seen where no localization can reach. The roster widgets and the sync screen are the exception, because a bot never gets there
 - A completed visit stays on the board for `TurnPacing.visitPause` before the turn moves on, in every mode, for people and bots alike; a bar under the darts shows the wait, and the Continue button that takes the throw buttons' place, or a tap on the dart row, moves on at once. The pause and the bot's delay follow the `GamePace` the settings keep in `PaceProvider`, read by the game providers through `TurnPacing.pace`. In X01 it is not even recorded until then, so leaving the game and the app going to the background flush it (`leaveGame`, `flushHeldVisit`); the other modes record each dart as it lands and only hold the turn. Tests zero the pause through `TurnPacing.debugVisitPause`, which `useInMemoryDatabase` does for them
 - The bot's turn is driven by the mode's provider through the `BotRunner` mixin in `providers/bot_runner.dart`, one timer per dart, and stops on quit (`leaveGame`), on undo and redo, and while the app is in the background. Bot darts are never undone one at a time: undo over a bot visit removes every bot visit since the last human dart and that dart with them, or the bot would throw the undone dart straight back
@@ -154,8 +157,9 @@ These hold in every directory, whatever the local node says.
 
 ### Models and schema
 
-- Each game mode keeps its enums in its own model file: `GameMode`/`CheckoutMode` in `game.dart`, `CricketVariant`/`CricketScoringMode` in `cricket_game.dart`, `ShanghaiVariant` in `shanghai_game.dart`, `AroundTheClockVariant` in `around_the_clock_game.dart`
+- Each game mode keeps its enums in its own model file: `GameMode`/`CheckoutMode` in `game.dart`, `CricketVariant`/`CricketScoringMode` in `cricket_game.dart`, `ShanghaiVariant` in `shanghai_game.dart`, `AroundTheClockVariant` in `around_the_clock_game.dart`, `CapitalVariant` in `capital_game.dart`
 - Settings that every mode shares live in their own model file and are re-exported by each game model, so screens need no extra import: `TeamConfig` in `team_config.dart`, `StartingOrder` in `starting_order.dart`
+- Capital has no teams, so `capital_games` carries no `team_config_json` and its model re-exports `StartingOrder` alone. A mode that shares none of a setting does not store a column for it
 - `StartingOrder.random` is index 0 on purpose, because that is the DB default and describes how every game before the setting existed was played. Never reorder the enum
 - A computer opponent is a `Player` row with a non-null `bot_level` and a `bot_ordinal` counted from one, one row per bot with a fixed name and uuid from `BotLevel.storedNameFor` and `uuidFor`, created by `PlayersProvider.botFor(level, ordinal:)`. Two bots of one tier are two rows, which is how a game holds two of the same strength. That is what keeps every table, screen and statistic keyed on a player id working unchanged. The price is paid in the queries: `getPlayers()` is the roster of people and leaves bots out, `getBots()` holds them, `getPlayersById()` holds both because the history prints their names. Never reorder `BotLevel`, its index is the column value
 - Each game mode follows the same layering: model + provider (state machine) + setup/play/summary/history screens; mirror this structure when adding a mode
