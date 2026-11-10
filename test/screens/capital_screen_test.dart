@@ -2,9 +2,12 @@ import 'package:dartscore_app/models/capital_game.dart';
 import 'package:dartscore_app/models/player.dart';
 import 'package:dartscore_app/providers/bot_runner.dart';
 import 'package:dartscore_app/providers/capital_provider.dart';
+import 'package:dartscore_app/providers/tablet_layout_provider.dart';
 import 'package:dartscore_app/screens/capital_screen.dart';
 import 'package:dartscore_app/utils/layout.dart';
+import 'package:dartscore_app/utils/capital_rules.dart';
 import 'package:dartscore_app/utils/segment_color.dart';
+import 'package:dartscore_app/widgets/dartboard_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -24,8 +27,6 @@ void main() {
       provider = CapitalProvider();
       await provider.startGame(
         CapitalGame(
-          legs: 1,
-          sets: 1,
           createdAt: DateTime(2026, 10, 25),
           playerIds: players.map((p) => p.id!).toList(),
         ),
@@ -38,14 +39,17 @@ void main() {
     Future<void> pumpScreen(WidgetTester tester,
         {Size size = const Size(400, 900)}) async {
       usePhoneSurface(tester, size: size);
-      await tester.pumpWidget(
-        testApp(
+      // The layout provider, because a landscape tablet asks it which side
+      // the input sits on, as the Checkout Ladder does.
+      await tester.pumpWidget(ChangeNotifierProvider<TabletLayoutProvider>(
+        create: (_) => TabletLayoutProvider(),
+        child: testApp(
           ChangeNotifierProvider<CapitalProvider>.value(
             value: provider,
             child: const CapitalScreen(),
           ),
         ),
-      );
+      ));
       await tester.pumpAndSettle();
     }
 
@@ -77,13 +81,6 @@ void main() {
           find.ancestor(of: find.text(name), matching: find.byType(Row)).first;
       await tester.tap(find.descendant(of: row, matching: find.text(total)));
       await tester.pumpAndSettle();
-    }
-
-    /// The fill of the key labelled [label].
-    Color keyColor(WidgetTester tester, String label) {
-      final material = tester.widget<Material>(
-          find.widgetWithText(Material, label).first);
-      return material.color!;
     }
 
     group('the contract band', () {
@@ -126,59 +123,72 @@ void main() {
       });
     });
 
-    group('the keypad', () {
-      testWidgets('paints each key the color that field is on the board',
+    group('the input', () {
+      testWidgets('is the same dartboard input every mode scored per dart uses',
           (tester) async {
         await pumpScreen(tester);
-        // The 20 opens the segment order and the 1 follows it, so one is a
-        // black single and the other cream.
-        expect(keyColor(tester, '20'), BoardPaint.black);
-        expect(keyColor(tester, '1'), BoardPaint.cream);
-        expect(keyColor(tester, '25'), BoardPaint.green);
-        expect(keyColor(tester, 'Bull'), BoardPaint.red);
+        expect(find.byType(DartboardInput<CapitalProvider>), findsOneWidget);
       });
 
-      testWidgets('repaints red and green when the ring changes',
-          (tester) async {
+      testWidgets('enters the bull through its own button', (tester) async {
         await pumpScreen(tester);
-        await tester.tap(find.text('Double'));
-        await tester.pumpAndSettle();
-
-        expect(keyColor(tester, '20'), BoardPaint.red);
-        expect(keyColor(tester, '1'), BoardPaint.green);
+        await tapKey(tester, 'Bull (25)');
+        expect(provider.visitHits, [(field: 25, multiplier: 1)]);
       });
+    });
 
-      testWidgets('picks the ring from one bar, as the X01 input does',
+    group('the colors round', () {
+      /// Plays every round before Colors with three misses each, so the game
+      /// stands on the Colors contract for the first player.
+      Future<void> reachColors(WidgetTester tester) async {
+        for (var round = 0; round < CapitalContract.colors.round; round++) {
+          for (var player = 0; player < 2; player++) {
+            for (var dart = 0; dart < 3; dart++) {
+              await tapKey(tester, 'Miss');
+            }
+          }
+        }
+      }
+
+      /// The fills of the dots the band shows for the darts thrown.
+      List<Color> dotColors(WidgetTester tester) => tester
+          .widgetList<Container>(find.byWidgetPredicate((w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).shape == BoxShape.circle))
+          .map((c) => (c.decoration as BoxDecoration).color!)
+          .toList();
+
+      testWidgets('shows a dot in the paint of each dart on a steel board',
           (tester) async {
         await pumpScreen(tester);
+        await reachColors(tester);
+        expect(find.text('Colors'), findsOneWidget);
 
-        expect(find.byType(SegmentedButton<int>), findsOneWidget);
-      });
-
-      testWidgets('names what a multiplied key is worth, as X01 does',
-          (tester) async {
-        await pumpScreen(tester);
-        expect(find.text('60'), findsNothing);
-
-        await tester.tap(find.text('Triple'));
-        await tester.pumpAndSettle();
-
-        // The 20 reads 20 over 60. No other field triples to 60.
-        expect(find.text('60'), findsOneWidget);
-        // The bull is one value whatever the ring, so it gains no second line
-        // that would only repeat its label.
-        expect(find.text('50'), findsNothing);
-      });
-
-      testWidgets('returns to singles after a dart, so a ring is never sticky',
-          (tester) async {
-        await pumpScreen(tester);
-        await tester.tap(find.text('Triple'));
-        await tester.pumpAndSettle();
         await tapKey(tester, '20');
+        expect(dotColors(tester), [BoardPaint.black]);
+        expect(find.text('Black. Need 2 other colors'), findsOneWidget);
+      });
 
-        expect(keyColor(tester, '20'), BoardPaint.black,
-            reason: 'the ring should have fallen back to single');
+      testWidgets('names the areas of a soft tip board instead',
+          (tester) async {
+        final ids = players.map((p) => p.id!).toList();
+        // A real write, which never returns under fake async.
+        await tester.runAsync(() => provider.startGame(
+              CapitalGame(
+                boardType: BoardType.softTip,
+                createdAt: DateTime(2026, 11, 10),
+                playerIds: ids,
+              ),
+              players,
+            ));
+        await pumpScreen(tester);
+        await reachColors(tester);
+        expect(find.text('Areas'), findsOneWidget);
+
+        await tapKey(tester, '20');
+        expect(dotColors(tester), [BoardPaint.blue]);
+        expect(find.text('Blue single. Need 2 other areas'), findsOneWidget);
       });
     });
 
@@ -277,7 +287,7 @@ void main() {
 
       testWidgets('divides on a landscape tablet', (tester) async {
         await pumpScreen(tester, size: const Size(1180, 820));
-        // The keypad is the tall thing, so it takes a pane of its own and
+        // The input is the tall thing, so it takes a pane of its own and
         // leaves the capitals the full height beside it.
         expect(find.byType(SidePaneLayout), findsOneWidget);
         expect(find.widgetWithText(InkWell, '20'), findsOneWidget);
@@ -330,7 +340,7 @@ void main() {
     group('leaving', () {
       testWidgets('asks before abandoning a game in progress', (tester) async {
         await pumpScreen(tester);
-        await tester.tap(find.byIcon(Icons.close));
+        await tester.tap(find.byIcon(Icons.close_rounded));
         await tester.pumpAndSettle();
 
         expect(find.text('Leave Game'), findsOneWidget);

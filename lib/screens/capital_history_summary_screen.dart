@@ -123,6 +123,7 @@ class _Body extends StatelessWidget {
       result: [
         GameInfoCard(dense: true, rows: [
           (l.gameLabel, l.modeCapitalName),
+          (l.boardType, boardTypeLabel(l, game.boardType)),
           (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
         ]),
       ],
@@ -131,12 +132,13 @@ class _Body extends StatelessWidget {
           slots:    states,
           winnerId: provider.winnerId,
           throws:   provider.throwHistory,
+          board:    game.boardType,
         ),
       ],
       actions: [
         RematchButton(
           modeName: l.modeCapitalName,
-          details: const [],
+          details: [(l.boardType, boardTypeLabel(l, game.boardType))],
           slots:
               states.map((s) => RematchSlot.player(s.label(l))).toList(),
           onRematch: () => context

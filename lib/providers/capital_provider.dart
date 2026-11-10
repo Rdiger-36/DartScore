@@ -7,6 +7,7 @@ import '../utils/bot_strategy_capital.dart';
 import '../utils/capital_rules.dart';
 import '../utils/dartboard_geometry.dart';
 import '../utils/player_label.dart';
+import '../widgets/dartboard_input.dart' show DartEntry, DartboardInputSource;
 import 'bot_runner.dart';
 
 /// One scoreboard slot in a Capital game: a player and the capital they hold.
@@ -86,8 +87,12 @@ class CapitalPlayerState implements LabelledSlot {
 /// through [applyCapitalVisit], which is the one implementation of the scoring
 /// rule. A visit ends on its third dart or the moment it makes exactly 57, and
 /// both are read back off the darts, so no boundary is stored either.
+///
+/// The live screen enters darts through the same [DartboardInput] as X01 and
+/// the Checkout Ladder, which is why this implements [DartboardInputSource].
 class CapitalProvider extends ChangeNotifier
-    with WidgetsBindingObserver, BotRunner {
+    with WidgetsBindingObserver, BotRunner
+    implements DartboardInputSource {
   final DbHelper _db = DbHelper.instance;
 
   /// Darts in a full visit, when the player does not stop early.
@@ -105,6 +110,10 @@ class CapitalProvider extends ChangeNotifier
 
   /// All persisted throws for undo (newest last).
   final List<CapitalThrow> _throwHistory = [];
+
+  /// Darts undo took back, newest last, for redo to throw again. Cleared by a
+  /// fresh dart, which starts a new line of play.
+  final List<BoardHit> _redo = [];
 
   CapitalGame? get game => _game;
   List<CapitalPlayerState> get playerStates => _playerStates;
@@ -146,8 +155,33 @@ class CapitalProvider extends ChangeNotifier
 
   /// Whether there is a dart to undo. Not while a bot is throwing, and not
   /// when every recorded dart is a bot's: those are never undone on their own.
-  bool get canUndo =>
+  @override
+  bool get canUndoDart =>
       !isBotTurn && _throwHistory.any((t) => !_isBotId(t.playerId));
+
+  @override
+  bool get canRedoDart => !isBotTurn && _redo.isNotEmpty;
+
+  // ── Dartboard input ────────────────────────────────────────────────────────
+
+  @override
+  List<DartEntry> get currentVisitDarts => [
+        for (final dart in _visitBuffer)
+          DartEntry(
+            field:    dart.field,
+            modifier: dart.field == 0 ? 1 : dart.multiplier,
+            score:    scoreOf(dart.hit),
+          ),
+      ];
+
+  /// Capital has no bust: a visit that misses its contract still ends on its
+  /// third dart and is scored by halving.
+  @override
+  bool get liveBust => false;
+
+  @override
+  Future<void> tapField(int field, int modifier) =>
+      recordDart(field == 0 ? boardMiss : (field: field, multiplier: modifier));
 
   // ── Slot construction ──────────────────────────────────────────────────────
 
@@ -162,6 +196,7 @@ class CapitalProvider extends ChangeNotifier
   /// the stored darts.
   Future<void> resumeGame(CapitalGame game, List<Player> players) async {
     _game = game;
+    _redo.clear();
     _playerStates = _buildSlots(players);
     _currentPlayerIndex = 0;
     _currentRound = 0;
@@ -180,8 +215,7 @@ class CapitalProvider extends ChangeNotifier
     _game = CapitalGame(
       id:            gameId,
       variant:       game.variant,
-      legs:          game.legs,
-      sets:          game.sets,
+      boardType:     game.boardType,
       createdAt:     game.createdAt,
       playerIds:     game.playerIds,
       startingOrder: game.startingOrder,
@@ -193,6 +227,7 @@ class CapitalProvider extends ChangeNotifier
     _winnerId = null;
     _visitBuffer.clear();
     _throwHistory.clear();
+    _redo.clear();
     dropHeldVisit();
     releaseBot();
     notifyListeners();
@@ -211,8 +246,7 @@ class CapitalProvider extends ChangeNotifier
     await startGame(
       CapitalGame(
         variant:       template.variant,
-        legs:          template.legs,
-        sets:          template.sets,
+        boardType:     template.boardType,
         createdAt:     DateTime.now(),
         playerIds:     ordered.map((p) => p.id!).toList(),
         startingOrder: template.startingOrder,
@@ -248,6 +282,7 @@ class CapitalProvider extends ChangeNotifier
   /// or a finished visit is still shown.
   Future<void> recordDart(BoardHit hit) async {
     if (inputLocked) return;
+    _redo.clear();
     await _recordDart(hit);
     scheduleBot();
   }
@@ -263,8 +298,6 @@ class CapitalProvider extends ChangeNotifier
       field:      hit.field,
       multiplier: hit.multiplier,
       round:      _currentRound,
-      leg:        1,
-      set_:       1,
       thrownAt:   DateTime.now(),
     );
     final id = await _db.insertCapitalThrow(t);
@@ -275,8 +308,6 @@ class CapitalProvider extends ChangeNotifier
       field:      t.field,
       multiplier: t.multiplier,
       round:      t.round,
-      leg:        t.leg,
-      set_:       t.set_,
       thrownAt:   t.thrownAt,
     );
 
@@ -359,8 +390,9 @@ class CapitalProvider extends ChangeNotifier
   /// Undoes the last dart and replays the rest to rebuild every total.
   ///
   /// A bot's darts are never undone one at a time: undo removes every bot dart
-  /// since the last human dart, then that dart, in one rebuild. Undoing the
-  /// dart that ended the game reopens it.
+  /// since the last human dart, then that dart, in one rebuild. Only the human
+  /// dart can be redone. Undoing the dart that ended the game reopens it.
+  @override
   Future<void> undoLastDart() async {
     if (_game == null || isBotTurn) return;
     if (!_throwHistory.any((t) => !_isBotId(t.playerId))) return;
@@ -373,6 +405,7 @@ class CapitalProvider extends ChangeNotifier
     final wasGameOver = _gameOver;
     final last = _throwHistory.removeLast();
     await _db.deleteCapitalThrow(last.id!);
+    _redo.add(last.hit);
 
     await _replayState();
 
@@ -382,6 +415,15 @@ class CapitalProvider extends ChangeNotifier
 
     botSuspended = false;
     notifyListeners();
+    scheduleBot();
+  }
+
+  /// Throws the last dart undo took back again, for whoever the board now has
+  /// on turn.
+  @override
+  Future<void> redoLastDart() async {
+    if (_game == null || _redo.isEmpty || inputLocked) return;
+    await _recordDart(_redo.removeLast());
     scheduleBot();
   }
 

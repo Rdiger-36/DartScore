@@ -88,16 +88,16 @@ void main() {
 
   group('a bot matching colors', () {
     test('opens on the red triple twenty', () {
-      expect(colorOf(aim(CapitalContract.colors)), BoardColor.red);
+      expect(areaOf(aim(CapitalContract.colors)), BoardArea.primaryRing);
     });
 
     test('picks a color it has not used yet, each dart', () {
       final second = aim(CapitalContract.colors, [triple(20)]);
-      expect(colorOf(second), isNot(BoardColor.red));
+      expect(areaOf(second), isNot(BoardArea.primaryRing));
 
       final third = aim(CapitalContract.colors, [triple(20), second]);
-      expect(colorOf(third), isNot(BoardColor.red));
-      expect(colorOf(third), isNot(colorOf(second)));
+      expect(areaOf(third), isNot(BoardArea.primaryRing));
+      expect(areaOf(third), isNot(areaOf(second)));
     });
   });
 

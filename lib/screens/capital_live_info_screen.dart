@@ -67,7 +67,10 @@ class CapitalLiveInfoScreen extends StatelessWidget {
                               style: theme.textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 6),
-                          CapitalRoundList(rounds: rounds),
+                          CapitalRoundList(
+                            rounds: rounds,
+                            board:  provider.game!.boardType,
+                          ),
                         ],
                       ),
                     ),

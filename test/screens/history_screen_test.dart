@@ -222,8 +222,6 @@ void main() {
       final db = DbHelper.instance;
 
       await db.insertCapitalGame(CapitalGame(
-        legs:      1,
-        sets:      1,
         createdAt: DateTime(2026, 4, 1),
         playerIds: ids,
       ));
@@ -231,8 +229,6 @@ void main() {
       // game shares would collide here rather than in the list of one.
       for (final day in [2, 3]) {
         await db.insertCapitalGame(CapitalGame(
-          legs:       1,
-          sets:       1,
           createdAt:  DateTime(2026, 4, day),
           finishedAt: DateTime(2026, 4, day, 1),
           playerIds:  ids,

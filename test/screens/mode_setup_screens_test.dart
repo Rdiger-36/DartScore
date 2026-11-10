@@ -148,10 +148,17 @@ void main() {
         expect(find.text('Starting order'), findsOneWidget);
       });
 
-      testWidgets('offers no variant, because only one exists so far',
+      testWidgets('offers the two boards and no variant, steel by default',
           (tester) async {
         await pumpSetup(tester, const CapitalSetupScreen());
-        expect(find.byType(ChoiceChip), findsNothing);
+        // The board is the one choice: only one variant exists so far.
+        expect(find.byType(ChoiceChip), findsNWidgets(2));
+        final steel = tester.widget<ChoiceChip>(
+            find.widgetWithText(ChoiceChip, 'Steel'));
+        final softTip = tester.widget<ChoiceChip>(
+            find.widgetWithText(ChoiceChip, 'Soft tip'));
+        expect(steel.selected, isTrue);
+        expect(softTip.selected, isFalse);
       });
     });
 

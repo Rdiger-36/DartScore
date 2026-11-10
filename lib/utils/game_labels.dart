@@ -2,6 +2,7 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/checkout_ladder_game.dart' show CheckoutLadderGame, CheckoutLadderVariant;
 import '../models/cricket_game.dart';
+import '../models/board_type.dart';
 import '../models/game.dart';
 import '../models/shanghai_game.dart';
 import 'capital_rules.dart';
@@ -156,11 +157,24 @@ List<(String, String)> checkoutLadderSettingRows(
     ];
 // ── Capital ──────────────────────────────────────────────────────────────────
 
-/// The name a Capital [contract] is shown under.
+/// Localized name of a [BoardType], as the setup offers it and the game info
+/// lists it.
+String boardTypeLabel(AppLocalizations l, BoardType type) => switch (type) {
+      BoardType.steel   => l.boardTypeSteel,
+      BoardType.softTip => l.boardTypeSoftTip,
+    };
+
+/// The name a Capital [contract] is shown under on a board of [board].
 ///
 /// The seven numbered contracts are named by their sector, which reads the
-/// same in every language and so carries no localization entry.
-String capitalContractName(AppLocalizations l, CapitalContract contract) {
+/// same in every language and so carries no localization entry. The colors
+/// contract is named for what it asks on that board: three colors on steel,
+/// three areas on a soft tip board, which has only two colors.
+String capitalContractName(
+  AppLocalizations l,
+  CapitalContract contract,
+  BoardType board,
+) {
   if (contract.sector case final sector?) return '$sector';
   return switch (contract) {
     CapitalContract.capital    => l.capitalContractCapital,
@@ -168,7 +182,9 @@ String capitalContractName(AppLocalizations l, CapitalContract contract) {
     CapitalContract.anyDouble  => l.capitalContractDouble,
     CapitalContract.side       => l.capitalContractSideBySide,
     CapitalContract.run        => l.capitalContractRun,
-    CapitalContract.colors     => l.capitalContractColors,
+    CapitalContract.colors     => board == BoardType.steel
+        ? l.capitalContractColors
+        : l.capitalContractAreas,
     CapitalContract.fiftySeven => '57',
     CapitalContract.center     => l.capitalContractCenter,
     _                          => '',
@@ -176,7 +192,11 @@ String capitalContractName(AppLocalizations l, CapitalContract contract) {
 }
 
 /// The one line reminder shown under a contract's name before any dart lands.
-String capitalContractReminder(AppLocalizations l, CapitalContract contract) {
+String capitalContractReminder(
+  AppLocalizations l,
+  CapitalContract contract,
+  BoardType board,
+) {
   if (contract.sector != null) return l.capitalReminderAnyRing;
   return switch (contract) {
     CapitalContract.capital    => l.capitalReminderCapital,
@@ -184,20 +204,30 @@ String capitalContractReminder(AppLocalizations l, CapitalContract contract) {
     CapitalContract.anyDouble  => l.capitalReminderDouble,
     CapitalContract.side       => l.capitalReminderSideBySide,
     CapitalContract.run        => l.capitalReminderRun,
-    CapitalContract.colors     => l.capitalReminderColors,
+    CapitalContract.colors     => board == BoardType.steel
+        ? l.capitalReminderColors
+        : l.capitalReminderAreas,
     CapitalContract.fiftySeven => l.capitalReminderFiftySeven,
     CapitalContract.center     => l.capitalReminderCenter,
     _                          => '',
   };
 }
 
-/// The localized name of a board [color].
-String boardColorLabel(AppLocalizations l, BoardColor color) =>
-    switch (color) {
-      BoardColor.black => l.capitalColorBlack,
-      BoardColor.white => l.capitalColorWhite,
-      BoardColor.red   => l.capitalColorRed,
-      BoardColor.green => l.capitalColorGreen,
+/// The localized name of an [area] of paint on a board of [board].
+///
+/// On steel each area has a color of its own, so the color is the name. A
+/// soft tip board paints a single and a ring alike, so there the name says
+/// which of the two it is as well.
+String boardAreaLabel(AppLocalizations l, BoardType board, BoardArea area) =>
+    switch ((board, area)) {
+      (BoardType.steel,   BoardArea.primarySingle)   => l.boardColorBlack,
+      (BoardType.steel,   BoardArea.secondarySingle) => l.boardColorWhite,
+      (BoardType.steel,   BoardArea.primaryRing)     => l.boardColorRed,
+      (BoardType.steel,   BoardArea.secondaryRing)   => l.boardColorGreen,
+      (BoardType.softTip, BoardArea.primarySingle)   => l.boardSingleBlue,
+      (BoardType.softTip, BoardArea.secondarySingle) => l.boardSingleRed,
+      (BoardType.softTip, BoardArea.primaryRing)     => l.boardRingRed,
+      (BoardType.softTip, BoardArea.secondaryRing)   => l.boardRingBlue,
     };
 
 /// What the band says once [darts] have landed in the current visit.
@@ -211,8 +241,10 @@ String capitalProgressLine(
   AppLocalizations l,
   CapitalContract contract,
   List<BoardHit> darts,
+  BoardType board,
 ) {
-  if (darts.isEmpty) return capitalContractReminder(l, contract);
+  final reminder = capitalContractReminder(l, contract, board);
+  if (darts.isEmpty) return reminder;
 
   switch (contract) {
     case CapitalContract.run:
@@ -220,21 +252,25 @@ String capitalProgressLine(
     case CapitalContract.side:
       return _shapeLine(l, remainingArcs(darts), darts, l.capitalNoArc);
     case CapitalContract.colors:
-      final open = unusedColors(darts);
-      if (open.isEmpty) return capitalContractReminder(l, contract);
+      final open = unusedAreas(darts);
+      if (open.isEmpty) return reminder;
       final thrown = darts
-          .map((dart) => boardColorLabel(l, colorOf(dart)!))
+          .map((dart) => boardAreaLabel(l, board, areaOf(dart)!))
           .join(', ');
       if (darts.length == 2) {
-        return '$thrown. ${l.capitalNeed(_join(l, open.map((c) => boardColorLabel(l, c)).toList(), l.capitalOr))}';
+        final names =
+            open.map((area) => boardAreaLabel(l, board, area)).toList();
+        return '$thrown. ${l.capitalNeed(_join(l, names, l.capitalOr))}';
       }
-      return '$thrown. ${l.capitalNeedOtherColors(3 - darts.length)}';
+      return board == BoardType.steel
+          ? '$thrown. ${l.capitalNeedOtherColors(3 - darts.length)}'
+          : '$thrown. ${l.capitalNeedOtherAreas(3 - darts.length)}';
     case CapitalContract.fiftySeven:
       final left = pointsToFiftySeven(darts);
-      if (left == null || left == 0) return capitalContractReminder(l, contract);
+      if (left == null || left == 0) return reminder;
       return l.capitalNeedPoints(left);
     default:
-      return capitalContractReminder(l, contract);
+      return reminder;
   }
 }
 

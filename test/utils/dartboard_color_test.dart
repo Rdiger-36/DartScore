@@ -6,17 +6,17 @@ void main() {
     test('matches the example the Capital rules give', () {
       // "20-19-triple 20 => black-white-red" is the worked example for the
       // Color contract, and it pins both halves of the alternation at once.
-      expect(colorOf((field: 20, multiplier: 1)), BoardColor.black);
-      expect(colorOf((field: 19, multiplier: 1)), BoardColor.white);
-      expect(colorOf((field: 20, multiplier: 3)), BoardColor.red);
+      expect(areaOf((field: 20, multiplier: 1)), BoardArea.primarySingle);
+      expect(areaOf((field: 19, multiplier: 1)), BoardArea.secondarySingle);
+      expect(areaOf((field: 20, multiplier: 3)), BoardArea.primaryRing);
     });
 
     test('alternates black and white around the singles', () {
       for (var index = 0; index < dartboardSegmentOrder.length; index++) {
         final field = dartboardSegmentOrder[index];
         expect(
-          colorOf((field: field, multiplier: 1)),
-          index.isEven ? BoardColor.black : BoardColor.white,
+          areaOf((field: field, multiplier: 1)),
+          index.isEven ? BoardArea.primarySingle : BoardArea.secondarySingle,
           reason: 'single $field at index $index',
         );
       }
@@ -25,39 +25,39 @@ void main() {
     test('alternates red and green over the doubles and the triples', () {
       for (var index = 0; index < dartboardSegmentOrder.length; index++) {
         final field = dartboardSegmentOrder[index];
-        final expected = index.isEven ? BoardColor.red : BoardColor.green;
-        expect(colorOf((field: field, multiplier: 2)), expected,
+        final expected = index.isEven ? BoardArea.primaryRing : BoardArea.secondaryRing;
+        expect(areaOf((field: field, multiplier: 2)), expected,
             reason: 'double $field at index $index');
-        expect(colorOf((field: field, multiplier: 3)), expected,
+        expect(areaOf((field: field, multiplier: 3)), expected,
             reason: 'triple $field at index $index');
       }
     });
 
     test('gives a sector the same color in both of its multiplied rings', () {
       for (final field in dartboardSegmentOrder) {
-        expect(colorOf((field: field, multiplier: 2)),
-            colorOf((field: field, multiplier: 3)),
+        expect(areaOf((field: field, multiplier: 2)),
+            areaOf((field: field, multiplier: 3)),
             reason: 'field $field');
       }
     });
 
     test('paints the inner bull red inside the green outer bull', () {
-      expect(colorOf((field: 25, multiplier: 2)), BoardColor.red);
-      expect(colorOf((field: 25, multiplier: 1)), BoardColor.green);
+      expect(areaOf((field: 25, multiplier: 2)), BoardArea.primaryRing);
+      expect(areaOf((field: 25, multiplier: 1)), BoardArea.secondaryRing);
     });
 
     test('gives a miss no color', () {
-      expect(colorOf(boardMiss), isNull);
+      expect(areaOf(boardMiss), isNull);
     });
 
     test('uses every one of the four colors', () {
-      final seen = <BoardColor>{};
+      final seen = <BoardArea>{};
       for (final field in dartboardSegmentOrder) {
         for (final multiplier in [1, 2, 3]) {
-          seen.add(colorOf((field: field, multiplier: multiplier))!);
+          seen.add(areaOf((field: field, multiplier: multiplier))!);
         }
       }
-      expect(seen, BoardColor.values.toSet());
+      expect(seen, BoardArea.values.toSet());
     });
   });
 

@@ -97,33 +97,36 @@ int scoreOf(BoardHit hit) {
   return hit.field * hit.multiplier;
 }
 
-/// The paint on a standard board.
+/// The four areas of paint on a board, named by where they sit rather than by
+/// a color, because a steel and a soft tip board paint them differently.
 ///
-/// The two single rings alternate black and white around the board, and the
-/// double and triple rings alternate red and green over the same sectors, so a
-/// sector whose singles are black has red multiples. The inner bull is red and
-/// the outer bull green. These are the four colors the Capital "Color"
-/// contract draws from; a miss has no color at all.
-enum BoardColor { black, white, red, green }
+/// The singles alternate between [primarySingle] and [secondarySingle] around
+/// the board, the double and triple rings between [primaryRing] and
+/// [secondaryRing], over the same sectors: a sector whose singles are primary
+/// has primary rings. The 20 is a primary sector. The bull belongs to the
+/// primary rings and the outer bull to the secondary ones. On a steel board
+/// these are black, cream, red and green; on a soft tip board blue, red, red
+/// and blue, see [BoardType]. These are the four the Capital "Colors" contract
+/// draws from; a miss lands in none.
+enum BoardArea { primarySingle, secondarySingle, primaryRing, secondaryRing }
 
-/// The color [hit] landed on, or null for a miss.
+/// The area [hit] landed in, or null for a miss.
 ///
 /// The alternation runs with [dartboardSegmentOrder], so a field at an even
-/// index is black in the singles and red in the double and triple rings, and
-/// one at an odd index is white and green. That places the 20 at index 0 on
-/// black and red and the 19 at index 11 on white and green, which is what a
-/// real board shows.
-BoardColor? colorOf(BoardHit hit) {
+/// index is primary and one at an odd index secondary. That places the 20 at
+/// index 0 on the primary areas and the 19 at index 11 on the secondary ones,
+/// which is what a real board shows.
+BoardArea? areaOf(BoardHit hit) {
   if (hit.field == 0) return null;
   if (hit.field == 25) {
-    return hit.multiplier == 2 ? BoardColor.red : BoardColor.green;
+    return hit.multiplier == 2 ? BoardArea.primaryRing : BoardArea.secondaryRing;
   }
   final index = dartboardSegmentOrder.indexOf(hit.field);
   assert(index >= 0, 'not a field on the board: ${hit.field}');
   if (hit.multiplier == 1) {
-    return index.isEven ? BoardColor.black : BoardColor.white;
+    return index.isEven ? BoardArea.primarySingle : BoardArea.secondarySingle;
   }
-  return index.isEven ? BoardColor.red : BoardColor.green;
+  return index.isEven ? BoardArea.primaryRing : BoardArea.secondaryRing;
 }
 
 /// Whether [fields] are sectors that all touch each other on the board.

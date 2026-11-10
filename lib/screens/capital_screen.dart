@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../providers/capital_provider.dart';
+import '../providers/tablet_layout_provider.dart';
 import '../utils/capital_rules.dart';
 import '../utils/dartboard_geometry.dart';
 import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/player_label.dart';
 import '../utils/segment_color.dart';
-import '../utils/visit_darts.dart';
-import '../widgets/visit_darts_row.dart';
-import '../widgets/visit_pause.dart';
+import '../widgets/dartboard_input.dart';
 import 'capital_summary_screen.dart';
 import 'capital_live_info_screen.dart';
 
@@ -37,6 +36,15 @@ class CapitalScreen extends StatelessWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final tablet = isTabletLayout(context);
+    final size   = MediaQuery.sizeOf(context);
+    // Side by side only in landscape, as in the Checkout Ladder: the input is
+    // the tall thing, and in portrait a split would squeeze it into half the
+    // width while the capitals beside it stay short.
+    final layout = tablet && size.width >= size.height
+        ? context.watch<TabletLayoutProvider>()
+        : null;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -44,81 +52,89 @@ class CapitalScreen extends StatelessWidget {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l.modeCapitalName),
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => _confirmQuit(context),
+          toolbarHeight: tablet ? 56 : 44,
+          centerTitle: true,
+          title: Text(
+            l.modeCapitalName,
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: tablet ? 19 : 15),
           ),
           actions: [
+            if (layout != null)
+              IconButton(
+                icon: const Icon(Icons.swap_horiz_rounded, size: 26),
+                tooltip: l.swapInputSide,
+                onPressed: () => layout.setSide(
+                  layout.side == InputSide.left
+                      ? InputSide.right
+                      : InputSide.left,
+                ),
+              ),
             IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: provider.canUndo ? provider.undoLastDart : null,
+              icon: Icon(Icons.close_rounded, size: tablet ? 26 : 22),
+              tooltip: l.quitGame,
+              onPressed: () => _confirmQuit(context),
             ),
           ],
         ),
-        body: SafeArea(child: _body(context, provider, l)),
-      ),
-    );
-  }
-
-  /// The board, the contract and the keypad, arranged for the window.
-  ///
-  /// A landscape tablet divides: the keypad is the tall thing and gets a pane
-  /// of its own, which leaves the capitals and the contract the full height
-  /// beside it rather than squeezed above it. Everything narrower keeps the
-  /// single column, where the keypad still has to reach the bottom of the
-  /// screen.
-  Widget _body(
-      BuildContext context, CapitalProvider provider, AppLocalizations l) {
-    final tablet = isTabletLayout(context);
-    final size = MediaQuery.sizeOf(context);
-    final landscape = size.width >= size.height;
-
-    final visit = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: provider.visitPending ? provider.flushHeldVisit : null,
-      child: VisitDartsRow(
-        darts: [
-          for (final dart in provider.visitBuffer)
-            visitDartFrom(dart.field, dart.multiplier, l),
-        ],
-      ),
-    );
-
-    if (tablet && landscape) {
-      return SidePaneLayout(
-        side: InputSide.left,
-        primary: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-          child: _CapitalInput(provider: provider),
+        // The bottom inset is consumed here, for the reason the X01 screen
+        // gives: left to the input's grid it opens a gap above the action row
+        // instead of below it.
+        body: SafeArea(
+          top: false,
+          child: layout != null
+              ? SidePaneLayout(
+                  side: layout.side,
+                  primary: const DartboardInput<CapitalProvider>(
+                      fillHeight: true),
+                  secondary: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Column(
+                      children: [
+                        _Scoreboard(provider: provider),
+                        const SizedBox(height: 8),
+                        _ContractBand(provider: provider),
+                      ],
+                    ),
+                  ),
+                )
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: tablet
+                          ? DartboardInput.maxFilledWidth
+                          : contentMaxWidth(context,
+                              fraction: kGameWidthFraction,
+                              maxWidth: kMaxGameWidth),
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, box) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // The capitals scroll inside a share of the screen,
+                          // so a game of eight never pushes the input off it.
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                                maxHeight: box.maxHeight * 0.3),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                              child: _Scoreboard(provider: provider),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                            child: _ContractBand(provider: provider),
+                          ),
+                          Expanded(
+                            child: DartboardInput<CapitalProvider>(
+                                fillHeight: tablet),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
         ),
-        secondary: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-          child: Column(
-            children: [
-              _Scoreboard(provider: provider),
-              const SizedBox(height: 8),
-              _ContractBand(provider: provider),
-              const SizedBox(height: 8),
-              visit,
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: contentPadding(context, top: 8, bottom: 8, innerH: 12),
-      child: Column(
-        children: [
-          _Scoreboard(provider: provider),
-          const SizedBox(height: 8),
-          _ContractBand(provider: provider),
-          const SizedBox(height: 8),
-          visit,
-          const SizedBox(height: 8),
-          Expanded(child: _CapitalInput(provider: provider)),
-        ],
       ),
     );
   }
@@ -157,7 +173,7 @@ class CapitalScreen extends StatelessWidget {
 /// The capitals, one compact row per player.
 ///
 /// Only one row shows its arithmetic at a time, because eight rows each
-/// carrying a second line do not fit beside a keypad. By default it is the
+/// carrying a second line do not fit above the input. By default it is the
 /// slot that just threw, which is the sum worth reading; tapping any other
 /// player shows theirs instead, and tapping it again hands the scoreboard
 /// back to whoever throws next.
@@ -321,6 +337,8 @@ class _ContractBand extends StatelessWidget {
     final l = context.l10n;
     final theme = Theme.of(context);
     final contract = provider.contract;
+    final board = provider.game!.boardType;
+    final hits = provider.visitHits;
     final met = provider.contractMet && contract != CapitalContract.capital;
 
     return Container(
@@ -342,23 +360,41 @@ class _ContractBand extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  capitalContractName(l, contract),
+                  capitalContractName(l, contract, board),
                   style: theme.textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
-              // The keypad is already green, so a met contract is marked by
-              // the check alone rather than by tinting the whole band. Green
-              // rather than the brand red, which reads as a failure.
+              // A met contract is marked by the check alone rather than by
+              // tinting the whole band. Green rather than the brand red, which
+              // reads as a failure.
               if (met)
                 Icon(Icons.check_circle,
                     size: 20, color: onDoubleContainerColor(context)),
             ],
           ),
-          Text(
-            capitalProgressLine(l, contract, provider.visitHits),
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          Row(
+            children: [
+              // In the Colors round each dart thrown shows the paint it landed
+              // in on the chosen board, so the player can check the line
+              // beside it against the board on the wall.
+              if (contract == CapitalContract.colors)
+                for (final hit in hits)
+                  if (areaOf(hit) case final area?)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: _AreaDot(color: boardTone(board, area)),
+                    ),
+              if (contract == CapitalContract.colors && hits.isNotEmpty)
+                const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  capitalProgressLine(l, contract, hits, board),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -366,231 +402,22 @@ class _ContractBand extends StatelessWidget {
   }
 }
 
-/// The board input: a ring modifier, the twenty numbers, both bulls and a miss.
-///
-/// Capital judges where a dart actually landed rather than whether it hit a
-/// named target, so unlike Shanghai it needs the whole board rather than a
-/// multiplier alone.
-/// The height of the keypad's bottom row, stated rather than left to the
-/// button's own defaults, because the Continue button that takes its place has
-/// to stand exactly as tall.
-const double _keyRowHeight = 48;
-
-class _CapitalInput extends StatefulWidget {
-  final CapitalProvider provider;
-  const _CapitalInput({required this.provider});
+/// One dot in the paint of an area of the board, outlined like the wire on a
+/// real board so a cream dot stays visible on a light surface.
+class _AreaDot extends StatelessWidget {
+  final Color color;
+  const _AreaDot({required this.color});
 
   @override
-  State<_CapitalInput> createState() => _CapitalInputState();
-}
-
-class _CapitalInputState extends State<_CapitalInput> {
-  /// The ring the next number tapped lands in, which resets after each dart.
-  int _multiplier = 1;
-
-  Future<void> _record(BoardHit hit) async {
-    await widget.provider.recordDart(hit);
-    if (mounted) setState(() => _multiplier = 1);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l = context.l10n;
-    final locked = widget.provider.inputLocked;
-
-    return Column(
-      children: [
-        SegmentedButton<int>(
-          segments: [
-            ButtonSegment(value: 1, label: Text(l.single)),
-            ButtonSegment(value: 2, label: Text(l.double_)),
-            ButtonSegment(value: 3, label: Text(l.triple)),
-          ],
-          selected: {_multiplier},
-          onSelectionChanged: (s) => setState(() => _multiplier = s.first),
-          style: ButtonStyle(
-            padding: WidgetStateProperty.all(
-                const EdgeInsets.symmetric(vertical: 10)),
-            // The chosen segment wears the color the app marks that ring by,
-            // as the X01 switch does.
-            backgroundColor: WidgetStateProperty.resolveWith((states) =>
-                states.contains(WidgetState.selected)
-                    ? _ringColor(context)
-                    : null),
-            foregroundColor: WidgetStateProperty.resolveWith((states) =>
-                states.contains(WidgetState.selected)
-                    ? _onRingColor(context)
-                    : null),
-          ),
+  Widget build(BuildContext context) => Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: BoardPaint.wire),
         ),
-        const SizedBox(height: 6),
-        // The grid is sized to the space it is given rather than to a fixed
-        // aspect ratio, so four rows of five fill the pane exactly and leave
-        // no slack between the numbers and the row below them.
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              const columns = 5;
-              const rows = 4;
-              const spacing = 6.0;
-              final cellWidth =
-                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
-              final cellHeight =
-                  (constraints.maxHeight - spacing * (rows - 1)) / rows;
-              // Keys stay close to round. Letting them fill the pane exactly
-              // stretched them into lozenges, but clamping them square left a
-              // gap above and below, and two gaps read worse than one. A cell
-              // slightly taller than wide absorbs nearly all the slack.
-              final ratio = (cellWidth / cellHeight).clamp(0.95, 2.2);
-              return Center(
-                child: GridView.count(
-                  shrinkWrap: true,
-                  crossAxisCount: columns,
-                  mainAxisSpacing: spacing,
-                  crossAxisSpacing: spacing,
-                  childAspectRatio: ratio.toDouble(),
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    for (var field = 1; field <= 20; field++)
-                      _button(
-                        context,
-                        '$field',
-                        (field: field, multiplier: _multiplier),
-                        locked
-                            ? null
-                            : () => _record(
-                                (field: field, multiplier: _multiplier)),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 6),
-        // The bulls and the miss are the one row here shaped like the throw
-        // buttons the other modes hand over to Continue, and they are locked
-        // meanwhile anyway, so the hand finds it where it already was. The
-        // button stands as tall as the keys and carries the pause bar under
-        // itself, the nine pixels of which the grid above gives up.
-        if (widget.provider.visitPending)
-          LayoutBuilder(
-            builder: (context, constraints) => ContinueButton(
-              onPressed: widget.provider.flushHeldVisit,
-              width: constraints.maxWidth,
-              height: _keyRowHeight,
-            ),
-          )
-        else
-          SizedBox(
-            height: _keyRowHeight,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _button(context, '25', (field: 25, multiplier: 1),
-                      locked
-                          ? null
-                          : () => _record((field: 25, multiplier: 1))),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _button(context, 'Bull', (field: 25, multiplier: 2),
-                      locked
-                          ? null
-                          : () => _record((field: 25, multiplier: 2))),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _button(context, l.miss, boardMiss,
-                      locked ? null : () => _record(boardMiss)),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// The tint the chosen ring segment wears.
-  ///
-  /// The app's own marks for a multiplied field, green for a double and blue
-  /// for a triple, not the board's red and green: the board paints a double
-  /// and a triple alike, so those two could not tell the segments apart.
-  Color _ringColor(BuildContext context) => switch (_multiplier) {
-        2 => doubleContainerColor(context),
-        3 => tripleContainerColor(context),
-        _ => Theme.of(context).colorScheme.surfaceContainerHigh,
-      };
-
-  /// Foreground for [_ringColor].
-  Color _onRingColor(BuildContext context) => switch (_multiplier) {
-        2 => onDoubleContainerColor(context),
-        3 => onTripleContainerColor(context),
-        _ => Theme.of(context).colorScheme.onSurface,
-      };
-
-  /// One board button, painted the way that field is painted on the board.
-  ///
-  /// The twenty numbers follow the ring the selector is on, so switching to
-  /// Double or Triple repaints them red and green. The two bulls keep their
-  /// own colors, and a miss is not a field at all so it stays on the surface.
-  /// A rounded rectangle rather than a pill, and the number over what the dart
-  /// would be worth, both as the X01 input draws a field.
-  Widget _button(
-    BuildContext context,
-    String label,
-    BoardHit hit,
-    VoidCallback? onTap,
-  ) {
-    final cs = Theme.of(context).colorScheme;
-    final t  = Theme.of(context).textTheme;
-    final color = colorOf(hit);
-    final (background, foreground) = color == null
-        ? (cs.surfaceContainerHighest, cs.onSurfaceVariant)
-        : boardPaintFor(color);
-    final disabled = onTap == null;
-    final bg = disabled ? background.withValues(alpha: 0.35) : background;
-    final fg = disabled ? foreground.withValues(alpha: 0.5) : foreground;
-
-    return Material(
-      color: bg,
-      // The outline keeps a cream key off a light background and a black key
-      // off a dark one, so it earns its place in both themes. A hair under one
-      // logical pixel rendered with visible breaks around the curve, so it is
-      // a full one.
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: BoardPaint.wire, width: 1),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FittedBox(
-              child: Text(
-                label,
-                style: t.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold, color: fg),
-              ),
-            ),
-            // What the dart is worth, for the twenty numbers under a
-            // multiplied ring. The bulls and the miss carry one value each, so
-            // naming it under the label would only repeat the label.
-            if (hit.multiplier > 1 && hit.field != 25)
-              Text(
-                '${scoreOf(hit)}',
-                style: t.labelSmall?.copyWith(
-                  color: fg.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+      );
 }
 
 /// Opens the live numbers of the Capital slot at [slotIndex]: its last three

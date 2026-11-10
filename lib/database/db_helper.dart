@@ -216,7 +216,6 @@ class DbHelper {
         'cricket_games',
         'shanghai_games',
         'around_the_clock_games',
-        'capital_games',
       ]) {
         await db.execute(
             'ALTER TABLE $table ADD COLUMN starting_order INTEGER NOT NULL DEFAULT 0');
@@ -274,9 +273,7 @@ class DbHelper {
       await _createCheckoutLadder(db);
     }
     if (oldVersion < 26) {
-      await db.execute(_kCreateCapitalGames);
-      await db.execute(_kCreateCapitalThrows);
-      await db.execute(_kCreateCapitalThrowsIndex);
+      await _createCapital(db);
     }
   }
 
@@ -464,7 +461,6 @@ class DbHelper {
         'ON shanghai_throws(game_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_atc_throws_game '
         'ON around_the_clock_throws(game_id)');
-    await db.execute(_kCreateCapitalThrowsIndex);
   }
 
   /// Creates the Checkout Ladder tables and their index, for a fresh install
@@ -479,14 +475,28 @@ class DbHelper {
         'ON checkout_ladder_throws(game_id)');
   }
 
-  /// The Capital tables, used both by a fresh install and by the migration to
-  /// schema 26, so there is one definition rather than two that can drift.
+  /// Creates the Capital tables and their index, for a fresh install and for
+  /// the upgrade to version 26 alike.
+  ///
+  /// Like the Checkout Ladder, nothing about Capital may appear in an earlier
+  /// upgrade step: the step to 18 and the step to 19 run long before these
+  /// tables exist on a device that comes from an older version.
+  Future<void> _createCapital(Database db) async {
+    await db.execute(_kCreateCapitalGames);
+    await db.execute(_kCreateCapitalThrows);
+    await db.execute(_kCreateCapitalThrowsIndex);
+  }
+
+  /// The Capital games table, one definition for both paths through
+  /// [_createCapital].
+  ///
+  /// `board_type` is the [BoardType] the game was played on, which decides
+  /// what the colors of the board are called. Steel is index 0, the default.
   static const String _kCreateCapitalGames = '''
     CREATE TABLE IF NOT EXISTS capital_games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       variant INTEGER NOT NULL,
-      legs INTEGER NOT NULL,
-      sets INTEGER NOT NULL,
+      board_type INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       finished_at INTEGER,
       player_ids TEXT NOT NULL,
@@ -508,8 +518,6 @@ class DbHelper {
       field INTEGER NOT NULL,
       multiplier INTEGER NOT NULL,
       round INTEGER NOT NULL,
-      leg INTEGER NOT NULL,
-      set_ INTEGER NOT NULL,
       thrown_at INTEGER NOT NULL
     )
   ''';
@@ -669,11 +677,10 @@ class DbHelper {
         thrown_at INTEGER NOT NULL
       )
     ''');
-    await db.execute(_kCreateCapitalGames);
-    await db.execute(_kCreateCapitalThrows);
     await db.execute(_kCreateAppMeta);
     await _createIndexes(db);
     await _createCheckoutLadder(db);
+    await _createCapital(db);
   }
 
   // Players

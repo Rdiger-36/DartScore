@@ -1,4 +1,5 @@
 import 'package:dartscore_app/l10n/app_localizations.dart';
+import 'package:dartscore_app/models/board_type.dart';
 import 'package:dartscore_app/utils/capital_rules.dart';
 import 'package:dartscore_app/utils/dartboard_geometry.dart';
 import 'package:dartscore_app/utils/game_labels.dart';
@@ -12,26 +13,33 @@ const BoardHit innerBull = (field: 25, multiplier: 2);
 void main() {
   final l = AppLocalizations(const Locale('en'));
 
-  String line(CapitalContract contract, List<BoardHit> darts) =>
-      capitalProgressLine(l, contract, darts);
+  String line(
+    CapitalContract contract,
+    List<BoardHit> darts, {
+    BoardType board = BoardType.steel,
+  }) =>
+      capitalProgressLine(l, contract, darts, board);
+
+  String name(CapitalContract contract, [BoardType board = BoardType.steel]) =>
+      capitalContractName(l, contract, board);
 
   group('contract names', () {
     test('names the numbered contracts by their sector', () {
-      expect(capitalContractName(l, CapitalContract.twenty), '20');
-      expect(capitalContractName(l, CapitalContract.fourteen), '14');
+      expect(name(CapitalContract.twenty), '20');
+      expect(name(CapitalContract.fourteen), '14');
     });
 
     test('names the rest in words, and the 57 as a numeral', () {
-      expect(capitalContractName(l, CapitalContract.side), 'Side by Side');
-      expect(capitalContractName(l, CapitalContract.colors), 'Colors');
-      expect(capitalContractName(l, CapitalContract.anyTriple), 'Triple');
-      expect(capitalContractName(l, CapitalContract.fiftySeven), '57');
+      expect(name(CapitalContract.side), 'Side by Side');
+      expect(name(CapitalContract.colors), 'Colors');
+      expect(name(CapitalContract.anyTriple), 'Triple');
+      expect(name(CapitalContract.fiftySeven), '57');
     });
 
     test('gives every numbered contract the same reminder', () {
       for (final contract in CapitalContract.values) {
         if (contract.sector == null) continue;
-        expect(capitalContractReminder(l, contract), 'Any ring counts',
+        expect(capitalContractReminder(l, contract, BoardType.steel), 'Any ring counts',
             reason: '$contract');
       }
     });
@@ -99,6 +107,37 @@ void main() {
     test('names the two that would do once only one is owed', () {
       expect(line(CapitalContract.colors, [single(20), triple(20)]),
           'Black, Red. Need White or Green');
+    });
+  });
+
+  group('colors on a soft tip board', () {
+    test('is named for areas, since the board has two colors only', () {
+      expect(name(CapitalContract.colors, BoardType.softTip), 'Areas');
+      expect(line(CapitalContract.colors, [], board: BoardType.softTip),
+          '3 of blue single, red single, blue ring, red ring');
+    });
+
+    test('names each area by its color and whether it is a single or a ring',
+        () {
+      // The 20 is a blue single with red rings on a soft tip board.
+      expect(
+          line(CapitalContract.colors, [single(20), triple(20)],
+              board: BoardType.softTip),
+          'Blue single, Red ring. Need Red single or Blue ring');
+    });
+
+    test('counts the areas still owed', () {
+      expect(
+          line(CapitalContract.colors, [single(20)], board: BoardType.softTip),
+          'Blue single. Need 2 other areas');
+    });
+
+    test('reads the same in German without a dash', () {
+      final de = AppLocalizations(const Locale('de'));
+      expect(
+          capitalProgressLine(de, CapitalContract.colors,
+              [single(20), triple(20)], BoardType.softTip),
+          'Single blau, Ring rot. Fehlt: Single rot oder Ring blau');
     });
   });
 

@@ -93,21 +93,21 @@ bool _isConsecutive(List<int> sorted) {
   return true;
 }
 
-/// Aims at a color the visit has not used yet, taking the highest scoring
-/// target of that color.
+/// Aims at an area of paint the visit has not used yet, taking the highest
+/// scoring target in that area.
 ///
-/// The twenty carries black singles and red multiples, the nineteen white and
-/// green, so those two sectors between them offer all four colors.
+/// The twenty is a primary sector and the nineteen a secondary one, so those
+/// two between them offer all four areas, on either kind of board.
 BoardHit _aimForColors(List<BoardHit> dartsSoFar) {
-  final used = dartsSoFar.map(colorOf).whereType<BoardColor>().toSet();
+  final used = dartsSoFar.map(areaOf).whereType<BoardArea>().toSet();
   const byValue = <BoardHit>[
-    (field: 20, multiplier: 3), // red, 60
-    (field: 19, multiplier: 3), // green, 57
-    (field: 20, multiplier: 1), // black, 20
-    (field: 19, multiplier: 1), // white, 19
+    (field: 20, multiplier: 3), // primary ring, 60
+    (field: 19, multiplier: 3), // secondary ring, 57
+    (field: 20, multiplier: 1), // primary single, 20
+    (field: 19, multiplier: 1), // secondary single, 19
   ];
   for (final candidate in byValue) {
-    if (!used.contains(colorOf(candidate))) return candidate;
+    if (!used.contains(areaOf(candidate))) return candidate;
   }
   return _maxPoints;
 }

@@ -1181,73 +1181,89 @@ class AppLocalizations {
   String get ladderBusts           => _t('Busts', 'Busts');
   // ── Capital Setup ────────────────────────────────────────────────────────────
   String get capitalSetup       => _t('Capital Setup', 'Capital einrichten');
+  String get boardType          => _t('Dartboard', 'Dartboard');
+  String get boardTypeHint      =>
+      _t('Names the colors the Colors contract asks for',
+         'Bestimmt, welche Farben die Aufgabe „Farben“ meint');
+  String get boardTypeSteel     => _t('Steel', 'Steeldart');
+  String get boardTypeSoftTip   => _t('Soft tip', 'E-Dart');
 
   // ── Capital Game ─────────────────────────────────────────────────────────────
   /// The band's heading. Round 0 builds the capital and is not a contract, so
   /// it is named rather than numbered.
   String capitalRoundLabel(int round) => round == 0
       ? _t('Opening round', 'Eröffnungsrunde')
-      : _t('Contract $round of 14', 'Vertrag $round von 14');
+      : _t('Contract $round of 14', 'Aufgabe $round von 14');
 
   String get capitalContractCapital    => _t('Capital', 'Kapital');
   String get capitalContractTriple     => _t('Triple', 'Triple');
   String get capitalContractDouble     => _t('Double', 'Double');
-  String get capitalContractSideBySide => _t('Side by Side', 'Seite an Seite');
-  String get capitalContractRun        => _t('Run', 'Reihe');
+  String get capitalContractSideBySide => _t('Side by Side', 'Nachbarn');
+  String get capitalContractRun        => _t('Run', 'Straße');
   String get capitalContractColors     => _t('Colors', 'Farben');
+  String get capitalContractAreas      => _t('Areas', 'Felder');
   String get capitalContractCenter     => _t('Center', 'Mitte');
 
   String get capitalReminderCapital    =>
       _t('Your three darts become your capital',
-         'Deine drei Darts werden dein Kapital');
+         'Deine drei Darts sind dein Startkapital');
   String get capitalReminderAnyRing    => _t('Any ring counts', 'Jeder Ring zählt');
-  String get capitalReminderTriple     => _t('Any triple at all', 'Ein beliebiges Triple');
+  String get capitalReminderTriple     => _t('Any triple', 'Irgendein Triple');
   String get capitalReminderDouble     =>
-      _t('Any double. The bull counts', 'Ein beliebiges Double. Das Bull zählt');
-  String get capitalReminderSideBySide => _t('3 adjacent segments', '3 benachbarte Felder');
+      _t('Any double. The bull counts', 'Irgendein Double, auch das Bull');
+  String get capitalReminderSideBySide => _t('3 adjacent segments', '3 nebeneinanderliegende Segmente');
   String get capitalReminderRun        => _t('3 consecutive numbers', '3 aufeinanderfolgende Zahlen');
   String get capitalReminderColors     => _t('3 different colors', '3 verschiedene Farben');
+  String get capitalReminderAreas      =>
+      _t('3 of blue single, red single, blue ring, red ring',
+         '3 aus Single blau, Single rot, Ring blau, Ring rot');
   String get capitalReminderFiftySeven => _t('Exactly 57', 'Genau 57');
-  String get capitalReminderCenter     => _t('Bull or outer bull', 'Bull oder Single Bull');
+  String get capitalReminderCenter     => _t('Bull or outer bull', 'Bull oder 25');
 
-  /// Lists the combinations still open, each already joined with dashes.
+  /// Lists the combinations still open, each already joined with hyphens.
   String capitalMake(String combinations) =>
-      _t('Make $combinations', 'Erreiche $combinations');
-  String capitalNeed(String targets) => _t('Need $targets', 'Brauchst $targets');
+      _t('Make $combinations', 'Möglich: $combinations');
+  String capitalNeed(String targets) => _t('Need $targets', 'Fehlt: $targets');
   String capitalNeedPoints(int points) =>
-      _t('Need $points more', 'Brauchst noch $points');
+      _t('Need $points more', 'Noch $points');
   String capitalNeedOtherColors(int count) =>
-      _t('Need $count other colors', 'Brauchst $count andere Farben');
-  String get capitalNoRun => _t('No run possible', 'Keine Reihe mehr möglich');
+      _t('Need $count other colors', 'Noch $count andere Farben');
+  String capitalNeedOtherAreas(int count) =>
+      _t('Need $count other areas', 'Noch $count andere Felder');
+  String get capitalNoRun => _t('No run possible', 'Keine Straße mehr möglich');
   String get capitalNoArc => _t('No arc possible', 'Keine Nachbarn mehr möglich');
   String get capitalOr    => _t('or', 'oder');
   String get capitalAnd   => _t('and', 'und');
 
-  String get capitalColorBlack => _t('Black', 'Schwarz');
-  String get capitalColorWhite => _t('White', 'Weiß');
-  String get capitalColorRed   => _t('Red', 'Rot');
-  String get capitalColorGreen => _t('Green', 'Grün');
+  String get boardColorBlack => _t('Black', 'Schwarz');
+  String get boardColorWhite => _t('White', 'Weiß');
+  String get boardColorRed   => _t('Red', 'Rot');
+  String get boardColorGreen => _t('Green', 'Grün');
+  String get boardSingleBlue => _t('Blue single', 'Single blau');
+  String get boardSingleRed  => _t('Red single', 'Single rot');
+  String get boardRingBlue   => _t('Blue ring', 'Ring blau');
+  String get boardRingRed    => _t('Red ring', 'Ring rot');
 
   String get capitalHalved => _t('Halved', 'Halbiert');
-  String get capitalTimesHalved  => _t('Times halved', 'Mal halbiert');
+  String get capitalTimesHalved  => _t('Times halved', 'Halbierungen');
   String get capitalPerVisit     => _t('Per visit', 'Pro Aufnahme');
-  String get capitalContractsLabel => _t('Contracts', 'Verträge');
+  String get capitalContractsLabel => _t('Contracts', 'Aufgaben');
 
   // ── Capital Summary ──────────────────────────────────────────────────────────
-  String get capitalSummaryTitle => _t('Final capitals', 'Endkapital');
+  String get capitalSummaryTitle => _t('Final capitals', 'Endstand');
   String get capitalFinalCapital => _t('Capital', 'Kapital');
-  String get capitalWins         => _t('wins!', 'hat gewonnen!');
+  String get capitalWins         => _t('wins!', 'gewinnt!');
   String capitalWinner(String name) => '🎯 $name $capitalWins';
   String get capitalDraw         =>
-      _t('The top capital is shared', 'Das höchste Kapital wird geteilt');
+      _t('The top capital is shared', 'Gleichstand an der Spitze');
   String capitalContractsMet(int met) =>
-      _t('$met of 14 contracts met', '$met von 14 Verträgen erfüllt');
+      _t('$met of 14 contracts met', '$met von 14 Aufgaben geschafft');
 
   String get capitalRoundsSoFar =>
       _t('Rounds so far', 'Bisherige Runden');
   String get capitalTapForRounds =>
       _t('Tap a player to see their fifteen rounds',
-         'Tippe auf einen Spieler, um seine fünfzehn Runden zu sehen');
+         'Tippe auf einen Spieler, um alle fünfzehn Runden zu sehen');
 
   // ── Capital History ──────────────────────────────────────────────────────────
   String capitalGameInfo(int rounds) =>
@@ -1257,7 +1273,7 @@ class AppLocalizations {
   String get gameModeCapital    => 'Capital';
   String get modeCapitalName    => 'Capital';
   String get modeCapitalTagline =>
-      _t('Earn capital and try to grow it', 'Kapital verdienen und vermehren');
+      _t('Earn capital and try to grow it', 'Kapital aufbauen und vermehren');
   String get modeCapitalDescription => _t(
     'Capital is played over fifteen rounds: one to build a capital, then fourteen contracts.\n\n'
     'THE OPENING ROUND\n'
@@ -1272,27 +1288,27 @@ class AppLocalizations {
     '  Double: score at least one double. The bull counts as a double.\n'
     '  Side by Side: three darts in three segments that touch on the board. The bull does not count.\n'
     '  Run: three darts in three consecutive numbers, such as 20, 19, 18.\n'
-    '  Colors: three darts in three different colors of paint.\n'
+    '  Colors: three darts in three different colors of paint. A soft tip board has only blue and red, so there it asks for three of blue single, red single, blue ring and red ring.\n'
     '  57: your visit totals exactly 57. Reaching it ends your visit.\n'
     '  Center: at least one bull or outer bull.\n\n'
     'The highest capital after the last contract wins.',
-    'Capital wird über fünfzehn Runden gespielt: eine, um ein Kapital aufzubauen, dann vierzehn Verträge.\n\n'
+    'Capital geht über fünfzehn Runden: eine, um dein Startkapital aufzubauen, dann vierzehn Aufgaben.\n\n'
     'DIE ERÖFFNUNGSRUNDE\n'
-    'Alle werfen drei Darts. Ihre Summe ist dein Startkapital.\n\n'
-    'DIE VERTRÄGE\n'
-    'Jede weitere Runde stellt einen Vertrag, der in einer Aufnahme von drei Darts erfüllt werden muss.\n\n'
-    'Erfüllst du ihn, werden die Punkte dieser Aufnahme zu deinem Kapital addiert.\n'
-    'Verfehlst du ihn, wird dein Kapital halbiert, aufgerundet, und nichts addiert.\n\n'
-    'DIE VIERZEHN VERTRÄGE\n'
+    'Jeder wirft drei Darts. Die Summe ist dein Startkapital.\n\n'
+    'DIE AUFGABEN\n'
+    'Jede weitere Runde stellt eine Aufgabe, die du mit einer Aufnahme von drei Darts erfüllen musst.\n\n'
+    'Schaffst du sie, kommen die Punkte der Aufnahme auf dein Kapital.\n'
+    'Schaffst du sie nicht, wird dein Kapital halbiert und aufgerundet. Punkte gibt es dann keine.\n\n'
+    'DIE VIERZEHN AUFGABEN\n'
     '  20, 19, 18, 17, 16, 15, 14: mindestens ein Dart in diese Zahl. Jeder Ring zählt.\n'
     '  Triple: mindestens ein Triple.\n'
     '  Double: mindestens ein Double. Das Bull zählt als Double.\n'
-    '  Seite an Seite: drei Darts in drei Felder, die sich auf dem Board berühren. Das Bull zählt nicht.\n'
-    '  Reihe: drei Darts in drei aufeinanderfolgende Zahlen, zum Beispiel 20, 19, 18.\n'
-    '  Farben: drei Darts in drei verschiedene Farben.\n'
-    '  57: deine Aufnahme ergibt genau 57. Damit endet deine Aufnahme.\n'
-    '  Mitte: mindestens ein Bull oder Single Bull.\n\n'
-    'Das höchste Kapital nach dem letzten Vertrag gewinnt.',
+    '  Nachbarn: drei Darts in drei Segmente, die auf dem Board nebeneinanderliegen. Das Bull zählt nicht.\n'
+    '  Straße: drei Darts in drei aufeinanderfolgende Zahlen, zum Beispiel 20, 19, 18.\n'
+    '  Farben: drei Darts in drei verschiedene Farben. Ein E-Dart-Board hat nur Blau und Rot, dort zählen drei aus Single blau, Single rot, Ring blau und Ring rot.\n'
+    '  57: deine Aufnahme ergibt genau 57. Damit ist deine Aufnahme beendet.\n'
+    '  Mitte: mindestens ein Bull oder eine 25.\n\n'
+    'Wer nach der letzten Aufgabe das meiste Kapital hat, gewinnt.',
   );
 }
 

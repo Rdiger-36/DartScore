@@ -502,21 +502,21 @@ void main() {
 
     group('colors', () {
       test('names the three still open after one dart', () {
-        expect(unusedColors([single(20)]), [
-          BoardColor.white,
-          BoardColor.red,
-          BoardColor.green,
+        expect(unusedAreas([single(20)]), [
+          BoardArea.secondarySingle,
+          BoardArea.primaryRing,
+          BoardArea.secondaryRing,
         ]);
       });
 
       test('narrows to two after a second color', () {
-        expect(unusedColors([single(20), triple(20)]),
-            [BoardColor.white, BoardColor.green]);
+        expect(unusedAreas([single(20), triple(20)]),
+            [BoardArea.secondarySingle, BoardArea.secondaryRing]);
       });
 
       test('gives nothing once a color repeats or a dart misses', () {
-        expect(unusedColors([single(20), single(18)]), isEmpty);
-        expect(unusedColors([single(20), boardMiss]), isEmpty);
+        expect(unusedAreas([single(20), single(18)]), isEmpty);
+        expect(unusedAreas([single(20), boardMiss]), isEmpty);
       });
     });
 

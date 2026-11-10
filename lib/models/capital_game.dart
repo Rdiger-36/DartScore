@@ -1,7 +1,9 @@
 import 'dart:convert';
 import '../utils/dartboard_geometry.dart';
+import 'board_type.dart';
 import 'starting_order.dart';
 
+export 'board_type.dart';
 export 'starting_order.dart';
 
 /// Capital progression. Only [classic] exists so far, the fifteen rounds the
@@ -11,15 +13,18 @@ enum CapitalVariant { classic }
 /// A Capital game configuration and result. Per-dart hits are stored
 /// separately as [CapitalThrow] records.
 ///
-/// Capital carries no team configuration, unlike the other modes. The rule
-/// book allows teams, but a player row named for a team covers that at no cost
-/// in code, so the machinery is left out. Adding a nullable column later is a
+/// Capital carries no team configuration, no legs and no sets, unlike the
+/// other modes: a game is one pass through the fifteen rounds. The rule book
+/// allows teams, but a player row named for a team covers that at no cost in
+/// code, so the machinery is left out. Adding a nullable column later is a
 /// cheap migration if that ever changes.
 class CapitalGame {
   final int? id;
   final CapitalVariant variant;
-  final int legs;
-  final int sets;
+
+  /// The board the game is played on, which names the colors the "Colors"
+  /// contract is about. The rules themselves do not depend on it.
+  final BoardType boardType;
   final DateTime createdAt;
   final DateTime? finishedAt;
   final List<int> playerIds;
@@ -29,8 +34,7 @@ class CapitalGame {
   const CapitalGame({
     this.id,
     this.variant = CapitalVariant.classic,
-    required this.legs,
-    required this.sets,
+    this.boardType = BoardType.steel,
     required this.createdAt,
     this.finishedAt,
     required this.playerIds,
@@ -41,8 +45,7 @@ class CapitalGame {
   Map<String, dynamic> toMap() => {
         'id':             id,
         'variant':        variant.index,
-        'legs':           legs,
-        'sets':           sets,
+        'board_type':     boardType.index,
         'created_at':     createdAt.millisecondsSinceEpoch,
         'finished_at':    finishedAt?.millisecondsSinceEpoch,
         'player_ids':     jsonEncode(playerIds),
@@ -53,8 +56,7 @@ class CapitalGame {
   factory CapitalGame.fromMap(Map<String, dynamic> map) => CapitalGame(
         id:         map['id'] as int?,
         variant:    CapitalVariant.values[map['variant'] as int],
-        legs:       map['legs'] as int,
-        sets:       map['sets'] as int,
+        boardType:  BoardType.values[map['board_type'] as int? ?? 0],
         createdAt:  DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
         finishedAt: map['finished_at'] != null
             ? DateTime.fromMillisecondsSinceEpoch(map['finished_at'] as int)
@@ -67,8 +69,7 @@ class CapitalGame {
   CapitalGame copyWith({DateTime? finishedAt}) => CapitalGame(
         id:         id,
         variant:    variant,
-        legs:       legs,
-        sets:       sets,
+        boardType:  boardType,
         createdAt:  createdAt,
         finishedAt: finishedAt ?? this.finishedAt,
         playerIds:  playerIds,
@@ -89,9 +90,7 @@ class CapitalThrow {
   final int playerId;
   final int field;      // 0 miss, 1-20, or 25 for either bull ring
   final int multiplier; // 0 miss, 1-3
-  final int round;      // 1-15, where round 1 builds the capital
-  final int leg;
-  final int set_;
+  final int round;      // 0-14, where round 0 builds the capital
   final DateTime thrownAt;
 
   const CapitalThrow({
@@ -101,8 +100,6 @@ class CapitalThrow {
     required this.field,
     required this.multiplier,
     required this.round,
-    required this.leg,
-    required this.set_,
     required this.thrownAt,
   });
 
@@ -120,8 +117,6 @@ class CapitalThrow {
         'field':      field,
         'multiplier': multiplier,
         'round':      round,
-        'leg':        leg,
-        'set_':       set_,
         'thrown_at':  thrownAt.millisecondsSinceEpoch,
       };
 
@@ -133,8 +128,6 @@ class CapitalThrow {
         field:      map['field'] as int,
         multiplier: map['multiplier'] as int,
         round:      map['round'] as int,
-        leg:        map['leg'] as int,
-        set_:       map['set_'] as int,
         thrownAt:   DateTime.fromMillisecondsSinceEpoch(map['thrown_at'] as int),
       );
 }

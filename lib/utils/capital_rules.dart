@@ -158,18 +158,18 @@ List<List<int>> remainingArcs(List<BoardHit> darts) {
   return arcs;
 }
 
-/// The colors the visit has not used yet.
+/// The areas of paint the visit has not used yet.
 ///
-/// Empty when the contract is already lost, which is a dart with no color at
-/// all, meaning a miss, or a color thrown twice.
-List<BoardColor> unusedColors(List<BoardHit> darts) {
-  final used = <BoardColor>{};
+/// Empty when the contract is already lost, which is a dart in no area at
+/// all, meaning a miss, or an area thrown twice.
+List<BoardArea> unusedAreas(List<BoardHit> darts) {
+  final used = <BoardArea>{};
   for (final dart in darts) {
-    final color = colorOf(dart);
-    if (color == null) return const [];
-    if (!used.add(color)) return const [];
+    final area = areaOf(dart);
+    if (area == null) return const [];
+    if (!used.add(area)) return const [];
   }
-  return BoardColor.values.where((color) => !used.contains(color)).toList();
+  return BoardArea.values.where((area) => !used.contains(area)).toList();
 }
 
 /// What the visit still needs to total exactly 57.
@@ -201,16 +201,19 @@ bool _isRun(List<BoardHit> darts) {
   return fields[1] == fields[0] + 1 && fields[2] == fields[1] + 1;
 }
 
-/// Three darts in three different colors of paint.
+/// Three darts in three different areas of paint.
 ///
-/// A miss has no color and fails the contract outright.
+/// On a steel board that is three different colors. A soft tip board paints
+/// only two, so there the same rule asks for three of its blue single, red
+/// single, red ring and blue ring, see [BoardType]. A miss lands in no area
+/// and fails the contract outright.
 bool _isColors(List<BoardHit> darts) {
   if (darts.length != 3) return false;
-  final colors = <BoardColor>{};
+  final areas = <BoardArea>{};
   for (final dart in darts) {
-    final color = colorOf(dart);
-    if (color == null) return false;
-    colors.add(color);
+    final area = areaOf(dart);
+    if (area == null) return false;
+    areas.add(area);
   }
-  return colors.length == 3;
+  return areas.length == 3;
 }

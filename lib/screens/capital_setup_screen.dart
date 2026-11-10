@@ -10,15 +10,18 @@ import '../widgets/bot_select_section.dart';
 import '../widgets/player_dialog.dart';
 import '../widgets/player_select_section.dart';
 import '../widgets/starting_order_section.dart';
+import '../utils/game_labels.dart';
 import '../utils/layout.dart';
 import '../utils/player_label.dart';
 import 'capital_screen.dart';
 
-/// Setup screen for Capital: pick the players and the throwing order.
+/// Setup screen for Capital: pick the board, the players and the throwing
+/// order.
 ///
 /// Simpler than the other modes by design. Capital has no teams, because a
 /// player named for a team covers that, and only one variant so far, so
-/// neither gets a section.
+/// neither gets a section. The board does, because the Colors contract is
+/// about the paint on the board the players actually throw at.
 class CapitalSetupScreen extends StatefulWidget {
   const CapitalSetupScreen({super.key});
 
@@ -33,6 +36,8 @@ class _CapitalSetupScreenState extends State<CapitalSetupScreen> {
   bool _botEnabled = false;
 
   StartingOrder _startingOrder = StartingOrder.random;
+
+  BoardType _boardType = BoardType.steel;
 
   /// Whether a game can start: one person in it is enough.
   ///
@@ -70,6 +75,43 @@ class _CapitalSetupScreenState extends State<CapitalSetupScreen> {
       body: ListView(
         padding: contentPadding(context, top: 16, bottom: 16, innerH: 16),
         children: [
+          // ── Board ────────────────────────────────────────────────────────
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l.boardType,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final type in BoardType.values)
+                        ChoiceChip(
+                          label: Text(boardTypeLabel(l, type)),
+                          selected: _boardType == type,
+                          onSelected: (_) => setState(() => _boardType = type),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l.boardTypeHint,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Players ──────────────────────────────────────────────────────
           PlayerSelectSection(
             allPlayers: allPlayers,
             selectedPlayers: _selectedPlayers,
@@ -175,8 +217,7 @@ class _CapitalSetupScreenState extends State<CapitalSetupScreen> {
         : List.of(_selectedPlayers);
 
     final game = CapitalGame(
-      legs: 1,
-      sets: 1,
+      boardType: _boardType,
       createdAt: DateTime.now(),
       playerIds: players.map((p) => p.id!).toList(),
       startingOrder: _startingOrder,

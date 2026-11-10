@@ -61,6 +61,7 @@ class CapitalSummaryScreen extends StatelessWidget {
         result: [
           GameInfoCard(rows: [
             (l.gameLabel, l.modeCapitalName),
+            (l.boardType, boardTypeLabel(l, game.boardType)),
             (l.startingOrder, startingOrderLabel(l, game.startingOrder)),
           ]),
         ],
@@ -69,6 +70,7 @@ class CapitalSummaryScreen extends StatelessWidget {
             slots:    states,
             winnerId: winnerId,
             throws:   provider.throwHistory,
+            board:    game.boardType,
           ),
         ],
         actions: [
@@ -83,7 +85,7 @@ class CapitalSummaryScreen extends StatelessWidget {
           ),
           RematchButton(
             modeName: l.modeCapitalName,
-            details: const [],
+            details: [(l.boardType, boardTypeLabel(l, game.boardType))],
             slots: states
                 .map((s) => RematchSlot.player(s.label(l)))
                 .toList(),

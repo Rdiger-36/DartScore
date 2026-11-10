@@ -25,11 +25,15 @@ class CapitalResultCard extends StatefulWidget {
   /// Every dart of the game. Each row keeps only its own slot's.
   final List<CapitalThrow> throws;
 
+  /// The board the game was played on, which names the Colors contract.
+  final BoardType board;
+
   const CapitalResultCard({
     super.key,
     required this.slots,
     required this.winnerId,
     required this.throws,
+    required this.board,
   });
 
   @override
@@ -69,6 +73,7 @@ class _CapitalResultCardState extends State<CapitalResultCard> {
             for (final slot in sorted)
               _SlotRow(
                 slot:     slot,
+                board:    widget.board,
                 isWinner: widget.winnerId != null &&
                     slot.player.id == widget.winnerId,
                 open:     slot.player.id == _openId,
@@ -90,6 +95,7 @@ class _CapitalResultCardState extends State<CapitalResultCard> {
 /// One player's line, and their rounds while it is open.
 class _SlotRow extends StatelessWidget {
   final CapitalPlayerState slot;
+  final BoardType board;
   final bool isWinner;
   final bool open;
 
@@ -101,6 +107,7 @@ class _SlotRow extends StatelessWidget {
 
   const _SlotRow({
     required this.slot,
+    required this.board,
     required this.isWinner,
     required this.open,
     required this.rounds,
@@ -175,7 +182,7 @@ class _SlotRow extends StatelessWidget {
         if (open)
           Padding(
             padding: const EdgeInsets.only(left: 24, bottom: 10),
-            child: CapitalRoundList(rounds: rounds),
+            child: CapitalRoundList(rounds: rounds, board: board),
           ),
         const Divider(height: 1),
       ],
@@ -189,7 +196,10 @@ class _SlotRow extends StatelessWidget {
 class CapitalRoundList extends StatelessWidget {
   final List<CapitalRound> rounds;
 
-  const CapitalRoundList({super.key, required this.rounds});
+  /// The board the game is played on, which names the Colors contract.
+  final BoardType board;
+
+  const CapitalRoundList({super.key, required this.rounds, required this.board});
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +216,9 @@ class CapitalRoundList extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [for (final round in rounds) _RoundLine(round: round)],
+      children: [
+        for (final round in rounds) _RoundLine(round: round, board: board),
+      ],
     );
   }
 }
@@ -214,8 +226,9 @@ class CapitalRoundList extends StatelessWidget {
 /// One round: what it asked for, what was thrown, and the capital it left.
 class _RoundLine extends StatelessWidget {
   final CapitalRound round;
+  final BoardType board;
 
-  const _RoundLine({required this.round});
+  const _RoundLine({required this.round, required this.board});
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +264,7 @@ class _RoundLine extends StatelessWidget {
           SizedBox(
             width: _nameWidth,
             child: Text(
-              capitalContractName(l, round.contract),
+              capitalContractName(l, round.contract, board),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: nameStyle,

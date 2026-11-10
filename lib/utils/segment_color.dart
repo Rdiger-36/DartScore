@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/board_type.dart';
 import 'dartboard_geometry.dart';
 
 /// Shared tones that mark a multiplied field across all game screens.
@@ -42,23 +43,28 @@ Color onDoubleContainerColor(BuildContext context) {
   return isDark ? _greenOnContainerDark : _greenOnContainerLight;
 }
 
-/// The paint on a tournament board, as this app draws it.
+/// The paint on a board, as this app draws it.
 ///
 /// Declared once here and used both by the dartboard the app paints and by
-/// any control that stands for a field of the board, so a key and the board
-/// it represents never drift apart.
+/// anything on screen that stands for an area of a real board, so the two
+/// never drift apart. [blue] is the one tone only a soft tip board wears.
 abstract final class BoardPaint {
   static const Color black = Color(0xFF1A1A1A);
   static const Color cream = Color(0xFFF5E6C8);
   static const Color red   = Color(0xFFC0392B);
   static const Color green = Color(0xFF1E7A3C);
+  static const Color blue  = Color(0xFF1C7FAA);
   static const Color wire  = Color(0xFFC2C9D1);
 }
 
-/// The paint for [color] and a foreground legible on it.
-(Color, Color) boardPaintFor(BoardColor color) => switch (color) {
-      BoardColor.black => (BoardPaint.black, BoardPaint.cream),
-      BoardColor.white => (BoardPaint.cream, BoardPaint.black),
-      BoardColor.red   => (BoardPaint.red,   Colors.white),
-      BoardColor.green => (BoardPaint.green, Colors.white),
+/// The tone [area] is painted in on a board of [type].
+Color boardTone(BoardType type, BoardArea area) => switch ((type, area)) {
+      (BoardType.steel,   BoardArea.primarySingle)   => BoardPaint.black,
+      (BoardType.steel,   BoardArea.secondarySingle) => BoardPaint.cream,
+      (BoardType.steel,   BoardArea.primaryRing)     => BoardPaint.red,
+      (BoardType.steel,   BoardArea.secondaryRing)   => BoardPaint.green,
+      (BoardType.softTip, BoardArea.primarySingle)   => BoardPaint.blue,
+      (BoardType.softTip, BoardArea.secondarySingle) => BoardPaint.red,
+      (BoardType.softTip, BoardArea.primaryRing)     => BoardPaint.red,
+      (BoardType.softTip, BoardArea.secondaryRing)   => BoardPaint.blue,
     };

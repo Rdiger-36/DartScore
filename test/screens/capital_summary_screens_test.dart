@@ -26,8 +26,6 @@ void main() {
       provider = CapitalProvider();
       await provider.startGame(
         CapitalGame(
-          legs: 1,
-          sets: 1,
           createdAt: DateTime(2026, 10, 25),
           playerIds: players.map((p) => p.id!).toList(),
         ),

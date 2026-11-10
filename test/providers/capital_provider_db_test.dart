@@ -29,8 +29,6 @@ void main() {
     Future<CapitalGame> startedGame() async {
       await provider.startGame(
         CapitalGame(
-          legs: 1,
-          sets: 1,
           createdAt: DateTime.now(),
           playerIds: players.map((p) => p.id!).toList(),
         ),
@@ -238,7 +236,7 @@ void main() {
 
       test('is refused when nothing has been thrown', () async {
         await startedGame();
-        expect(provider.canUndo, isFalse);
+        expect(provider.canUndoDart, isFalse);
       });
     });
 
@@ -287,8 +285,6 @@ void main() {
         final solo = [players.first];
         await provider.startGame(
           CapitalGame(
-            legs: 1,
-            sets: 1,
             createdAt: DateTime.now(),
             playerIds: [players.first.id!],
           ),
