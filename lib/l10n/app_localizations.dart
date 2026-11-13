@@ -795,8 +795,11 @@ class AppLocalizations {
 
   // ── Game Mode Selection ──────────────────────────────────────────────────
   String get selectGameMode       => _t('Select Game Mode', 'Spielmodus wählen');
-  String get comingSoon           => _t('Coming Soon', 'Demnächst');
   String get modeInfoTitle        => _t('Game Mode Info', 'Spielmodus Info');
+  String get modeSetUpGame        => _t('Set up game', 'Spiel einrichten');
+  String get modeCategoryMatch    => 'Match';
+  String get modeCategoryParty    => 'Party';
+  String get modeCategoryTraining => 'Training';
 
   // X01
   String get modeX01Name          => 'X01';

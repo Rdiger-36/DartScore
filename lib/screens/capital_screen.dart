@@ -170,6 +170,10 @@ class CapitalScreen extends StatelessWidget {
   }
 }
 
+/// How far the tint of the slot on turn is set in from the scoreboard card,
+/// on every side: the card's own vertical padding and the row's side margin.
+const double _kSlotTintInset = 4;
+
 /// The capitals, one compact row per player.
 ///
 /// Only one row shows its arithmetic at a time, because eight rows each
@@ -197,7 +201,7 @@ class _ScoreboardState extends State<_Scoreboard> {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: _kSlotTintInset),
         child: Column(
           children: [
             for (final (index, slot) in provider.playerStates.indexed)
@@ -254,9 +258,18 @@ class _SlotRow extends StatelessWidget {
       darts:       slot.lastVisit,
     );
 
+    // Rounded and set in from the card's edge: the tint of the slot on turn is
+    // often the only thing that shows of the card, and a square bar above the
+    // rounded contract band reads as a different kind of box. Its radius is
+    // the card's less the inset, so the two corners run parallel.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+      margin: const EdgeInsets.symmetric(horizontal: _kSlotTintInset),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+        borderRadius:
+            BorderRadius.circular(cardRadius(context) - _kSlotTintInset),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -346,7 +359,7 @@ class _ContractBand extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(cardRadius(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

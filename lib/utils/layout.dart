@@ -49,7 +49,7 @@ bool isTabletLayout(BuildContext context) =>
 
 /// The screens that divide themselves into two panes. Each keeps its own
 /// divider position, because each divides something different.
-enum SplitPane { game, history, players }
+enum SplitPane { game, history, players, modes }
 
 /// Share of the width the pane holding the input starts with, and the range a
 /// drag of the divider may move it to.
@@ -355,6 +355,19 @@ double contentMaxWidth(
   final w = MediaQuery.sizeOf(context).width;
   if (w < kTabletBreakpoint) return w;
   return min(w * fraction, maxWidth);
+}
+
+/// The corner radius the theme gives a card.
+///
+/// For whatever sits on a card or beside one without being a card itself, a
+/// ripple, a tint, a box of its own: it follows the card's corner through
+/// this, so a change to the theme moves all of them at once. A box set in from
+/// the card's edge takes the radius less that inset, which keeps the two
+/// corners parallel.
+double cardRadius(BuildContext context) {
+  final shape = Theme.of(context).cardTheme.shape;
+  if (shape is! RoundedRectangleBorder) return 12;
+  return shape.borderRadius.resolve(Directionality.of(context)).topLeft.x;
 }
 
 /// Symmetric horizontal padding so a full-width ListView centres its content.
