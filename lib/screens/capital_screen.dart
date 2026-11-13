@@ -174,14 +174,6 @@ class CapitalScreen extends StatelessWidget {
 /// on every side: the card's own vertical padding and the row's side margin.
 const double _kSlotTintInset = 4;
 
-/// The corner radius the theme gives a card, which the boxes on this screen
-/// that are not cards follow so they read as the same kind of box.
-double _cardRadius(BuildContext context) {
-  final shape = Theme.of(context).cardTheme.shape;
-  if (shape is! RoundedRectangleBorder) return 12;
-  return shape.borderRadius.resolve(Directionality.of(context)).topLeft.x;
-}
-
 /// The capitals, one compact row per player.
 ///
 /// Only one row shows its arithmetic at a time, because eight rows each
@@ -276,7 +268,7 @@ class _SlotRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
         borderRadius:
-            BorderRadius.circular(_cardRadius(context) - _kSlotTintInset),
+            BorderRadius.circular(cardRadius(context) - _kSlotTintInset),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,7 +359,7 @@ class _ContractBand extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(_cardRadius(context)),
+        borderRadius: BorderRadius.circular(cardRadius(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
