@@ -313,7 +313,26 @@ void main() {
             .first);
         final decoration = row.decoration! as BoxDecoration;
         expect(decoration.color, isNotNull);
-        expect(decoration.borderRadius, BorderRadius.circular(8));
+
+        // Set in by four from a card, so four less than the card's radius;
+        // the band below is no card and takes the card's radius whole.
+        final card = tester.widget<Card>(find
+            .ancestor(of: find.text('Ada'), matching: find.byType(Card))
+            .first);
+        final theme = Theme.of(tester.element(find.byType(CapitalScreen)));
+        final shape = (card.shape ?? theme.cardTheme.shape);
+        final outer = shape is RoundedRectangleBorder
+            ? (shape.borderRadius as BorderRadius).topLeft.x
+            : 12.0;
+        expect(decoration.borderRadius, BorderRadius.circular(outer - 4));
+
+        final band = tester.widget<Container>(find
+            .ancestor(
+                of: find.text('Opening round'),
+                matching: find.byType(Container))
+            .first);
+        expect((band.decoration! as BoxDecoration).borderRadius,
+            BorderRadius.circular(outer));
       });
 
       testWidgets('keeps one column on an upright tablet', (tester) async {
