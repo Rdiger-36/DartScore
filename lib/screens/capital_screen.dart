@@ -254,9 +254,16 @@ class _SlotRow extends StatelessWidget {
       darts:       slot.lastVisit,
     );
 
+    // Rounded and set in from the card's edge: the tint of the slot on turn is
+    // often the only thing that shows of the card, and a square bar above the
+    // rounded contract band reads as a different kind of box.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: onTurn ? cs.primary.withValues(alpha: 0.08) : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

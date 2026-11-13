@@ -294,6 +294,28 @@ void main() {
         expect(find.text('Opening round'), findsOneWidget);
       });
 
+      testWidgets('divides on an unfolded phone lying on its side',
+          (tester) async {
+        // The inner display of a foldable, 2853x2007 at three to a point: far
+        // smaller than a tablet, and still over the breakpoint.
+        await pumpScreen(tester, size: const Size(951, 669));
+        expect(find.byType(SidePaneLayout), findsOneWidget);
+        expect(find.widgetWithText(InkWell, '20'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('rounds the row of the slot on turn like the band below it',
+          (tester) async {
+        await pumpScreen(tester, size: const Size(1180, 820));
+
+        final row = tester.widget<Container>(find
+            .ancestor(of: find.text('Ada'), matching: find.byType(Container))
+            .first);
+        final decoration = row.decoration! as BoxDecoration;
+        expect(decoration.color, isNotNull);
+        expect(decoration.borderRadius, BorderRadius.circular(8));
+      });
+
       testWidgets('keeps one column on an upright tablet', (tester) async {
         // Upright there is height to spare and width to lose, so dividing
         // would leave both halves too narrow.
