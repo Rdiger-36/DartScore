@@ -45,6 +45,10 @@ enum _ModeFilter {
   capital
 }
 
+/// The gap under a game tile, which the delete background behind it leaves
+/// free as well so the two are the same height.
+const double _kTileGap = 6;
+
 /// Lists all past games across every mode, split into Open and Finished tabs
 /// with per-mode filters. Supports resuming, opening details, and deleting.
 class HistoryScreen extends StatefulWidget {
@@ -897,6 +901,9 @@ class _GameTile extends StatelessWidget {
       key: ValueKey('$entryPrefix$entryId'),
       direction: DismissDirection.endToStart,
       background: Container(
+        // The card's own margin, or the red would show under the card in the
+        // gap to the next entry.
+        margin: const EdgeInsets.only(bottom: _kTileGap),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
@@ -907,7 +914,7 @@ class _GameTile extends StatelessWidget {
       ),
       onDismissed: (_) => onDelete(),
       child: Card(
-        margin: const EdgeInsets.only(bottom: 6),
+        margin: const EdgeInsets.only(bottom: _kTileGap),
         // Marked rather than merely highlighted: on a tablet this tile and the
         // pane beside it are the same thing, and nothing else says which.
         color: isSelected ? cs.secondaryContainer : null,
