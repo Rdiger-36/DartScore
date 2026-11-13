@@ -357,6 +357,19 @@ double contentMaxWidth(
   return min(w * fraction, maxWidth);
 }
 
+/// The corner radius the theme gives a card.
+///
+/// For whatever sits on a card or beside one without being a card itself, a
+/// ripple, a tint, a box of its own: it follows the card's corner through
+/// this, so a change to the theme moves all of them at once. A box set in from
+/// the card's edge takes the radius less that inset, which keeps the two
+/// corners parallel.
+double cardRadius(BuildContext context) {
+  final shape = Theme.of(context).cardTheme.shape;
+  if (shape is! RoundedRectangleBorder) return 12;
+  return shape.borderRadius.resolve(Directionality.of(context)).topLeft.x;
+}
+
 /// Symmetric horizontal padding so a full-width ListView centres its content.
 /// On phones the padding equals [innerH] only (no extra side margins).
 EdgeInsets contentPadding(

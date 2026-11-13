@@ -901,7 +901,7 @@ class _GameTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           color: cs.errorContainer,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(cardRadius(context)),
         ),
         child: Icon(Icons.delete_outline, color: cs.onErrorContainer),
       ),
@@ -912,7 +912,7 @@ class _GameTile extends StatelessWidget {
         // pane beside it are the same thing, and nothing else says which.
         color: isSelected ? cs.secondaryContainer : null,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(cardRadius(context)),
           onTap: onResume ?? onShowSummary,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
