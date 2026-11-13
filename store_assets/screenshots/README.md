@@ -43,7 +43,9 @@ as one set:
    and the totals.
 4. `heatmap`, the dartboard heatmap, with the words under the picture instead of
    over it.
-5. `modes`, the mode selection with all five modes, one tilted frame.
+5. `modes`, the mode selection with all six modes under their categories, one
+   tilted frame. A window wide enough for two panes, the unfolded Duo and the
+   Android tablet, shows the rules of the selected mode beside the list.
 6. `themes`, the same screen twice, light and dark, which says in one picture
    that the app follows the system theme.
 

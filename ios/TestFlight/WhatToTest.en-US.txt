@@ -1,7 +1,7 @@
-New mode: the Checkout Ladder
+New mode: Capital
 
-A training game for checkout routes. You start on 81 and check your way up, one number at a time, with 6 darts for each. Miss and you fall back, and a check with the first three darts builds you a safehouse. Alone, as a team or as a race against each other, against the bot as well.
+A party game over fifteen rounds. Your first three darts are your starting capital, and every round after that sets a contract: a number, a triple, three neighbours, a run, exactly 57. Meet it and the points are added, miss it and your capital is halved. For steel and soft tip boards, alone, with friends or against the bot.
 
-Also: a few checkout routes were wrong and are fixed. The two bulls now read D-Bull and S-Bull in the routes.
+Also: the mode selection is sorted into match, party and training. On a tablet in landscape the rules sit right beside it.
 
-Worth a look: a training from 81 alone and as a team of two, a race against the bot, a bust in the first visit, leaving with "Continue later" and resuming from the history, and the live info from a tap on a player card.
+Worth a look: a game of Capital alone and with two players, once set to a soft tip board, the Colors round, a game against the bot, leaving and resuming from the history, the result with its rounds unfolded. And the new mode selection on the iPhone, on the iPad upright and in landscape, where the divider can be dragged.

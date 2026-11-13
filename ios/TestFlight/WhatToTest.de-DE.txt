@@ -1,7 +1,7 @@
-Neuer Modus: die Checkout-Leiter
+Neuer Modus: Capital
 
-Ein Trainingsspiel für Checkout-Wege. Du startest bei 81 und checkst dich Zahl für Zahl nach oben, mit 6 Darts pro Zahl. Verfehlst du, fällst du zurück, und wer schon mit den ersten drei Darts checkt, baut sich ein Safehouse. Allein, als Team oder als Rennen gegeneinander, auch gegen den Bot.
+Ein Partyspiel über fünfzehn Runden. Mit den ersten drei Darts wirfst du dein Startkapital, danach stellt jede Runde eine Aufgabe: eine Zahl, ein Triple, drei Nachbarn, eine Straße, genau 57. Erfüllst du sie, kommen die Punkte dazu, sonst wird dein Kapital halbiert. Für Steeldart und Softdart, allein, mit Freunden oder gegen den Bot.
 
-Außerdem: Einige Finish-Wege waren falsch berechnet und sind korrigiert. Die beiden Bulls heißen in den Wegen jetzt D-Bull und S-Bull.
+Außerdem: Die Modus-Auswahl ist nach Match, Party und Training sortiert. Auf dem Tablet im Querformat stehen die Regeln gleich daneben.
 
-Einen Blick wert: ein Training ab 81 allein und als Team zu zweit, ein Rennen gegen den Bot, ein Bust in der ersten Aufnahme, das Verlassen mit „Später weiter“ und Fortsetzen aus dem Verlauf, und die Live-Info mit einem Tipp auf eine Spielerkarte.
+Einen Blick wert: eine Partie Capital allein und zu zweit, einmal auf Softdart gestellt, die Runde Farben, eine Partie gegen den Bot, das Verlassen und Fortsetzen aus dem Verlauf, das Ergebnis mit aufgeklappten Runden. Dazu die neue Modus-Auswahl auf dem iPhone, auf dem iPad hochkant und quer, dort auch der verschiebbare Teiler.

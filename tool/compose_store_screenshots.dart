@@ -299,7 +299,7 @@ const _kPages = <_Page>[
       footnote: 'See your accuracy at a glance and sharpen your aim',
     ),
   ),
-  // ── 5. The other four modes ───────────────────────────────────────────────
+  // ── 5. The other five modes ───────────────────────────────────────────────
   _Page(
     name: 'modes',
     blue: false,
@@ -313,11 +313,11 @@ const _kPages = <_Page>[
     ],
     de: _Copy(
       headline: ['Noch mehr', 'Spielmodi'],
-      footnote: 'Cricket, Shanghai, Around the Clock und die Checkout-Leiter',
+      footnote: 'Cricket, Shanghai, Around the Clock, Checkout-Leiter und Capital',
     ),
     en: _Copy(
       headline: ['Explore other', 'Game Modes'],
-      footnote: 'Cricket, Shanghai, Around the Clock and the Checkout Ladder',
+      footnote: 'Cricket, Shanghai, Around the Clock, Checkout Ladder and Capital',
     ),
   ),
   // ── 6. Both themes ────────────────────────────────────────────────────────

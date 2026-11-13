@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-blue?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.3.0-blue?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Flutter-%E2%89%A53.32-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Dart-%E2%89%A53.12-0175C2?style=flat-square&logo=dart&logoColor=white" alt="Dart" />
   <img src="https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square" alt="platform" />
@@ -40,7 +40,7 @@ DartScore is **released on the App Store** for iOS and on Google Play Store for 
 
 ### Game Modes
 
-A mode selection screen lets you pick from five fully playable game modes. Each mode has a built-in rules info page.
+A mode selection screen lets you pick from six fully playable game modes, listed under what they are played for: match, party and training. Each mode has a built-in rules info page, and a tablet in landscape shows the rules of the selected mode beside the list.
 
 #### X01
 
@@ -156,6 +156,32 @@ A training game for checkout routes. Every ladder starts on 81 and is checked on
 - A **live info** per player with the last three visits and how each ended, the check rate, darts per check, safehouses, drops and busts
 - Teams, computer opponents and partners, a fixed or drawn starting order
 
+#### Capital
+
+A party game over fifteen rounds: one to build a capital, then fourteen contracts.
+
+| Rule | What happens |
+|---|---|
+| **Opening round** | Three darts, and their total is the starting capital |
+| **Contract met** | The points of the visit are added to the capital |
+| **Contract missed** | The capital is halved, rounded up, and nothing is added |
+| **Winner** | The highest capital after the last contract |
+
+| Contract | Asks for |
+|---|---|
+| **20, 19, 18, 17, 16, 15, 14** | At least one dart in that number, any ring |
+| **Triple**, **Double** | At least one of them. The bull counts as a double |
+| **Side by Side** | Three darts in three segments that touch on the board |
+| **Run** | Three darts in three consecutive numbers |
+| **Colors** | Three darts in three different colors of paint. A soft tip board has only blue and red, so there it asks for three of its four areas |
+| **57** | A visit of exactly 57, which ends on reaching it |
+| **Center** | At least one bull or outer bull |
+
+- Played on a **steel or a soft tip board**, chosen in the setup
+- Entry on the X01 board keypad, under a band that names the round and what the visit still needs
+- One row per player with the arithmetic of the last visit, and a **live info** listing every round so far
+- One player is enough, computer opponents included, a fixed or drawn starting order. No teams, legs or sets
+
 ---
 
 ### Computer Opponent
@@ -209,7 +235,7 @@ All stats are shown per player on a dedicated screen.
 ### Game History
 
 - **Open / Finished tabs**: separate views for resumable and completed games
-- **Game mode chip filter** works per tab: filter by All, X01, Cricket, Shanghai, Around the Clock or Checkout Ladder (only modes present in that tab are shown)
+- **Game mode chip filter** works per tab: filter by All, X01, Cricket, Shanghai, Around the Clock, Checkout Ladder or Capital (only modes present in that tab are shown)
 - **Bulk delete**: trash icon deletes only the currently visible entries; confirmation dialog states exactly what will be removed
 - **Swipe to delete**: individual games can be swiped away
 - Per-game summary screen with full throw history for all modes
@@ -280,7 +306,7 @@ From 600 dp on the shortest side, the screens that have two things to show put t
 
 - **Onboarding**: name entry on first launch, sets the primary player
 - **Manage Players**: add, edit, delete (soft-delete preserves history), set favourite double
-- **Player selection**: all five setup screens share one player list, sorted the way names actually sort
+- **Player selection**: all six setup screens share one player list, sorted the way names actually sort
 - **Settings**: theme, language and game pace as menu rows in a display section, with the text size slider beside them on a tablet; backup, donations, about and licences in an app section
 - **Dark / Light / System theme**
 - **German / English localisation**: auto-detected from device locale, switchable in settings
@@ -402,6 +428,7 @@ lib/
 │   ├── shanghai_game.dart                 # ShanghaiGame, ShanghaiThrow, ShanghaiVariant enum
 │   ├── around_the_clock_game.dart         # AroundTheClockGame, AroundTheClockThrow, variant enum
 │   ├── checkout_ladder_game.dart          # CheckoutLadderGame, CheckoutLadderThrow, training or race
+│   ├── capital_game.dart                  # CapitalGame, CapitalThrow, the board type it is played on
 │   ├── team_config.dart                   # Shared TeamConfig + JSON encode/decode for team_config_json
 │   └── starting_order.dart                # Shared StartingOrder enum (random or fixed throwing order)
 ├── providers/
@@ -411,6 +438,7 @@ lib/
 │   ├── shanghai_provider.dart             # Shanghai game state machine
 │   ├── around_the_clock_provider.dart     # Around the Clock game state machine
 │   ├── checkout_ladder_provider.dart      # Checkout Ladder: persists the darts, replays them through the engine
+│   ├── capital_provider.dart              # Capital game state machine
 │   ├── donation_provider.dart             # In-app purchase / supporter state
 │   ├── theme_provider.dart                # Light/dark theme toggle, persisted via shared_preferences
 │   ├── language_provider.dart             # Locale switching (en/de), persisted via shared_preferences
@@ -428,8 +456,8 @@ lib/
 │   ├── players_screen.dart                # Player management list
 │   ├── player_stats_screen.dart           # Per-player lifetime statistics + dartboard heatmap
 │   ├── history_screen.dart                # Game history with Open/Finished tabs and mode filter chips
-│   ├── game_mode_selection_screen.dart    # Pick game mode (X01 / Cricket / Shanghai / Around the Clock / Checkout Ladder)
-│   ├── game_mode_info_screen.dart         # Per-mode rules info page
+│   ├── game_mode_selection_screen.dart    # Pick game mode, by category; rules beside the list on a landscape tablet
+│   ├── game_mode_info_screen.dart         # Per-mode rules info page and pane, mode categories and texts
 │   ├── game_setup_screen.dart             # Configure X01: start score, in/out modes, legs/sets, players
 │   ├── game_screen.dart                   # Live X01: scoreboard, dartboard/numpad input, finish suggestions
 │   ├── live_player_stats_screen.dart      # Live X01 player/team info, opened from the scoreboard
@@ -484,7 +512,7 @@ lib/
     ├── favorite_double_picker.dart         # Picks a player's favourite doubles
     ├── team_section.dart                   # Shared team assignment UI for setup screens
     ├── starting_order_section.dart         # Shared starting-order picker with drag-to-sort list
-    ├── player_select_section.dart          # Shared player list for all five setup screens
+    ├── player_select_section.dart          # Shared player list for all six setup screens
     ├── game_info_card.dart                 # Shared card listing a finished game's settings
     ├── summary_body.dart                   # Shared summary/history detail body and its tablet layout
     ├── summary_player_card.dart            # Shared X01 player/team result card
@@ -541,7 +569,7 @@ dart_throws  (id, game_id, player_id, score, darts_used, leg, set_,
 `handicap_json` holds per-player check-in/check-out overrides, keyed by player ID; null when the game uses the game-wide rules.  
 `origin_device` names the device the game was played on. Null means this one, so a game costs nothing to record locally; a restore stamps the source's ID onto what it hands over.  
 `placement_mode` is 1 when every leg is played to the end for a final ranking.  
-`starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all five game tables; games created before the setting existed read as 0, which is how they were actually played.
+`starting_order` is 0 when the throwing order was drawn at random and 1 when it was fixed by hand. Present on all six game tables; games created before the setting existed read as 0, which is how they were actually played.
 
 `checkout_darts` counts how many darts of the visit were thrown while a single dart could still have finished the leg, 0 to 3. It is decided once, when the visit is recorded, because working it out needs both the individual darts and the check-out rule that applied to that player in that game, and neither reaches the places the statistics are counted. Two numbers rest on it: the check-out rate counts a visit once however many darts it put on a double, the double rate counts every one of them. A visit that arrived over sync or predates `hits_json` can only ever be credited with a single dart.
 
@@ -599,10 +627,21 @@ checkout_ladder_games   (id, variant, start_number, target_number,
 
 checkout_ladder_throws  (id, game_id, player_id, field, multiplier, thrown_at)
 ```
-
 `variant` is 0 for training and 1 for a race; `target_number` is null in training.  
 `step_from` and `step_darts` are null unless an attempt holds more darts from a number on.  
 A throw stores only what was hit. The number, the rest, the attempt and the floor are replayed from the darts before it, so a visit is never assumed to hold three darts: a check or a bust ends it early.
+
+### Capital
+
+```sql
+capital_games   (id, variant, board_type, created_at, finished_at,
+                 player_ids, starting_order)
+
+capital_throws  (id, game_id, player_id, field, multiplier, round, thrown_at)
+```
+
+`board_type` is 0 for a steel board and 1 for a soft tip board.  
+A throw stores the field the dart hit and the round it was thrown in. Whether the contract was met and what that did to the capital are replayed from the darts.
 
 ### Sync and backup
 
