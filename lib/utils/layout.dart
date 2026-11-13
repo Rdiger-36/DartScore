@@ -49,7 +49,7 @@ bool isTabletLayout(BuildContext context) =>
 
 /// The screens that divide themselves into two panes. Each keeps its own
 /// divider position, because each divides something different.
-enum SplitPane { game, history, players }
+enum SplitPane { game, history, players, modes }
 
 /// Share of the width the pane holding the input starts with, and the range a
 /// drag of the divider may move it to.

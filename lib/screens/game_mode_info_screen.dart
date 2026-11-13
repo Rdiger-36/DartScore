@@ -34,7 +34,52 @@ Widget gameModeIcon(GameModeOption mode, {required double size, Color? color}) {
   return Icon(data, size: size, color: color);
 }
 
-/// Explains the rules of a single game [mode] (title, description, variants).
+/// What a mode is mostly played for, the heading it is listed under in the
+/// mode selection.
+enum GameModeCategory { match, party, training }
+
+/// The category [mode] is listed under.
+GameModeCategory gameModeCategory(GameModeOption mode) => switch (mode) {
+      GameModeOption.x01            => GameModeCategory.match,
+      GameModeOption.cricket        => GameModeCategory.match,
+      GameModeOption.shanghai       => GameModeCategory.party,
+      GameModeOption.capital        => GameModeCategory.party,
+      GameModeOption.aroundTheClock => GameModeCategory.training,
+      GameModeOption.checkoutLadder => GameModeCategory.training,
+    };
+
+/// The localized heading of [category].
+String gameModeCategoryLabel(GameModeCategory category, AppLocalizations l) =>
+    switch (category) {
+      GameModeCategory.match    => l.modeCategoryMatch,
+      GameModeCategory.party    => l.modeCategoryParty,
+      GameModeCategory.training => l.modeCategoryTraining,
+    };
+
+/// The name, the tagline and the rules text of [mode], in that order.
+(String, String, String) gameModeTexts(GameModeOption mode, AppLocalizations l) {
+  switch (mode) {
+    case GameModeOption.x01:
+      return (l.modeX01Name, l.modeX01Tagline, l.modeX01Description);
+    case GameModeOption.cricket:
+      return (l.modeCricketName, l.modeCricketTagline,
+          l.modeCricketDescription);
+    case GameModeOption.shanghai:
+      return (l.modeShanghaiName, l.modeShanghaiTagline,
+          l.modeShanghaiDescription);
+    case GameModeOption.aroundTheClock:
+      return (l.modeAroundClockName, l.modeAroundClockTagline,
+          l.modeAroundClockDescription);
+    case GameModeOption.checkoutLadder:
+      return (l.modeCheckoutLadderName, l.modeCheckoutLadderTagline,
+          l.modeCheckoutLadderDescription);
+    case GameModeOption.capital:
+      return (l.modeCapitalName, l.modeCapitalTagline,
+          l.modeCapitalDescription);
+  }
+}
+
+/// Explains the rules of a single game [mode] on a screen of its own.
 class GameModeInfoScreen extends StatelessWidget {
   final GameModeOption mode;
 
@@ -42,101 +87,93 @@ class GameModeInfoScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(context.l10n.modeInfoTitle)),
+      body: SafeArea(child: GameModeInfoPane(mode: mode)),
+    );
+  }
+}
+
+/// The rules of a single game [mode]: symbol, name, tagline, description and
+/// the note on computer opponents.
+///
+/// The info screen shows it alone, the mode selection on a landscape tablet
+/// beside the list of modes.
+class GameModeInfoPane extends StatelessWidget {
+  final GameModeOption mode;
+
+  const GameModeInfoPane({super.key, required this.mode});
+
+  @override
+  Widget build(BuildContext context) {
     final l = context.l10n;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final (name, tagline, description) = _content(l);
+    final (name, tagline, description) = gameModeTexts(mode, l);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(l.modeInfoTitle)),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        shape: BoxShape.circle,
-                      ),
-                      child: gameModeIcon(mode, size: 52, color: cs.primary),
-                    ),
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth(context)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: cs.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    tagline,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: cs.onSurface.withValues(alpha: 0.65),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Divider(color: cs.outlineVariant),
-                  const SizedBox(height: 20),
-                  Text(
-                    description,
-                    textAlign: TextAlign.start,
-                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
-                  ),
-                  const SizedBox(height: 20),
-                  Divider(color: cs.outlineVariant),
-                  const SizedBox(height: 20),
-                  Text(
-                    l.modeBotTitle,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    l.modeBotNote,
-                    textAlign: TextAlign.start,
-                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                  child: gameModeIcon(mode, size: 52, color: cs.primary),
+                ),
               ),
-            ),
+              const SizedBox(height: 24),
+              Text(
+                name,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                tagline,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: cs.onSurface.withValues(alpha: 0.65),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Divider(color: cs.outlineVariant),
+              const SizedBox(height: 20),
+              Text(
+                description,
+                textAlign: TextAlign.start,
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+              ),
+              const SizedBox(height: 20),
+              Divider(color: cs.outlineVariant),
+              const SizedBox(height: 20),
+              Text(
+                l.modeBotTitle,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l.modeBotNote,
+                textAlign: TextAlign.start,
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+              ),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),
     );
-  }
-
-  (String, String, String) _content(AppLocalizations l) {
-    switch (mode) {
-      case GameModeOption.x01:
-        return (l.modeX01Name, l.modeX01Tagline, l.modeX01Description);
-      case GameModeOption.cricket:
-        return (l.modeCricketName, l.modeCricketTagline,
-            l.modeCricketDescription);
-      case GameModeOption.shanghai:
-        return (l.modeShanghaiName, l.modeShanghaiTagline,
-            l.modeShanghaiDescription);
-      case GameModeOption.aroundTheClock:
-        return (l.modeAroundClockName, l.modeAroundClockTagline,
-            l.modeAroundClockDescription);
-      case GameModeOption.checkoutLadder:
-        return (l.modeCheckoutLadderName, l.modeCheckoutLadderTagline,
-            l.modeCheckoutLadderDescription);
-      case GameModeOption.capital:
-        return (l.modeCapitalName, l.modeCapitalTagline,
-            l.modeCapitalDescription);
-    }
   }
 }
