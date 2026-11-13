@@ -105,6 +105,9 @@ void main() {
       // Version 25 added the Checkout Ladder.
       await db.execute('DROP TABLE checkout_ladder_throws');
       await db.execute('DROP TABLE checkout_ladder_games');
+      // Version 26 added Capital.
+      await db.execute('DROP TABLE capital_throws');
+      await db.execute('DROP TABLE capital_games');
       await db.execute('PRAGMA user_version = 18');
     }
 

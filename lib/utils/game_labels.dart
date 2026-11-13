@@ -2,8 +2,11 @@ import '../l10n/app_localizations.dart';
 import '../models/around_the_clock_game.dart';
 import '../models/checkout_ladder_game.dart' show CheckoutLadderGame, CheckoutLadderVariant;
 import '../models/cricket_game.dart';
+import '../models/board_type.dart';
 import '../models/game.dart';
 import '../models/shanghai_game.dart';
+import 'capital_rules.dart';
+import 'dartboard_geometry.dart';
 
 /// Localized display names for the per-mode game settings, shared by the
 /// history lists, the history detail screens and the rematch dialog so the
@@ -152,3 +155,199 @@ List<(String, String)> checkoutLadderSettingRows(
       (l.ladderDartsPerAttempt, checkoutLadderDartsLabel(l, game)),
       (l.checkOut, checkOutLabel(l, game.checkOut)),
     ];
+// ── Capital ──────────────────────────────────────────────────────────────────
+
+/// Localized name of a [BoardType], as the setup offers it and the game info
+/// lists it.
+String boardTypeLabel(AppLocalizations l, BoardType type) => switch (type) {
+      BoardType.steel   => l.boardTypeSteel,
+      BoardType.softTip => l.boardTypeSoftTip,
+    };
+
+/// The name a Capital [contract] is shown under on a board of [board].
+///
+/// The seven numbered contracts are named by their sector, which reads the
+/// same in every language and so carries no localization entry. The colors
+/// contract is named for what it asks on that board: three colors on steel,
+/// three areas on a soft tip board, which has only two colors.
+String capitalContractName(
+  AppLocalizations l,
+  CapitalContract contract,
+  BoardType board,
+) {
+  if (contract.sector case final sector?) return '$sector';
+  return switch (contract) {
+    CapitalContract.capital    => l.capitalContractCapital,
+    CapitalContract.anyTriple  => l.capitalContractTriple,
+    CapitalContract.anyDouble  => l.capitalContractDouble,
+    CapitalContract.side       => l.capitalContractSideBySide,
+    CapitalContract.run        => l.capitalContractRun,
+    CapitalContract.colors     => board == BoardType.steel
+        ? l.capitalContractColors
+        : l.capitalContractAreas,
+    CapitalContract.fiftySeven => '57',
+    CapitalContract.center     => l.capitalContractCenter,
+    _                          => '',
+  };
+}
+
+/// The one line reminder shown under a contract's name before any dart lands.
+String capitalContractReminder(
+  AppLocalizations l,
+  CapitalContract contract,
+  BoardType board,
+) {
+  if (contract.sector != null) return l.capitalReminderAnyRing;
+  return switch (contract) {
+    CapitalContract.capital    => l.capitalReminderCapital,
+    CapitalContract.anyTriple  => l.capitalReminderTriple,
+    CapitalContract.anyDouble  => l.capitalReminderDouble,
+    CapitalContract.side       => l.capitalReminderSideBySide,
+    CapitalContract.run        => l.capitalReminderRun,
+    CapitalContract.colors     => board == BoardType.steel
+        ? l.capitalReminderColors
+        : l.capitalReminderAreas,
+    CapitalContract.fiftySeven => l.capitalReminderFiftySeven,
+    CapitalContract.center     => l.capitalReminderCenter,
+    _                          => '',
+  };
+}
+
+/// The localized name of an [area] of paint on a board of [board].
+///
+/// On steel each area has a color of its own, so the color is the name. A
+/// soft tip board paints a single and a ring alike, so there the name says
+/// which of the two it is as well.
+String boardAreaLabel(AppLocalizations l, BoardType board, BoardArea area) =>
+    switch ((board, area)) {
+      (BoardType.steel,   BoardArea.primarySingle)   => l.boardColorBlack,
+      (BoardType.steel,   BoardArea.secondarySingle) => l.boardColorWhite,
+      (BoardType.steel,   BoardArea.primaryRing)     => l.boardColorRed,
+      (BoardType.steel,   BoardArea.secondaryRing)   => l.boardColorGreen,
+      (BoardType.softTip, BoardArea.primarySingle)   => l.boardSingleBlue,
+      (BoardType.softTip, BoardArea.secondarySingle) => l.boardSingleRed,
+      (BoardType.softTip, BoardArea.primaryRing)     => l.boardRingRed,
+      (BoardType.softTip, BoardArea.secondaryRing)   => l.boardRingBlue,
+    };
+
+/// What the band says once [darts] have landed in the current visit.
+///
+/// Falls back to the standing reminder for the eleven contracts whose answer
+/// never changes, and for a visit that has not started. The four that do
+/// change report what is still open, listing every combination rather than
+/// describing it: a dart already thrown may be the low end, the middle or the
+/// high end of its run, so no short description of the remainder is true.
+String capitalProgressLine(
+  AppLocalizations l,
+  CapitalContract contract,
+  List<BoardHit> darts,
+  BoardType board,
+) {
+  final reminder = capitalContractReminder(l, contract, board);
+  if (darts.isEmpty) return reminder;
+
+  switch (contract) {
+    case CapitalContract.run:
+      return _shapeLine(l, remainingRuns(darts), darts, l.capitalNoRun);
+    case CapitalContract.side:
+      return _shapeLine(l, remainingArcs(darts), darts, l.capitalNoArc);
+    case CapitalContract.colors:
+      final open = unusedAreas(darts);
+      if (open.isEmpty) return reminder;
+      final thrown = darts
+          .map((dart) => boardAreaLabel(l, board, areaOf(dart)!))
+          .join(', ');
+      if (darts.length == 2) {
+        final names =
+            open.map((area) => boardAreaLabel(l, board, area)).toList();
+        return '$thrown. ${l.capitalNeed(_join(l, names, l.capitalOr))}';
+      }
+      return board == BoardType.steel
+          ? '$thrown. ${l.capitalNeedOtherColors(3 - darts.length)}'
+          : '$thrown. ${l.capitalNeedOtherAreas(3 - darts.length)}';
+    case CapitalContract.fiftySeven:
+      final left = pointsToFiftySeven(darts);
+      if (left == null || left == 0) return reminder;
+      return l.capitalNeedPoints(left);
+    default:
+      return reminder;
+  }
+}
+
+/// The line for the two shape contracts, which share their structure.
+///
+/// Before the last dart every surviving combination is listed whole, because
+/// which of them the player goes for is still open. Once two darts are down
+/// the combinations differ only in the one field left, so only that is named.
+String _shapeLine(
+  AppLocalizations l,
+  List<List<int>> combinations,
+  List<BoardHit> darts,
+  String impossible,
+) {
+  if (combinations.isEmpty) return impossible;
+  final thrown = darts.map((dart) => dart.field).toSet();
+  if (darts.length >= 2) {
+    final missing = combinations
+        .expand((combination) => combination)
+        .where((field) => !thrown.contains(field))
+        .toSet()
+        .toList();
+    return l.capitalNeed(_join(l, missing.map((f) => '$f').toList(), l.capitalOr));
+  }
+  if (combinations.length == 1) {
+    final missing = combinations.single.where((f) => !thrown.contains(f));
+    return l.capitalNeed(
+        _join(l, missing.map((f) => '$f').toList(), l.capitalAnd));
+  }
+  return l.capitalMake(_join(
+    l,
+    combinations.map((combination) => combination.join('-')).toList(),
+    l.capitalOr,
+  ));
+}
+
+/// Joins [parts] with commas and [conjunction] before the last.
+String _join(AppLocalizations l, List<String> parts, String conjunction) {
+  if (parts.length <= 1) return parts.join();
+  return '${parts.sublist(0, parts.length - 1).join(', ')} $conjunction ${parts.last}';
+}
+
+/// The arithmetic that produced a slot's capital, shown after its visit.
+///
+/// A met contract reads as the capital it started from plus the visit in
+/// brackets, so the three darts stay visibly one group and cannot be mistaken
+/// for a fourth term: `11 + (3*20 + 20 + 2*5) = 136`. A failed one reads as
+/// the halving that was applied, in ceiling brackets because the rounding is
+/// up: `⌈57/2⌉ = 29`. The opening round has no capital to add to, so it shows
+/// the darts alone.
+///
+/// Every operator is spaced the same way, so each throw is its own block at a
+/// glance. Returns null before the slot has completed a visit.
+String? capitalScoreExpression({
+  required int totalBefore,
+  required int total,
+  required bool? met,
+  required List<BoardHit> darts,
+}) {
+  if (darts.isEmpty) return null;
+  if (met == false) return '\u2308$totalBefore/2\u2309 = $total';
+
+  final scored = darts.where((dart) => scoreOf(dart) > 0).map(_dartTerm);
+  final terms = scored.isEmpty ? '0' : scored.join(' + ');
+  if (met == null) return '$terms = $total';
+  return '$totalBefore + ($terms) = $total';
+}
+
+/// One dart as the expression writes it.
+///
+/// A single is the bare number, and a double or triple shows the ring it
+/// landed in multiplied by the number, so the sum can be followed without
+/// knowing which ring each dart found. Both bulls are written as the points
+/// they score, because a player reads the bull as fifty rather than as twice
+/// twenty five.
+String _dartTerm(BoardHit dart) {
+  if (dart.field == 25) return '${scoreOf(dart)}';
+  if (dart.multiplier == 1) return '${dart.field}';
+  return '${dart.multiplier}*${dart.field}';
+}

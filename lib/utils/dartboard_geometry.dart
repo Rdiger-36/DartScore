@@ -96,3 +96,61 @@ int scoreOf(BoardHit hit) {
   if (hit.field == 25) return hit.multiplier == 2 ? 50 : 25;
   return hit.field * hit.multiplier;
 }
+
+/// The four areas of paint on a board, named by where they sit rather than by
+/// a color, because a steel and a soft tip board paint them differently.
+///
+/// The singles alternate between [primarySingle] and [secondarySingle] around
+/// the board, the double and triple rings between [primaryRing] and
+/// [secondaryRing], over the same sectors: a sector whose singles are primary
+/// has primary rings. The 20 is a primary sector. The bull belongs to the
+/// primary rings and the outer bull to the secondary ones. On a steel board
+/// these are black, cream, red and green; on a soft tip board blue, red, red
+/// and blue, see [BoardType]. These are the four the Capital "Colors" contract
+/// draws from; a miss lands in none.
+enum BoardArea { primarySingle, secondarySingle, primaryRing, secondaryRing }
+
+/// The area [hit] landed in, or null for a miss.
+///
+/// The alternation runs with [dartboardSegmentOrder], so a field at an even
+/// index is primary and one at an odd index secondary. That places the 20 at
+/// index 0 on the primary areas and the 19 at index 11 on the secondary ones,
+/// which is what a real board shows.
+BoardArea? areaOf(BoardHit hit) {
+  if (hit.field == 0) return null;
+  if (hit.field == 25) {
+    return hit.multiplier == 2 ? BoardArea.primaryRing : BoardArea.secondaryRing;
+  }
+  final index = dartboardSegmentOrder.indexOf(hit.field);
+  assert(index >= 0, 'not a field on the board: ${hit.field}');
+  if (hit.multiplier == 1) {
+    return index.isEven ? BoardArea.primarySingle : BoardArea.secondarySingle;
+  }
+  return index.isEven ? BoardArea.primaryRing : BoardArea.secondaryRing;
+}
+
+/// Whether [fields] are sectors that all touch each other on the board.
+///
+/// True when they are consecutive entries of [dartboardSegmentOrder] read as a
+/// ring, so the run may cross the top: 12, 5 and 20 touch. The order the
+/// fields are given in does not matter, but a repeat does not make an arc and
+/// neither the bull nor a miss is a sector, so either answers false.
+///
+/// This is board adjacency and has nothing to do with consecutive numbers: the
+/// 20, 19 and 18 sit far apart on the board and answer false here.
+bool areAdjacentSectors(List<int> fields) {
+  if (fields.isEmpty) return false;
+  final indices = <int>{};
+  for (final field in fields) {
+    final index = dartboardSegmentOrder.indexOf(field);
+    if (index < 0) return false;
+    indices.add(index);
+  }
+  if (indices.length != fields.length) return false;
+  final sectors = dartboardSegmentOrder.length;
+  for (final start in indices) {
+    final arc = List.generate(indices.length, (step) => (start + step) % sectors);
+    if (arc.every(indices.contains)) return true;
+  }
+  return false;
+}
