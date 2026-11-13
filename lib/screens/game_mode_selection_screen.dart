@@ -47,7 +47,7 @@ class _GameModeSelectionScreenState extends State<GameModeSelectionScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.selectGameMode)),
-      body: SafeArea(child: split ? _twoPaneBody(context, list) : list),
+      body: split ? _twoPaneBody(context, list) : SafeArea(child: list),
     );
   }
 
@@ -56,6 +56,11 @@ class _GameModeSelectionScreenState extends State<GameModeSelectionScreen> {
   ///
   /// The divider can be dragged, because the two panes are a list against
   /// what it opens: a reader of long rules wants them wider than the names.
+  ///
+  /// The panes keep clear of the system insets and the bar does not: it runs
+  /// to the edges of the screen and only holds its button clear of them, or
+  /// the home indicator and a status column at the side would leave a strip
+  /// of the background showing around it.
   Widget _twoPaneBody(BuildContext context, Widget list) {
     final theme  = Theme.of(context);
     final layout = context.watch<TabletLayoutProvider>();
@@ -63,36 +68,42 @@ class _GameModeSelectionScreenState extends State<GameModeSelectionScreen> {
     return Column(
       children: [
         Expanded(
-          child: SidePaneLayout(
-            side: InputSide.left,
-            fraction: layout.splitFraction(SplitPane.modes, landscape: true),
-            minPaneWidth: kMinListPaneWidth,
-            onFractionChanged: (f) =>
-                layout.setSplitFraction(SplitPane.modes, f, landscape: true),
-            onFractionSettled: () {
-              layout.persistSplitFraction(SplitPane.modes, landscape: true);
-            },
-            primary: list,
-            secondary: GameModeInfoPane(
-              key: ValueKey(_selected),
-              mode: _selected,
+          child: SafeArea(
+            bottom: false,
+            child: SidePaneLayout(
+              side: InputSide.left,
+              fraction: layout.splitFraction(SplitPane.modes, landscape: true),
+              minPaneWidth: kMinListPaneWidth,
+              onFractionChanged: (f) =>
+                  layout.setSplitFraction(SplitPane.modes, f, landscape: true),
+              onFractionSettled: () {
+                layout.persistSplitFraction(SplitPane.modes, landscape: true);
+              },
+              primary: list,
+              secondary: GameModeInfoPane(
+                key: ValueKey(_selected),
+                mode: _selected,
+              ),
             ),
           ),
         ),
         Material(
           color: theme.colorScheme.surface,
           elevation: 3,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: FilledButton.icon(
-                onPressed: () => _openSetup(_selected),
-                icon: const Icon(Icons.play_arrow),
-                label: Text(context.l10n.modeSetUpGame),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 18),
-                  textStyle: theme.textTheme.titleMedium,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: FilledButton.icon(
+                  onPressed: () => _openSetup(_selected),
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text(context.l10n.modeSetUpGame),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 18),
+                    textStyle: theme.textTheme.titleMedium,
+                  ),
                 ),
               ),
             ),

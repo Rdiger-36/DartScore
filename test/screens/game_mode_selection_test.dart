@@ -20,8 +20,9 @@ void main() {
   });
 
   /// Pumps the selection on a surface of [size].
-  Future<void> pumpSelection(WidgetTester tester, Size size) async {
-    usePhoneSurface(tester, size: size);
+  Future<void> pumpSelection(WidgetTester tester, Size size,
+      {EdgeInsets safeArea = EdgeInsets.zero}) async {
+    usePhoneSurface(tester, size: size, safeArea: safeArea);
     await tester.pumpWidget(
       ChangeNotifierProvider<TabletLayoutProvider>.value(
         value: layout,
@@ -161,6 +162,26 @@ void main() {
       expect(find.byIcon(Icons.info_outline_rounded), findsNothing);
       expect(find.text('Set up game'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('runs the bar to the edges and keeps its button off the insets',
+        (tester) async {
+      // An unfolded phone on its side: a home indicator below and a status
+      // column on the right.
+      await pumpSelection(tester, const Size(951, 669),
+          safeArea: const EdgeInsets.only(bottom: 21, right: 57));
+
+      final bar = tester.getRect(find
+          .ancestor(
+              of: find.byType(FilledButton), matching: find.byType(Material))
+          .first);
+      expect(bar.right, 951);
+      expect(bar.bottom, 669);
+
+      final button = tester.getRect(find.byType(FilledButton));
+      expect(button.bottom, lessThanOrEqualTo(669 - 21 - 16));
+      final pane = tester.getRect(find.byType(GameModeInfoPane));
+      expect(pane.right, lessThanOrEqualTo(951 - 57));
     });
 
     testWidgets('follows the divider the layout provider holds',
