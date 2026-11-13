@@ -18,34 +18,34 @@ Console. They are not the same field and neither store shows both.
 ## Short description (80)
 
 The line Google Play shows under the app name in search results and at the top
-of the listing. It is the first sentence most people read, so it names the five
+of the listing. It is the first sentence most people read, so it names the six
 modes' payoff rather than the modes themselves, which the promotional text
 below already lists.
 
-- German (78): Jeder Wurf zählt. Fünf Modi, Finish-Wege, Teams, Statistik. Offline und gratis
-- English (76): Track every dart. Five modes, live checkouts, teams, stats. Offline and free
+- German (79): Jeder Wurf zählt. Sechs Modi, Finish-Wege, Teams, Statistik. Offline und gratis
+- English (75): Track every dart. Six modes, live checkouts, teams, stats. Offline and free
 
 ## Promotional text (170)
 
-German (170):
+German (169):
 
-> Fünf Spielmodi, eine App: X01, Cricket, Shanghai, Around the Clock und die Checkout-Leiter. Finish-Wege live, Heatmap für jeden Dart, Sync ohne Internet per QR oder WLAN.
+> Sechs Spielmodi, eine App: X01, Cricket, Shanghai, Around the Clock, Checkout-Leiter und Capital. Finish-Wege live, Heatmap für jeden Dart, Sync offline per QR und WLAN.
 
-English (167):
+English (166):
 
-> Five game modes, one app: X01, Cricket, Shanghai, Around the Clock and the Checkout Ladder. Live checkout routes, a heatmap of every dart, offline sync by QR or Wi-Fi.
+> Six modes, one app: X01, Cricket, Shanghai, Around the Clock, Checkout Ladder and Capital. Live checkout routes, a heatmap of every dart, offline sync by QR or Wi-Fi.
 
 ## Description (4000)
 
 The German text is the original and the English one follows it section by
 section, so a change to one belongs in the other.
 
-### German (3591)
+### German (3790)
 
 ```
 DartScore begleitet dein Spiel während des Wurfs. Du kannst allein, gegen Freunde oder im Team spielen, auf dem Handy, dem Foldable oder dem Tablet. Jeder Wurf wird erfasst, jede Zahl wird als Statistik zurückgegeben, und nichts verlässt dein Gerät. Es gibt kein Konto, kein Internet und keine Werbung.
 
-FÜNF SPIELMODI
+SECHS SPIELMODI
 
 X01 (201, 301, 501, 701, 1001 und mehr)
 • Solo, mehrere Spieler oder Teams
@@ -73,6 +73,11 @@ Around the Clock
 Checkout-Leiter
 • Ab 81 oder einer selbst gewählten Zahl aufwärts jede Zahl mit 6, 9 oder 12 Darts checken
 • Steigen, fallen, Safehouses bauen, als Training oder als Rennen
+
+Capital
+• Fünfzehn Runden: erst das Startkapital werfen, dann vierzehn Aufgaben
+• Aufgabe erfüllt, die Punkte kommen dazu. Verfehlt, das Kapital wird halbiert
+• Für Steeldart- und Softdart-Boards
 
 Jeder Modus speichert ein unterbrochenes Spiel und setzt dort fort, wo du aufgehört hast. Die Wurfreihenfolge ist zufällig oder fest, der Platzierungsmodus wird bei mehr als zwei Spielern aktiviert.
 
@@ -111,7 +116,7 @@ COMPUTERGEGNER
 • Spieltempo wählbar: wie schnell der Bot wirft und wie lange eine Aufnahme stehen bleibt
 
 VERLAUF
-• Jedes abgeschlossene und offene Spiel in allen fünf Modi
+• Jedes abgeschlossene und offene Spiel in allen sechs Modi
 • Jede Aufnahme jedes Spielers, Wurf für Wurf
 • Einzelne Spiele oder alle auf einmal löschen
 
@@ -125,12 +130,12 @@ DartScore läuft vollständig auf deinem Gerät. Es gibt keine Werbung, kein Tra
 Wer die Arbeit unterstützen möchte, kann dies freiwillig in Form einer kleinen Spende innerhalb der App tun.
 ```
 
-### English (3341)
+### English (3528)
 
 ```
 DartScore follows your game throw by throw. Play solo, against friends or in teams, on a phone, a foldable or a tablet. Every dart is recorded, every number comes back as a statistic, and nothing leaves your device. There is no account, no internet and no advertising.
 
-FIVE GAME MODES
+SIX GAME MODES
 
 X01 (201, 301, 501, 701, 1001 and more)
 • Solo, several players or teams
@@ -158,6 +163,11 @@ Around the Clock
 Checkout Ladder
 • Up from 81 or a start of your choice, check every number in 6, 9 or 12 darts
 • Climb, fall and build safehouses, in training or as a race
+
+Capital
+• Fifteen rounds: throw your starting capital, then fourteen contracts
+• Meet a contract and the visit is added. Miss it and your capital is halved
+• For steel and soft tip boards
 
 Every mode stores a game you interrupt and carries on where you left off. The throwing order is random or fixed, and placement scoring comes in once more than two are playing.
 
@@ -196,7 +206,7 @@ COMPUTER OPPONENT
 • Game pace of your choice: how quickly the bot throws and how long a visit stays on the board
 
 HISTORY
-• Every finished and every open game, in all five modes
+• Every finished and every open game, in all six modes
 • Every visit of every player, throw by throw
 • Delete single games or all of them at once
 
@@ -224,6 +234,28 @@ belongs in the commit, not in the store.
 TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
+
+### 1.3.0 (build 202600022)
+
+German:
+
+```
+Neuer Modus: Capital
+
+Ein Partyspiel über fünfzehn Runden. Mit den ersten drei Darts wirfst du dein Startkapital, danach stellt jede Runde eine Aufgabe: eine Zahl, ein Triple, drei Nachbarn, eine Straße, genau 57. Erfüllst du sie, kommen die Punkte dazu, sonst wird dein Kapital halbiert. Für Steeldart und Softdart, allein, mit Freunden oder gegen den Bot.
+
+Außerdem: Die Modus-Auswahl ist nach Match, Party und Training sortiert. Auf dem Tablet im Querformat stehen die Regeln gleich daneben.
+```
+
+English:
+
+```
+New mode: Capital
+
+A party game over fifteen rounds. Your first three darts are your starting capital, and every round after that sets a contract: a number, a triple, three neighbours, a run, exactly 57. Meet it and the points are added, miss it and your capital is halved. For steel and soft tip boards, alone, with friends or against the bot.
+
+Also: the mode selection is sorted into match, party and training. On a tablet in landscape the rules sit right beside it.
+```
 
 ### 1.2.0 (build 202600021)
 
