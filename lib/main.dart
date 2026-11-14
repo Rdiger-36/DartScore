@@ -344,14 +344,23 @@ class DartScoreApp extends StatelessWidget {
           theme: _lightTheme,
           darkTheme: _darkTheme,
           locale: lp.locale, // null = follow system
-          // On Android: wrap every route in SafeArea(top:false) so the
-          // 3-button navigation bar never overlaps interactive content.
-          // On iOS: the system handles safe-area insets natively.
+          // Every route keeps clear of the side insets, and on Android of the
+          // bottom one too, where the 3-button navigation bar would otherwise
+          // cover interactive content. Flutter leaves all of them to the app:
+          // on iOS the sides matter wherever the system draws beside the
+          // window, as the iPhone Duo does with its camera and status column.
+          // The strip a side inset leaves is painted in the background color,
+          // so it reads as margin rather than as a black bar.
           builder: (context, child) {
             final wrapped = _OrientationLock(
-              child: Platform.isAndroid
-                  ? SafeArea(top: false, child: child!)
-                  : child!,
+              child: ColoredBox(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: SafeArea(
+                  top: false,
+                  bottom: Platform.isAndroid,
+                  child: child!,
+                ),
+              ),
             );
             // The text size the reader set, applied once for the whole app so
             // that no screen can be left out of it. A phone keeps exactly what
