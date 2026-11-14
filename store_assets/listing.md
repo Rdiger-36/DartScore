@@ -235,7 +235,7 @@ TestFlight reads its own notes from `ios/TestFlight/WhatToTest.<locale>.txt`,
 which Xcode Cloud picks up on its own. Those carry the same words plus a line
 naming what a tester should actually try, so keep the two in step.
 
-### 1.3.0 (build 202600022)
+### 1.3.0 (build 202600023)
 
 German:
 
