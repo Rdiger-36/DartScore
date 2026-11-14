@@ -156,6 +156,20 @@ void main() {
       expect(title.left, greaterThan(list.right));
     });
 
+    testWidgets('opens it on top on a tablet too narrow to divide',
+        (tester) async {
+      await pumpHistory(tester, size: const Size(669, 951));
+      await openFinished(tester);
+
+      await tester.tap(find.textContaining('301'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final detail = tester.widget<HistoryGameSummaryScreen>(
+          find.byType(HistoryGameSummaryScreen));
+      expect(detail.embedded, isFalse);
+    });
+
     testWidgets('opens it on top of the list on a phone', (tester) async {
       await pumpHistory(tester);
       await openFinished(tester);

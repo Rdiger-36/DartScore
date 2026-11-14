@@ -133,6 +133,18 @@ void main() {
       expect(find.textContaining('Bot'), findsNothing);
     });
 
+    testWidgets('opens them on top on a tablet too narrow to divide',
+        (tester) async {
+      await pumpPlayers(tester, const Size(669, 951));
+
+      expect(find.byKey(kPaneDividerKey), findsNothing);
+      await openStats(tester, 'Zoe');
+
+      final stats = tester.widget<PlayerStatsScreen>(
+          find.byType(PlayerStatsScreen));
+      expect(stats.embedded, isFalse);
+    });
+
     testWidgets('opens them on top of the list on a phone', (tester) async {
       await pumpPlayers(tester, const Size(390, 844));
 

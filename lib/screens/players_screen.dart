@@ -124,7 +124,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
       },
     );
 
-    final tablet = isTabletLayout(context);
+    final tablet = splitsListAndDetail(context);
 
     final buttons = Column(
       mainAxisSize: MainAxisSize.min,
@@ -210,7 +210,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   /// Opens the lifetime stats of [player]: beside the list where there is room
   /// for it, on top of it where there is not.
   void _openStats(BuildContext context, Player player) {
-    if (isTabletLayout(context)) {
+    if (splitsListAndDetail(context)) {
       setState(() {
         _selected = player;
         _view     = _PaneView.stats;
@@ -229,7 +229,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
   /// nobody picked. The pane shows one thing at a time, so this replaces the
   /// statistics rather than standing beside them.
   void _openSync(BuildContext context, Player? player) {
-    if (isTabletLayout(context)) {
+    if (splitsListAndDetail(context)) {
       setState(() {
         _selected = player;
         _view     = _PaneView.sync;

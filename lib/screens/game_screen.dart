@@ -205,8 +205,9 @@ class _GameScreenState extends State<GameScreen> {
               actions: [
                 // Which hand holds the tablet changes between games and even
                 // between players, so the swap belongs here rather than three
-                // screens away in the settings.
-                if (layout != null)
+                // screens away in the settings. Stacked, on a tablet too
+                // narrow to divide, there is no side to swap.
+                if (layout != null && (landscape || splitsListAndDetail(context)))
                   IconButton(
                     icon: const Icon(Icons.swap_horiz_rounded, size: 26),
                     tooltip: context.l10n.swapInputSide,
@@ -373,6 +374,26 @@ class _TabletBody extends StatelessWidget {
     }
 
     final fraction = layout.splitFraction(SplitPane.game, landscape: false);
+
+    // Too narrow for the input and the stats to share the width: the column a
+    // phone gets, at the size the score card already scaled to.
+    if (!splitsListAndDetail(context)) {
+      return Center(
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: DartboardInput.maxFilledWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              scoreboardBlock,
+              SizedBox(height: scoreboardGap),
+              const Expanded(
+                  child: DartboardInput<GameProvider>(fillHeight: true)),
+            ],
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, box) {

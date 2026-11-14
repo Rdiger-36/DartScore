@@ -369,7 +369,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   /// Opens the detail of [e]: beside the list where there is room for it, on
   /// top of it where there is not.
   void _showSummary(BuildContext context, _HistoryEntry e) {
-    if (isTabletLayout(context)) {
+    if (splitsListAndDetail(context)) {
       setState(() => _selected = e);
       return;
     }
@@ -382,9 +382,10 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   Widget build(BuildContext context) {
     final tablet = isTabletLayout(context);
+    final split  = splitsListAndDetail(context);
     // The divider is one setting for the whole app: wherever two panes share a
     // screen, they share the position the player dragged them to.
-    final layout = tablet ? context.watch<TabletLayoutProvider>() : null;
+    final layout = split ? context.watch<TabletLayoutProvider>() : null;
     final landscape =
         MediaQuery.sizeOf(context).width >= MediaQuery.sizeOf(context).height;
 
@@ -479,7 +480,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               // The pane belongs to this tab rather than to the screen. Around
               // the whole TabBarView it would appear and disappear halfway
               // through a swipe, which resizes both pages under the finger.
-              if (!tablet)
+              if (!split)
                 finishedList
               else
                 SidePaneLayout(
