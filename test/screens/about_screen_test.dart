@@ -50,6 +50,16 @@ void main() {
     expect(notice.center.dx, closeTo(1180 / 2, 20));
   });
 
+  testWidgets('credits the contributors below the developer', (tester) async {
+    await pumpAbout(tester, const Size(400, 900));
+
+    expect(find.text('Contributors'), findsOneWidget);
+    expect(find.text('Mark Johnson'), findsOneWidget);
+    expect(find.text('Capital game mode'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Contributors')).dy,
+        greaterThan(tester.getTopLeft(find.text('Niklas Ratka')).dy));
+  });
+
   testWidgets('names the repository the binary is built from', (tester) async {
     await pumpAbout(tester, const Size(400, 900));
 
@@ -69,6 +79,9 @@ void main() {
       (tester) async {
     await pumpAbout(tester, const Size(1180, 820));
 
+    // The last card on the screen, below the fold of a landscape tablet.
+    await tester.ensureVisible(find.text('Open Source Licenses').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open Source Licenses').last);
     await tester.pumpAndSettle();
 
