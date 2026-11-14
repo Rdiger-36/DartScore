@@ -14,6 +14,13 @@ const _licenseUrl = 'https://www.gnu.org/licenses/gpl-3.0.html';
 /// source is, and the store build is the only copy most readers ever see.
 const _sourceUrl = 'https://github.com/Rdiger-36/DartScore';
 
+/// Everyone who brought code into the app beside the developer, with what
+/// they contributed, in the order they joined. The name is written the way
+/// the contributor asked to be credited, and so is never localized.
+final _contributors = <(String name, String Function(AppLocalizations) what)>[
+  ('Mark Johnson', (l) => l.contributionCapital),
+];
+
 const _gplNoticeText = '''
 DartScore
 Copyright (C) 2026 Niklas Ratka
@@ -150,6 +157,23 @@ class _AboutScreenState extends State<AboutScreen> {
             child: const ListTile(
               leading: Icon(Icons.person_rounded),
               title: Text('Niklas Ratka'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _Card(
+            title: l.contributors,
+            icon: Icons.groups_rounded,
+            child: Column(
+              children: [
+                for (final (i, (name, what)) in _contributors.indexed) ...[
+                  if (i > 0) const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.person_rounded),
+                    title: Text(name),
+                    subtitle: Text(what(l)),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 20),

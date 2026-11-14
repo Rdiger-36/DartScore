@@ -487,6 +487,8 @@ class AppLocalizations {
   String get aboutTitle        => _t('About DartScore', 'Über DartScore');
   String get version           => _t('Version', 'Version');
   String get developer         => _t('Developer', 'Entwickler');
+  String get contributors      => _t('Contributors', 'Mitwirkende');
+  String get contributionCapital => _t('Capital game mode', 'Spielmodus Capital');
   String get support           => _t('Support', 'Support');
   String get supportDesc       => _t('Get help or report an issue', 'Hilfe erhalten oder ein Problem melden');
   String get sourceCode        => _t('Source code', 'Quelltext');

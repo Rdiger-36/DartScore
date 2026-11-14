@@ -54,7 +54,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
   /// Opens [package]: beside the list where there is room for it, on top of it
   /// where there is not.
   void _open(BuildContext context, _PackageLicenses package) {
-    if (isTabletLayout(context)) {
+    if (splitsListAndDetail(context)) {
       setState(() => _selected = package);
       return;
     }
@@ -66,7 +66,7 @@ class _LicensesScreenState extends State<LicensesScreen> {
   @override
   Widget build(BuildContext context) {
     final l      = context.l10n;
-    final tablet = isTabletLayout(context);
+    final tablet = splitsListAndDetail(context);
 
     return Scaffold(
       appBar: AppBar(title: Text(l.openSourceLicenses)),

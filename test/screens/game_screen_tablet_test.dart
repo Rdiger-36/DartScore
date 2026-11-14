@@ -136,6 +136,18 @@ void main() {
       expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
     });
 
+    testWidgets('keeps one column on a tablet too narrow to divide upright',
+        (tester) async {
+      // An unfolded foldable held upright: over the breakpoint, but half of it
+      // is narrower than a phone.
+      await pumpGame(tester, surface: const Size(669, 951));
+
+      expect(find.byType(LivePlayerStatsPanel), findsNothing);
+      expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+      expect(find.byType(DartboardInput<GameProvider>), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('splits only the space below the scoreboard in portrait',
         (tester) async {
       await pumpGame(tester, surface: _tabletPortrait);

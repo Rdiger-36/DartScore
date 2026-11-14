@@ -137,6 +137,21 @@ class _ScaledTextScaler extends TextScaler {
 /// dates and names needs less room than what it opens, but not much less.
 const double kMinListPaneWidth = 320.0;
 
+/// Narrowest either side of a list beside what it opens is worth showing, the
+/// history, the player list, the licenses and the stats beside the X01 input.
+///
+/// The breakpoint alone lets a window divide from 600 dp, where each half is
+/// narrower than a phone: an unfolded foldable held upright. Below twice this
+/// those screens keep the single column a phone gets, and an upright iPad,
+/// mini included, still divides.
+const double kMinDetailPaneWidth = 360.0;
+
+/// Whether the window is wide enough to put a list and what it opens side by
+/// side, rather than opening it on top.
+bool splitsListAndDetail(BuildContext context) =>
+    isTabletLayout(context) &&
+    fitsTwoPanes(MediaQuery.sizeOf(context).width, kMinDetailPaneWidth);
+
 /// Narrowest a column of the setup is worth showing.
 ///
 /// A setup column is a stack of cards whose rows are a label beside a control,

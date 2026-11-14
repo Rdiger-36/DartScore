@@ -97,6 +97,13 @@ void main() {
     expect(find.textContaining('Pick a package'), findsNothing);
   });
 
+  testWidgets('keeps one column on a tablet too narrow to divide',
+      (tester) async {
+    await pumpLicenses(tester, const Size(669, 951));
+
+    expect(find.byKey(kPaneDividerKey), findsNothing);
+  });
+
   testWidgets('opens it on top of the list on a phone', (tester) async {
     await pumpLicenses(tester, const Size(400, 900));
 
